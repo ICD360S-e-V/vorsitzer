@@ -799,7 +799,7 @@ class _SignatureDialogState extends State<_SignatureDialog> {
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: Row(children: [
-        Icon(Icons.draw, color: c.shade700, size: 22),
+        Icon(Icons.draw, color: F.h(c, 700), size: 22),
         const SizedBox(width: 8),
         Expanded(child: Text('Unterschrift prüfen — ${widget.child.childFullName}',
           style: const TextStyle(fontSize: 16))),

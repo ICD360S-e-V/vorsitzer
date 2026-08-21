@@ -1831,7 +1831,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 margin: const EdgeInsets.only(bottom: 8),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: color.shade300, width: 1.5),
+                  side: BorderSide(color: F.h(color, 300), width: 1.5),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -1841,10 +1841,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: color.shade50,
+                          color: F.h(color, 50),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(_getTypIcon(v.typ), color: color.shade800, size: 24),
+                        child: Icon(_getTypIcon(v.typ), color: F.h(color, 800), size: 24),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1856,12 +1856,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: color.shade100,
+                                    color: F.h(color, 100),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
                                     v.typDisplay,
-                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade900),
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 900)),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -2579,7 +2579,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: doc.isExpired ? F.h(Colors.red, 300) : (doc.isExpiringSoon ? Colors.orange.shade300 : color.withValues(alpha: 0.3)),
+          color: doc.isExpired ? F.h(Colors.red, 300) : (doc.isExpiringSoon ? F.h(Colors.orange, 300) : color.withValues(alpha: 0.3)),
           width: doc.isExpired || doc.isExpiringSoon ? 2 : 1,
         ),
       ),
@@ -2652,7 +2652,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                         Icon(
                           doc.isExpired ? Icons.error : (doc.isExpiringSoon ? Icons.warning : Icons.schedule),
                           size: 13,
-                          color: doc.isExpired ? Colors.red : (doc.isExpiringSoon ? Colors.orange : Colors.grey),
+                          color: doc.isExpired ? Colors.red : (doc.isExpiringSoon ? Colors.orange : F.h(Colors.grey, 500)),
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -2661,7 +2661,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                               : 'Gültig bis ${DateFormat('dd.MM.yyyy').format(doc.ablaufDatum!)}${doc.isExpiringSoon ? ' (${doc.daysUntilExpiry} Tage)' : ''}',
                           style: TextStyle(
                             fontSize: 11,
-                            color: doc.isExpired ? Colors.red : (doc.isExpiringSoon ? Colors.orange.shade700 : Colors.grey.shade600),
+                            color: doc.isExpired ? Colors.red : (doc.isExpiringSoon ? F.h(Colors.orange, 700) : F.h(Colors.grey, 600)),
                             fontWeight: doc.isExpired || doc.isExpiringSoon ? FontWeight.w600 : FontWeight.normal,
                           ),
                         ),
@@ -2732,13 +2732,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.shade50,
+        color: F.h(color, 50),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.shade200),
+        border: Border.all(color: F.h(color, 200)),
       ),
       child: Text(
         '$label: $count',
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color.shade800),
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(color, 800)),
       ),
     );
   }
@@ -3409,7 +3409,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               content: Text(msg),
               backgroundColor: becameActive
                   ? Colors.purple.shade700
-                  : (status == 'geprueft' ? Colors.green : status == 'abgelehnt' ? Colors.red : Colors.grey),
+                  : (status == 'geprueft' ? Colors.green : status == 'abgelehnt' ? Colors.red : F.h(Colors.grey, 500)),
               duration: Duration(seconds: becameActive ? 6 : 3),
             ),
           );
@@ -5056,20 +5056,20 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: accent.shade50,
+              color: F.h(accent, 50),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
                 Icon(
                   finSituation == 'nein' ? Icons.check_circle : Icons.info_outline,
-                  color: accent.shade700,
+                  color: F.h(accent, 700),
                   size: 20,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   finanzLabels[finSituation] ?? finSituation,
-                  style: TextStyle(fontWeight: FontWeight.bold, color: accent.shade700),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: F.h(accent, 700)),
                 ),
               ],
             ),
@@ -5099,9 +5099,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         if (isExempt) ...[
           const SizedBox(height: 12),
           Row(children: [
-            Icon(Icons.attach_file, size: 16, color: accent.shade700),
+            Icon(Icons.attach_file, size: 16, color: F.h(accent, 700)),
             const SizedBox(width: 6),
-            Text('Leistungsbescheid(e)', style: TextStyle(fontWeight: FontWeight.bold, color: accent.shade700, fontSize: 13)),
+            Text('Leistungsbescheid(e)', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(accent, 700), fontSize: 13)),
             const Spacer(),
             IconButton(
               icon: const Icon(Icons.refresh, size: 16),
@@ -5150,12 +5150,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: accent.shade50,
+        color: F.h(accent, 50),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: accent.shade100),
       ),
       child: Row(children: [
-        Icon(icon, size: 18, color: accent.shade700),
+        Icon(icon, size: 18, color: F.h(accent, 700)),
         const SizedBox(width: 8),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -5163,8 +5163,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             Row(children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(color: accent.shade100, borderRadius: BorderRadius.circular(8)),
-                child: Text(sizePill, style: TextStyle(fontSize: 10, color: accent.shade800)),
+                decoration: BoxDecoration(color: F.h(accent, 100), borderRadius: BorderRadius.circular(8)),
+                child: Text(sizePill, style: TextStyle(fontSize: 10, color: F.h(accent, 800))),
               ),
               if (isLegacy) ...[
                 const SizedBox(width: 4),
@@ -5178,7 +5178,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           ]),
         ),
         IconButton(
-          icon: Icon(Icons.open_in_new, size: 18, color: accent.shade700),
+          icon: Icon(Icons.open_in_new, size: 18, color: F.h(accent, 700)),
           tooltip: 'Öffnen',
           onPressed: () => _openLeistungsbescheidFile(file),
         ),
@@ -8160,7 +8160,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   }
 
   Widget _buildMonatsTrenner(String label, int count, {required bool isPast}) {
-    final color = isPast ? Colors.grey.shade500 : Colors.blue.shade700;
+    final color = isPast ? F.h(Colors.grey, 500) : F.h(Colors.blue, 700);
     return Padding(
       padding: const EdgeInsets.only(top: 6, bottom: 8),
       child: Row(

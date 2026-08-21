@@ -2368,11 +2368,11 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       Widget section(String label, IconData icon, MaterialColor color, List<Map<String, dynamic>> list, String artKey) {
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(icon, size: 20, color: color.shade700),
+            Icon(icon, size: 20, color: F.h(color, 700)),
             const SizedBox(width: 8),
-            Flexible(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
+            Flexible(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(color, 800)), overflow: TextOverflow.ellipsis)),
             const Spacer(),
-            IconButton(icon: Icon(Icons.search, color: color.shade600), tooltip: '$label auswählen', onPressed: () => _openArbeitgeberSearch(artKey, setLocal)),
+            IconButton(icon: Icon(Icons.search, color: F.h(color, 600)), tooltip: '$label auswählen', onPressed: () => _openArbeitgeberSearch(artKey, setLocal)),
           ]),
           const SizedBox(height: 6),
           if (list.isEmpty)
@@ -2414,17 +2414,17 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
     final adresse = dbAg != null ? '${dbAg['hauptzentrale_strasse'] ?? ''}, ${dbAg['hauptzentrale_plz'] ?? ''} ${dbAg['hauptzentrale_ort'] ?? ''}'.trim() : '';
 
     return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.shade200)),
+      decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(color, 200))),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () { final idx = _arbeitgeberFromDB.indexOf(ag); if (idx >= 0) _showBerufserfahrungModal(context, ag, idx, arbeitgeberListe: _arbeitgeberFromDB, selectedArbeitgeberId: _selectedArbeitgeberId); },
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Container(width: 48, height: 48, decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-              child: Icon(const {'Minijob': Icons.work_outline, 'Teilzeit': Icons.timelapse, 'Ferienjob': Icons.beach_access, 'Ausbildung': Icons.menu_book, 'Selbständige Arbeit': Icons.business_center, 'Freiberuflich': Icons.badge, 'Gemeinnützig': Icons.volunteer_activism, 'Ehrenamt': Icons.handshake, 'Praktikum': Icons.explore, 'Werkstudent': Icons.school}[label] ?? Icons.work, color: color.shade700, size: 26)),
+            Container(width: 48, height: 48, decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(12)),
+              child: Icon(const {'Minijob': Icons.work_outline, 'Teilzeit': Icons.timelapse, 'Ferienjob': Icons.beach_access, 'Ausbildung': Icons.menu_book, 'Selbständige Arbeit': Icons.business_center, 'Freiberuflich': Icons.badge, 'Gemeinnützig': Icons.volunteer_activism, 'Ehrenamt': Icons.handshake, 'Praktikum': Icons.explore, 'Werkstudent': Icons.school}[label] ?? Icons.work, color: F.h(color, 700), size: 26)),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(firma, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
+              Text(firma, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(color, 800))),
               if ((ag['position']?.toString() ?? '').isNotEmpty) Text(ag['position'].toString(), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
             ])),
             Icon(Icons.chevron_right, color: color.shade400),
@@ -3757,7 +3757,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               Icon(
                                 isPdf ? Icons.picture_as_pdf : (isImage ? Icons.image : Icons.insert_drive_file),
                                 size: 18,
-                                color: isPdf ? F.h(Colors.red, 600) : (isImage ? Colors.blue.shade600 : Colors.purple.shade600),
+                                color: isPdf ? F.h(Colors.red, 600) : (isImage ? F.h(Colors.blue, 600) : F.h(Colors.purple, 600)),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -4166,14 +4166,14 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                 onTap: () {
                   showDialog(context: context, builder: (detCtx) => AlertDialog(
                     title: Row(children: [
-                      Icon(Icons.report_problem, size: 20, color: stColor.shade700),
+                      Icon(Icons.report_problem, size: 20, color: F.h(stColor, 700)),
                       const SizedBox(width: 8),
                       Expanded(child: Text(v['titel']?.toString() ?? (typLabels[v['typ']] ?? ''), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
                     ]),
                     content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                       Row(children: [
-                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(12)),
-                          child: Text(statusLabels[st] ?? st, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: stColor.shade800))),
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(stColor, 100), borderRadius: BorderRadius.circular(12)),
+                          child: Text(statusLabels[st] ?? st, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(stColor, 800)))),
                         const SizedBox(width: 8),
                         Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(12)),
                           child: Text(typLabels[v['typ']] ?? v['typ']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 700)))),
@@ -4191,12 +4191,12 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                     actions: [TextButton(onPressed: () => Navigator.pop(detCtx), child: const Text('Schließen'))],
                   ));
                 },
-                leading: Icon(Icons.report_problem, color: stColor.shade600, size: 20),
+                leading: Icon(Icons.report_problem, color: F.h(stColor, 600), size: 20),
                 title: Text(v['titel']?.toString() ?? (typLabels[v['typ']] ?? ''), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 subtitle: Text('${typLabels[v['typ']] ?? ''} · ${v['datum'] ?? ''}', style: const TextStyle(fontSize: 10)),
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(8)),
-                    child: Text(statusLabels[st] ?? st, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: stColor.shade800))),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: F.h(stColor, 100), borderRadius: BorderRadius.circular(8)),
+                    child: Text(statusLabels[st] ?? st, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(stColor, 800)))),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), onPressed: () async {
                     await widget.apiService.arbeitgeberAction(widget.user.id, {'action': 'delete_vorfall', 'id': v['id']});
                     vorfaelle.removeAt(i); setLocal(() {});

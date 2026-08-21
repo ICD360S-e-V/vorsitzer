@@ -398,14 +398,14 @@ class _GithubKorrespondenzTabState extends State<GithubKorrespondenzTab> {
                 children: [
                   Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(isEingang ? Icons.south_west : Icons.north_east,
-                        size: 16, color: accent.shade600),
+                        size: 16, color: F.h(accent, 600)),
                     const SizedBox(width: 6),
                     Text(isEingang ? 'EINGANG' : 'AUSGANG',
                         style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.6,
-                            color: accent.shade700)),
+                            color: F.h(accent, 700))),
                   ]),
                   if (repo.isNotEmpty)
                     Row(mainAxisSize: MainAxisSize.min, children: [

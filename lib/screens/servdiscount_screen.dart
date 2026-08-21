@@ -209,14 +209,14 @@ class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final c = isEin ? Colors.green : Colors.blue;
             const mL = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online/Ticket', 'persoenlich': 'Persönlich'};
             return InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showDetail(k),
-              child: Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
-                child: Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: c.shade700), const SizedBox(width: 8),
+              child: Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(c, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(c, 200))),
+                child: Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: F.h(c, 700)), const SizedBox(width: 8),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800)),
+                    Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(c, 800))),
                     if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   ])),
-                  if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: c.shade100, borderRadius: BorderRadius.circular(4)),
-                    child: Text(mL[k['methode']] ?? k['methode'].toString(), style: TextStyle(fontSize: 9, color: c.shade700))),
+                  if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: F.h(c, 100), borderRadius: BorderRadius.circular(4)),
+                    child: Text(mL[k['methode']] ?? k['methode'].toString(), style: TextStyle(fontSize: 9, color: F.h(c, 700)))),
                   Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
                 ])));
           })),
@@ -229,8 +229,8 @@ class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
     final kId = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
     showDialog(context: context, builder: (ctx) => AlertDialog(
       titlePadding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
-      title: Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: c.shade700), const SizedBox(width: 8),
-        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: c.shade800), overflow: TextOverflow.ellipsis)),
+      title: Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: F.h(c, 700)), const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(c, 800)), overflow: TextOverflow.ellipsis)),
         IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
           await widget.apiService.servdiscountAction({'action': 'delete_korr', 'id': kId}); await _load(); if (ctx.mounted) Navigator.pop(ctx); }),
         IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(ctx))]),
@@ -693,7 +693,7 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
                     value: _totpRemaining / 30.0,
                     strokeWidth: 3,
                     backgroundColor: F.h(Colors.grey, 200),
-                    color: _totpRemaining <= 5 ? Colors.red : (_totpRemaining <= 10 ? Colors.orange : Colors.indigo.shade600),
+                    color: _totpRemaining <= 5 ? Colors.red : (_totpRemaining <= 10 ? Colors.orange : F.h(Colors.indigo, 600)),
                   )),
                   const SizedBox(width: 8),
                   Text('${_totpRemaining}s', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _totpRemaining <= 5 ? Colors.red : F.h(Colors.grey, 700))),

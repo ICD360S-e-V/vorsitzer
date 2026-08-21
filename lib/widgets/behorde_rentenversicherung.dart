@@ -669,13 +669,13 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: empty ? (optional ? Colors.grey.shade100 : Colors.red.shade50) : F.h(Colors.green, 50),
+        color: empty ? (optional ? F.h(Colors.grey, 100) : F.h(Colors.red, 50)) : F.h(Colors.green, 50),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: empty ? (optional ? Colors.grey.shade300 : Colors.red.shade300) : F.h(Colors.green, 300)),
+        border: Border.all(color: empty ? (optional ? F.h(Colors.grey, 300) : F.h(Colors.red, 300)) : F.h(Colors.green, 300)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(empty ? (optional ? Icons.remove : Icons.warning_amber) : Icons.check, size: 11,
-          color: empty ? (optional ? Colors.grey.shade500 : Colors.red.shade700) : F.h(Colors.green, 700)),
+          color: empty ? (optional ? F.h(Colors.grey, 500) : F.h(Colors.red, 700)) : F.h(Colors.green, 700)),
         const SizedBox(width: 4),
         Text('$label: ', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
         Text(empty ? (optional ? '(optional)' : '—') : value, style: TextStyle(fontSize: 10, color: F.textStark, fontWeight: FontWeight.w600)),

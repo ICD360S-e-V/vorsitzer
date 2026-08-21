@@ -1004,7 +1004,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                 margin: const EdgeInsets.only(bottom: 8),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: color.shade300, width: 1.5),
+                  side: BorderSide(color: F.h(color, 300), width: 1.5),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -1014,10 +1014,10 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: color.shade50,
+                          color: F.h(color, 50),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(_getTypIcon(v.typ), color: color.shade800, size: 24),
+                        child: Icon(_getTypIcon(v.typ), color: F.h(color, 800), size: 24),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1029,12 +1029,12 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: color.shade100,
+                                    color: F.h(color, 100),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
                                     v.typDisplay,
-                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade900),
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 900)),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -1915,13 +1915,13 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.shade50,
+        color: F.h(color, 50),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.shade200),
+        border: Border.all(color: F.h(color, 200)),
       ),
       child: Text(
         '$label: $count',
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color.shade800),
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(color, 800)),
       ),
     );
   }

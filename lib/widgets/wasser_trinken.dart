@@ -44,11 +44,11 @@ class _WasserTrinkenTabState extends State<WasserTrinkenTab> with TickerProvider
   }
 
   Widget _miniInfo(IconData icon, String text, MaterialColor color) {
-    return Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: color.shade200)),
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(20), border: Border.all(color: F.h(color, 200))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 14, color: color.shade700),
+        Icon(icon, size: 14, color: F.h(color, 700)),
         const SizedBox(width: 4),
-        Text(text, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color.shade800)),
+        Text(text, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: F.h(color, 800))),
       ]),
     );
   }

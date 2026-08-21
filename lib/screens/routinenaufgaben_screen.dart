@@ -333,12 +333,12 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
             decoration: BoxDecoration(
               color: isToday
                   ? F.h(Colors.teal, 50)
-                  : (isWeekend ? Colors.orange.shade50 : Colors.grey.shade50),
+                  : (isWeekend ? F.h(Colors.orange, 50) : F.h(Colors.grey, 50)),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isToday
                     ? F.h(Colors.teal, 300)
-                    : (isWeekend ? Colors.orange.shade200 : Colors.grey.shade300),
+                    : (isWeekend ? F.h(Colors.orange, 200) : F.h(Colors.grey, 300)),
                 width: isToday ? 2 : 1,
               ),
             ),
@@ -457,7 +457,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: exec.isDone ? F.h(Colors.green, 200) : (exec.isSkipped ? Colors.orange.shade200 : Colors.grey.shade300),
+          color: exec.isDone ? F.h(Colors.green, 200) : (exec.isSkipped ? F.h(Colors.orange, 200) : F.h(Colors.grey, 300)),
         ),
       ),
       child: InkWell(

@@ -1208,7 +1208,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                     letterSpacing: 4,
                                     color: _totpError != null
                                         ? F.h(Colors.red, 700)
-                                        : (urgentColor ? Colors.orange.shade700 : Colors.indigo.shade900),
+                                        : (urgentColor ? F.h(Colors.orange, 700) : F.h(Colors.indigo, 900)),
                                   ),
                                 ),
                               ],

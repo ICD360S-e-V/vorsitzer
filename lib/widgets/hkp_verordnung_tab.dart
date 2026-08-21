@@ -376,7 +376,7 @@ class _HkpVerordnungTabState extends State<HkpVerordnungTab> {
         decoration: BoxDecoration(
           color: F.flaeche,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: farbe.shade200),
+          border: Border.all(color: F.h(farbe, 200)),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
@@ -440,8 +440,8 @@ class _HkpVerordnungTabState extends State<HkpVerordnungTab> {
 
   Widget _chip(String text, MaterialColor c) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-        decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: c.shade200)),
-        child: Text(text, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: c.shade800)),
+        decoration: BoxDecoration(color: F.h(c, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(c, 200))),
+        child: Text(text, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: F.h(c, 800))),
       );
 
   Widget _zeile(IconData i, String t) => Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1949,7 +1949,7 @@ class _HkpKorrespondenzListeState extends State<_HkpKorrespondenzListe> {
             ),
             if (!bearbeiten)
               IconButton(
-                  icon: Icon(Icons.edit, size: 18, color: widget.farbe.shade600),
+                  icon: Icon(Icons.edit, size: 18, color: F.h(widget.farbe, 600)),
                   tooltip: 'Bearbeiten',
                   onPressed: () => setD(() => bearbeiten = true)),
           ]),

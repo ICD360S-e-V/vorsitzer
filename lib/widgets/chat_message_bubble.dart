@@ -292,10 +292,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: isUrgent
-                    ? (widget.isOwn ? Colors.red.shade900 : Colors.red.shade50)
+                    ? (widget.isOwn ? Colors.red.shade900 : F.h(Colors.red, 50))
                     : showMasked
-                        ? (widget.isOwn ? const Color(0xFF12121f) : Colors.grey.shade200)
-                        : (widget.isOwn ? const Color(0xFF1a1a2e) : Colors.white),
+                        ? (widget.isOwn ? const Color(0xFF12121f) : F.h(Colors.grey, 200))
+                        : (widget.isOwn ? const Color(0xFF1a1a2e) : F.flaeche),
                 border: isUrgent
                     ? Border.all(color: Colors.red, width: 2)
                     : showMasked

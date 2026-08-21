@@ -157,7 +157,7 @@ class _LegalFooterState extends State<LegalFooter> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final textColor = widget.darkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+    final textColor = widget.darkMode ? F.h(Colors.grey, 400) : F.h(Colors.grey, 600);
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),

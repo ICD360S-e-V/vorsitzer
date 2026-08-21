@@ -586,10 +586,10 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
 
   Widget _smallBadge(IconData icon, String text, MaterialColor color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+    decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(color, 200))),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 11, color: color.shade800), const SizedBox(width: 3),
-      Text(text, style: TextStyle(fontSize: 10, color: color.shade900, fontWeight: FontWeight.w600)),
+      Icon(icon, size: 11, color: F.h(color, 800)), const SizedBox(width: 3),
+      Text(text, style: TextStyle(fontSize: 10, color: F.h(color, 900), fontWeight: FontWeight.w600)),
     ]),
   );
 
@@ -1405,10 +1405,10 @@ class _StellenDetailDialogState extends State<_StellenDetailDialog> {
 
   Widget _badge(IconData icon, String text, MaterialColor color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
+    decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(color, 200))),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 12, color: color.shade800), const SizedBox(width: 4),
-      Text(text, style: TextStyle(fontSize: 11, color: color.shade900)),
+      Icon(icon, size: 12, color: F.h(color, 800)), const SizedBox(width: 4),
+      Text(text, style: TextStyle(fontSize: 11, color: F.h(color, 900))),
     ]),
   );
 

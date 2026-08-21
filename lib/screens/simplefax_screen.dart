@@ -279,14 +279,14 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.shade200)),
+      decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(color, 200))),
       child: Row(children: [
-        CircleAvatar(backgroundColor: color.shade100, radius: 20, child: Icon(icon, color: color.shade700, size: 20)),
+        CircleAvatar(backgroundColor: F.h(color, 100), radius: 20, child: Icon(icon, color: F.h(color, 700), size: 20)),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(fontSize: 11, color: color.shade600)),
+          Text(label, style: TextStyle(fontSize: 11, color: F.h(color, 600))),
           const SizedBox(height: 2),
-          Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: color.shade900)),
+          Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: F.h(color, 900))),
         ])),
         if (copyable)
           IconButton(
@@ -848,9 +848,9 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
 
   Widget _kontaktBadge(IconData icon, String txt, MaterialColor color) {
     final row = Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 11, color: color.shade600),
+      Icon(icon, size: 11, color: F.h(color, 600)),
       const SizedBox(width: 3),
-      Text(txt, style: TextStyle(fontSize: 11, color: color.shade800)),
+      Text(txt, style: TextStyle(fontSize: 11, color: F.h(color, 800))),
     ]);
     if (!isPhoneIcon(icon)) return row;
     return PhoneTapTarget(number: txt, child: row);
@@ -1094,18 +1094,18 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         decoration: BoxDecoration(
           color: F.flaeche,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.shade200),
+          border: Border.all(color: F.h(color, 200)),
           boxShadow: [BoxShadow(color: color.shade50, blurRadius: 4)],
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            CircleAvatar(radius: 14, backgroundColor: color.shade100, child: Icon(icon, size: 14, color: color.shade700)),
+            CircleAvatar(radius: 14, backgroundColor: F.h(color, 100), child: Icon(icon, size: 14, color: F.h(color, 700))),
             const SizedBox(width: 8),
-            Expanded(child: Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900))),
+            Expanded(child: Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 900)))),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade300)),
-              child: Text(ab, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800)),
+              decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(color, 300))),
+              child: Text(ab, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 800))),
             ),
           ]),
           const SizedBox(height: 8),
@@ -1125,12 +1125,12 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
   Widget _serviceFact(IconData icon, String label, String value, MaterialColor color) {
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade100)),
+      decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade100)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, color: color.shade700, size: 18),
+        Icon(icon, color: F.h(color, 700), size: 18),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 10, color: color.shade700)),
-        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900)),
+        Text(label, style: TextStyle(fontSize: 10, color: F.h(color, 700))),
+        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 900))),
       ]),
     );
   }
@@ -1301,10 +1301,10 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         Wrap(spacing: 6, runSpacing: 6, children: _verifStatusMap.entries.map((e) {
           final c = e.value['color'] as MaterialColor;
           return ChoiceChip(
-            avatar: Icon(e.value['icon'] as IconData, size: 14, color: c.shade700),
+            avatar: Icon(e.value['icon'] as IconData, size: 14, color: F.h(c, 700)),
             label: Text(e.value['label'] as String, style: const TextStyle(fontSize: 11)),
             selected: statusSel == e.key,
-            selectedColor: c.shade100,
+            selectedColor: F.h(c, 100),
             onSelected: (_) => setDlg(() => statusSel = e.key),
           );
         }).toList()),
@@ -1405,19 +1405,19 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    color: isSel ? color.shade50 : Colors.transparent,
+                    color: isSel ? F.h(color, 50) : Colors.transparent,
                     border: Border(left: BorderSide(color: isSel ? color.shade700 : Colors.transparent, width: 3)),
                   ),
                   child: Row(children: [
-                    Icon(m['icon'] as IconData, size: 16, color: isSel ? color.shade700 : (danger ? Colors.red.shade400 : Colors.grey.shade600)),
+                    Icon(m['icon'] as IconData, size: 16, color: isSel ? F.h(color, 700) : (danger ? Colors.red.shade400 : F.h(Colors.grey, 600))),
                     const SizedBox(width: 10),
                     Expanded(child: Text(m['label'] as String,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                        color: isSel ? color.shade800 : (danger ? Colors.red.shade400 : Colors.grey.shade800),
+                        color: isSel ? F.h(color, 800) : (danger ? Colors.red.shade400 : F.h(Colors.grey, 800)),
                       ))),
-                    if (isSel) Icon(Icons.chevron_right, size: 14, color: color.shade700),
+                    if (isSel) Icon(Icons.chevron_right, size: 14, color: F.h(color, 700)),
                   ]),
                 ),
               );
@@ -1554,7 +1554,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
                 SizedBox(width: 80, child: Text(
                   '${isPositive ? '+' : ''}${preis.toStringAsFixed(2).replaceAll('.', ',')} €',
                   textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade700),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 700)),
                 )),
               ]),
             );
@@ -1569,11 +1569,11 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+        decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(color, 200))),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 18, color: color.shade700),
+          Icon(icon, size: 18, color: F.h(color, 700)),
           const SizedBox(width: 8),
-          Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color.shade800)),
+          Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(color, 800))),
         ]),
       ),
     );
@@ -1640,14 +1640,14 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: sel ? color.shade100 : F.h(Colors.grey, 50),
+          color: sel ? F.h(color, 100) : F.h(Colors.grey, 50),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: sel ? color.shade400 : F.h(Colors.grey, 300), width: sel ? 2 : 1),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 18, color: sel ? color.shade700 : F.h(Colors.grey, 500)),
+          Icon(icon, size: 18, color: sel ? F.h(color, 700) : F.h(Colors.grey, 500)),
           const SizedBox(width: 8),
-          Text(label, style: TextStyle(fontSize: 13, fontWeight: sel ? FontWeight.bold : FontWeight.normal, color: sel ? color.shade800 : F.h(Colors.grey, 700))),
+          Text(label, style: TextStyle(fontSize: 13, fontWeight: sel ? FontWeight.bold : FontWeight.normal, color: sel ? F.h(color, 800) : F.h(Colors.grey, 700))),
         ]),
       ),
     );
@@ -2338,7 +2338,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
                 borderRadius: BorderRadius.circular(12),
                 onTap: () => _showKorrDetail(k, i),
                 child: ListTile(
-                  leading: CircleAvatar(backgroundColor: color.shade100, child: Icon(katIcon, color: color.shade700, size: 20)),
+                  leading: CircleAvatar(backgroundColor: F.h(color, 100), child: Icon(katIcon, color: F.h(color, 700), size: 20)),
                   title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   subtitle: Row(children: [
                     Text('${k['datum'] ?? ''} • ${isEin ? 'Eingehend' : 'Ausgehend'}', style: const TextStyle(fontSize: 11)),
@@ -2415,14 +2415,14 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     final katIcon = _kategorieIcons[kat] ?? Icons.email;
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(katIcon, size: 20, color: color.shade700),
+        Icon(katIcon, size: 20, color: F.h(color, 700)),
         const SizedBox(width: 8),
-        Expanded(child: Text(k['betreff']?.toString() ?? 'Korrespondenz', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color.shade800))),
+        Expanded(child: Text(k['betreff']?.toString() ?? 'Korrespondenz', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
       ]),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-            child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(12)),
+            child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
           const SizedBox(width: 8),
           Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(12)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [

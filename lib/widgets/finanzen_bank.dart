@@ -963,9 +963,9 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: isSelected ? color.shade600 : color.shade50,
+          color: isSelected ? color.shade600 : F.h(color, 50),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isSelected ? color.shade600 : color.shade200, width: isSelected ? 2 : 1),
+          border: Border.all(color: isSelected ? color.shade600 : F.h(color, 200), width: isSelected ? 2 : 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -973,7 +973,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
             if (assetPath != null)
               Image.asset(assetPath, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
             const SizedBox(width: 4),
-            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : color.shade700)),
+            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : F.h(color, 700))),
           ],
         ),
       ),
@@ -985,22 +985,22 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
       width: double.infinity,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: color.shade50,
+        color: F.h(color, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.shade200),
+        border: Border.all(color: F.h(color, 200)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: color.shade600),
+          Icon(icon, size: 16, color: F.h(color, 600)),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800)),
+                Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 800))),
                 const SizedBox(height: 2),
-                Text(info, style: TextStyle(fontSize: 10, color: color.shade700, height: 1.3)),
+                Text(info, style: TextStyle(fontSize: 10, color: F.h(color, 700), height: 1.3)),
               ],
             ),
           ),

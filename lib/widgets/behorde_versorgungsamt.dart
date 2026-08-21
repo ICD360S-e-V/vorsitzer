@@ -947,8 +947,8 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                         const SizedBox(height: 4),
                         Align(alignment: Alignment.centerLeft, child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
-                          child: Text(status.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800)),
+                          decoration: BoxDecoration(color: F.h(statusColor, 100), borderRadius: BorderRadius.circular(8)),
+                          child: Text(status.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(statusColor, 800))),
                         )),
                       ]),
                       onTap: () {
@@ -1331,21 +1331,21 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.shade50,
+        color: F.h(color, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.shade300),
+        border: Border.all(color: F.h(color, 300)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.verified, size: 18, color: color.shade700),
+          Icon(Icons.verified, size: 18, color: F.h(color, 700)),
           const SizedBox(width: 6),
-          Text('Vorteile bei GdB $_gdbAktuell (Stand 2025/2026)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+          Text('Vorteile bei GdB $_gdbAktuell (Stand 2025/2026)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 800))),
         ]),
         const SizedBox(height: 8),
         ...benefits.map((b) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(b.startsWith('⚠') ? Icons.warning_amber : Icons.check_circle, size: 13, color: b.startsWith('⚠') ? F.h(Colors.orange, 700) : color.shade600),
+            Icon(b.startsWith('⚠') ? Icons.warning_amber : Icons.check_circle, size: 13, color: b.startsWith('⚠') ? F.h(Colors.orange, 700) : F.h(color, 600)),
             const SizedBox(width: 6),
             Expanded(child: Text(b.replaceFirst('⚠ ', ''), style: const TextStyle(fontSize: 11, height: 1.35))),
           ]),
@@ -1454,13 +1454,13 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: statusColor.shade200)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: F.h(statusColor, 200))),
       child: Theme(
         // Entfernt die Trennlinien, die ExpansionTile sonst über die
         // Kartenkante zeichnet.
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          leading: Icon(statusIcon, color: statusColor.shade600, size: 26),
+          leading: Icon(statusIcon, color: F.h(statusColor, 600), size: 26),
           title: Row(children: [
             Expanded(child: Text(
               w.abLabel.isEmpty && w.bisLabel.isEmpty
@@ -1470,8 +1470,8 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             )),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
-              child: Text(statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800)),
+              decoration: BoxDecoration(color: F.h(statusColor, 100), borderRadius: BorderRadius.circular(8)),
+              child: Text(statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(statusColor, 800))),
             ),
           ]),
           subtitle: Padding(
@@ -1484,7 +1484,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                 VaWmStatus.zukuenftig => 'Noch nicht gültig',
                 _ => 'Zeitraum unvollständig',
               },
-              style: TextStyle(fontSize: 11, color: status == VaWmStatus.laeuftAb || status == VaWmStatus.abgelaufen ? statusColor.shade700 : F.h(Colors.grey, 600)),
+              style: TextStyle(fontSize: 11, color: status == VaWmStatus.laeuftAb || status == VaWmStatus.abgelaufen ? F.h(statusColor, 700) : F.h(Colors.grey, 600)),
             ),
           ),
           trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -2003,8 +2003,8 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
                 final tColor = onorat ? Colors.green : Colors.indigo;
                 return Card(child: ListTile(
                   onTap: () => _showTerminDetail(t),
-                  leading: Icon(onorat ? Icons.check_circle : Icons.calendar_month, color: tColor.shade600),
-                  title: Text('${t['datum'] ?? ''} ${t['uhrzeit'] ?? ''}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: tColor.shade800)),
+                  leading: Icon(onorat ? Icons.check_circle : Icons.calendar_month, color: F.h(tColor, 600)),
+                  title: Text('${t['datum'] ?? ''} ${t['uhrzeit'] ?? ''}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(tColor, 800))),
                   subtitle: Row(children: [
                     if (t['notiz']?.toString().isNotEmpty == true) Expanded(child: Text(t['notiz'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
                     if ((t['methode']?.toString() ?? '').isNotEmpty) Container(margin: const EdgeInsets.only(left: 6), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(6)),
@@ -2746,17 +2746,17 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
             final hint = e['hint']?.toString();
             return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: isWarning ? color.shade100 : (isAuto ? color.shade50 : Colors.white),
+                color: isWarning ? F.h(color, 100) : (isAuto ? F.h(color, 50) : F.flaeche),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: isWarning ? color.shade400 : (isAuto ? color.shade300 : Colors.indigo.shade200), width: isWarning ? 2 : 1)),
+                border: Border.all(color: isWarning ? color.shade400 : (isAuto ? F.h(color, 300) : F.h(Colors.indigo, 200)), width: isWarning ? 2 : 1)),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(icon, size: 16, color: color.shade700), const SizedBox(width: 8),
+                Icon(icon, size: 16, color: F.h(color, 700)), const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(fmt(e['datum'] as DateTime), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 600))),
                   if (!isAuto && (e['status']?.toString() ?? '').isNotEmpty) Container(margin: const EdgeInsets.only(top: 2), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.indigo, 100), borderRadius: BorderRadius.circular(6)),
                     child: Text(e['status'].toString().replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)))),
-                  Padding(padding: const EdgeInsets.only(top: 2), child: Text(e['text']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: isAuto ? FontWeight.w600 : FontWeight.normal, color: isAuto ? color.shade800 : F.textStark))),
-                  if (hint != null) Padding(padding: const EdgeInsets.only(top: 3), child: Text(hint, style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: color.shade600))),
+                  Padding(padding: const EdgeInsets.only(top: 2), child: Text(e['text']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: isAuto ? FontWeight.w600 : FontWeight.normal, color: isAuto ? F.h(color, 800) : F.textStark))),
+                  if (hint != null) Padding(padding: const EdgeInsets.only(top: 3), child: Text(hint, style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: F.h(color, 600)))),
                 ])),
                 if (!isAuto) IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragVerlauf(e['id'] as int); _load(); widget.onChanged(); },
                   padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
@@ -2807,9 +2807,9 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
               borderRadius: BorderRadius.circular(8),
               onTap: () => _showKorrDetail(k),
               child: Padding(padding: const EdgeInsets.all(10), child: Row(children: [
-                Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: kColor.shade700), const SizedBox(width: 8),
+                Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: F.h(kColor, 700)), const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kColor.shade800)),
+                  Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(kColor, 800))),
                   Row(children: [
                     Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                     if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
@@ -2833,14 +2833,14 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     final kId = int.tryParse(k['id'].toString()) ?? 0;
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: color.shade700),
+        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: F.h(color, 700)),
         const SizedBox(width: 8),
-        Expanded(child: Text(k['betreff']?.toString() ?? '(kein Betreff)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800))),
+        Expanded(child: Text(k['betreff']?.toString() ?? '(kein Betreff)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
       ]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
-            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
           if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
             const SizedBox(width: 8),
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8)),
@@ -3065,7 +3065,7 @@ class _TerminKorrTabState extends State<_TerminKorrTab> {
               borderRadius: BorderRadius.circular(8),
               onTap: () => _showDetail(k),
               child: ListTile(
-                leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700, size: 18),
+                leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: F.h(color, 700), size: 18),
                 title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingang' : 'Ausgang'}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -3117,14 +3117,14 @@ class _TerminKorrTabState extends State<_TerminKorrTab> {
     final kId = k['id'] is int ? k['id'] as int : int.tryParse(k['id'].toString()) ?? 0;
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: color.shade700),
+        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: F.h(color, 700)),
         const SizedBox(width: 8),
-        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800))),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
       ]),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
-            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
           const Spacer(),
           Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         ]),

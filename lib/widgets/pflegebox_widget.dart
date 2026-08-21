@@ -804,9 +804,9 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Row(children: [
-          Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700),
+          Icon(isEin ? Icons.call_received : Icons.call_made, color: F.h(color, 700)),
           const SizedBox(width: 8),
-          Expanded(child: Text(k['betreff']?.toString() ?? 'Ohne Betreff', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800))),
+          Expanded(child: Text(k['betreff']?.toString() ?? 'Ohne Betreff', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
         ]),
         content: SizedBox(
           width: 500,
@@ -814,11 +814,11 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+              decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(color, 200))),
               child: Row(children: [
-                Icon(isEin ? Icons.inbox : Icons.send, size: 14, color: color.shade700),
+                Icon(isEin ? Icons.inbox : Icons.send, size: 14, color: F.h(color, 700)),
                 const SizedBox(width: 6),
-                Text(isEin ? 'Eingang (empfangen)' : 'Ausgang (gesendet)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color.shade800)),
+                Text(isEin ? 'Eingang (empfangen)' : 'Ausgang (gesendet)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(color, 800))),
                 const Spacer(),
                 Icon(Icons.calendar_today, size: 12, color: F.h(Colors.grey, 600)),
                 const SizedBox(width: 4),
@@ -893,8 +893,8 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
                         ? 'Aus dem verschlüsselten 50-GB-Cloud wählen'
                         : 'Aus dem 1-GB-Cloud des Mitglieds wählen',
                     child: OutlinedButton.icon(
-                      icon: Icon(e2e ? Icons.lock : Icons.cloud_download, size: 14, color: farbe.shade700),
-                      label: Text('Cloud', style: TextStyle(fontSize: 11, color: farbe.shade700)),
+                      icon: Icon(e2e ? Icons.lock : Icons.cloud_download, size: 14, color: F.h(farbe, 700)),
+                      label: Text('Cloud', style: TextStyle(fontSize: 11, color: F.h(farbe, 700))),
                       onPressed: () async {
                         final picked = await _pickCloudFile(ctx2, widget.apiService, widget.userId,
                             allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png']);
@@ -1169,15 +1169,15 @@ class _LieferungenTabState extends State<_LieferungenTab> {
                     : 'Aus dem 1-GB-Cloud des Mitglieds wählen',
                 child: OutlinedButton.icon(
                   icon: Icon(gewaehlt ? Icons.cloud_done : (e2e ? Icons.lock : Icons.cloud_download),
-                      size: 16, color: gewaehlt ? Colors.green : farbe.shade700),
+                      size: 16, color: gewaehlt ? Colors.green : F.h(farbe, 700)),
                   label: Text(
                       cloudFile != null
                           ? (cloudFile!['filename']?.toString() ?? 'Cloud-Datei')
                           : (e2e ? 'Aus verschlüsseltem Cloud' : 'Aus Cloud des Mitglieds'),
                       overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
                   style: OutlinedButton.styleFrom(
-                      foregroundColor: farbe.shade700,
-                      side: BorderSide(color: farbe.shade300),
+                      foregroundColor: F.h(farbe, 700),
+                      side: BorderSide(color: F.h(farbe, 300)),
                       minimumSize: const Size(double.infinity, 40)),
                   onPressed: () async {
                     final picked = await _pickCloudFile(ctx2, widget.apiService, widget.userId,

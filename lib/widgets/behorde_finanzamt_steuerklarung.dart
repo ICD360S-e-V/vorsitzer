@@ -845,9 +845,9 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(children: [
-        Icon(icon, size: 18, color: color.shade700),
+        Icon(icon, size: 18, color: F.h(color, 700)),
         const SizedBox(width: 8),
-        Flexible(child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
+        Flexible(child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 800)), overflow: TextOverflow.ellipsis)),
       ]),
     );
   }
@@ -880,8 +880,8 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
   Widget _infoBox(String text, MaterialColor color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(6)),
-      child: Text(text, style: TextStyle(fontSize: 10, color: color.shade600, fontStyle: FontStyle.italic)),
+      decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(6)),
+      child: Text(text, style: TextStyle(fontSize: 10, color: F.h(color, 600), fontStyle: FontStyle.italic)),
     );
   }
 
@@ -900,8 +900,8 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
 
   Widget _expandableSection(IconData icon, String title, MaterialColor color, List<Widget> children) {
     return ExpansionTile(
-      leading: Icon(icon, size: 18, color: color.shade700),
-      title: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+      leading: Icon(icon, size: 18, color: F.h(color, 700)),
+      title: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 800))),
       tilePadding: EdgeInsets.zero,
       childrenPadding: const EdgeInsets.only(bottom: 8),
       children: children,

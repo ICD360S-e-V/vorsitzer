@@ -476,15 +476,15 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
             final yr = _antragYear(a);
             return Card(margin: const EdgeInsets.only(bottom: 8), child: ListTile(
               onTap: () => _openDetail(a),
-              leading: CircleAvatar(backgroundColor: color.shade100, child: Icon(Icons.description, color: color.shade700, size: 20)),
+              leading: CircleAvatar(backgroundColor: F.h(color, 100), child: Icon(Icons.description, color: F.h(color, 700), size: 20)),
               title: Row(children: [
                 Expanded(child: Text(_artLabels[art] ?? art, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis)),
                 if (yr != null) Container(margin: const EdgeInsets.only(left: 6), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.red, 200))), child: Text('$yr', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700)))),
               ]),
               subtitle: Text('${a['datum'] ?? ''} · ${a['aktenzeichen'] ?? ''}', style: const TextStyle(fontSize: 11)),
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-                  child: Text(_statusLabels[status] ?? status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade800))),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(12)),
+                  child: Text(_statusLabels[status] ?? status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
                 const SizedBox(width: 4),
                 IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () => _delete(a)),
               ]),
@@ -1633,7 +1633,7 @@ class _SanktionKorrTabState extends State<_SanktionKorrTab> {
               final anh = (k['anhaenge'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
               final kid = int.tryParse(k['id'].toString()) ?? 0;
               final MaterialColor mc = isE ? Colors.blue : Colors.green;
-              return Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: mc.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8), border: Border.all(color: mc.shade200)),
+              return Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: mc.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(mc, 200))),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Icon(isE ? Icons.call_received : Icons.call_made, size: 14, color: isE ? Colors.blue : Colors.green),

@@ -80,9 +80,9 @@ Widget _statusChip(String? status) {
   final f = _kStatusFarben[s] ?? Colors.grey;
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(color: f.shade50, borderRadius: BorderRadius.circular(12)),
+    decoration: BoxDecoration(color: F.h(f, 50), borderRadius: BorderRadius.circular(12)),
     child: Text(_kStatusNamen[s] ?? s,
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: f.shade800)),
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(f, 800))),
   );
 }
 

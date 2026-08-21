@@ -209,7 +209,7 @@ class _EinkaufenTabContentState extends State<EinkaufenTabContent> {
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: katColor.shade200),
+        side: BorderSide(color: F.h(katColor, 200)),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
@@ -219,8 +219,8 @@ class _EinkaufenTabContentState extends State<EinkaufenTabContent> {
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: katColor.shade50, borderRadius: BorderRadius.circular(6)),
-              child: Icon(katIcon, color: katColor.shade700, size: 22),
+              decoration: BoxDecoration(color: F.h(katColor, 50), borderRadius: BorderRadius.circular(6)),
+              child: Icon(katIcon, color: F.h(katColor, 700), size: 22),
             ),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -228,7 +228,7 @@ class _EinkaufenTabContentState extends State<EinkaufenTabContent> {
                 Text(haendler.isEmpty ? katLabel : haendler,
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                 const Spacer(),
-                Text(betrag, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: katColor.shade700)),
+                Text(betrag, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(katColor, 700))),
               ]),
               const SizedBox(height: 2),
               Row(children: [
@@ -238,8 +238,8 @@ class _EinkaufenTabContentState extends State<EinkaufenTabContent> {
                 const SizedBox(width: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(color: katColor.shade50, borderRadius: BorderRadius.circular(4)),
-                  child: Text(katLabel, style: TextStyle(fontSize: 10, color: katColor.shade700)),
+                  decoration: BoxDecoration(color: F.h(katColor, 50), borderRadius: BorderRadius.circular(4)),
+                  child: Text(katLabel, style: TextStyle(fontSize: 10, color: F.h(katColor, 700))),
                 ),
                 const Spacer(),
                 Icon(Icons.attach_file, size: 11, color: docCount > 0 ? Colors.indigo : F.h(Colors.grey, 400)),
@@ -548,7 +548,7 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
 
   Widget _buildDetails() {
     final ro = !_editMode;
-    final fillColor = ro ? Colors.grey.shade50 : null;
+    final fillColor = ro ? F.h(Colors.grey, 50) : null;
     InputDecoration deco(String label, {IconData? icon, String? hint, bool alignTop = false}) => InputDecoration(
       labelText: label,
       hintText: hint,

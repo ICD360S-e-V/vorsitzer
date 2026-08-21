@@ -298,8 +298,8 @@ class CloudPickButton extends StatelessWidget {
         icon: Icon(e2e ? Icons.lock : Icons.cloud_download, size: kompakt ? 14 : 16),
         label: Text('Cloud', style: TextStyle(fontSize: kompakt ? 11 : 12)),
         style: OutlinedButton.styleFrom(
-          foregroundColor: farbe.shade700,
-          side: BorderSide(color: farbe.shade200),
+          foregroundColor: F.h(farbe, 700),
+          side: BorderSide(color: F.h(farbe, 200)),
           padding: EdgeInsets.symmetric(horizontal: kompakt ? 8 : 10, vertical: kompakt ? 4 : 6),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,

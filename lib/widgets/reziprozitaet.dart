@@ -198,12 +198,12 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircleAvatar(
-              backgroundColor: color.shade50,
+              backgroundColor: F.h(color, 50),
               radius: 16,
-              child: Icon(isGegeben ? Icons.card_giftcard : Icons.volunteer_activism, color: color.shade700, size: 16),
+              child: Icon(isGegeben ? Icons.card_giftcard : Icons.volunteer_activism, color: F.h(color, 700), size: 16),
             ),
             if (kosten.isNotEmpty)
-              Text('${double.tryParse(kosten.replaceAll(',', '.'))?.toStringAsFixed(0) ?? kosten} P', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade700)),
+              Text('${double.tryParse(kosten.replaceAll(',', '.'))?.toStringAsFixed(0) ?? kosten} P', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(color, 700))),
           ],
         ),
         title: Text(entry['bezeichnung'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),

@@ -278,13 +278,13 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
-                leading: CircleAvatar(backgroundColor: sc.shade50, child: Icon(Icons.description, size: 18, color: sc.shade700)),
+                leading: CircleAvatar(backgroundColor: F.h(sc, 50), child: Icon(Icons.description, size: 18, color: F.h(sc, 700))),
                 title: Text(v['typ']?.toString() ?? '—', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   if ((v['datum']?.toString() ?? '').isNotEmpty) Text('Datum: ${v['datum']}', style: const TextStyle(fontSize: 11)),
                   if ((v['aktenzeichen']?.toString() ?? '').isNotEmpty) Text('Aktenzeichen: ${v['aktenzeichen']}', style: const TextStyle(fontSize: 11)),
                   if ((v['haushaltsgroesse']?.toString() ?? '').isNotEmpty) Text('Haushalt: ${v['haushaltsgroesse']} Personen', style: const TextStyle(fontSize: 11)),
-                  Text('Status: $status', style: TextStyle(fontSize: 11, color: sc.shade700, fontWeight: FontWeight.w500)),
+                  Text('Status: $status', style: TextStyle(fontSize: 11, color: F.h(sc, 700), fontWeight: FontWeight.w500)),
                 ]),
                 trailing: PopupMenuButton<String>(
                   itemBuilder: (_) => [

@@ -1995,19 +1995,19 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: farbe.shade50,
+                  color: F.h(farbe, 50),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: farbe.shade200),
+                  border: Border.all(color: F.h(farbe, 200)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      Icon(vorhanden ? Icons.mark_email_read : Icons.mark_email_unread, size: 18, color: farbe.shade700),
+                      Icon(vorhanden ? Icons.mark_email_read : Icons.mark_email_unread, size: 18, color: F.h(farbe, 700)),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text('Eingangsbestätigung',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: farbe.shade800)),
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(farbe, 800))),
                       ),
                       if (vorhanden)
                         Container(
@@ -2524,7 +2524,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   Container(
                     width: 24, height: 24,
                     decoration: BoxDecoration(
-                      color: done ? Colors.green : (active ? color : Colors.grey.shade200),
+                      color: done ? Colors.green : (active ? color : F.h(Colors.grey, 200)),
                       shape: BoxShape.circle,
                       border: Border.all(color: active ? color : Colors.transparent, width: 2),
                     ),
@@ -2536,7 +2536,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 ],
               ),
               const SizedBox(height: 2),
-              Text(phases[i], style: TextStyle(fontSize: 9, fontWeight: active || done ? FontWeight.bold : FontWeight.normal, color: done ? F.h(Colors.green, 700) : (active ? color : Colors.grey.shade400))),
+              Text(phases[i], style: TextStyle(fontSize: 9, fontWeight: active || done ? FontWeight.bold : FontWeight.normal, color: done ? F.h(Colors.green, 700) : (active ? color : F.h(Colors.grey, 400)))),
             ],
           ),
         );
@@ -3699,9 +3699,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(children: [
-        Icon(icon, size: 15, color: color.shade700),
+        Icon(icon, size: 15, color: F.h(color, 700)),
         const SizedBox(width: 6),
-        Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade700)),
+        Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 700))),
       ]),
     );
   }
@@ -3812,13 +3812,13 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
                 decoration: BoxDecoration(
-                  color: color.shade50,
+                  color: F.h(color, 50),
                   borderRadius: BorderRadius.circular(8),
                   border: Border(
                     left:  BorderSide(color: color.shade600, width: 5),
-                    top:   BorderSide(color: color.shade200),
-                    right: BorderSide(color: color.shade200),
-                    bottom:BorderSide(color: color.shade200),
+                    top:   BorderSide(color: F.h(color, 200)),
+                    right: BorderSide(color: F.h(color, 200)),
+                    bottom:BorderSide(color: F.h(color, 200)),
                   ),
                 ),
                 child: Column(
@@ -3826,7 +3826,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   children: [
                     Row(
                       children: [
-                        Icon(isEinladung ? Icons.mail : Icons.event, size: 16, color: color.shade800),
+                        Icon(isEinladung ? Icons.mail : Icons.event, size: 16, color: F.h(color, 800)),
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -3843,7 +3843,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         Expanded(
                           child: Text(
                             datum.isNotEmpty ? '${_formatDateDisplay(datum)}${uhrzeit.isNotEmpty ? ' um $uhrzeit Uhr' : ''}' : 'Kein Datum',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900),
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 900)),
                           ),
                         ),
                         // Status-Chip — varianta B, vizibil pe titlu
@@ -3852,7 +3852,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                           decoration: BoxDecoration(
                             color: color.shade600,
                             borderRadius: BorderRadius.circular(12),
-                            boxShadow: [BoxShadow(color: color.shade300, offset: const Offset(0, 1), blurRadius: 2)],
+                            boxShadow: [BoxShadow(color: F.h(color, 300), offset: const Offset(0, 1), blurRadius: 2)],
                           ),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
                             Icon(info['icon'] as IconData, size: 13, color: Colors.white),
@@ -4204,7 +4204,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: color.shade600),
+          Icon(icon, size: 16, color: F.h(color, 600)),
           const SizedBox(width: 8),
           SizedBox(
             width: 110,
@@ -4315,14 +4315,14 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     final c = opt['color'] as MaterialColor;
                     return ChoiceChip(
                       label: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(opt['icon'] as IconData, size: 13, color: sel ? Colors.white : c.shade700),
+                        Icon(opt['icon'] as IconData, size: 13, color: sel ? Colors.white : F.h(c, 700)),
                         const SizedBox(width: 4),
-                        Text(opt['label'] as String, style: TextStyle(fontSize: 10, color: sel ? Colors.white : c.shade700)),
+                        Text(opt['label'] as String, style: TextStyle(fontSize: 10, color: sel ? Colors.white : F.h(c, 700))),
                       ]),
                       selected: sel,
                       selectedColor: c.shade600,
-                      backgroundColor: c.shade50,
-                      side: BorderSide(color: sel ? c.shade600 : c.shade200),
+                      backgroundColor: F.h(c, 50),
+                      side: BorderSide(color: sel ? c.shade600 : F.h(c, 200)),
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       onSelected: (_) => setVState(() => selectedStatus = opt['value'] as String),
                     );
@@ -4402,20 +4402,20 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       margin: const EdgeInsets.only(bottom: 6),
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: c.shade50,
+                        color: F.h(c, 50),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: c.shade200),
+                        border: Border.all(color: F.h(c, 200)),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(opt['icon'] as IconData, size: 16, color: c.shade700),
+                          Icon(opt['icon'] as IconData, size: 16, color: F.h(c, 700)),
                           const SizedBox(width: 8),
                           Expanded(child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(children: [
-                                Text(opt['label'] as String, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade700)),
+                                Text(opt['label'] as String, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(c, 700))),
                                 const Spacer(),
                                 Text('${vDatum.isNotEmpty ? _formatDateDisplay(vDatum) : ''} ${vZeit.isNotEmpty ? '$vZeit Uhr' : ''}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                               ]),

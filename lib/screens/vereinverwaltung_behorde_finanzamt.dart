@@ -992,7 +992,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
               const SizedBox(width: 8),
               Text(labels[status] ?? status,
                   style: TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold, color: accent.shade700)),
+                      fontSize: 18, fontWeight: FontWeight.bold, color: F.h(accent, 700))),
               if (datum.isNotEmpty) ...[
                 const SizedBox(width: 10),
                 Text('seit ${_formatDate(datum)}',
@@ -1238,12 +1238,12 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(isEingang ? Icons.south_west : Icons.north_east,
-                        size: 16, color: accent.shade600),
+                        size: 16, color: F.h(accent, 600)),
                     const SizedBox(width: 6),
                     Text(isEingang ? 'EINGANG' : 'AUSGANG',
                         style: TextStyle(
                             fontSize: 11, fontWeight: FontWeight.w700,
-                            letterSpacing: 0.6, color: accent.shade700)),
+                            letterSpacing: 0.6, color: F.h(accent, 700))),
                   ],
                 ),
                 Row(
@@ -2292,7 +2292,7 @@ class _FieldCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, size: 18, color: accent.shade600),
+                Icon(icon, size: 18, color: F.h(accent, 600)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

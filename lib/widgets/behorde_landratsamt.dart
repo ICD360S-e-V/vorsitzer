@@ -1358,8 +1358,8 @@ class _KfzTabState extends State<_KfzTab> {
 
   Widget _tag(String text, MaterialColor c) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: c.shade200)),
-    child: Text(text, style: TextStyle(fontSize: 10, color: c.shade800, fontWeight: FontWeight.w600)),
+    decoration: BoxDecoration(color: F.h(c, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(c, 200))),
+    child: Text(text, style: TextStyle(fontSize: 10, color: F.h(c, 800), fontWeight: FontWeight.w600)),
   );
 
   Future<void> _confirmDelete(Map<String, dynamic> k) async {

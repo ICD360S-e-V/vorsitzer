@@ -1122,8 +1122,8 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
                 child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Expanded(child: Text(v['stelle']?.toString() ?? 'Ohne Bezeichnung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)))),
-                    if (status.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
-                      child: Text(status[0].toUpperCase() + status.substring(1), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800))),
+                    if (status.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: F.h(statusColor, 100), borderRadius: BorderRadius.circular(8)),
+                      child: Text(status[0].toUpperCase() + status.substring(1), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(statusColor, 800)))),
                     const SizedBox(width: 4),
                     IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                       onPressed: () async { await widget.apiService.deleteArbeitsagenturVorschlag(widget.userId, v['id'] is int ? v['id'] : int.parse(v['id'].toString())); await _loadFromDB(); if (mounted) setState(() {}); }),
@@ -1153,10 +1153,10 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
         contentPadding: EdgeInsets.zero,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.work_outline, size: 18, color: color.shade700), const SizedBox(width: 8),
-            Expanded(child: Text(v['stelle']?.toString() ?? 'Vermittlungsvorschlag', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
-            if (status.isNotEmpty) Container(margin: const EdgeInsets.only(right: 4), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
-              child: Text(status[0].toUpperCase() + status.substring(1), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: statusColor.shade800))),
+            Icon(Icons.work_outline, size: 18, color: F.h(color, 700)), const SizedBox(width: 8),
+            Expanded(child: Text(v['stelle']?.toString() ?? 'Vermittlungsvorschlag', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(color, 800)), overflow: TextOverflow.ellipsis)),
+            if (status.isNotEmpty) Container(margin: const EdgeInsets.only(right: 4), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: F.h(statusColor, 100), borderRadius: BorderRadius.circular(8)),
+              child: Text(status[0].toUpperCase() + status.substring(1), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(statusColor, 800)))),
             IconButton(icon: Icon(Icons.edit, size: 16, color: color.shade400), tooltip: 'Bearbeiten', onPressed: () {
               Navigator.pop(dlgCtx);
               _showVorschlagDialog(ctx, v, (updated) async {
@@ -1168,7 +1168,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(dlgCtx)),
           ]),
           const SizedBox(height: 4),
-          TabBar(labelColor: color.shade700, unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: color.shade700, tabs: const [
+          TabBar(labelColor: F.h(color, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: color.shade700, tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
             Tab(icon: Icon(Icons.timeline, size: 16), text: 'Verlauf'),
             Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
@@ -1236,9 +1236,9 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
   }
 
   Widget _vdSection(IconData icon, String title, MaterialColor c, List<Widget> children) {
-    return Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+    return Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(c, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(c, 200))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Icon(icon, size: 14, color: c.shade700), const SizedBox(width: 6), Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: c.shade700))]),
+        Row(children: [Icon(icon, size: 14, color: F.h(c, 700)), const SizedBox(width: 6), Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(c, 700)))]),
         const SizedBox(height: 6),
         ...children,
       ]));
@@ -1659,16 +1659,16 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
       contentPadding: EdgeInsets.zero,
       title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(isEingang ? Icons.call_received : Icons.call_made, size: 18, color: color.shade700),
+          Icon(isEingang ? Icons.call_received : Icons.call_made, size: 18, color: F.h(color, 700)),
           const SizedBox(width: 8),
-          Expanded(child: Text(first['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
+          Expanded(child: Text(first['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(color, 800)), overflow: TextOverflow.ellipsis)),
           if (hasW) Container(margin: const EdgeInsets.only(right: 4), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(8)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.gavel, size: 10, color: F.h(Colors.red, 700)), const SizedBox(width: 3), Text('W', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700)))])),
           IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () async { Navigator.pop(dlgCtx); for (final d in docGroup) { await widget.apiService.deleteAAKorrespondenz(d['id'] is int ? d['id'] : int.parse(d['id'].toString())); } _loadDocs(); }),
           IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(dlgCtx)),
         ]),
         const SizedBox(height: 4),
-        TabBar(labelColor: color.shade700, unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: color.shade700, tabs: [
+        TabBar(labelColor: F.h(color, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: color.shade700, tabs: [
           const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
           Tab(icon: const Icon(Icons.folder_open, size: 16), text: 'Unterlagen (${kFiles.length})'),
           Tab(icon: Icon(Icons.gavel, size: 16, color: hasW ? F.h(Colors.red, 600) : null), text: 'Widerspruch'),
@@ -1690,7 +1690,7 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
                 Text('Widerspruchsfrist: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 Text(wFrist, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
                 const SizedBox(width: 6),
-                Builder(builder: (_) { try { final p = wFrist.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); final left = d.difference(DateTime.now()).inDays; final exp = left < 0; return Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: exp ? F.h(Colors.red, 100) : (left <= 7 ? Colors.orange.shade100 : Colors.green.shade100), borderRadius: BorderRadius.circular(4)), child: Text(exp ? 'Abgelaufen!' : '$left Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: exp ? F.h(Colors.red, 800) : (left <= 7 ? Colors.orange.shade800 : Colors.green.shade800)))); } catch (_) { return const SizedBox.shrink(); } }),
+                Builder(builder: (_) { try { final p = wFrist.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); final left = d.difference(DateTime.now()).inDays; final exp = left < 0; return Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: exp ? F.h(Colors.red, 100) : (left <= 7 ? F.h(Colors.orange, 100) : F.h(Colors.green, 100)), borderRadius: BorderRadius.circular(4)), child: Text(exp ? 'Abgelaufen!' : '$left Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: exp ? F.h(Colors.red, 800) : (left <= 7 ? F.h(Colors.orange, 800) : F.h(Colors.green, 800))))); } catch (_) { return const SizedBox.shrink(); } }),
               ]),
             ],
           ])),
@@ -1953,12 +1953,12 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
   Widget _wStep(IconData icon, String title, MaterialColor c, bool done, Widget content) {
     return Container(
       width: double.infinity, padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: done ? c.shade50 : F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: done ? c.shade300 : F.h(Colors.grey, 200))),
+      decoration: BoxDecoration(color: done ? F.h(c, 50) : F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: done ? F.h(c, 300) : F.h(Colors.grey, 200))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(icon, size: 16, color: done ? c.shade700 : F.h(Colors.grey, 400)),
+          Icon(icon, size: 16, color: done ? F.h(c, 700) : F.h(Colors.grey, 400)),
           const SizedBox(width: 6),
-          Expanded(child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: done ? c.shade700 : F.h(Colors.grey, 500)))),
+          Expanded(child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: done ? F.h(c, 700) : F.h(Colors.grey, 500)))),
           Icon(done ? Icons.check_circle : Icons.radio_button_unchecked, size: 16, color: done ? F.h(Colors.green, 600) : F.h(Colors.grey, 300)),
         ]),
         const SizedBox(height: 6),
@@ -1969,9 +1969,9 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
 
   Widget _korrInfoRow(IconData icon, String label, String value, MaterialColor c) {
     return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
-      Icon(icon, size: 14, color: c.shade600), const SizedBox(width: 8),
+      Icon(icon, size: 14, color: F.h(c, 600)), const SizedBox(width: 8),
       Text('$label: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
-      Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.shade800)),
+      Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(c, 800))),
     ]));
   }
 
@@ -2049,17 +2049,17 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
             child: Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+              decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(color, 200))),
               child: Row(children: [
-                Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
-                  child: Icon(isEingang ? Icons.call_received : Icons.call_made, size: 18, color: color.shade700)),
+                Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(8)),
+                  child: Icon(isEingang ? Icons.call_received : Icons.call_made, size: 18, color: F.h(color, 700))),
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Flexible(child: Text(first['betreff']?.toString() ?? first['titel']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
+                    Flexible(child: Text(first['betreff']?.toString() ?? first['titel']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 800)), overflow: TextOverflow.ellipsis)),
                     const SizedBox(width: 8),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(4)),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(methodeIcons[m] ?? Icons.mail, size: 10, color: color.shade700), const SizedBox(width: 3), Text(methodeLabels[m] ?? m, style: TextStyle(fontSize: 9, color: color.shade700))])),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(4)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(methodeIcons[m] ?? Icons.mail, size: 10, color: F.h(color, 700)), const SizedBox(width: 3), Text(methodeLabels[m] ?? m, style: TextStyle(fontSize: 9, color: F.h(color, 700)))])),
                     if (files.isNotEmpty) ...[const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(4)),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.attach_file, size: 10, color: F.h(Colors.grey, 600)), const SizedBox(width: 2), Text('${files.length}', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 700)))]))],
                   ]),
@@ -2453,13 +2453,13 @@ class _VorschlagKorrTabState extends State<_VorschlagKorrTab> {
           const mIcons = {'email': Icons.email, 'post': Icons.mail, 'online': Icons.language, 'persoenlich': Icons.person, 'fax': Icons.fax, 'telefon': Icons.phone};
           final m = k['methode']?.toString() ?? '';
           final kId = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
-          return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+          return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(c, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(c, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(isEin ? Icons.call_received : Icons.call_made, size: 14, color: c.shade700), const SizedBox(width: 6),
-                Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800))),
-                if (m.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: c.shade100, borderRadius: BorderRadius.circular(4)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(mIcons[m] ?? Icons.mail, size: 10, color: c.shade700), const SizedBox(width: 3), Text(mLabels[m] ?? m, style: TextStyle(fontSize: 9, color: c.shade700))])),
+                Icon(isEin ? Icons.call_received : Icons.call_made, size: 14, color: F.h(c, 700)), const SizedBox(width: 6),
+                Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(c, 800)))),
+                if (m.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: F.h(c, 100), borderRadius: BorderRadius.circular(4)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(mIcons[m] ?? Icons.mail, size: 10, color: F.h(c, 700)), const SizedBox(width: 3), Text(mLabels[m] ?? m, style: TextStyle(fontSize: 9, color: F.h(c, 700)))])),
                 const SizedBox(width: 4),
                 IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                   onPressed: () async { await widget.apiService.deleteArbeitsagenturVorschlagKorr(widget.userId, kId); _load(); }),
@@ -4256,7 +4256,7 @@ class _AaAvTermineTabState extends State<_AaAvTermineTab> {
                   onTap: () => _openEdit(existing: t),
                   child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Icon(Icons.event, size: 14, color: col.shade700), const SizedBox(width: 6),
+                      Icon(Icons.event, size: 14, color: F.h(col, 700)), const SizedBox(width: 6),
                       Expanded(child: Text(dtStr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold))),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

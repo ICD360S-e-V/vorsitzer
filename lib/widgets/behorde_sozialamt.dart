@@ -253,13 +253,13 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
               final MaterialColor statusColor = hatBew ? (bewOk ? Colors.green : Colors.red) : Colors.grey;
               final statusText = hatBew ? (bewOk ? 'Bewilligt' : 'Abgelehnt') : (a['status']?.toString() ?? '');
               return Card(child: ListTile(
-                leading: Icon(hatBew ? (bewOk ? Icons.check_circle : Icons.cancel) : Icons.description, color: hatBew ? (bewOk ? Colors.green.shade600 : Colors.red.shade600) : F.h(Colors.indigo, 600)),
+                leading: Icon(hatBew ? (bewOk ? Icons.check_circle : Icons.cancel) : Icons.description, color: hatBew ? (bewOk ? F.h(Colors.green, 600) : F.h(Colors.red, 600)) : F.h(Colors.indigo, 600)),
                 title: Text(a['leistung']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('${a['datum'] ?? ''}${(a['methode']?.toString() ?? '').isNotEmpty ? ' • ${a['methode']}' : ''}', style: const TextStyle(fontSize: 11)),
                   const SizedBox(height: 3),
                   Row(children: [
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: statusColor.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: statusColor.shade200)), child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade700))),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(statusColor, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(statusColor, 200))), child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(statusColor, 700)))),
                     if (hatBew && bewOk && bewBis.isNotEmpty) ...[
                       const SizedBox(width: 6),
                       Icon(Icons.event, size: 11, color: F.h(Colors.grey, 500)),
@@ -764,11 +764,11 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
     return DefaultTabController(length: 3, child: Column(children: [
       Container(
         padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
-        color: headColor.shade50,
+        color: F.h(headColor, 50),
         child: Row(children: [
-          Icon(ok ? Icons.check_circle : Icons.cancel, size: 18, color: headColor.shade700),
+          Icon(ok ? Icons.check_circle : Icons.cancel, size: 18, color: F.h(headColor, 700)),
           const SizedBox(width: 8),
-          Expanded(child: Text('${ok ? 'Bewilligt' : 'Abgelehnt'}${(b['bescheid_datum']?.toString() ?? '').isNotEmpty ? ' • ${b['bescheid_datum']}' : ''}${(b['aktenzeichen']?.toString() ?? '').isNotEmpty ? ' • Az. ${b['aktenzeichen']}' : ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: headColor.shade800))),
+          Expanded(child: Text('${ok ? 'Bewilligt' : 'Abgelehnt'}${(b['bescheid_datum']?.toString() ?? '').isNotEmpty ? ' • ${b['bescheid_datum']}' : ''}${(b['aktenzeichen']?.toString() ?? '').isNotEmpty ? ' • Az. ${b['aktenzeichen']}' : ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(headColor, 800)))),
           IconButton(icon: Icon(Icons.edit, size: 18, color: F.h(Colors.grey, 700)), tooltip: 'Bearbeiten', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _showForm(existing: b)),
           IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: _delete),
         ]),
@@ -1288,17 +1288,17 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
       Container(
         width: double.infinity, padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: statusColor.shade50,
+          color: F.h(statusColor, 50),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: statusColor.shade300, width: 2),
+          border: Border.all(color: F.h(statusColor, 300), width: 2),
         ),
         child: Row(children: [
-          Icon(statusIcon, size: 28, color: statusColor.shade700),
+          Icon(statusIcon, size: 28, color: F.h(statusColor, 700)),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(statusText, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: statusColor.shade800)),
+            Text(statusText, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(statusColor, 800))),
             if (!hasWiderspruch && !fristAbgelaufen)
-              Text('Fristende: ${fmt(fristEnde)}', style: TextStyle(fontSize: 12, color: statusColor.shade700)),
+              Text('Fristende: ${fmt(fristEnde)}', style: TextStyle(fontSize: 12, color: F.h(statusColor, 700))),
           ])),
         ]),
       ),
@@ -1518,24 +1518,24 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
       Container(
         width: double.infinity, padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: empfehlung.color.shade50,
+          color: F.h(empfehlung.color, 50),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: empfehlung.color.shade300, width: 1.5),
+          border: Border.all(color: F.h(empfehlung.color, 300), width: 1.5),
         ),
         child: Row(children: [
-          Icon(empfehlung.icon, size: 24, color: empfehlung.color.shade700),
+          Icon(empfehlung.icon, size: 24, color: F.h(empfehlung.color, 700)),
           const SizedBox(width: 10),
-          Expanded(child: Text(empfehlung.text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: empfehlung.color.shade800))),
+          Expanded(child: Text(empfehlung.text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(empfehlung.color, 800)))),
         ]),
       ),
       const SizedBox(height: 8),
       ...checks.map((c) => Container(
         margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.color.shade200)),
+        decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(c.color, 200))),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(c.icon, size: 18, color: c.color.shade600), const SizedBox(width: 10),
+          Icon(c.icon, size: 18, color: F.h(c.color, 600)), const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(c.title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.color.shade800)),
+            Text(c.title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(c.color, 800))),
             const SizedBox(height: 2),
             Text(c.detail, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
           ])),

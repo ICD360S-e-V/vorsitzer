@@ -293,8 +293,8 @@ class FamilieSelectorDialog extends StatelessWidget {
 
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: (color is MaterialColor ? color.shade100 : Colors.amber.shade100),
-        child: Icon(icon, color: (color is MaterialColor ? color.shade700 : color), size: 22),
+        backgroundColor: (color is MaterialColor ? F.h(color, 100) : F.h(Colors.amber, 100)),
+        child: Icon(icon, color: (color is MaterialColor ? F.h(color, 700) : color), size: 22),
       ),
       title: Text(e.displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
       subtitle: Wrap(

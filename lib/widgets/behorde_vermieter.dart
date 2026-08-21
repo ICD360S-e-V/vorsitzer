@@ -1095,12 +1095,12 @@ class _MietvertragTabState extends State<_MietvertragTab> {
             final color = statusColors[st] ?? Colors.grey;
             return Card(margin: const EdgeInsets.only(bottom: 8), child: ListTile(
               onTap: () => _openDetail(m),
-              leading: CircleAvatar(backgroundColor: color.shade100, child: Icon(Icons.description, color: color.shade700, size: 20)),
+              leading: CircleAvatar(backgroundColor: F.h(color, 100), child: Icon(Icons.description, color: F.h(color, 700), size: 20)),
               title: Text('${m['strasse'] ?? ''} ${m['hausnummer'] ?? ''}, ${m['plz'] ?? ''} ${m['ort'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Text('${m['kaltmiete'] ?? ''} € kalt · ${m['warmmiete'] ?? ''} € warm · ${m['vertragsart'] ?? ''}', style: const TextStyle(fontSize: 11)),
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-                  child: Text(st[0].toUpperCase() + st.substring(1), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade800))),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(12)),
+                  child: Text(st[0].toUpperCase() + st.substring(1), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
                 IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
                   await widget.apiService.vermieterAction(widget.userId, {'action': 'delete_mietvertrag', 'id': m['id']}); await widget.onReload();
                 }),
@@ -1983,17 +1983,17 @@ class _NkaYearCard extends StatelessWidget {
         leading: CircleAvatar(backgroundColor: F.h(Colors.deepPurple, 100), child: Text('$year', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800)))),
         title: Row(children: [
           Expanded(child: Text('Abrechnungsjahr $year', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-          if (typ.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: typColor.shade100, borderRadius: BorderRadius.circular(10)), child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(isNach ? Icons.arrow_upward : Icons.arrow_downward, size: 11, color: typColor.shade800),
+          if (typ.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(typColor, 100), borderRadius: BorderRadius.circular(10)), child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(isNach ? Icons.arrow_upward : Icons.arrow_downward, size: 11, color: F.h(typColor, 800)),
             const SizedBox(width: 2),
-            Text(isNach ? 'Nachzahlung' : 'Guthaben', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: typColor.shade800)),
+            Text(isNach ? 'Nachzahlung' : 'Guthaben', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(typColor, 800))),
           ])),
         ]),
         subtitle: Row(children: [
           if (betrag.isNotEmpty) ...[
-            Icon(Icons.euro, size: 12, color: typColor.shade700),
+            Icon(Icons.euro, size: 12, color: F.h(typColor, 700)),
             const SizedBox(width: 2),
-            Text('$betrag €', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: typColor.shade900)),
+            Text('$betrag €', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(typColor, 900))),
             const SizedBox(width: 8),
           ],
           Icon(Icons.folder_open, size: 12, color: F.h(Colors.grey, 600)),
