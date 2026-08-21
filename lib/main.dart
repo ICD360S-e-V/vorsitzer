@@ -13,6 +13,9 @@ import 'services/startup_diagnostics.dart';
 import 'services/startup_service.dart';
 import 'services/update_service.dart';
 import 'services/platform_service.dart';
+import 'services/theme_service.dart';
+import 'utils/app_farben.dart';
+import 'utils/app_theme.dart';
 import 'utils/keyboard_rdp_fix.dart';
 
 // Desktop-only packages (compile on all platforms, but only used on desktop)
@@ -129,6 +132,17 @@ void main(List<String> args) async {
     FlutterError.presentError(details);
   };
 
+  // ⚠️ Die gespeicherte Hell/Dunkel-Wahl wird VOR runApp() gelesen. Es ist ein
+  // einzelner Lesezugriff auf SharedPreferences (Millisekunden), und dafür
+  // startet die Anwendung nicht sichtbar hell, um eine Sekunde später ins
+  // Dunkle zu springen. Schlägt der Zugriff fehl, liefert stepWithTimeout
+  // null und es bleibt bei ThemeMode.system — das ist die Voreinstellung.
+  await StartupDiagnostics.stepWithTimeout(
+    'ThemeService.laden',
+    const Duration(seconds: 3),
+    () => ThemeService.instance.laden(),
+  );
+
   // Start app IMMEDIATELY (no black screen), init services in background
   StartupDiagnostics.log('→ runApp()');
   runApp(const VorsitzerApp());
@@ -211,6 +225,13 @@ class _VorsitzerAppState extends State<VorsitzerApp> {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeService.instance.modus,
+      builder: (context, modus, _) => _bauen(modus),
+    );
+  }
+
+  Widget _bauen(ThemeMode modus) {
     return MaterialApp(
       title: 'ICD360S e.V - Vorsitzer Portal',
       debugShowCheckedModeBanner: false,
@@ -227,15 +248,21 @@ class _VorsitzerAppState extends State<VorsitzerApp> {
         Locale('en', 'US'),
       ],
       locale: const Locale('de', 'DE'),
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4a90d9),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        // Use system font on each platform
-        fontFamily: Platform.isWindows ? 'Segoe UI' : null,
-      ),
+      theme: AppTheme.hell,
+      darkTheme: AppTheme.dunkel,
+      themeMode: modus,
+      // ⚠️ Hier wird der globale Schalter für die Farbtokens gesetzt — und
+      // zwar aus `builder`, weil das die einzige Stelle ist, die BEIDE Fälle
+      // abdeckt: die eigene Wahl (Hell/Dunkel) und das Umschalten des
+      // Betriebssystems, während ThemeMode.system aktiv ist. Ein
+      // `ValueListenableBuilder` allein sähe den zweiten Fall nie.
+      //
+      // `builder` läuft innerhalb des Themas, aber oberhalb des Navigators,
+      // also bevor irgendein Bildschirm baut — der Wert steht rechtzeitig.
+      builder: (context, child) {
+        F.istDunkel = Theme.of(context).brightness == Brightness.dark;
+        return child ?? const SizedBox.shrink();
+      },
       home: const LoginWithCodeScreen(),
       // TEMPORARY DIAGNOSTIC — elimin GlobalChatOverlay complet ca să
       // izolez cauza freeze Android. Dacă butoanele Arbeitswochen merg

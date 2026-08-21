@@ -7,6 +7,8 @@ import '../widgets/jobcenter_einstellung.dart';
 import '../widgets/kindergeld_einstellung.dart';
 import '../widgets/deutschlandticket_einstellung.dart';
 import '../widgets/sms_gateway_einstellung.dart';
+import '../widgets/theme_umschalter.dart';
+import '../utils/app_farben.dart';
 import 'server_screen.dart';
 import 'client_screen.dart';
 
@@ -106,6 +108,12 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
                 section: 'client',
                 subtitle: 'Client-Verwaltung',
               ),
+              _buildNavItem(
+                icon: Icons.contrast,
+                title: 'Erscheinungsbild',
+                section: 'erscheinungsbild',
+                subtitle: 'Hell, Dunkel oder System',
+              ),
             ],
           ),
           ),
@@ -180,9 +188,48 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
         return const ServerScreen();
       case 'client':
         return const ClientScreen();
+      case 'erscheinungsbild':
+        return _buildErscheinungsbild();
       default:
         return const Center(child: Text('Abschnitt wählen'));
     }
+  }
+
+  Widget _buildErscheinungsbild() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Erscheinungsbild',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          const Text(
+            'Gilt für die ganze Anwendung und bleibt über Neustarts hinweg '
+            'erhalten. „System" folgt der Einstellung des Geräts.',
+            style: TextStyle(fontSize: 12),
+          ),
+          const SizedBox(height: 18),
+          const ThemeUmschalterZeile(),
+          const SizedBox(height: 18),
+          // Dieselbe Wahl steckt auch im Knopf oben rechts in der Kopfleiste;
+          // dort schaltet sie reihum weiter.
+          Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: F.textLeise),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Schneller geht es über den Knopf in der Kopfleiste — '
+                  'auf dem Telefon über das ⋮-Menü.',
+                  style: TextStyle(fontSize: 12, color: F.textSchwach),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildBankenPlaceholder() {

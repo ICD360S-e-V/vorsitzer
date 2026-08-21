@@ -82,6 +82,8 @@ import 'bug_reports_screen.dart';
 import 'pending_parent_consent_screen.dart';
 import 'einstellungen_screen.dart';
 import '../widgets/faltbare_kopfleiste.dart';
+import '../widgets/theme_umschalter.dart';
+import '../services/theme_service.dart';
 
 final _log = LoggerService();
 
@@ -1898,6 +1900,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               gpsFollowing: _weatherService.isFollowingGps,
               onTap: () => showWeatherDialog(context, _weatherService),
             ),
+          // Hell / Dunkel / System. Steht bewusst neben Profil und Abmelden,
+          // also bei dem, was das eigene Konto betrifft — nicht zwischen den
+          // Fachknöpfen.
+          const ThemeUmschalterKnopf(),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: _showProfileDialog,
@@ -2107,6 +2113,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               _menuePunktIcon('tv', Icons.live_tv_outlined, 'TV — YouTube-Kanäle',
                   zaehler: tvNeu, zaehlerFarbe: Colors.red),
               const PopupMenuDivider(),
+              // ⚠️ Auf Telefonbreite ist das ⋮-Menü der EINZIGE Weg zum
+              // Erscheinungsbild — der Knopf oben steht in der anderen
+              // Zweigstelle von `actions`, die hier gar nicht läuft. Der
+              // eingestellte Modus steht als Text dabei, weil ein Tooltip auf
+              // einem Telefon nie jemand zu sehen bekommt.
+              _menuePunktIcon(
+                'erscheinungsbild',
+                ThemeService.symbol(ThemeService.instance.modus.value),
+                'Erscheinungsbild: '
+                    '${ThemeService.bezeichnung(ThemeService.instance.modus.value)}',
+              ),
               _menuePunktIcon('profil', Icons.person, 'Mein Profil'),
               _menuePunktIcon('abmelden', Icons.logout, 'Abmelden'),
             ],
@@ -2175,6 +2192,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         _showNewsDialog();
       case 'oepnv':
         _showTransitDialog();
+      case 'erscheinungsbild':
+        await ThemeService.instance
+            .weiterschalten(Theme.of(context).brightness);
       case 'speedtest':
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => const SpeedtestScreen(),
