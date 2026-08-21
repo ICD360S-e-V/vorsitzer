@@ -7024,73 +7024,28 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
     );
   }
 
-  /// Legt eine versandte Anfrage ab: Terminzeile, Ticket, Liste neu laden.
+  /// Legt die versandte Anfrage ab — Termin, Korrespondenz, Ticket.
   ///
-  /// ⚠️ `datum` ist der Tag des VERSANDS, nicht der Termin — den kennt zu
-  /// diesem Zeitpunkt niemand, die Praxis muss ihn erst nennen. Genau dafür
-  /// gibt es `typ: anfrage`.
+  /// 🔴 `saveKrankenhausTermin` ist NICHT austauschbar. Dieser Tab schreibt in seine
+  /// eigenen Tabellen; mit der gemeinsamen `saveArztTermin` landete der Termin
+  /// in der falschen und taucht im Tab nie auf — kompilieren würde es
+  /// trotzdem. Deshalb wird die Funktion hereingereicht, siehe
+  /// [terminanfrageAblegen].
   Future<void> _terminanfrageAblegen(
     String type,
     String arztTitle,
     Map<String, dynamic> selArzt,
     TerminanfrageErgebnis e,
   ) async {
-    final heute = DateTime.now();
-    final datum = '${heute.year}-${heute.month.toString().padLeft(2, '0')}-'
-        '${heute.day.toString().padLeft(2, '0')}';
-    final arztOrt = [
-      if ((selArzt['praxis_name']?.toString() ?? '').isNotEmpty) selArzt['praxis_name'],
-      if ((selArzt['arzt_name']?.toString() ?? '').isNotEmpty) selArzt['arzt_name'],
-      if ((selArzt['strasse']?.toString() ?? '').isNotEmpty) selArzt['strasse'],
-      if ((selArzt['plz_ort']?.toString() ?? '').isNotEmpty) selArzt['plz_ort'],
-    ].join(', ');
-
-    try {
-      await widget.apiService.saveArztTermin({
-        'action': 'add',
-        'user_id': widget.user.id,
-        'arzt_type': type,
-        'datum': datum,
-        'typ': 'anfrage',
-        'anfrage_methode': e.methode,
-        'diagnose': e.betreff,
-        'notizen': [
-          'Vorlage: ${e.vorlage.titel}',
-          'Gesendet an: ${e.empfaenger}',
-          // ⚠️ Die Sitzungsnummer ist der einzige Faden zum Sendebericht:
-          // sipgate löscht seinen Verlauf nach 30 Tagen.
-          if (e.sitzungId.isNotEmpty) 'sipgate-Sitzung: ${e.sitzungId}',
-        ].join('\n'),
-        'arzt_ort': arztOrt,
-      });
-    } catch (err) {
-      debugPrint('[Arzt] Terminanfrage ablegen: $err');
-    }
-
-    try {
-      final praxis = selArzt['praxis_name']?.toString() ??
-          selArzt['arzt_name']?.toString() ??
-          arztTitle;
-      await widget.ticketService.createTicket(
-        mitgliedernummer: widget.user.mitgliedernummer,
-        subject: 'Arzt-Anfrage: $arztTitle \u2014 ${widget.user.name}',
-        message: [
-          'Arzt: $praxis ($arztTitle)',
-          'Patient: ${widget.user.name} (${widget.user.mitgliedernummer})',
-          'Versandt am: $datum per ${e.methode == 'fax' ? 'Fax' : 'E-Mail'}',
-          'An: ${e.empfaenger}',
-          if (e.sitzungId.isNotEmpty) 'sipgate-Sitzung: ${e.sitzungId}',
-          '',
-          e.betreff,
-        ].join('\n'),
-        priority: 'medium',
-        systemTicket: true,
-        scheduledDate: datum,
-      );
-    } catch (err) {
-      debugPrint('[Arzt] Ticket create error: $err');
-    }
-
+    await terminanfrageAblegen(
+      ticketService: widget.ticketService,
+      user: widget.user,
+      arztTyp: type,
+      arztTitel: arztTitle,
+      arzt: selArzt,
+      ergebnis: e,
+      speichern: widget.apiService.saveKrankenhausTermin,
+    );
     if (!mounted) return;
     _arztTermine.remove(type);
     _loadArztTermine(type);

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/models/user.dart';
 import 'package:icd360sev_vorsitzer/utils/terminanfrage_vorlagen.dart';
@@ -380,5 +382,45 @@ void main() {
     expect(t, isNot(contains('per E-Mail an')));
     expect(t, isNot(contains('per Fax an')));
     expect(t, contains('telefonisch unter 0731 80159736'));
+  });
+
+  group('Jeder Tab speichert in SEINE Tabelle', () {
+    // 🔴 Der gefährlichste Fehler dieser Änderung, und der einzige, den weder
+    // `flutter analyze` noch ein Widget-Test sieht: `saveArztTermin` gibt es
+    // auf dem ApiService, also kompiliert der falsche Aufruf anstandslos. Die
+    // fünf entkoppelten Tabs schreiben aber in eigene Tabellen. Mit der
+    // gemeinsamen Funktion ginge das Fax raus, die Meldung sagte „übergeben",
+    // und der Termin landete in der falschen Tabelle — im Tab erschiene er
+    // NIE, ohne Fehler und ohne Log.
+    //
+    // Deshalb liest dieser Test die Quelltexte. Das ist ungewöhnlich, aber es
+    // ist die einzige Stelle, an der die Kopplung überhaupt auffallen kann.
+    const erwartet = {
+      'lib/widgets/gesundheit_tab_content.dart': 'saveArztTermin',
+      'lib/widgets/mitgliederverwaltung_arzten_augenarzt.dart':
+          'saveAugenarztTermin',
+      'lib/widgets/mitgliederverwaltung_arzten_hno.dart': 'saveHnoTermin',
+      'lib/widgets/mitgliederverwaltung_arzten_krankenhaus.dart':
+          'saveKrankenhausTermin',
+      'lib/widgets/mitgliederverwaltung_arzten_md.dart': 'saveMdTermin',
+      'lib/widgets/mitgliederverwaltung_arzten_rheumatologie.dart':
+          'saveRheumatologieTermin',
+    };
+
+    for (final e in erwartet.entries) {
+      test('${e.key.split('/').last} → ${e.value}', () {
+        final datei = File(e.key);
+        expect(datei.existsSync(), isTrue, reason: 'Datei fehlt: ${e.key}');
+        final quelle = datei.readAsStringSync();
+
+        // Genau eine Übergabe, und zwar die richtige.
+        final treffer = RegExp(r'speichern: widget\.apiService\.(\w+)')
+            .allMatches(quelle)
+            .map((m) => m.group(1))
+            .toList();
+        expect(treffer, [e.value],
+            reason: 'Dieser Tab muss mit ${e.value} speichern');
+      });
+    }
   });
 }

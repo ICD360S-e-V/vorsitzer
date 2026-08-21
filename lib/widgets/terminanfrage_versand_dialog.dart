@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../services/ticket_service.dart';
 import '../utils/terminanfrage_pdf.dart';
 import '../utils/terminanfrage_vorlagen.dart';
 
@@ -128,6 +129,129 @@ String _alsDeutschesDatum(String roh) {
   return '${iso.group(3)}.${iso.group(2)}.${iso.group(1)}';
 }
 
+/// Legt eine versandte Anfrage ab: Terminzeile, Korrespondenzeintrag, Ticket.
+///
+/// 🔴 [speichern] MUSS die Speicherfunktion DIESES Tabs sein.
+/// Die fünf entkoppelten Tabs schreiben in eigene Tabellen und haben je eine
+/// eigene Funktion (`saveHnoTermin`, `saveAugenarztTermin`, …); nur die
+/// sechzehn gemeinsamen nehmen `saveArztTermin`. Der erste Anlauf rief überall
+/// `saveArztTermin` — es kompiliert, die Methode gibt es ja, und `flutter
+/// analyze` schweigt. Die Wirkung wäre gewesen: das Fax geht raus, die Meldung
+/// sagt „übergeben", und der Termin landet in der falschen Tabelle — im Tab
+/// erscheint er NIE. Deshalb wird die Funktion hier hereingereicht und nicht
+/// erraten.
+///
+/// ⚠️ Der Korrespondenzeintrag entsteht in einem ZWEITEN Aufruf (`update` mit
+/// `korrespondenz`, ohne `datum`). Die entkoppelten Endpunkte nehmen ihn zwar
+/// schon beim `add` entgegen, `gesundheit_termine_save.php` aber NICHT —
+/// nachgesehen am 21.08.2026: dort kennt nur der `update`-Zweig das Feld. Ein
+/// gemeinsamer Weg ist eine Anfrage mehr und dafür überall derselbe.
+///
+/// ⚠️ Schlägt der zweite Aufruf fehl, bleibt der Termin ohne Korrespondenz —
+/// das ist der harmlose Ausgang. Andersherum stünde eine Korrespondenz ohne
+/// Termin in der Akte.
+Future<void> terminanfrageAblegen({
+  required TicketService ticketService,
+  required User user,
+  required String arztTyp,
+  required String arztTitel,
+  required Map<String, dynamic> arzt,
+  required TerminanfrageErgebnis ergebnis,
+  required Future<Map<String, dynamic>> Function(Map<String, dynamic>) speichern,
+}) async {
+  final heute = DateTime.now();
+  final datum = '${heute.year}-${heute.month.toString().padLeft(2, '0')}-'
+      '${heute.day.toString().padLeft(2, '0')}';
+  final arztOrt = [
+    if ((arzt['praxis_name']?.toString() ?? '').isNotEmpty) arzt['praxis_name'],
+    if ((arzt['arzt_name']?.toString() ?? '').isNotEmpty) arzt['arzt_name'],
+    if ((arzt['strasse']?.toString() ?? '').isNotEmpty) arzt['strasse'],
+    if ((arzt['plz_ort']?.toString() ?? '').isNotEmpty) arzt['plz_ort'],
+  ].join(', ');
+
+  // ⚠️ `datum` ist der Tag des VERSANDS, nicht der Termin — den kennt zu
+  // diesem Zeitpunkt niemand, die Praxis muss ihn erst nennen. Genau dafür
+  // gibt es `typ: anfrage`.
+  final notiz = [
+    'Vorlage: ${ergebnis.vorlage.titel}',
+    'Gesendet an: ${ergebnis.empfaenger}',
+    // ⚠️ Die Sitzungsnummer ist der einzige Faden zum Sendebericht: sipgate
+    // löscht seinen Verlauf nach 30 Tagen.
+    if (ergebnis.sitzungId.isNotEmpty) 'sipgate-Sitzung: ${ergebnis.sitzungId}',
+  ].join('\n');
+
+  int? terminId;
+  try {
+    final res = await speichern({
+      'action': 'add',
+      'user_id': user.id,
+      'arzt_type': arztTyp,
+      'datum': datum,
+      'typ': 'anfrage',
+      'anfrage_methode': ergebnis.methode,
+      'diagnose': ergebnis.betreff,
+      'notizen': notiz,
+      'arzt_ort': arztOrt,
+    });
+    // `jsonResponse` mischt die Nutzlast in die Wurzel — die neue Id liegt
+    // direkt unter `id`, nicht unter `data`.
+    if (res['success'] == true) terminId = int.tryParse('${res['id'] ?? ''}');
+  } catch (err) {
+    debugPrint('[Terminanfrage] Termin ablegen: $err');
+  }
+
+  // Der versandte Text landet als ausgehende Korrespondenz am Termin — dort
+  // sucht ihn jeder, der später fragt „was haben wir denen eigentlich
+  // geschrieben?".
+  if (terminId != null) {
+    try {
+      await speichern({
+        'action': 'update',
+        'user_id': user.id,
+        'arzt_type': arztTyp,
+        'termin_id': terminId,
+        'korrespondenz': [
+          {
+            'datum': datum,
+            'art': ergebnis.methode,
+            'richtung': 'ausgehend',
+            'betreff': ergebnis.betreff,
+            'inhalt': ergebnis.text,
+          }
+        ],
+      });
+    } catch (err) {
+      debugPrint('[Terminanfrage] Korrespondenz ablegen: $err');
+    }
+  }
+
+  try {
+    final praxis = arzt['praxis_name']?.toString() ??
+        arzt['arzt_name']?.toString() ??
+        arztTitel;
+    await ticketService.createTicket(
+      mitgliedernummer: user.mitgliedernummer,
+      subject: 'Arzt-Anfrage: $arztTitel \u2014 ${user.name}',
+      message: [
+        'Arzt: $praxis ($arztTitel)',
+        'Patient: ${user.name} (${user.mitgliedernummer})',
+        'Versandt am: $datum per '
+            '${ergebnis.methode == 'fax' ? 'Fax' : 'E-Mail'}',
+        'An: ${ergebnis.empfaenger}',
+        if (ergebnis.sitzungId.isNotEmpty)
+          'sipgate-Sitzung: ${ergebnis.sitzungId}',
+        '',
+        ergebnis.betreff,
+      ].join('\n'),
+      priority: 'medium',
+      systemTicket: true,
+      scheduledDate: datum,
+    );
+  } catch (err) {
+    debugPrint('[Terminanfrage] Ticket create error: $err');
+  }
+}
+
 /// Öffnet den Versanddialog. Gibt `true` zurück, wenn etwas rausgegangen ist.
 Future<bool> zeigeTerminanfrageVersand(
   BuildContext context, {
@@ -198,6 +322,21 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
   String _vereinFax = '';
   String _vereinTel = '';
 
+  /// Die Mailsignatur, wie sie auch das Verfassen-Fenster anhängt.
+  ///
+  /// 🔴 SIE KOMMT NICHT VON SELBST. Im ersten Anlauf stand hier der Kommentar
+  /// „ohne Signatur — die hängt `api/mail/send.php` an". Das war schlicht
+  /// falsch, nachgesehen am 21.08.2026: `send.php` reicht `body` unverändert
+  /// an die Mail-API weiter, und angehängt wird die Signatur vom CLIENT, in
+  /// `mail_compose_screen.dart` über `signature.php`. Wer wie hier direkt
+  /// `sendMail()` ruft, umgeht sie — der Arzt bekam eine Mail ohne Absender-
+  /// block, ohne Verein, ohne Impressum.
+  ///
+  /// ⚠️ Die Signatur beginnt mit `-- ` und enthält KEINE Grußformel (siehe
+  /// `mailBuildSignature()`), deshalb bleibt „Mit freundlichen Grüßen" im
+  /// Brieftext stehen und die Signatur kommt darunter.
+  String _signatur = '';
+
   ArztFach get _fach => arztFachFuer(widget.basis.arztTyp);
 
   @override
@@ -238,6 +377,10 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
         _vereinFax = d['fax']?.toString() ?? '';
         _vereinTel = d['telefon_fix']?.toString() ?? '';
       }
+    } catch (_) {}
+    try {
+      final sig = await widget.api.getMailSignature();
+      if (sig['success'] == true) _signatur = (sig['signature'] ?? '').toString();
     } catch (_) {}
     if (mounted) setState(() => _laedt = false);
   }
@@ -305,6 +448,16 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
 
   // ── Senden ─────────────────────────────────────────────────────────
 
+  /// Der Mailtext, wie er wirklich rausgeht — Brief plus Signatur.
+  ///
+  /// ⚠️ EINE Stelle, weil derselbe Text zweimal gebraucht wird: einmal zum
+  /// Senden und einmal für die Korrespondenzzeile. Zwei Aufbauten liefen
+  /// auseinander, und in der Akte stünde etwas anderes als beim Empfänger.
+  String _mailText(TerminanfrageDaten d, TerminanfrageText t) {
+    final brief = t.alsMailText(d);
+    return _signatur.trim().isEmpty ? brief : '$brief\n$_signatur';
+  }
+
   Future<void> _sendeMail() async {
     final d = _daten('email');
     final t = terminanfrageText(_vorlage, d);
@@ -313,10 +466,11 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
       _fehler = '';
     });
     try {
+      final gesendet = _mailText(d, t);
       final res = await widget.api.sendMail(
         to: _arztMail,
         subject: t.betreff,
-        body: t.alsMailText(d),
+        body: gesendet,
       );
       if (res['success'] != true) {
         setState(() => _fehler = res['message']?.toString() ??
@@ -327,7 +481,7 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
         methode: 'email',
         vorlage: _vorlage,
         betreff: t.betreff,
-        text: t.alsMailText(d),
+        text: gesendet,
         empfaenger: _arztMail,
       ));
       if (mounted) Navigator.pop(context, true);
@@ -374,6 +528,9 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
         methode: 'fax',
         vorlage: _vorlage,
         betreff: t.betreff,
+        // ⚠️ Beim Fax OHNE Mailsignatur: das PDF hat Absenderblock und
+        // Grußformel bereits, und der Signaturblock gehört zur E-Mail, nicht
+        // zum Brief. Was hier steht, ist der Inhalt des versandten PDFs.
         text: t.alsMailText(d),
         empfaenger: _arztFax,
         sitzungId: res['session_id']?.toString() ?? '',
