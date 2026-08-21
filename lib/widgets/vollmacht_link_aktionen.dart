@@ -57,6 +57,23 @@ class VollmachtLinkKnoepfe extends StatefulWidget {
   /// hier steht der Grund, statt ihn erst nach dem Klick zu zeigen.
   final bool widerrufen;
 
+  /// Ob die Vollmacht dem Mitglied überhaupt zur Unterschrift steht.
+  ///
+  /// ⚠️ Der Signierlink FÜHRT zu einem offenen Vorgang, er legt keinen an —
+  /// sonst gäbe es zwei Wege, eine Unterschrift anzufordern, und der zweite
+  /// umginge Frist, Gruppe und die Zeile des Vorstands. Fehlt der Vorgang,
+  /// lehnt der Server mit `grund: nicht_gestellt` ab.
+  ///
+  /// Bis 21.08.2026 stand der Knopf trotzdem hell da und ließ sich drücken;
+  /// die Auskunft kam erst danach, als Fehlermeldung. Ein Knopf, der nichts
+  /// tun KANN, ist schlimmer als keiner — dieselbe Regel wie beim Knopf für
+  /// die unterschriebene Fassung.
+  final bool signierbar;
+
+  /// Was stattdessen zu tun ist. Steht unter den Knöpfen, nicht in einem
+  /// Tooltip: auf einem Telefon zeigt ein Tooltip niemand an.
+  final String signierHinweis;
+
   final MaterialColor farbe;
 
   const VollmachtLinkKnoepfe({
@@ -65,6 +82,8 @@ class VollmachtLinkKnoepfe extends StatefulWidget {
     required this.farbe,
     this.onGesendet,
     this.widerrufen = false,
+    this.signierbar = true,
+    this.signierHinweis = '',
   });
 
   @override
@@ -172,6 +191,8 @@ class _VollmachtLinkKnoepfeState extends State<VollmachtLinkKnoepfe> {
 
   Widget _knopf(String zweck, String beschriftung, IconData symbol, Color ton) {
     final laeuft = _laeuft == zweck;
+    final gesperrt = zweck == 'signieren' && !widget.signierbar;
+    if (gesperrt) ton = F.h(Colors.grey, 500);
     return OutlinedButton.icon(
       icon: laeuft
           ? const SizedBox(width: 12, height: 12,
@@ -183,7 +204,7 @@ class _VollmachtLinkKnoepfeState extends State<VollmachtLinkKnoepfe> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
         minimumSize: const Size(0, 28),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-      onPressed: (_laeuft != null || widget.widerrufen)
+      onPressed: (_laeuft != null || widget.widerrufen || gesperrt)
           ? null
           : () => _senden(context, zweck, beschriftung),
     );
@@ -191,9 +212,21 @@ class _VollmachtLinkKnoepfeState extends State<VollmachtLinkKnoepfe> {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(spacing: 6, runSpacing: 4, children: [
-      _knopf('lesen', 'Link zum Lesen', Icons.translate, Colors.teal.shade700),
-      _knopf('signieren', 'Link zum Unterschreiben', Icons.draw, widget.farbe.shade700),
+    final hinweis = !widget.signierbar && widget.signierHinweis.isNotEmpty;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Wrap(spacing: 6, runSpacing: 4, children: [
+        _knopf('lesen', 'Link zum Lesen', Icons.translate, Colors.teal.shade700),
+        _knopf('signieren', 'Link zum Unterschreiben', Icons.draw, widget.farbe.shade700),
+      ]),
+      // ⚠️ Der Grund steht DA, nicht in einem Tooltip: auf einem Telefon
+      // bekommt ihn dort niemand zu sehen, und ein grauer Knopf ohne Grund
+      // ist nur eine andere Art von Sackgasse.
+      if (hinweis)
+        Padding(
+          padding: const EdgeInsets.only(top: 3, left: 2),
+          child: Text(widget.signierHinweis,
+            style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 700))),
+        ),
     ]);
   }
 }
