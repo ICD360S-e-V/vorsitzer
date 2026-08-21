@@ -29,12 +29,17 @@ class VermieterInkassoTab extends StatefulWidget {
   final int mietvertragId;
   final String vertragBezeichnung;
 
+  /// Der Vermieter dieses Vertrages — im Widerspruch ist er der
+  /// Gläubiger, in dessen Auftrag das Büro schreibt.
+  final String vermieterName;
+
   const VermieterInkassoTab({
     super.key,
     required this.apiService,
     required this.userId,
     required this.mietvertragId,
     required this.vertragBezeichnung,
+    this.vermieterName = '',
   });
 
   @override
@@ -153,6 +158,7 @@ class _VermieterInkassoTabState extends State<VermieterInkassoTab> {
               mietvertragId: widget.mietvertragId,
             ),
             _VorfallListe(
+              vermieterName: widget.vermieterName,
               apiService: widget.apiService,
               userId: widget.userId,
               mietvertragId: widget.mietvertragId,
@@ -619,10 +625,12 @@ class _VorfallListe extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final int mietvertragId;
+  final String vermieterName;
   const _VorfallListe({
     required this.apiService,
     required this.userId,
     required this.mietvertragId,
+    this.vermieterName = '',
   });
 
   @override
@@ -887,6 +895,7 @@ class _VorfallListeState extends State<_VorfallListe> {
         inkassoStrasse: _inkassoStrasse,
         inkassoPlzOrt: _inkassoPlzOrt,
         inkassoEmail: _inkassoEmail,
+        vermieterName: widget.vermieterName,
         onZurueck: () => setState(() => _offen = null),
         onBearbeiten: () => _bearbeiten(_offen),
       );
@@ -1008,6 +1017,10 @@ class _VorfallDetail extends StatefulWidget {
   final VoidCallback onZurueck;
   final VoidCallback onBearbeiten;
 
+  /// Der Vermieter — im Widerspruch der Gläubiger, in dessen Auftrag das
+  /// Büro schreibt.
+  final String vermieterName;
+
   const _VorfallDetail({
     required this.apiService,
     required this.userId,
@@ -1019,6 +1032,7 @@ class _VorfallDetail extends StatefulWidget {
     this.inkassoStrasse,
     this.inkassoPlzOrt,
     this.inkassoEmail,
+    this.vermieterName = '',
   });
 
   @override
@@ -1337,6 +1351,9 @@ class _VorfallDetailState extends State<_VorfallDetail> {
               inkassoEmail: widget.inkassoEmail,
               vorfallBezeichnung: v['bezeichnung']?.toString(),
               vorfall: v,
+              // Der Vermieter dieses Vertrages. Er ist der Gläubiger —
+              // das steht in der Akte, und niemand soll es abtippen.
+              glaeubigerName: widget.vermieterName,
               // Das erste Aktenzeichen des Vorfalls reicht für den
               // Briefkopf; laufen mehrere, steht das übrige im Text.
               aktenzeichen: _akten.isEmpty

@@ -62,11 +62,17 @@ class VermieterWiderspruch extends StatefulWidget {
   /// niemand abtippt, was längst erfasst ist.
   final Map<String, dynamic>? vorfall;
 
-  /// ⚠️ Bewusst NICHT vorbelegt: „von Ihnen benannter Gläubiger" ist,
-  /// wen das BÜRO als Auftraggeber nennt. Das ist oft der Vermieter, aber
-  /// nicht immer — Forderungen werden verkauft. Eine Vorbelegung würde
-  /// hier eine Behauptung in den Brief schreiben, die aus unserer Akte
-  /// stammt und nicht aus ihrem Schreiben.
+  /// Der Vermieter dieses Mietvertrages — er ist der Gläubiger.
+  ///
+  /// ⚠️ Das war einmal bewusst LEER, mit dem Argument: „von Ihnen
+  /// benannter Gläubiger" ist, wen das BÜRO als Auftraggeber nennt, und
+  /// das ist oft der Vermieter, aber nicht immer — Forderungen werden
+  /// verkauft. Das Argument stimmt, die Schlussfolgerung war falsch: es
+  /// führte dazu, dass die Zeile im Brief entweder fehlte oder von Hand
+  /// abgetippt wurde, obwohl der Vermieter im selben Vertrag steht.
+  ///
+  /// Aufgelöst wird der Widerspruch nicht durch Weglassen, sondern indem
+  /// der Brief sagt, WOHER der Name kommt — siehe `_glaeubigerZeile()`.
   final String? glaeubigerName;
 
   const VermieterWiderspruch({
@@ -312,6 +318,10 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   // welcher.
   final _schreibenVom = TextEditingController();
   final _glaeubigerC = TextEditingController();
+
+  /// Ob der Gläubiger aus unserer Akte stammt und unverändert dasteht.
+  /// Davon hängt ab, welchen Satz der Brief schreibt — nicht die Optik.
+  bool _glaeubigerAusAkte = false;
   final _vertragRefC = TextEditingController();
   final _hauptC = TextEditingController();
   final _kostenC = TextEditingController();
@@ -424,6 +434,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           _betreffC.text = d['betreff']?.toString() ?? '';
           _schreibenVom.text = d['schreiben_vom']?.toString() ?? '';
           _glaeubigerC.text = d['glaeubiger']?.toString() ?? '';
+          // Was gespeichert ist, hat ein Mensch stehen lassen oder
+          // getippt — dann ist es keine Vermutung mehr aus der Akte.
+          if (_glaeubigerC.text.trim().isNotEmpty) _glaeubigerAusAkte = false;
           _vertragRefC.text = d['vertrag_ref']?.toString() ?? '';
           _hauptC.text = d['hauptforderung']?.toString() ?? '';
           _kostenC.text = d['inkassokosten']?.toString() ?? '';
@@ -565,7 +578,10 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     if (_hauptC.text.trim().isEmpty) _hauptC.text = forderung;
     if (_gesamtC.text.trim().isEmpty) _gesamtC.text = forderung;
     final g = (widget.glaeubigerName ?? '').trim();
-    if (_glaeubigerC.text.trim().isEmpty && g.isNotEmpty) _glaeubigerC.text = g;
+    if (_glaeubigerC.text.trim().isEmpty && g.isNotEmpty) {
+      _glaeubigerC.text = g;
+      _glaeubigerAusAkte = true;
+    }
     if (_vertragRefC.text.trim().isEmpty) {
       _vertragRefC.text = (v['bezeichnung']?.toString() ?? '').trim();
     }
@@ -600,6 +616,10 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   @visibleForTesting
   Future<List<MailOutgoingAttachment>> anhaengeFuerTest() => _anhaengeHolen();
 
+  /// Nur für den Test: der fertige Brieftext.
+  @visibleForTesting
+  String brieftextFuerTest() => _brieftext();
+
   /// Holt die angekreuzten Dokumente als Bytes.
   Future<List<MailOutgoingAttachment>> _anhaengeHolen() async {
     final raus = <MailOutgoingAttachment>[];
@@ -619,6 +639,27 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       } catch (_) {}
     }
     return raus;
+  }
+
+  /// Die Gläubigerzeile — und der Grund, warum es zwei Fassungen gibt.
+  ///
+  /// ⚠️ „Von Ihnen benannter Gläubiger" behauptet etwas über IHREN Brief:
+  /// dass sie diesen Namen genannt haben. Steht dort der Vermieter aus
+  /// unserer Akte, ist das im Zweifel eine Falschzitierung — Forderungen
+  /// werden verkauft, und das Büro kann einen anderen Auftraggeber nennen.
+  /// Ein Widerspruch, der die Gegenseite falsch zitiert, verliert genau
+  /// die Genauigkeit, aus der er seine Kraft zieht.
+  ///
+  /// Also zwei wahre Sätze statt eines bequemen: kommt der Name aus
+  /// unserer Akte, sagt der Brief das auch — und verlangt im selben Zug
+  /// Berichtigung. Das passt zur Darlegung nach § 13a RDG, die den
+  /// Auftraggeber ohnehin benannt haben will.
+  String _glaeubigerZeile() {
+    final g = _glaeubigerC.text.trim();
+    return _glaeubigerAusAkte
+        ? 'Gläubiger nach unseren Unterlagen: $g '
+            '(bitte berichtigen, falls Sie für einen anderen Auftraggeber tätig werden)'
+        : 'Von Ihnen benannter Gläubiger: $g';
   }
 
   /// Betreff: die Sache zuerst, dann das Aktenzeichen.
@@ -657,8 +698,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         'Ihr Schreiben vom ${_deutschDatum(_schreibenVom.text)}',
       if ((widget.aktenzeichen ?? '').trim().isNotEmpty)
         'Ihr Aktenzeichen: ${widget.aktenzeichen!.trim()}',
-      if (_glaeubigerC.text.trim().isNotEmpty)
-        'Von Ihnen benannter Gläubiger: ${_glaeubigerC.text.trim()}',
+      if (_glaeubigerC.text.trim().isNotEmpty) _glaeubigerZeile(),
       if (_vertragRefC.text.trim().isNotEmpty)
         'Von Ihnen benannter Vorgang: ${_vertragRefC.text.trim()}',
       if (_hauptC.text.trim().isNotEmpty) 'Hauptforderung: ${_betrag(_hauptC.text)}',
@@ -797,8 +837,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       final rest = <String>[
         if ((widget.aktenzeichen ?? '').trim().isNotEmpty)
           'Ihr Aktenzeichen: ${widget.aktenzeichen!.trim()}',
-        if (_glaeubigerC.text.trim().isNotEmpty)
-          'Von Ihnen benannter Gläubiger: ${_glaeubigerC.text.trim()}',
+        if (_glaeubigerC.text.trim().isNotEmpty) _glaeubigerZeile(),
         if (_vertragRefC.text.trim().isNotEmpty)
           'Von Ihnen benannter Vorgang: ${_vertragRefC.text.trim()}',
         if (_hauptC.text.trim().isNotEmpty) 'Hauptforderung: ${_betrag(_hauptC.text)}',
@@ -1564,19 +1603,27 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         _abschnitt('Worauf sich der Widerspruch bezieht'),
         _hinweis(Colors.blue, Icons.auto_awesome, 'Aus dem Vorgang übernommen',
             'Forderung und Bezeichnung kommen aus dem Vorfall, das Datum aus dem jüngsten '
-            'eingehenden Schreiben dieser Akte. Alles lässt sich überschreiben, '
-            'Eingetragenes wird nie überschrieben. ⚠️ Den Gläubiger tragen Sie selbst ein: '
-            'gemeint ist, wen das BÜRO als Auftraggeber nennt — das ist oft der Vermieter, '
-            'aber Forderungen werden auch verkauft.'),
+            'eingehenden Schreiben dieser Akte, der Gläubiger ist der Vermieter dieses '
+            'Mietvertrages. Alles lässt sich überschreiben, Eingetragenes wird nie '
+            'überschrieben.'),
         _datum('Datum des Inkasso-Schreibens', _schreibenVom,
             hinweis: 'Steht oben auf dem Brief, den Sie bestreiten.'),
         const SizedBox(height: 10),
         TextField(
           controller: _glaeubigerC,
+          // Sobald jemand tippt, ist der Name bestätigt und nicht mehr
+          // bloß aus der Akte übernommen — der Brief formuliert um.
+          onChanged: (_) {
+            if (_glaeubigerAusAkte) setState(() => _glaeubigerAusAkte = false);
+          },
           decoration: InputDecoration(
-            labelText: 'Von Ihnen benannter Gläubiger',
-            helperText: 'Wen das Büro als Auftraggeber nennt — nicht das Büro selbst.',
-            helperMaxLines: 2,
+            labelText: 'Gläubiger',
+            helperText: _glaeubigerAusAkte
+                ? 'Aus der Akte: der Vermieter dieses Vertrages. Der Brief sagt das auch '
+                    'so und bittet um Berichtigung. ⚠️ Nennt das Büro einen anderen '
+                    'Auftraggeber — Forderungen werden verkauft —, tragen Sie diesen ein.'
+                : 'Wen das Büro als Auftraggeber nennt — nicht das Büro selbst.',
+            helperMaxLines: 4,
             isDense: true,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),

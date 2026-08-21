@@ -730,6 +730,7 @@ class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderState
                   apiService: widget.apiService,
                   userId: widget.userId,
                   vermieterId: _vermieterId,
+                  vermieterName: (v['name']?.toString() ?? '').trim(),
                   onReload: () => _laden(leise: true),
                 ),
               ]),
@@ -839,7 +840,12 @@ class _MietvertragTab extends StatefulWidget {
   /// Vermieter. Ohne die id landete er wieder im gemeinsamen Topf des
   /// Mitglieds — und wäre in keiner Akte mehr zu finden.
   final int vermieterId;
-  const _MietvertragTab({required this.mietvertraege, required this.apiService, required this.userId, required this.vermieterId, required this.onReload});
+
+  /// Sein Name — er reicht bis in den Widerspruch durch. Wer eine
+  /// Forderung eintreiben lässt, ist der Gläubiger; das steht im
+  /// Mietvertrag, und niemand soll es abtippen müssen.
+  final String vermieterName;
+  const _MietvertragTab({required this.mietvertraege, required this.apiService, required this.userId, required this.vermieterId, required this.vermieterName, required this.onReload});
   @override
   State<_MietvertragTab> createState() => _MietvertragTabState();
 }
@@ -1028,6 +1034,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
           mietvertrag: m,
           apiService: widget.apiService,
           userId: widget.userId,
+          vermieterName: widget.vermieterName,
           onEditDetails: () { Navigator.pop(ctx); _add(m); },
           onReload: widget.onReload,
         ),
@@ -1268,6 +1275,9 @@ class MietvertragDetailModal extends StatefulWidget {
   final int userId;
   final VoidCallback onEditDetails;
   final Future<void> Function() onReload;
+
+  /// Der Vermieter, zu dem dieser Vertrag gehört.
+  final String vermieterName;
   const MietvertragDetailModal({
     super.key,
     required this.mietvertrag,
@@ -1275,6 +1285,7 @@ class MietvertragDetailModal extends StatefulWidget {
     required this.userId,
     required this.onEditDetails,
     required this.onReload,
+    this.vermieterName = '',
   });
   @override
   State<MietvertragDetailModal> createState() => MietvertragDetailModalState();
@@ -1409,6 +1420,7 @@ class MietvertragDetailModalState extends State<MietvertragDetailModal> with Tic
           userId: widget.userId,
           mietvertragId: _mvId,
           vertragBezeichnung: _bezeichnung,
+          vermieterName: widget.vermieterName,
         ),
         VermieterKorrespondenz(
           apiService: widget.apiService,
