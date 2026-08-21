@@ -790,6 +790,13 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           vorfallId: widget.vorfallId,
           gerichtTyp: widget.gerichtTyp,
           color: widget.color,
+          // ⚠️ Ohne die Nummer des Vorstands fällt in diesem Reiter alles aus,
+          // was an der Unterschrift hängt — und zwar lautlos: „Zur Unterschrift
+          // stellen" rendert gar nicht, `_signaturenLaden()` kehrt sofort um,
+          // also bleibt auch „Unterschriebene Fassung" für immer unsichtbar,
+          // und der Signierlink kann nie gehen, weil seine Voraussetzung hier
+          // nicht anlegbar ist. Der Reiter direkt darunter bekam sie längst.
+          adminMitgliedernummer: widget.adminMitgliedernummer,
         ),
         if (isInsolvenz) _InsolvenzverwalterTab(
           apiService: widget.apiService,
@@ -4395,6 +4402,18 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
   /// Der Siegel-Cron schreibt den Pfad auf ALLE Zeilen der Gruppe, sobald der
   /// letzte unterschrieben hat: es ist ein Dokument mit beiden Unterschriften,
   /// nicht zwei.
+  /// Ob für diese Vollmacht überhaupt eine Unterschrift ANGEFORDERT ist.
+  ///
+  /// ⚠️ Genau die Bedingung, die `vollmacht_link_senden` serverseitig prüft:
+  /// der Signierlink führt zu einem OFFENEN Vorgang und legt keinen an. Ohne
+  /// ihn antwortet der Server mit `grund: nicht_gestellt`.
+  ///
+  /// ⚠️ Ist die Nummer des Vorstands nicht bekannt, wurde die Liste gar nicht
+  /// geladen. Dann ist „nein" keine Aussage über den Vorgang, sondern über
+  /// unser Wissen — der Hinweis sagt deshalb etwas anderes.
+  bool _signaturGestellt(int id) =>
+      (_signaturen[id] ?? const <Signaturvorgang>[]).any((x) => x.istOffen);
+
   Signaturvorgang? _signiertVerfuegbar(int id) {
     final vorgaenge = _signaturen[id] ?? const <Signaturvorgang>[];
     if (vorgaenge.isEmpty) return null;
@@ -5149,6 +5168,13 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
                 VollmachtLinkKnoepfe(
                   farbe: widget.color,
                   widerrufen: status == 'revoked',
+                  signierbar: _signaturGestellt(
+                      v['id'] is int ? v['id'] as int : int.parse('${v['id']}')),
+                  signierHinweis: widget.adminMitgliedernummer.isEmpty
+                      ? 'Unterschriftsstand nicht abrufbar — Mitgliedsnummer des '
+                        'Vorstands fehlt.'
+                      : 'Erst „Zur Unterschrift stellen" — der Link führt zu einem '
+                        'offenen Vorgang, er legt keinen an.',
                   onGesendet: _load,
                   onSenden: (zweck) => widget.apiService.insolvenzVollmachtLinkSenden(
                     vollmachtId: v['id'] is int ? v['id'] as int : int.parse('${v['id']}'),
