@@ -11525,18 +11525,18 @@ class _MitgliederverwaltungArztenRheumatologieState extends State<Mitgliederverw
     late String title, subtitle;
 
     if (state == 'free') {
-      bg = Colors.green.shade50;
-      border = Colors.green.shade300;
-      fg = Colors.green.shade800;
+      bg = F.h(Colors.green, 50);
+      border = F.h(Colors.green, 300);
+      fg = F.h(Colors.green, 800);
       icon = Icons.check_circle_outline;
       title = 'Physiotherapie-Rezepte: $count/3 ausgestellt';
       subtitle = count == 0
           ? 'Bisher kein Physio-Rezept dieses Arztes — bis zu 3 möglich.'
           : '${3 - count} weitere Verordnung${(3 - count) == 1 ? '' : 'en'} ohne Karenz möglich.';
     } else if (state == 'cooldown') {
-      bg = Colors.red.shade50;
+      bg = F.h(Colors.red, 50);
       border = Colors.red.shade400;
-      fg = Colors.red.shade800;
+      fg = F.h(Colors.red, 800);
       icon = Icons.block;
       final daysLeft = freeFrom!.difference(DateTime.now()).inDays;
       title = '3/3 Physio-Rezepte — Karenz aktiv';
@@ -11544,9 +11544,9 @@ class _MitgliederverwaltungArztenRheumatologieState extends State<Mitgliederverw
           'Nächste mögliche Verordnung ab ${df.format(freeFrom)} '
           '(in $daysLeft Tag${daysLeft == 1 ? '' : 'en'}).';
     } else {
-      bg = Colors.amber.shade50;
+      bg = F.h(Colors.amber, 50);
       border = Colors.amber.shade400;
-      fg = Colors.amber.shade900;
+      fg = F.h(Colors.amber, 900);
       icon = Icons.notifications_active;
       final monthsAgo = ((DateTime.now().difference(lastDate!).inDays) / 30).floor();
       title = 'Karenz vorbei — Arzt kontaktieren';

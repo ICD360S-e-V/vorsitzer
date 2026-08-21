@@ -229,7 +229,7 @@ class _KindergeldEinstellungWidgetState extends State<KindergeldEinstellungWidge
               const SizedBox(height: 12),
               // Table: 1-10 children
               Table(
-                border: TableBorder.all(color: Colors.green.shade200, borderRadius: BorderRadius.circular(8)),
+                border: TableBorder.all(color: F.h(Colors.green, 200), borderRadius: BorderRadius.circular(8)),
                 columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(2), 2: FlexColumnWidth(2)},
                 children: [
                   TableRow(

@@ -3840,7 +3840,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
-              disabledBackgroundColor: Colors.grey.shade300,
+              disabledBackgroundColor: F.h(Colors.grey, 300),
             ),
           ),
         ),
@@ -6833,7 +6833,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.shade300,
+                      disabledBackgroundColor: F.h(Colors.grey, 300),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     ),
                   ),
@@ -8610,17 +8610,17 @@ class _MitwirkungspflichtSubTabState extends State<_MitwirkungspflichtSubTab> {
     final validUntil = e['valid_until']?.toString() ?? '';
     final isActiveRow = signed && !widerruf && (validUntil.isEmpty || _isFuture(validUntil));
 
-    Color borderC = Colors.grey.shade300;
+    Color borderC = F.h(Colors.grey, 300);
     String statusText = 'Generiert, noch nicht unterzeichnet';
     Color statusC = Colors.orange.shade700;
     if (widerruf) {
       statusText = 'Widerrufen am ${_fmtDate(e['widerruf_at'])}';
       statusC = Colors.red.shade700;
-      borderC = Colors.red.shade200;
+      borderC = F.h(Colors.red, 200);
     } else if (signed) {
       statusText = isActiveRow ? 'Aktiv seit ${_fmtDate(e['valid_from'])}' : 'Abgelaufen';
       statusC = isActiveRow ? Colors.green.shade700 : Colors.grey.shade600;
-      borderC = isActiveRow ? Colors.green.shade300 : Colors.grey.shade400;
+      borderC = isActiveRow ? F.h(Colors.green, 300) : F.h(Colors.grey, 400);
     }
 
     return Card(

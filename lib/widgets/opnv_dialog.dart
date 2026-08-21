@@ -1392,13 +1392,13 @@ class _OfflineBanner extends StatelessWidget {
     final Color fg;
     if (snap.isFresh) {
       bg = Colors.orange.shade100.withValues(alpha: p.dark ? 0.25 : 1.0);
-      fg = Colors.orange.shade700;
+      fg = F.h(Colors.orange, 700);
     } else if (snap.isStale) {
       bg = Colors.red.shade100.withValues(alpha: p.dark ? 0.25 : 1.0);
-      fg = Colors.red.shade600;
+      fg = F.h(Colors.red, 600);
     } else {
       bg = Colors.orange.shade50.withValues(alpha: p.dark ? 0.25 : 1.0);
-      fg = Colors.orange.shade600;
+      fg = F.h(Colors.orange, 600);
     }
     return Semantics(
       label: 'Offline-Modus, Daten von $hhmm, $ageLabel. Antippen um erneut zu versuchen.',
@@ -2046,9 +2046,9 @@ class _DepartureRow extends StatelessWidget {
     if (isCancelled) {
       bg = p.dark ? const Color(0xFF3D2A2A) : Colors.red.shade100.withValues(alpha: 0.4);
     } else if (isImminent) {
-      bg = p.dark ? const Color(0xFF3D1F1F) : Colors.red.shade50;
+      bg = p.dark ? const Color(0xFF3D1F1F) : F.h(Colors.red, 50);
     } else if (isSoon) {
-      bg = p.dark ? const Color(0xFF3D2F1A) : Colors.orange.shade50;
+      bg = p.dark ? const Color(0xFF3D2F1A) : F.h(Colors.orange, 50);
     }
 
     return Semantics(
