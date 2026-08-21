@@ -26,8 +26,20 @@ const String kListeAntwort = r'''
 "pdf_translation_filename":"jc_av_schweigepflicht_user36_20260821_082614_ro.pdf.enc",
 "translation_language":"ro","signatur_id":null,"signatur_angefordert_at":null,
 "submitted_at":null,"submitted_method":null,"submitted_reference":"",
-"submitted_notes":"","notes":"Proba tehnica","created_at":"2026-08-21 08:26:14"}]}
+"submitted_notes":"","notes":"Proba tehnica","created_at":"2026-08-21 08:26:14",
+"versand":[
+{"id":3,"methode":"fax","datum":"2026-08-21 11:30:12","fassung":"de","ziel":"","notiz":"",
+ "signatur_id":null,"ergebnis":"fehler","fehler":"Gegenstelle besetzt"},
+{"id":2,"methode":"signatur","datum":"2026-08-21 11:30:12","fassung":"de","ziel":"",
+ "notiz":"Frist bis 04.09.2026","signatur_id":99,"ergebnis":"ok","fehler":""},
+{"id":1,"methode":"chat","datum":"2026-08-21 11:30:11","fassung":"ro","ziel":"M36442",
+ "notiz":"Zum Lesen","signatur_id":null,"ergebnis":"ok","fehler":""}]}]}
 ''';
+
+/// Genau die Umwandlung, die die Historie beim Zeichnen macht.
+List<Map<String, dynamic>> versandLesen(dynamic roh) => roh is List
+    ? roh.map((x) => Map<String, dynamic>.from(x as Map)).toList()
+    : <Map<String, dynamic>>[];
 
 /// Genau die Umwandlung, die der Reiter beim Laden macht.
 Map<String, Map<String, String>> katalogLesen(dynamic roh) {
@@ -143,6 +155,64 @@ void main() {
       final lang = (eintrag['translation_language'] ?? '').toString();
       final datei = (eintrag['pdf_translation_filename'] ?? '').toString();
       expect(lang.isNotEmpty && datei.isNotEmpty, isTrue);
+    });
+  });
+
+  group('Versandprotokoll', () {
+    late Map<String, dynamic> eintrag;
+    setUp(() {
+      final a = jsonDecode(kListeAntwort) as Map<String, dynamic>;
+      eintrag = Map<String, dynamic>.from((a['eintraege'] as List).first as Map);
+    });
+
+    test('kommt mit der Liste mit, nicht über einen zweiten Aufruf', () {
+      expect(eintrag.containsKey('versand'), isTrue);
+      expect(versandLesen(eintrag['versand']), hasLength(3));
+    });
+
+    test('neueste Zeile zuerst', () {
+      final ids = versandLesen(eintrag['versand']).map((v) => v['id'] as int).toList();
+      expect(ids, [3, 2, 1]);
+    });
+
+    test('verschlüsselte Felder kommen entschlüsselt an', () {
+      final v = versandLesen(eintrag['versand']);
+      final chat = v.firstWhere((x) => x['methode'] == 'chat');
+      expect(chat['ziel'], 'M36442');
+      final fax = v.firstWhere((x) => x['methode'] == 'fax');
+      expect(fax['fehler'], 'Gegenstelle besetzt');
+    });
+
+    test('ein Fehlversuch steht drin und ist als solcher erkennbar', () {
+      // Nur Erfolge zu protokollieren versteckt genau die Lücke, in der
+      // jemand glaubte, das Papier sei unterwegs.
+      final v = versandLesen(eintrag['versand']);
+      final misslungen = v.where((x) => x['ergebnis'] == 'fehler').toList();
+      expect(misslungen, hasLength(1));
+      expect((misslungen.first['fehler'] as String), isNotEmpty);
+    });
+
+    test('Chat trägt die Übersetzung, die Unterschrift immer Deutsch', () {
+      // ⚠️ Der Kern der Trennung: gelesen wird in der eigenen Sprache,
+      // unterschrieben wird die deutsche Fassung. Andersherum beglaubigte
+      // ein Siegel das falsche Dokument.
+      final v = versandLesen(eintrag['versand']);
+      expect(v.firstWhere((x) => x['methode'] == 'chat')['fassung'], 'ro');
+      expect(v.firstWhere((x) => x['methode'] == 'signatur')['fassung'], 'de');
+    });
+
+    test('die Unterschrift hält den Rückweg zum Beweisbündel fest', () {
+      final sig = versandLesen(eintrag['versand']).firstWhere((x) => x['methode'] == 'signatur');
+      expect(sig['signatur_id'], 99);
+    });
+
+    test('fehlendes oder leeres Protokoll wirft nicht', () {
+      // ⚠️ PHP macht aus einer leeren Liste `[]`, nicht `{}` — und eine
+      // ältere Serverfassung liefert den Schlüssel gar nicht. Beides heißt
+      // „noch nicht verschickt", nicht „Fehler".
+      expect(versandLesen(jsonDecode('[]')), isEmpty);
+      expect(versandLesen(null), isEmpty);
+      expect(versandLesen(jsonDecode('{}')), isEmpty);
     });
   });
 }
