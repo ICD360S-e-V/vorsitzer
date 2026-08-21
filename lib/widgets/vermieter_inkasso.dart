@@ -69,6 +69,16 @@ const _kStatusNamen = <String, String>{
   'zurueckgewiesen': 'Zurückgewiesen',
 };
 
+/// Aktenzeichen und Sache in einer Zeile — in dieser Reihenfolge, weil
+/// das Büro nach der Nummer ablegt und danach gesucht wird.
+String vorfallTitel(Map<String, dynamic> v) {
+  final teile = [
+    (v['aktenzeichen']?.toString() ?? '').trim(),
+    (v['bezeichnung']?.toString() ?? '').trim(),
+  ].where((x) => x.isNotEmpty);
+  return teile.isEmpty ? '(ohne Bezeichnung)' : teile.join(' · ');
+}
+
 String _datumDeutsch(Object? iso) {
   final s = iso?.toString() ?? '';
   if (s.length < 10) return '';
@@ -693,6 +703,7 @@ class _VorfallListeState extends State<_VorfallListe> {
 
   void _bearbeiten([Map<String, dynamic>? v]) {
     final istNeu = v == null;
+    final azC = TextEditingController(text: v?['aktenzeichen']?.toString() ?? '');
     final bezC = TextEditingController(text: v?['bezeichnung']?.toString() ?? '');
     final grundC = TextEditingController(text: v?['grund']?.toString() ?? '');
     final fordC = TextEditingController(text: v?['forderung_brutto']?.toString() ?? '');
@@ -712,11 +723,32 @@ class _VorfallListeState extends State<_VorfallListe> {
           width: dialogBreite(ctx2),
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
+              // ⚠️ Zuerst das Aktenzeichen — danach legt das Büro ab, und
+              // es steht im Betreff jedes Schreibens. Bis 21.08.2026 gab
+              // es dieses Feld nicht; die Nummer wanderte in die
+              // Bezeichnung („Aktenzeichen: 6865140/26/0 - Miete und
+              // Nebenkosten"), und der Widerspruch konnte sie dort nicht
+              // herauslesen.
+              TextField(
+                controller: azC,
+                decoration: InputDecoration(
+                  labelText: 'Aktenzeichen des Inkassobüros',
+                  hintText: 'z. B. 6865140/26/0',
+                  helperText: 'Steht oben auf deren Schreiben. Kommt in den Betreff '
+                      'jedes Widerspruchs.',
+                  helperMaxLines: 2,
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 10),
               TextField(
                 controller: bezC,
                 decoration: InputDecoration(
                   labelText: 'Bezeichnung *',
-                  hintText: 'z. B. Mietrückstand 2026',
+                  hintText: 'z. B. Miete und Nebenkosten',
+                  helperText: 'Worum es geht — ohne die Nummer, die steht oben.',
+                  helperMaxLines: 2,
                   isDense: true,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 ),
@@ -826,6 +858,7 @@ class _VorfallListeState extends State<_VorfallListe> {
               Navigator.pop(ctx);
               final res = await widget.apiService.saveVermieterVorfall(widget.mietvertragId, {
                 if (!istNeu) 'id': v['id'],
+                'aktenzeichen': azC.text.trim(),
                 'bezeichnung': bezC.text.trim(),
                 'grund': grundC.text.trim(),
                 'forderung_brutto': fordC.text.trim(),
@@ -967,7 +1000,7 @@ class _VorfallListeState extends State<_VorfallListe> {
                             size: 20,
                             color: (_kStatusFarben[v['status']] ?? Colors.grey).shade700),
                       ),
-                      title: Text(v['bezeichnung']?.toString() ?? '(ohne Bezeichnung)',
+                      title: Text(vorfallTitel(v),
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1281,7 +1314,7 @@ class _VorfallDetailState extends State<_VorfallDetail> {
             ),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(v['bezeichnung']?.toString() ?? '(ohne Bezeichnung)',
+                Text(vorfallTitel(v),
                     style: TextStyle(
                         fontWeight: FontWeight.bold, fontSize: 14, color: F.h(Colors.purple, 900)),
                     maxLines: 2, overflow: TextOverflow.ellipsis),
@@ -1357,9 +1390,15 @@ class _VorfallDetailState extends State<_VorfallDetail> {
               glaeubigerName: widget.vermieterName,
               // Das erste Aktenzeichen des Vorfalls reicht für den
               // Briefkopf; laufen mehrere, steht das übrige im Text.
-              aktenzeichen: _akten.isEmpty
-                  ? null
-                  : _akten.first['aktenzeichen']?.toString(),
+              // ⚠️ Erst das eigene Aktenzeichen des Vorfalls, dann das
+              // eines angelegten Aktenzeichen-Datensatzes. Vorher gab es
+              // nur die zweite Quelle — und die Tabelle war leer, also
+              // stand im Betreff nie eine Bezugsnummer.
+              aktenzeichen: (v['aktenzeichen']?.toString() ?? '').trim().isNotEmpty
+                  ? v['aktenzeichen'].toString().trim()
+                  : (_akten.isEmpty
+                      ? null
+                      : _akten.first['aktenzeichen']?.toString()),
             ),
           ]),
         ),

@@ -621,6 +621,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   @visibleForTesting
   String brieftextFuerTest() => _brieftext();
 
+  /// Nur für den Test: die Ablage in der Korrespondenz. Der volle
+  /// Sendeweg braucht sipgate, einen Mailserver und einen Knopfdruck in
+  /// einer Vorschau — geprüft werden soll aber, WAS abgelegt wird.
+  @visibleForTesting
+  Future<void> versandAblegenFuerTest(
+          String weg, String ziel, List<String> anlagen) =>
+      _inKorrespondenzAblegen(weg, ziel, anlagen);
+
   /// Holt die angekreuzten Dokumente als Bytes.
   Future<List<MailOutgoingAttachment>> _anhaengeHolen() async {
     final raus = <MailOutgoingAttachment>[];
@@ -968,6 +976,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     setState(() => _sendet = true);
     var ok = false;
     String zeile;
+    // Was mitging und wie es quittiert wurde — kommt gleich in die
+    // Korrespondenz. `_sendeProtokoll` lebt nur in dieser Sitzung.
+    final anlagenVermerk = <String>[];
 
     if (weg == 'fax') {
       try {
@@ -997,10 +1008,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                 'dateiname': a.filename,
                 'inhalt_b64': base64Encode(a.bytes),
               });
-              _sendeProtokoll.add('${_heuteDeutsch()} — Anlage „${a.filename}" per Fax: '
-                  '${r2['success'] == true ? 'abgeschickt' : (r2['message'] ?? 'fehlgeschlagen')}');
+              final q = r2['success'] == true
+                  ? 'abgeschickt'
+                  : '${r2['message'] ?? 'fehlgeschlagen'}';
+              _sendeProtokoll.add('${_heuteDeutsch()} — Anlage „${a.filename}" per Fax: $q');
+              anlagenVermerk.add('Anlage „${a.filename}" als eigenes Fax: $q');
             } catch (e) {
               _sendeProtokoll.add('${_heuteDeutsch()} — Anlage „${a.filename}" per Fax: $e');
+              anlagenVermerk.add('Anlage „${a.filename}" als eigenes Fax: $e');
             }
           }
         }
@@ -1019,6 +1034,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         ok = res['success'] == true;
         zeile = 'E-Mail an $ziel: ${ok ? 'abgeschickt' : (res['message'] ?? 'fehlgeschlagen')}'
             '${ok && anhaenge.isNotEmpty ? ' (mit ${anhaenge.length} Anlage(n))' : ''}';
+        for (final a in anhaenge) {
+          anlagenVermerk.add('Anlage „${a.filename}" im selben Mail');
+        }
       } catch (e) {
         zeile = 'E-Mail an $ziel: $e';
       }
@@ -1038,12 +1056,76 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       // ⚠️ Sofort ablegen. Ein Widerspruch, der raus ist, aber bei uns als
       // Entwurf steht, ist beim nächsten Öffnen ein Rätsel.
       await _speichern();
+      await _inKorrespondenzAblegen(weg, ziel, anlagenVermerk);
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(zeile),
         backgroundColor: Colors.red,
         duration: const Duration(seconds: 6),
       ));
+    }
+  }
+
+  /// Legt das abgeschickte Schreiben als AUSGANG in der Korrespondenz des
+  /// Vorfalls ab.
+  ///
+  /// ⚠️ Vorher stand davon nichts in der Akte. Es gab nur `_sendeProtokoll`
+  /// — eine Liste, die mit dem Schliessen des Reiters verschwindet — und
+  /// einen Hinweis, der den Menschen bat, es von Hand abzuheften. Damit
+  /// war der Widerspruch zwar raus, aber der Verlauf des Vorfalls zeigte
+  /// ihn nicht: unter Ausgang stand nichts, und wer zwei Jahre später
+  /// nachsah, fand einen Eingang ohne Antwort. Genau der Eindruck, den
+  /// eine Gegenseite gern hätte.
+  ///
+  /// Was abgelegt wird, ist der WORTLAUT, der rausging — nicht ein
+  /// Vermerk „wurde gefaxt". Beim Anbieter ist der Verlauf nach ein paar
+  /// Monaten gelöscht; unsere Akte muss den Text selbst tragen.
+  Future<void> _inKorrespondenzAblegen(
+      String weg, String ziel, List<String> anlagen) async {
+    final notiz = StringBuffer()
+      ..writeln(weg == 'fax' ? 'Per Fax an $ziel' : 'Per E-Mail an $ziel')
+      ..writeln('Automatisch abgelegt beim Versand aus dem Widerspruch.');
+    if (anlagen.isNotEmpty) {
+      notiz.writeln('');
+      for (final a in anlagen) {
+        notiz.writeln('• $a');
+      }
+    }
+    if (weg == 'fax') {
+      // Der Satz gehoert an den Vorgang, nicht nur auf den Bildschirm:
+      // wer den Eintrag spaeter liest, soll nicht glauben, der Zugang sei
+      // damit belegt.
+      notiz.writeln('');
+      notiz.writeln('⚠️ Der „OK"-Vermerk des Sendeberichts ist nach der '
+          'Rechtsprechung des BGH kein Anscheinsbeweis für den Zugang.');
+    }
+    try {
+      final res = await widget.apiService.saveVermieterInkassoKorrespondenz(
+        widget.vorfallId,
+        {
+          'datum': DateTime.now().toIso8601String().substring(0, 10),
+          'richtung': 'ausgehend',
+          // Genau die Schlüssel, die die Korrespondenz kennt — `fax` und
+          // `email` heissen dort ebenso.
+          'medium': weg,
+          'erledigt': 1,
+          'betreff': _betreff,
+          'text': _brieftext(alsBrief: false),
+          'notizen': notiz.toString().trimRight(),
+        },
+      );
+      if (!mounted) return;
+      // ⚠️ Ein fehlgeschlagenes Ablegen wird GEMELDET, nicht verschluckt.
+      // Der Brief ist raus; wenn die Akte ihn nicht hat, muss das jemand
+      // erfahren, solange der Text noch auf dem Schirm steht.
+      setState(() => _sendeProtokoll.add(res['success'] == true
+          ? '${_heuteDeutsch()} — unter Korrespondenz ▸ Ausgang abgelegt'
+          : '${_heuteDeutsch()} — ⚠️ NICHT in der Korrespondenz abgelegt: '
+              '${res['message'] ?? 'unbekannter Fehler'}'));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _sendeProtokoll
+          .add('${_heuteDeutsch()} — ⚠️ NICHT in der Korrespondenz abgelegt: $e'));
     }
   }
 
@@ -1948,10 +2030,12 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             'Für den Widerspruch gegen einen MAHNBESCHEID gilt das besonders: dort läuft '
             'eine Frist, und die ist gewahrt, wenn das Schreiben beim Gericht eingeht — '
             'nicht, wenn es abgeschickt wurde.'),
-        _hinweis(Colors.blue, Icons.attach_file, 'Sendebericht abheften',
-            'Den Sendebericht als Datei unter Korrespondenz ablegen, zusammen mit der '
-            'gefaxten Seite. Zwei Jahre später erinnert sich niemand mehr, und der '
-            'Verlauf beim Anbieter ist bis dahin längst gelöscht.'),
+        _hinweis(Colors.green, Icons.move_to_inbox, 'Der Versand legt sich selbst ab',
+            'Was rausgeht, steht danach als Ausgang unter Korrespondenz — mit Datum, '
+            'Weg, Empfänger, dem vollständigen Wortlaut und den Anlagen. ⚠️ Den '
+            'Sendebericht des Anbieters ersetzt das nicht: liegt er als Datei vor, '
+            'gehört er dazu. Beim Anbieter ist der Verlauf nach ein paar Monaten '
+            'gelöscht.'),
         Text('Wege — mehrere möglich',
             style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 600))),
         const SizedBox(height: 6),
