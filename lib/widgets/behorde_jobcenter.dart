@@ -5933,6 +5933,97 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
       child: Tooltip(message: 'Unterschriebenes Dokument öffnen', child: inhalt));
   }
 
+  /// Fax: entweder der Knopf ODER der Stand — nie beides.
+  ///
+  /// ⚠️ Steht schon ein Fax an, verschwindet der Knopf. Ein Fax an eine
+  /// Behörde ist nicht zurückholbar; zweimal dieselbe Erklärung zu schicken
+  /// sieht dort aus, als hätten wir den Überblick verloren. Nur nach einem
+  /// FEHLGESCHLAGENEN Versuch darf erneut gefaxt werden — dann ist nichts
+  /// angekommen, und ein zweiter Anlauf ist genau das Richtige.
+  Widget _faxBereich(Map<String, dynamic> e, bool laeuft) {
+    final nummer = widget.faxNummer.trim();
+    final rohFax = e['fax'];
+    final fax = rohFax is Map ? Map<String, dynamic>.from(rohFax) : null;
+
+    if (fax != null) {
+      final status = (fax['status'] ?? '').toString();
+      final seiten = fax['seiten'];
+      final fehler = (fax['fehler'] ?? '').toString();
+      final gesendet = jcParseDatum(fax['gesendet']?.toString());
+      final (String text, IconData icon, Color farbe) = switch (status) {
+        'zugestellt'     => ('Beim Jobcenter angekommen', Icons.mark_email_read_outlined, Colors.green.shade700),
+        'in_zustellung'  => ('Unterwegs — sipgate stellt zu', Icons.schedule_send_outlined, Colors.indigo.shade600),
+        'vorbereitet'    => ('Vorbereitet, noch nicht übergeben', Icons.hourglass_bottom, Colors.grey.shade700),
+        'fehlgeschlagen' => ('Nicht angekommen', Icons.error_outline, Colors.red.shade700),
+        'storniert'      => ('Abgebrochen', Icons.cancel_outlined, Colors.grey.shade600),
+        _                => (status.isEmpty ? 'Unbekannt' : status, Icons.help_outline, Colors.grey),
+      };
+      final gescheitert = status == 'fehlgeschlagen' || status == 'storniert';
+
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: farbe.withValues(alpha: 0.07),
+            border: Border.all(color: farbe.withValues(alpha: 0.4)),
+            borderRadius: BorderRadius.circular(6)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(icon, size: 17, color: farbe),
+            const SizedBox(width: 7),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: farbe)),
+              Text([
+                if (gesendet != null) DateFormat('dd.MM.yyyy HH:mm').format(gesendet),
+                if (nummer.isNotEmpty) 'an $nummer',
+                if (seiten is int && seiten > 0) '$seiten Seite${seiten == 1 ? '' : 'n'}',
+              ].join(' · '), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              if (fehler.isNotEmpty)
+                Text(fehler, style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
+              if (status == 'in_zustellung')
+                Text('Der endgültige Stand kommt von sipgate, meist innerhalb weniger Minuten.',
+                  style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600)),
+            ])),
+            if (status == 'in_zustellung' || status == 'vorbereitet')
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 16),
+                tooltip: 'Stand neu laden',
+                visualDensity: VisualDensity.compact,
+                onPressed: _laden),
+          ]),
+        ),
+        // Nur nach einem gescheiterten Versuch wieder anbieten.
+        if (gescheitert && nummer.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.brown.shade700,
+              side: BorderSide(color: Colors.brown.shade300)),
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Erneut faxen'),
+            onPressed: laeuft ? null : () => _faxSenden(e)),
+        ],
+      ]);
+    }
+
+    if (nummer.isEmpty) {
+      return _hinweisKasten(
+        'Für dieses Jobcenter ist keine Faxnummer hinterlegt — im Reiter „Zuständiges '
+        'Jobcenter" nachtragen, dann geht die Erklärung von hier aus direkt raus.',
+        farbe: Colors.orange.shade800, icon: Icons.info_outline);
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _hinweisKasten(
+        'Es geht die deutsche Fassung an $nummer. Der Sendebericht kommt von sipgate '
+        'und landet im Fax-Bildschirm.'),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(foregroundColor: Colors.brown.shade700,
+          side: BorderSide(color: Colors.brown.shade300)),
+        icon: const Icon(Icons.print_outlined, size: 16),
+        label: const Text('Jetzt faxen'),
+        onPressed: laeuft ? null : () => _faxSenden(e)),
+    ]);
+  }
+
   /// Das Versandprotokoll unter einer Erklärung.
   ///
   /// Steht in der Historie, nicht in der Verwaltung: hier fragt man „was ist
@@ -6167,23 +6258,7 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
 
       // ── An das Jobcenter ────────────────────────────────────────────
       _abschnitt(Icons.print_outlined, 'Per Fax an das Jobcenter'),
-      if (widget.faxNummer.trim().isEmpty)
-        _hinweisKasten(
-          'Für dieses Jobcenter ist keine Faxnummer hinterlegt — im Reiter „Zuständiges '
-          'Jobcenter" nachtragen, dann geht die Erklärung von hier aus direkt raus.',
-          farbe: Colors.orange.shade800, icon: Icons.info_outline)
-      else ...[
-        _hinweisKasten(
-          'Es geht die deutsche Fassung an ${widget.faxNummer.trim()}. Der Sendebericht '
-          'kommt von sipgate und landet im Fax-Bildschirm.'),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.brown.shade700,
-            side: BorderSide(color: Colors.brown.shade300)),
-          icon: const Icon(Icons.print_outlined, size: 16),
-          label: const Text('Jetzt faxen'),
-          onPressed: laeuft ? null : () => _faxSenden(e)),
-      ],
+      _faxBereich(e, laeuft),
 
       // ── Status ──────────────────────────────────────────────────────
       _abschnitt(Icons.play_circle_outline, 'Status'),
