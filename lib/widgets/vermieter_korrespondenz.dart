@@ -332,7 +332,7 @@ class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
               _istInkasso
                   ? 'Schriftverkehr mit dem Inkassobüro (${_items.length})'
                   : 'Schriftverkehr mit dem Vermieter (${_items.length})',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: c.shade800),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: F.h(c, 800)),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -392,12 +392,12 @@ class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
                       // Die Richtung gibt die Farbe, der Weg das Zeichen —
                       // beides auf einen Blick, ohne die Zeile zu lesen.
                       leading: CircleAvatar(
-                        backgroundColor: eingehend ? F.h(Colors.blue, 50) : c.shade50,
+                        backgroundColor: eingehend ? F.h(Colors.blue, 50) : F.h(c, 50),
                         child: Icon(
                           _kMedienSymbol[k['medium']] ??
                               (eingehend ? Icons.call_received : Icons.call_made),
                           size: 18,
-                          color: eingehend ? F.h(Colors.blue, 700) : c.shade700,
+                          color: eingehend ? F.h(Colors.blue, 700) : F.h(c, 700),
                         ),
                       ),
                       title: Text(

@@ -1683,11 +1683,11 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: hasWerte
-                            ? (abnormalCount > 0 ? Colors.orange.shade50 : Colors.green.shade50)
+                            ? (abnormalCount > 0 ? F.h(Colors.orange, 50) : F.h(Colors.green, 50))
                             : F.h(Colors.grey, 50),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: hasWerte
-                            ? (abnormalCount > 0 ? Colors.orange.shade300 : Colors.green.shade300)
+                            ? (abnormalCount > 0 ? F.h(Colors.orange, 300) : F.h(Colors.green, 300))
                             : F.h(Colors.grey, 200)),
                       ),
                       child: Row(
@@ -1695,7 +1695,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                           Icon(
                             hasWerte ? (abnormalCount > 0 ? Icons.warning_amber : Icons.check_circle) : Icons.pending_actions,
                             size: 16,
-                            color: hasWerte ? (abnormalCount > 0 ? Colors.orange.shade700 : Colors.green.shade600) : F.h(Colors.grey, 500),
+                            color: hasWerte ? (abnormalCount > 0 ? F.h(Colors.orange, 700) : F.h(Colors.green, 600)) : F.h(Colors.grey, 500),
                           ),
                           const SizedBox(width: 8),
                           Text(h['datum'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
@@ -2279,7 +2279,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                             margin: const EdgeInsets.only(right: 2),
                             decoration: BoxDecoration(
                               color: currentVal == opt
-                                  ? (opt == 'negativ' ? Colors.green.shade100 : opt == 'positiv' ? Colors.red.shade100 : Colors.orange.shade100)
+                                  ? (opt == 'negativ' ? F.h(Colors.green, 100) : opt == 'positiv' ? F.h(Colors.red, 100) : F.h(Colors.orange, 100))
                                   : F.h(Colors.grey, 100),
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(color: currentVal == opt
@@ -2311,10 +2311,10 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
         if (val != null) {
           if (val < minV || val > maxV) {
             borderColor = Colors.orange.shade400;
-            bgColor = Colors.orange.shade50;
+            bgColor = F.h(Colors.orange, 50);
           } else {
             borderColor = Colors.green.shade400;
-            bgColor = Colors.green.shade50;
+            bgColor = F.h(Colors.green, 50);
           }
         }
         rows.add(Padding(
@@ -3542,10 +3542,10 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
           borderRadius: BorderRadius.circular(10),
           child: Container(
           margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: !berechtigt ? F.h(Colors.grey, 50) : overdue ? s.color.shade50 : F.flaeche, borderRadius: BorderRadius.circular(10), border: Border.all(color: !berechtigt ? F.h(Colors.grey, 200) : overdue ? s.color.shade300 : F.h(Colors.grey, 300))),
+          decoration: BoxDecoration(color: !berechtigt ? F.h(Colors.grey, 50) : overdue ? F.h(s.color, 50) : F.flaeche, borderRadius: BorderRadius.circular(10), border: Border.all(color: !berechtigt ? F.h(Colors.grey, 200) : overdue ? F.h(s.color, 300) : F.h(Colors.grey, 300))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Icon(s.icon, size: 20, color: berechtigt ? s.color.shade700 : F.h(Colors.grey, 400)), const SizedBox(width: 8),
-              Expanded(child: Text(s.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: berechtigt ? s.color.shade800 : F.h(Colors.grey, 500)))),
+            Row(children: [Icon(s.icon, size: 20, color: berechtigt ? F.h(s.color, 700) : F.h(Colors.grey, 400)), const SizedBox(width: 8),
+              Expanded(child: Text(s.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: berechtigt ? F.h(s.color, 800) : F.h(Colors.grey, 500)))),
               if (berechtigt) Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
               if (letztes.isNotEmpty && berechtigt) Icon(overdue ? Icons.warning : Icons.check_circle, size: 18, color: overdue ? Colors.red : Colors.green)]),
             const SizedBox(height: 4),
@@ -3678,15 +3678,15 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.shade50,
+        color: F.h(color, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.shade200),
+        border: Border.all(color: F.h(color, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.event_repeat, size: 18, color: color.shade700),
+          Icon(Icons.event_repeat, size: 18, color: F.h(color, 700)),
           const SizedBox(width: 8),
-          Expanded(child: Text('Nächste Kontrolle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800))),
+          Expanded(child: Text('Nächste Kontrolle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
           if (manuell != null)
             TextButton.icon(
               onPressed: () => setzen(null),
@@ -3713,7 +3713,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
             },
             icon: const Icon(Icons.edit_calendar, size: 14),
             label: const Text('Datum wählen', style: TextStyle(fontSize: 11)),
-            style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, foregroundColor: color.shade700),
+            style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, foregroundColor: F.h(color, 700)),
           ),
         ]),
         const SizedBox(height: 8),
@@ -3796,9 +3796,9 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.timeline, size: 18, color: color.shade700),
+          Icon(Icons.timeline, size: 18, color: F.h(color, 700)),
           const SizedBox(width: 8),
-          Expanded(child: Text('Geräte- & Terminplanung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800))),
+          Expanded(child: Text('Geräte- & Terminplanung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
         ]),
         const SizedBox(height: 2),
         Text('Jeder eingetragene Termin erzeugt ein Ticket für das Mitglied.',
@@ -3849,12 +3849,12 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                       decoration: BoxDecoration(
-                        color: d == null ? F.h(Colors.grey, 50) : color.shade50,
+                        color: d == null ? F.h(Colors.grey, 50) : F.h(color, 50),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: d == null ? F.h(Colors.grey, 300) : color.shade200),
+                        border: Border.all(color: d == null ? F.h(Colors.grey, 300) : F.h(color, 200)),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.calendar_today, size: 13, color: d == null ? F.h(Colors.grey, 500) : color.shade600),
+                        Icon(Icons.calendar_today, size: 13, color: d == null ? F.h(Colors.grey, 500) : F.h(color, 600)),
                         const SizedBox(width: 5),
                         Text(d == null ? 'Termin wählen' : _deDatum(d),
                             style: TextStyle(fontSize: 11.5, fontWeight: d == null ? FontWeight.normal : FontWeight.w600,
@@ -3907,7 +3907,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
               IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(ctx)),
             ]),
           ),
-          TabBar(labelColor: color.shade700, indicatorColor: color.shade700, tabs: const [
+          TabBar(labelColor: F.h(color, 700), indicatorColor: color.shade700, tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
             Tab(icon: Icon(Icons.history, size: 18), text: 'Historie · Rechnung · Status'),
           ]),
@@ -3915,7 +3915,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
             // TAB 1: DETAILS
             SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 // Generic Vorsorge details
-                Text('Letztes $label', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+                Text('Letztes $label', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 800))),
                 const SizedBox(height: 8),
                 Text('Datum: ${vorsorge['letztes_datum'] ?? 'Nicht eingetragen'}', style: const TextStyle(fontSize: 13)),
                 const SizedBox(height: 12),
@@ -3936,8 +3936,8 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
             // TAB 2: BERICHTE (Dokumente)
             Column(children: [
               Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-                Icon(Icons.description, size: 20, color: color.shade700), const SizedBox(width: 8),
-                Expanded(child: Text('Berichte (${history.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade700))),
+                Icon(Icons.description, size: 20, color: F.h(color, 700)), const SizedBox(width: 8),
+                Expanded(child: Text('Berichte (${history.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(color, 700)))),
                 ElevatedButton.icon(onPressed: () async {
                   final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime.now(), locale: const Locale('de'));
                   if (p == null) return;
@@ -3959,7 +3959,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     return Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       ListTile(
                         leading: Icon(erg == 'OK' ? Icons.check_circle : erg == 'Nicht OK' ? Icons.cancel : erg == 'Kontrolle nötig' ? Icons.warning : Icons.event_available,
-                          color: erg == 'OK' ? Colors.green : erg == 'Nicht OK' ? Colors.red : erg == 'Kontrolle nötig' ? Colors.orange : color.shade600),
+                          color: erg == 'OK' ? Colors.green : erg == 'Nicht OK' ? Colors.red : erg == 'Kontrolle nötig' ? Colors.orange : F.h(color, 600)),
                         title: InkWell(
                           onTap: () async {
                             final p = await showDatePicker(context: context, initialDate: DateTime.tryParse(hDatum) ?? DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime.now(), locale: const Locale('de'));
@@ -5083,18 +5083,18 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
         children: [
           Row(
             children: [
-              Icon(Icons.check_circle, size: 14, color: color.shade600),
+              Icon(Icons.check_circle, size: 14, color: F.h(color, 600)),
               const SizedBox(width: 4),
               Icon(icon, size: 14, color: color.shade400),
               const SizedBox(width: 4),
-              Text('$ziel: ', style: TextStyle(fontSize: 11, color: color.shade700, fontWeight: FontWeight.w600)),
+              Text('$ziel: ', style: TextStyle(fontSize: 11, color: F.h(color, 700), fontWeight: FontWeight.w600)),
               if (datum != null && datum.isNotEmpty)
                 Text('$datum ', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500)),
               if (artText.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                  decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: color.shade200)),
-                  child: Text(artText, style: TextStyle(fontSize: 9, color: color.shade700, fontWeight: FontWeight.bold)),
+                  decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(color, 200))),
+                  child: Text(artText, style: TextStyle(fontSize: 9, color: F.h(color, 700), fontWeight: FontWeight.bold)),
                 ),
             ],
           ),
@@ -5110,7 +5110,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                       if (person1 != null && person1.isNotEmpty) person1,
                       if (person2 != null && person2.isNotEmpty) person2,
                     ].join(' & '),
-                    style: TextStyle(fontSize: 10, color: color.shade600, fontStyle: FontStyle.italic),
+                    style: TextStyle(fontSize: 10, color: F.h(color, 600), fontStyle: FontStyle.italic),
                   ),
                 ],
               ),
@@ -7129,14 +7129,14 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     final isAnfrage = t['typ'] == 'anfrage';
                     return Container(
                       decoration: BoxDecoration(
-                        color: isNotfall ? F.h(Colors.red, 50) : (isAnfrage ? Colors.orange.shade50 : Colors.white),
+                        color: isNotfall ? F.h(Colors.red, 50) : (isAnfrage ? F.h(Colors.orange, 50) : F.flaeche),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: isNotfall ? F.h(Colors.red, 300) : (isAnfrage ? Colors.orange.shade300 : Colors.grey.shade300)),
+                        border: Border.all(color: isNotfall ? F.h(Colors.red, 300) : (isAnfrage ? F.h(Colors.orange, 300) : F.h(Colors.grey, 300))),
                       ),
                       child: ListTile(
                         onTap: () => _showArztTerminDetailsDialog(type, arztTitle, t),
                         leading: CircleAvatar(
-                          backgroundColor: isNotfall ? F.h(Colors.red, 100) : (isAnfrage ? Colors.orange.shade100 : Colors.teal.shade100),
+                          backgroundColor: isNotfall ? F.h(Colors.red, 100) : (isAnfrage ? F.h(Colors.orange, 100) : F.h(Colors.teal, 100)),
                           child: Icon(
                             isNotfall ? Icons.emergency : (isAnfrage ? Icons.send : Icons.calendar_today),
                             color: isNotfall ? F.h(Colors.red, 700) : F.h(Colors.teal, 700),
@@ -7271,24 +7271,24 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: typColor.shade50,
+                      color: F.h(typColor, 50),
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                     ),
                     child: Row(
                       children: [
-                        Icon(isNotfall ? Icons.emergency : (isAnfrage ? Icons.send : Icons.calendar_today), color: typColor.shade700),
+                        Icon(isNotfall ? Icons.emergency : (isAnfrage ? Icons.send : Icons.calendar_today), color: F.h(typColor, 700)),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Termin bei $arztTitle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: typColor.shade800)),
+                              Text('Termin bei $arztTitle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(typColor, 800))),
                               const SizedBox(height: 2),
                               Row(children: [
-                                Text(termin['datum'] ?? '', style: TextStyle(fontSize: 13, color: typColor.shade700)),
+                                Text(termin['datum'] ?? '', style: TextStyle(fontSize: 13, color: F.h(typColor, 700))),
                                 if (termin['uhrzeit']?.isNotEmpty == true) ...[
                                   const SizedBox(width: 6),
-                                  Text('um ${termin['uhrzeit']} Uhr', style: TextStyle(fontSize: 13, color: typColor.shade600)),
+                                  Text('um ${termin['uhrzeit']} Uhr', style: TextStyle(fontSize: 13, color: F.h(typColor, 600))),
                                 ],
                                 const SizedBox(width: 8),
                                 Container(
@@ -7306,7 +7306,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                   ),
                   // Tabs
                   TabBar(
-                    labelColor: typColor.shade700,
+                    labelColor: F.h(typColor, 700),
                     indicatorColor: typColor.shade700,
                     tabs: const [
                       Tab(text: 'Details'),
@@ -11057,11 +11057,11 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                   return Container(
                                     margin: const EdgeInsets.only(right: 6),
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(color: typColor.shade100, borderRadius: BorderRadius.circular(20), border: Border.all(color: typColor.shade300)),
+                                    decoration: BoxDecoration(color: F.h(typColor, 100), borderRadius: BorderRadius.circular(20), border: Border.all(color: F.h(typColor, 300))),
                                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                                       Container(width: 8, height: 8, decoration: BoxDecoration(color: typColor.shade500, shape: BoxShape.circle)),
                                       const SizedBox(width: 4),
-                                      Text(typLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: typColor.shade800)),
+                                      Text(typLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(typColor, 800))),
                                     ]),
                                   );
                                 }(),
@@ -11675,16 +11675,16 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                       child: Row(children: [
                         Container(
                           width: 38, height: 38,
-                          decoration: BoxDecoration(color: cardExpired ? F.h(Colors.red, 50) : rTypC.shade50, borderRadius: BorderRadius.circular(8)),
-                          child: Icon(Icons.receipt_long, size: 20, color: cardExpired ? Colors.red.shade400 : rTypC.shade600),
+                          decoration: BoxDecoration(color: cardExpired ? F.h(Colors.red, 50) : F.h(rTypC, 50), borderRadius: BorderRadius.circular(8)),
+                          child: Icon(Icons.receipt_long, size: 20, color: cardExpired ? Colors.red.shade400 : F.h(rTypC, 600)),
                         ),
                         const SizedBox(width: 12),
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(children: [
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                              decoration: BoxDecoration(color: rTypC.shade100, borderRadius: BorderRadius.circular(4), border: Border.all(color: rTypC.shade300)),
-                              child: Text(rTypLabel, style: TextStyle(fontSize: 9, color: rTypC.shade800, fontWeight: FontWeight.bold)),
+                              decoration: BoxDecoration(color: F.h(rTypC, 100), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(rTypC, 300))),
+                              child: Text(rTypLabel, style: TextStyle(fontSize: 9, color: F.h(rTypC, 800), fontWeight: FontWeight.bold)),
                             ),
                             const SizedBox(width: 6),
                             if (datumFormatted.isNotEmpty)
@@ -11693,7 +11693,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(color: (cardExpired ? Colors.red : (statusColors[st] ?? Colors.grey)).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
-                              child: Text(cardExpired ? 'Abgelaufen' : (statusLabels[st] ?? st), style: TextStyle(fontSize: 10, color: cardExpired ? F.h(Colors.red, 700) : (statusColors[st] ?? Colors.grey), fontWeight: FontWeight.bold)),
+                              child: Text(cardExpired ? 'Abgelaufen' : (statusLabels[st] ?? st), style: TextStyle(fontSize: 10, color: cardExpired ? F.h(Colors.red, 700) : (statusColors[st] ?? F.h(Colors.grey, 500)), fontWeight: FontWeight.bold)),
                             ),
                             if (r['noctu'] == true) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(4)), child: Text('Noctu', style: TextStyle(fontSize: 9, color: F.h(Colors.orange, 700), fontWeight: FontWeight.bold)))],
                             if (r['aut_idem'] == true) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(4)), child: Text('Aut-idem ✗', style: TextStyle(fontSize: 9, color: F.h(Colors.red, 700), fontWeight: FontWeight.bold)))],
@@ -12154,20 +12154,20 @@ $vollName$footer''';
         Widget hmCheck(String label, bool val, void Function(bool) onChange, MaterialColor col) => InkWell(
           onTap: () => setS(() => onChange(!val)),
           borderRadius: BorderRadius.circular(6),
-          child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: val ? col.shade100 : F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(6), border: Border.all(color: val ? col.shade400 : F.h(Colors.grey, 300))),
+          child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: val ? F.h(col, 100) : F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(6), border: Border.all(color: val ? col.shade400 : F.h(Colors.grey, 300))),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(val ? Icons.check_box : Icons.check_box_outline_blank, size: 14, color: val ? col.shade700 : F.h(Colors.grey, 500)),
+              Icon(val ? Icons.check_box : Icons.check_box_outline_blank, size: 14, color: val ? F.h(col, 700) : F.h(Colors.grey, 500)),
               const SizedBox(width: 4),
-              Text(label, style: TextStyle(fontSize: 11, color: val ? col.shade800 : F.h(Colors.grey, 600), fontWeight: val ? FontWeight.bold : FontWeight.normal)),
+              Text(label, style: TextStyle(fontSize: 11, color: val ? F.h(col, 800) : F.h(Colors.grey, 600), fontWeight: val ? FontWeight.bold : FontWeight.normal)),
             ])),
         );
 
         Widget sectionHeader(String title, IconData icon, MaterialColor color) => Padding(
           padding: const EdgeInsets.only(bottom: 8, top: 4),
           child: Row(children: [
-            Icon(icon, size: 15, color: color.shade700),
+            Icon(icon, size: 15, color: F.h(color, 700)),
             const SizedBox(width: 6),
-            Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade700)),
+            Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 700))),
           ]),
         );
         Widget tf(TextEditingController c, String label, {String? hint, int flex = 1, int? maxLines, TextInputType? keyboardType, double? width}) {
@@ -12473,18 +12473,18 @@ $vollName$footer''';
                             final b = r['bereich']?.toString() ?? 'Physiotherapie';
                             final c = (bereichColors[b] ?? Colors.teal);
                             return Container(margin: const EdgeInsets.only(right: 6), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(color: c.shade100, borderRadius: BorderRadius.circular(20), border: Border.all(color: c.shade300)),
-                              child: Text(bereichShort[b] ?? b, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: c.shade800)));
+                              decoration: BoxDecoration(color: F.h(c, 100), borderRadius: BorderRadius.circular(20), border: Border.all(color: F.h(c, 300))),
+                              child: Text(bereichShort[b] ?? b, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(c, 800))));
                           }(),
                           () {
                             final st = r['status']?.toString() ?? 'ausgestellt';
                             final c = (statusColors[st] ?? Colors.grey);
                             return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(color: c.shade100, borderRadius: BorderRadius.circular(20)),
+                              decoration: BoxDecoration(color: F.h(c, 100), borderRadius: BorderRadius.circular(20)),
                               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                Icon(Icons.flag, size: 11, color: c.shade600),
+                                Icon(Icons.flag, size: 11, color: F.h(c, 600)),
                                 const SizedBox(width: 4),
-                                Text(statusLabels[st] ?? st, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: c.shade700)),
+                                Text(statusLabels[st] ?? st, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(c, 700))),
                               ]));
                           }(),
                           const Spacer(),
@@ -13034,9 +13034,9 @@ $vollName$footer''';
                                 margin: const EdgeInsets.only(bottom: 6),
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                 decoration: BoxDecoration(
-                                  color: stColor.shade50,
+                                  color: F.h(stColor, 50),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: stColor.shade200),
+                                  border: Border.all(color: F.h(stColor, 200)),
                                 ),
                                 child: Row(children: [
                                   // Nr circle
@@ -13053,11 +13053,11 @@ $vollName$footer''';
                                       const SizedBox(width: 8),
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(4)),
+                                        decoration: BoxDecoration(color: F.h(stColor, 100), borderRadius: BorderRadius.circular(4)),
                                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                          Icon(stIcon, size: 10, color: stColor.shade800),
+                                          Icon(stIcon, size: 10, color: F.h(stColor, 800)),
                                           const SizedBox(width: 3),
-                                          Text(stLabel, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: stColor.shade800)),
+                                          Text(stLabel, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(stColor, 800))),
                                         ]),
                                       ),
                                     ]),
@@ -13066,9 +13066,9 @@ $vollName$footer''';
                                   ])),
                                   // Status change button
                                   OutlinedButton.icon(
-                                    icon: Icon(stIcon, size: 16, color: stColor.shade600),
-                                    label: Text('Status', style: TextStyle(fontSize: 10, color: stColor.shade700)),
-                                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), minimumSize: Size.zero, side: BorderSide(color: stColor.shade300)),
+                                    icon: Icon(stIcon, size: 16, color: F.h(stColor, 600)),
+                                    label: Text('Status', style: TextStyle(fontSize: 10, color: F.h(stColor, 700))),
+                                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), minimumSize: Size.zero, side: BorderSide(color: F.h(stColor, 300))),
                                     onPressed: () {
                                       showDialog(context: context, builder: (stCtx) => SimpleDialog(
                                         title: Text('Status ändern – Sitzung ${idx + 1}', style: const TextStyle(fontSize: 14)),
@@ -13692,13 +13692,13 @@ $vollName$footer''';
                 onTap: () => showHeilmittelDialog(existing: r, editIndex: idx),
                 borderRadius: BorderRadius.circular(10),
                 child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-                  Container(width: 38, height: 38, decoration: BoxDecoration(color: expired ? F.h(Colors.red, 50) : bColor.shade50, borderRadius: BorderRadius.circular(8)),
-                    child: Icon(Icons.healing, size: 20, color: expired ? Colors.red.shade400 : bColor.shade600)),
+                  Container(width: 38, height: 38, decoration: BoxDecoration(color: expired ? F.h(Colors.red, 50) : F.h(bColor, 50), borderRadius: BorderRadius.circular(8)),
+                    child: Icon(Icons.healing, size: 20, color: expired ? Colors.red.shade400 : F.h(bColor, 600))),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2), decoration: BoxDecoration(color: bColor.shade100, borderRadius: BorderRadius.circular(4), border: Border.all(color: bColor.shade300)),
-                        child: Text(bereichShort[bereich] ?? bereich, style: TextStyle(fontSize: 9, color: bColor.shade800, fontWeight: FontWeight.bold))),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2), decoration: BoxDecoration(color: F.h(bColor, 100), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(bColor, 300))),
+                        child: Text(bereichShort[bereich] ?? bereich, style: TextStyle(fontSize: 9, color: F.h(bColor, 800), fontWeight: FontWeight.bold))),
                       const SizedBox(width: 6),
                       if (datumFmt.isNotEmpty) Text(datumFmt, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                       const SizedBox(width: 8),
@@ -13745,14 +13745,14 @@ $vollName$footer''';
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         margin: const EdgeInsets.symmetric(vertical: 2),
         decoration: BoxDecoration(
-          color: value ? color.shade100 : Colors.transparent,
+          color: value ? F.h(color, 100) : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: value ? color.shade400 : F.h(Colors.grey, 300)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(value ? Icons.check_box : Icons.check_box_outline_blank, size: 16, color: value ? color.shade700 : F.h(Colors.grey, 400)),
+          Icon(value ? Icons.check_box : Icons.check_box_outline_blank, size: 16, color: value ? F.h(color, 700) : F.h(Colors.grey, 400)),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 12, fontWeight: value ? FontWeight.bold : FontWeight.normal, color: value ? color.shade700 : F.h(Colors.grey, 600))),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: value ? FontWeight.bold : FontWeight.normal, color: value ? F.h(color, 700) : F.h(Colors.grey, 600))),
         ]),
       ),
     );
@@ -13762,8 +13762,8 @@ $vollName$footer''';
     return Container(
       margin: const EdgeInsets.only(left: 4),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(4)),
-      child: Text(label, style: TextStyle(fontSize: 10, color: color.shade700, fontWeight: FontWeight.bold)),
+      decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(4)),
+      child: Text(label, style: TextStyle(fontSize: 10, color: F.h(color, 700), fontWeight: FontWeight.bold)),
     );
   }
 
@@ -14377,24 +14377,24 @@ $vollName$footer''';
                   onTap: () {
                     showDialog(context: context, builder: (detCtx) => AlertDialog(
                       title: Row(children: [
-                        Icon(Icons.verified, size: 20, color: color.shade700),
+                        Icon(Icons.verified, size: 20, color: F.h(color, 700)),
                         const SizedBox(width: 8),
-                        Expanded(child: Text(a['titel']?.toString() ?? 'Ärztliches Attest', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color.shade800))),
+                        Expanded(child: Text(a['titel']?.toString() ?? 'Ärztliches Attest', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
                         IconButton(icon: Icon(Icons.edit, size: 18, color: F.h(Colors.grey, 500)), tooltip: 'Bearbeiten', onPressed: () { Navigator.pop(detCtx); addOrEdit(existing: a, editIndex: i); }),
                       ]),
                       content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                         Row(children: [
-                          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-                            child: Text(befristet ? (expired ? 'Abgelaufen' : 'Befristet') : 'Unbefristet', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(12)),
+                            child: Text(befristet ? (expired ? 'Abgelaufen' : 'Befristet') : 'Unbefristet', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
                           const Spacer(),
                           if ((a['datum']?.toString() ?? '').isNotEmpty) Text('Ausgestellt: ${a['datum']}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                         ]),
                         if (befristet && gueltigBis.isNotEmpty) ...[
                           const SizedBox(height: 8),
                           Row(children: [
-                            Icon(Icons.event, size: 16, color: color.shade600),
+                            Icon(Icons.event, size: 16, color: F.h(color, 600)),
                             const SizedBox(width: 6),
-                            Text('Gültig bis: $gueltigBis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade700)),
+                            Text('Gültig bis: $gueltigBis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 700))),
                           ]),
                         ],
                         if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
@@ -14410,14 +14410,14 @@ $vollName$footer''';
                       actions: [TextButton(onPressed: () => Navigator.pop(detCtx), child: const Text('Schließen'))],
                     ));
                   },
-                  leading: CircleAvatar(backgroundColor: color.shade100, child: Icon(expired ? Icons.warning : Icons.verified, color: color.shade700, size: 20)),
+                  leading: CircleAvatar(backgroundColor: F.h(color, 100), child: Icon(expired ? Icons.warning : Icons.verified, color: F.h(color, 700), size: 20)),
                   title: Text(a['titel']?.toString() ?? 'Ärztliches Attest', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   subtitle: Row(children: [
                     Text(a['datum']?.toString() ?? '', style: const TextStyle(fontSize: 11)),
                     const SizedBox(width: 8),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(8)),
                       child: Text(befristet ? (expired ? 'Abgelaufen' : 'Befristet bis $gueltigBis') : 'Unbefristet',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade800))),
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
                   ]),
                   trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () {
                     final list = List<dynamic>.from(data['atteste'] as List)..removeAt(i); data['atteste'] = list; saveAll(); setLocal(() {});
@@ -14691,7 +14691,7 @@ $vollName$footer''';
                 borderRadius: BorderRadius.circular(12),
                 onTap: () => _showHartefallDetailModal(a, i, color, artKey, artLabels, st, type, data, saveAll, setLocal, addOrEdit),
                 child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-                  CircleAvatar(backgroundColor: color.shade100, child: Icon(artIcons[artKey] ?? Icons.gavel, color: color.shade700, size: 20)),
+                  CircleAvatar(backgroundColor: F.h(color, 100), child: Icon(artIcons[artKey] ?? Icons.gavel, color: F.h(color, 700), size: 20)),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(artLabels[artKey] ?? artKey, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -14705,8 +14705,8 @@ $vollName$footer''';
                     if ((a['gesamtkosten']?.toString() ?? '').isNotEmpty)
                       Text('Kosten: ${a['gesamtkosten']} € · Eigenanteil: ${a['eigenanteil'] ?? '?'} €', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                   ])),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-                    child: Text(st, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(12)),
+                    child: Text(st, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
                   const SizedBox(width: 4),
                   IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
                     final id = a['id'];
@@ -14799,9 +14799,9 @@ $vollName$footer''';
       final bewilligungCount = a['_bewilligung_count'] is int ? a['_bewilligung_count'] as int : 0;
       return AlertDialog(
         title: Row(children: [
-          Icon(Icons.gavel, size: 20, color: color.shade700),
+          Icon(Icons.gavel, size: 20, color: F.h(color, 700)),
           const SizedBox(width: 8),
-          Expanded(child: Text('Härtefall — ${artLabels[artKey] ?? artKey}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color.shade800))),
+          Expanded(child: Text('Härtefall — ${artLabels[artKey] ?? artKey}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
           IconButton(icon: Icon(Icons.edit, size: 18, color: F.h(Colors.grey, 500)), tooltip: 'Bearbeiten',
             onPressed: () { Navigator.pop(detCtx); addOrEdit(existing: a, editIndex: i); }),
         ]),
@@ -14811,7 +14811,7 @@ $vollName$footer''';
             Container(
               decoration: BoxDecoration(border: Border(bottom: BorderSide(color: F.h(Colors.grey, 200)))),
               child: TabBar(
-                labelColor: color.shade800,
+                labelColor: F.h(color, 800),
                 unselectedLabelColor: F.h(Colors.grey, 500),
                 indicatorColor: color.shade800,
                 isScrollable: true,
@@ -14855,8 +14855,8 @@ $vollName$footer''';
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-            child: Text(st, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(12)),
+            child: Text(st, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
           const Spacer(),
           if ((a['datum']?.toString() ?? '').isNotEmpty) Text('Antrag vom ${a['datum']}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         ]),
@@ -14906,9 +14906,9 @@ $vollName$footer''';
   Widget _buildHartefallKorrespondenzView(Map<String, dynamic> a, int i, MaterialColor color, List<Map<String, dynamic>> korr, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocal, StateSetter setModal, String type) {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(8), child: Row(children: [
-        Icon(Icons.mail, size: 16, color: color.shade700),
+        Icon(Icons.mail, size: 16, color: F.h(color, 700)),
         const SizedBox(width: 6),
-        Text('Korrespondenz mit Krankenkasse & Praxis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800)),
+        Text('Korrespondenz mit Krankenkasse & Praxis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 800))),
         const Spacer(),
         FilledButton.icon(
           onPressed: () => _addHartefallKorr(a, i, data, saveAll, setLocal, setModal),
@@ -14935,8 +14935,8 @@ $vollName$footer''';
                 dense: true,
                 leading: CircleAvatar(
                   radius: 16,
-                  backgroundColor: dirColor.shade100,
-                  child: Icon(_hfKorrKatIcons[kat] ?? Icons.mail, size: 16, color: dirColor.shade700),
+                  backgroundColor: F.h(dirColor, 100),
+                  child: Icon(_hfKorrKatIcons[kat] ?? Icons.mail, size: 16, color: F.h(dirColor, 700)),
                 ),
                 title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 subtitle: Row(children: [
@@ -14947,8 +14947,8 @@ $vollName$footer''';
                   Text('• ${k['datum'] ?? ''}', style: const TextStyle(fontSize: 10)),
                   const SizedBox(width: 6),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(color: dirColor.shade50, borderRadius: BorderRadius.circular(4)),
-                    child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 9, color: dirColor.shade800, fontWeight: FontWeight.bold))),
+                    decoration: BoxDecoration(color: F.h(dirColor, 50), borderRadius: BorderRadius.circular(4)),
+                    child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 9, color: F.h(dirColor, 800), fontWeight: FontWeight.bold))),
                   const SizedBox(width: 4),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                     decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(4)),
@@ -15079,14 +15079,14 @@ $vollName$footer''';
     final korrId = k['id'] is int ? k['id'] as int : int.tryParse(k['id']?.toString() ?? '') ?? 0;
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(_hfKorrKatIcons[kat] ?? Icons.mail, size: 18, color: dirColor.shade700),
+        Icon(_hfKorrKatIcons[kat] ?? Icons.mail, size: 18, color: F.h(dirColor, 700)),
         const SizedBox(width: 8),
-        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: dirColor.shade800))),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(dirColor, 800)))),
       ]),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: dirColor.shade100, borderRadius: BorderRadius.circular(8)),
-            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: dirColor.shade800))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(dirColor, 100), borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(dirColor, 800)))),
           const SizedBox(width: 6),
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -15139,11 +15139,11 @@ $vollName$footer''';
   Widget _buildHartefallInfoBox(String label, String value, MaterialColor color) {
     return Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+      decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(color, 200))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: TextStyle(fontSize: 10, color: color.shade600)),
+        Text(label, style: TextStyle(fontSize: 10, color: F.h(color, 600))),
         const SizedBox(height: 2),
-        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 800))),
       ]),
     );
   }
@@ -15347,7 +15347,7 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
               borderRadius: BorderRadius.circular(8),
               onTap: () => _showDetail(r),
               child: ListTile(
-                leading: CircleAvatar(backgroundColor: stColor.shade50, child: Icon(Icons.receipt, color: stColor.shade700, size: 20)),
+                leading: CircleAvatar(backgroundColor: F.h(stColor, 50), child: Icon(Icons.receipt, color: F.h(stColor, 700), size: 20)),
                 title: Text(r['grund']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 subtitle: Row(children: [
                   Text(r['erstellt_am']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
@@ -15356,8 +15356,8 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
                     Text('${r['betrag']} €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 700))),
                   ],
                   const SizedBox(width: 8),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(6)),
-                    child: Text(st[0].toUpperCase() + st.substring(1), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: stColor.shade800))),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(stColor, 100), borderRadius: BorderRadius.circular(6)),
+                    child: Text(st[0].toUpperCase() + st.substring(1), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(stColor, 800)))),
                 ]),
                 trailing: Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
               ),
@@ -15500,16 +15500,16 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         : (st == 'inkasso' ? Colors.red
         : (st == 'storniert' ? Colors.grey : Colors.orange)));
     return DefaultTabController(length: 4, child: Column(children: [
-      Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: stColor.shade50),
+      Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: F.h(stColor, 50)),
         child: Row(children: [
-          Icon(Icons.receipt, size: 22, color: stColor.shade700), const SizedBox(width: 10),
+          Icon(Icons.receipt, size: 22, color: F.h(stColor, 700)), const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(r['grund']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: stColor.shade800)),
+            Text(r['grund']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(stColor, 800))),
             Row(children: [
               if ((r['betrag']?.toString() ?? '').isNotEmpty) Text('${r['betrag']} €', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 700))),
               const SizedBox(width: 8),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(6)),
-                child: Text(st[0].toUpperCase() + st.substring(1), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: stColor.shade800))),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: F.h(stColor, 100), borderRadius: BorderRadius.circular(6)),
+                child: Text(st[0].toUpperCase() + st.substring(1), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(stColor, 800)))),
             ]),
           ])),
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
@@ -15571,7 +15571,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final color = isEin ? Colors.green : Colors.blue;
             return Card(child: InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showKorrDetail(k),
               child: ListTile(
-                leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700, size: 18),
+                leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: F.h(color, 700), size: 18),
                 title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingang' : 'Ausgang'}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -15614,12 +15614,12 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     final isEin = k['richtung'] == 'eingang'; final color = isEin ? Colors.green : Colors.blue;
     final kId = k['id'] is int ? k['id'] as int : int.tryParse(k['id'].toString()) ?? 0;
     showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: color.shade700), const SizedBox(width: 8),
-        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)))]),
+      title: Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: F.h(color, 700)), const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(color, 800))))]),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
-            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
           const Spacer(), Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))]),
         if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 12),
           Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
@@ -15837,7 +15837,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
             final k = _inkassoKorr[i]; final isEin = k['richtung'] == 'eingang'; final color = isEin ? Colors.green : Colors.red;
             return Card(child: InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showInkassoKorrDetail(k),
               child: ListTile(
-                leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700, size: 18),
+                leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: F.h(color, 700), size: 18),
                 title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingang' : 'Ausgang'}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -15880,12 +15880,12 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     final isEin = k['richtung'] == 'eingang'; final color = isEin ? Colors.green : Colors.red;
     final kId = k['id'] is int ? k['id'] as int : int.tryParse(k['id'].toString()) ?? 0;
     showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: color.shade700), const SizedBox(width: 8),
-        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)))]),
+      title: Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: F.h(color, 700)), const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(color, 800))))]),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
-            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
           const Spacer(), Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))]),
         if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 12),
           Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
@@ -16242,10 +16242,10 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (faellig.isNotEmpty) Text('Fällig am $faellig', style: const TextStyle(fontSize: 11)),
         Row(children: [
-          Icon(zeichen, size: 12, color: farbe.shade600),
+          Icon(zeichen, size: 12, color: F.h(farbe, 600)),
           const SizedBox(width: 4),
           Expanded(child: Text(hinweis,
-            style: TextStyle(fontSize: 11, color: farbe.shade700, fontWeight: bezahlt ? FontWeight.w600 : null))),
+            style: TextStyle(fontSize: 11, color: F.h(farbe, 700), fontWeight: bezahlt ? FontWeight.w600 : null))),
         ]),
       ]),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -19264,10 +19264,10 @@ class _HfDocsSectionState extends State<_HfDocsSection> {
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
         child: Row(children: [
-          Icon(widget.type == 'antrag' ? Icons.description : Icons.fact_check, size: 18, color: cs.shade700),
+          Icon(widget.type == 'antrag' ? Icons.description : Icons.fact_check, size: 18, color: F.h(cs, 700)),
           const SizedBox(width: 8),
           Expanded(child: Text('$_label-Dokumente (${_items.length})',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: cs.shade800))),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(cs, 800)))),
           // Aus dem Cloud: dieselbe Obergrenze und derselbe Upload wie beim
           // Geräte-Weg daneben, nur die Quelle der Dateien wechselt.
           CloudPickButton(
@@ -19653,11 +19653,11 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
     final praxis = d['praxis_name']?.toString() ?? '';
     final statusColor = versorgt ? Colors.green : abgelehnt ? Colors.grey : Colors.teal;
     return Card(margin: const EdgeInsets.only(bottom: 6), child: ExpansionTile(
-      leading: Icon(versorgt ? Icons.hearing : abgelehnt ? Icons.hearing_disabled : Icons.timeline, color: statusColor.shade700),
+      leading: Icon(versorgt ? Icons.hearing : abgelehnt ? Icons.hearing_disabled : Icons.timeline, color: F.h(statusColor, 700)),
       title: Row(children: [
         Expanded(child: Text(verordnung.isEmpty ? 'Hörgerät' : 'Verordnung $verordnung', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis)),
-        if (status.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: statusColor.shade50, borderRadius: BorderRadius.circular(6)),
-          child: Text(statusLabel(status), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800))),
+        if (status.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(statusColor, 50), borderRadius: BorderRadius.circular(6)),
+          child: Text(statusLabel(status), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(statusColor, 800)))),
       ]),
       subtitle: Text('${ohrLabel(ohr)}${typ.isNotEmpty ? ' · $typ' : ''}${kontrolle.isNotEmpty ? ' · Kontrolle in $kontrolle Mon.' : ''}', style: const TextStyle(fontSize: 11)),
       children: [Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -79,7 +79,7 @@ class _VollmachtLinkKnoepfeState extends State<VollmachtLinkKnoepfe> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.sms_outlined, color: widget.farbe.shade700),
+          Icon(Icons.sms_outlined, color: F.h(widget.farbe, 700)),
           const SizedBox(width: 8),
           Expanded(child: Text('$was per SMS schicken?', style: const TextStyle(fontSize: 15))),
         ]),

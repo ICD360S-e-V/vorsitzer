@@ -603,8 +603,8 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
         return Card(child: ListTile(
           onTap: () => _showPrDetail(pr),
           leading: CircleAvatar(
-            backgroundColor: color.shade50,
-            child: Icon(isDraft ? Icons.edit_note : (isOpen ? Icons.merge : Icons.check_circle), color: color.shade700, size: 20),
+            backgroundColor: F.h(color, 50),
+            child: Icon(isDraft ? Icons.edit_note : (isOpen ? Icons.merge : Icons.check_circle), color: F.h(color, 700), size: 20),
           ),
           title: Row(children: [
             Text('#${pr['number']} ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500), fontWeight: FontWeight.w600)),
@@ -686,9 +686,9 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
 
   Widget _prStat(IconData icon, String text, MaterialColor color) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 14, color: color.shade600),
+      Icon(icon, size: 14, color: F.h(color, 600)),
       const SizedBox(width: 3),
-      Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color.shade700)),
+      Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(color, 700))),
     ]);
   }
 
@@ -714,8 +714,8 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
         return Card(child: ListTile(
           onTap: () => _showReleaseDetail(rel),
           leading: CircleAvatar(
-            backgroundColor: isDraft ? F.h(Colors.grey, 100) : (isPre ? Colors.orange.shade50 : Colors.blue.shade50),
-            child: Icon(Icons.local_offer, color: isDraft ? F.h(Colors.grey, 600) : (isPre ? Colors.orange.shade700 : Colors.blue.shade700), size: 20),
+            backgroundColor: isDraft ? F.h(Colors.grey, 100) : (isPre ? F.h(Colors.orange, 50) : F.h(Colors.blue, 50)),
+            child: Icon(Icons.local_offer, color: isDraft ? F.h(Colors.grey, 600) : (isPre ? F.h(Colors.orange, 700) : F.h(Colors.blue, 700)), size: 20),
           ),
           title: Row(children: [
             Text(rel['tag_name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'monospace')),

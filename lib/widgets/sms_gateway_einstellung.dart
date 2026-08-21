@@ -820,23 +820,23 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: farbe.shade50,
+        color: F.h(farbe, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: farbe.shade200),
+        border: Border.all(color: F.h(farbe, 200)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: farbe.shade700),
+          Icon(icon, size: 18, color: F.h(farbe, 700)),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(titel,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: farbe.shade900)),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(farbe, 900))),
                 const SizedBox(height: 6),
-                Text(text, style: TextStyle(fontSize: 12, height: 1.45, color: farbe.shade900)),
+                Text(text, style: TextStyle(fontSize: 12, height: 1.45, color: F.h(farbe, 900))),
               ],
             ),
           ),

@@ -690,15 +690,15 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
       decoration: BoxDecoration(
         color: (isDone ? Colors.green : (isScheduled ? Colors.orange : Colors.grey)).shade50,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.shade300),
+        border: Border.all(color: F.h(color, 300)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(isDone ? Icons.check_circle : (isScheduled ? Icons.schedule : Icons.radio_button_unchecked), color: color.shade700, size: 18),
+          Icon(isDone ? Icons.check_circle : (isScheduled ? Icons.schedule : Icons.radio_button_unchecked), color: F.h(color, 700), size: 18),
           const SizedBox(width: 8),
-          Icon(icon, size: 16, color: color.shade600),
+          Icon(icon, size: 16, color: F.h(color, 600)),
           const SizedBox(width: 6),
-          Expanded(child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900))),
+          Expanded(child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 900)))),
           IconButton(
             icon: const Icon(Icons.edit, size: 16),
             tooltip: 'Schritt bearbeiten',
@@ -713,7 +713,7 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
               key == 'abholung'
                 ? 'Termin: ${_fmtDate(status['datum'])} um ${_fmtTime(status['uhrzeit'])}'
                 : 'Datum: ${_fmtDate(status['datum'])}',
-              style: TextStyle(fontSize: 11, color: color.shade800),
+              style: TextStyle(fontSize: 11, color: F.h(color, 800)),
             ),
           ),
           if (status['erledigt_am'] != null) Padding(
@@ -724,17 +724,17 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
           if (status['sanitaetshaus'] != null) _sanitCard(Map<String, dynamic>.from(status['sanitaetshaus'])),
           if ((status['bestellt_text'] ?? '').toString().isNotEmpty) Padding(
             padding: const EdgeInsets.only(left: 26, top: 4),
-            child: Text('• Bestellt: ${status['bestellt_text']}', style: TextStyle(fontSize: 11, color: color.shade800)),
+            child: Text('• Bestellt: ${status['bestellt_text']}', style: TextStyle(fontSize: 11, color: F.h(color, 800))),
           ),
           if (status['voraussichtl_lieferung'] != null) Padding(
             padding: const EdgeInsets.only(left: 26),
             child: Text('• Lieferung: ${_fmtDate(status['voraussichtl_lieferung'])}',
-              style: TextStyle(fontSize: 11, color: color.shade800)),
+              style: TextStyle(fontSize: 11, color: F.h(color, 800))),
           ),
           if (status['zuzahlung_betrag'] != null) Padding(
             padding: const EdgeInsets.only(left: 26),
             child: Text('• Betrag: ${status['zuzahlung_betrag']} €${(status['zuzahlung_befreit'] == 1 || status['zuzahlung_befreit'] == '1') ? '  (befreit)' : ''}',
-              style: TextStyle(fontSize: 11, color: color.shade800)),
+              style: TextStyle(fontSize: 11, color: F.h(color, 800))),
           ),
           // Auftragsunterlagen — Kostenvoranschlag, Bestellbestätigung,
           // Musterlieferschein etc. Selber Multi-Upload wie „Rechnung /
@@ -749,14 +749,14 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
                 decoration: BoxDecoration(
                   color: F.flaeche,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: color.shade200),
+                  border: Border.all(color: F.h(color, 200)),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Icon(Icons.folder_open, size: 14, color: color.shade700),
+                    Icon(Icons.folder_open, size: 14, color: F.h(color, 700)),
                     const SizedBox(width: 6),
                     Text('Auftrag Unterlagen',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color.shade900)),
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(color, 900))),
                   ]),
                   const SizedBox(height: 4),
                   KorrAttachmentsWidget(
@@ -784,14 +784,14 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
                 decoration: BoxDecoration(
                   color: F.flaeche,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: color.shade200),
+                  border: Border.all(color: F.h(color, 200)),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Icon(Icons.receipt_long, size: 14, color: color.shade700),
+                    Icon(Icons.receipt_long, size: 14, color: F.h(color, 700)),
                     const SizedBox(width: 6),
                     Text('Rechnung / Kassenzettel',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color.shade900)),
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(color, 900))),
                   ]),
                   const SizedBox(height: 4),
                   KorrAttachmentsWidget(

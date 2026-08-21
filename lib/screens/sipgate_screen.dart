@@ -637,7 +637,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
     return Card(
       color: z.konferenz
           ? F.h(Colors.deepPurple, 50)
-          : (z.verbundeneBeine > 0 ? Colors.green.shade50 : Colors.blue.shade50),
+          : (z.verbundeneBeine > 0 ? F.h(Colors.green, 50) : F.h(Colors.blue, 50)),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -711,7 +711,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
               : (g.eingehend ? Icons.phone_callback : Icons.phone_forwarded),
           color: g.gehalten
               ? F.h(Colors.orange, 700)
-              : (verbunden ? Colors.green.shade700 : Colors.blue.shade700),
+              : (verbunden ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -956,17 +956,17 @@ class _SipgateScreenState extends State<SipgateScreen> {
   Widget _warnzeile(String text, MaterialColor farbe) => Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: farbe.shade50,
+          color: F.h(farbe, 50),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: farbe.shade200),
+          border: Border.all(color: F.h(farbe, 200)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.warning_amber_rounded, size: 18, color: farbe.shade700),
+            Icon(Icons.warning_amber_rounded, size: 18, color: F.h(farbe, 700)),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(text, style: TextStyle(fontSize: 12, color: farbe.shade900)),
+              child: Text(text, style: TextStyle(fontSize: 12, color: F.h(farbe, 900))),
             ),
           ],
         ),

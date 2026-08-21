@@ -57,7 +57,7 @@ class MitgliederDeviceWidget extends StatelessWidget {
   Widget _sectionHeader(IconData icon, MaterialColor color, String title, String badge) {
     return Row(
       children: [
-        Icon(icon, size: 24, color: color.shade700),
+        Icon(icon, size: 24, color: F.h(color, 700)),
         const SizedBox(width: 8),
         Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const Spacer(),
@@ -405,11 +405,11 @@ class MitgliederDeviceWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.shade50,
+        color: F.h(color, 50),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.shade200),
+        border: Border.all(color: F.h(color, 200)),
       ),
-      child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color.shade700)),
+      child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(color, 700))),
     );
   }
 

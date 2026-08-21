@@ -275,13 +275,13 @@ class _JobcenterEinstellungWidgetState extends State<JobcenterEinstellungWidget>
               return Container(
                 width: 220, padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [color.shade50, color.shade100]),
-                  borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade300)),
+                  gradient: LinearGradient(colors: [F.h(color, 50), F.h(color, 100)]),
+                  borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(color, 300))),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Icon(icon, size: 20, color: color.shade700),
+                    Icon(icon, size: 20, color: F.h(color, 700)),
                     const SizedBox(width: 6),
-                    Expanded(child: Text(stufe, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade700))),
+                    Expanded(child: Text(stufe, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 700)))),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(color: color.shade700, borderRadius: BorderRadius.circular(12)),
@@ -289,9 +289,9 @@ class _JobcenterEinstellungWidgetState extends State<JobcenterEinstellungWidget>
                     ),
                   ]),
                   const SizedBox(height: 6),
-                  Text(item['beschreibung']?.toString() ?? '', style: TextStyle(fontSize: 12, color: color.shade800)),
+                  Text(item['beschreibung']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(color, 800))),
                   Text('${_fmtEuro(item['betrag'])} / Monat · ${_fmtEuro((double.tryParse(item['betrag']?.toString() ?? '0') ?? 0) * 12)} / Jahr',
-                      style: TextStyle(fontSize: 10, color: color.shade600)),
+                      style: TextStyle(fontSize: 10, color: F.h(color, 600))),
                 ]),
               );
             }).toList(),

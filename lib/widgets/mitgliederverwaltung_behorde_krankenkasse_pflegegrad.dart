@@ -154,7 +154,7 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
       return Card(
         margin: const EdgeInsets.only(bottom: 8),
         child: ListTile(
-          leading: CircleAvatar(backgroundColor: sc.shade50, child: Icon(Icons.elderly, size: 18, color: sc.shade700)),
+          leading: CircleAvatar(backgroundColor: F.h(sc, 50), child: Icon(Icons.elderly, size: 18, color: F.h(sc, 700))),
           title: Row(children: [
             Expanded(child: Text(
               '${a['antrag_typ']?.toString() ?? '—'}${ziel.isNotEmpty ? " → PG $ziel" : ""}',
@@ -173,7 +173,7 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
               Text('Bescheid: ${a['bescheid_datum']}${ergebnis.isNotEmpty ? " — $ergebnis" : ""}', style: const TextStyle(fontSize: 11)),
             if (zg.isNotEmpty)
               Text('Zweitgutachten am: $zg', style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800))),
-            Text('Status: ${_prettyStatus(status)}', style: TextStyle(fontSize: 11, color: sc.shade700, fontWeight: FontWeight.w500)),
+            Text('Status: ${_prettyStatus(status)}', style: TextStyle(fontSize: 11, color: F.h(sc, 700), fontWeight: FontWeight.w500)),
           ]),
           trailing: PopupMenuButton<String>(
             itemBuilder: (_) => [
@@ -2018,9 +2018,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
 
   Widget _sectionHeader(IconData icon, String title, MaterialColor color) {
     return Row(children: [
-      Icon(icon, size: 18, color: color.shade700),
+      Icon(icon, size: 18, color: F.h(color, 700)),
       const SizedBox(width: 6),
-      Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+      Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 800))),
     ]);
   }
 }

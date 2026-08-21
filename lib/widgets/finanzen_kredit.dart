@@ -170,7 +170,7 @@ class _FinanzenKreditWidgetState extends State<FinanzenKreditWidget> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.account_balance, size: 18, color: statusColor.shade700),
+                    Icon(Icons.account_balance, size: 18, color: F.h(statusColor, 700)),
                     const SizedBox(width: 8),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(k['bank_name']?.toString() ?? 'Kredit', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
@@ -179,8 +179,8 @@ class _FinanzenKreditWidgetState extends State<FinanzenKreditWidget> {
                     ])),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(12), border: Border.all(color: statusColor.shade300)),
-                      child: Text(statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800)),
+                      decoration: BoxDecoration(color: F.h(statusColor, 100), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(statusColor, 300))),
+                      child: Text(statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(statusColor, 800))),
                     ),
                     const SizedBox(width: 4),
                     IconButton(icon: Icon(Icons.edit, size: 16, color: F.h(Colors.blue, 600)), tooltip: 'Bearbeiten',
@@ -319,17 +319,17 @@ class _FinanzenKreditWidgetState extends State<FinanzenKreditWidget> {
                           return Container(
                             margin: const EdgeInsets.only(bottom: 8),
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(color: vc.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: vc.shade200)),
+                            decoration: BoxDecoration(color: F.h(vc, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(vc, 200))),
                             child: Row(children: [
                               Container(
                                 padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(color: vc.shade100, borderRadius: BorderRadius.circular(8)),
-                                child: Icon(vTypIcons[vTyp] ?? Icons.note, size: 18, color: vc.shade700),
+                                decoration: BoxDecoration(color: F.h(vc, 100), borderRadius: BorderRadius.circular(8)),
+                                child: Icon(vTypIcons[vTyp] ?? Icons.note, size: 18, color: F.h(vc, 700)),
                               ),
                               const SizedBox(width: 10),
                               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Row(children: [
-                                  Text(vTypLabels[vTyp] ?? vTyp, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: vc.shade800)),
+                                  Text(vTypLabels[vTyp] ?? vTyp, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(vc, 800))),
                                   const SizedBox(width: 8),
                                   Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                 ]),
@@ -1057,7 +1057,7 @@ class _FinanzenKreditWidgetState extends State<FinanzenKreditWidget> {
                 decoration: BoxDecoration(
                   color: F.flaeche,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: statusColor.shade200),
+                  border: Border.all(color: F.h(statusColor, 200)),
                   boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
                 ),
                 child: Column(
@@ -1066,27 +1066,27 @@ class _FinanzenKreditWidgetState extends State<FinanzenKreditWidget> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: statusColor.shade50,
+                        color: F.h(statusColor, 50),
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.account_balance, size: 18, color: statusColor.shade700),
+                          Icon(Icons.account_balance, size: 18, color: F.h(statusColor, 700)),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               k['bank_name']?.toString() ?? 'Kredit',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: statusColor.shade800),
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(statusColor, 800)),
                             ),
                           ),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: statusColor.shade100,
+                              color: F.h(statusColor, 100),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: statusColor.shade300),
+                              border: Border.all(color: F.h(statusColor, 300)),
                             ),
-                            child: Text(statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800)),
+                            child: Text(statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(statusColor, 800))),
                           ),
                           const SizedBox(width: 8),
                           IconButton(
@@ -1441,26 +1441,26 @@ class _KreditKorrespondenzTabState extends State<_KreditKorrespondenzTab> {
           return Container(
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+            decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(color, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Container(
                   padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
-                  child: Icon(isEingang ? Icons.call_received : Icons.call_made, size: 18, color: color.shade700),
+                  decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(8)),
+                  child: Icon(isEingang ? Icons.call_received : Icons.call_made, size: 18, color: F.h(color, 700)),
                 ),
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Flexible(child: Text(first['betreff']?.toString() ?? first['titel']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
+                    Flexible(child: Text(first['betreff']?.toString() ?? first['titel']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 800)), overflow: TextOverflow.ellipsis)),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(4)),
+                      decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(4)),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(methodeIcons[m] ?? Icons.mail, size: 10, color: color.shade700),
+                        Icon(methodeIcons[m] ?? Icons.mail, size: 10, color: F.h(color, 700)),
                         const SizedBox(width: 3),
-                        Text(methodeLabels[m] ?? m, style: TextStyle(fontSize: 9, color: color.shade700)),
+                        Text(methodeLabels[m] ?? m, style: TextStyle(fontSize: 9, color: F.h(color, 700))),
                       ]),
                     ),
                     if (files.length > 1) ...[

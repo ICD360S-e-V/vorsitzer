@@ -1588,8 +1588,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                       subtitle: Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Wrap(spacing: 6, runSpacing: 4, children: [
-                          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: sc.shade100, borderRadius: BorderRadius.circular(8)),
-                            child: Text(_lbStatusLabel(status).toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: sc.shade800))),
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: F.h(sc, 100), borderRadius: BorderRadius.circular(8)),
+                            child: Text(_lbStatusLabel(status).toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(sc, 800)))),
                           if (schreiben == 'ja') Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8)),
                             child: Text('SCHREIBEN ERHALTEN', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700)))),
                         ]),
@@ -2319,11 +2319,11 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 ? Colors.green.shade300
                 : Colors.grey.shade300;
     final bgColor = isExpired
-        ? Colors.red.shade50
+        ? F.h(Colors.red, 50)
         : isExpiringSoon
-            ? Colors.orange.shade50
+            ? F.h(Colors.orange, 50)
             : _befreiungskarte
-                ? Colors.green.shade50
+                ? F.h(Colors.green, 50)
                 : Colors.grey.shade50;
 
     return Container(
@@ -3616,7 +3616,7 @@ class _KrankengeldTabState extends State<_KrankengeldTab> {
                   onTap: () => _openDossier(d),
                   child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Icon(Icons.folder, color: col.shade700, size: 18),
+                      Icon(Icons.folder, color: F.h(col, 700), size: 18),
                       const SizedBox(width: 8),
                       Expanded(child: Text(period, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                       Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -5158,13 +5158,13 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
     final id = int.tryParse(d['id']?.toString() ?? '');
     return Container(
       margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+      decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(color, 200))),
       child: Row(children: [
-        Icon(Icons.description, size: 18, color: color.shade700),
+        Icon(Icons.description, size: 18, color: F.h(color, 700)),
         const SizedBox(width: 8),
-        Expanded(child: Text(name, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
+        Expanded(child: Text(name, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 800)), overflow: TextOverflow.ellipsis)),
         IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.indigo, 600)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: id == null ? null : () => _viewDoc(d, external: false)),
-        IconButton(icon: Icon(Icons.download, size: 18, color: color.shade700), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: id == null ? null : () => _viewDoc(d, external: true)),
+        IconButton(icon: Icon(Icons.download, size: 18, color: F.h(color, 700)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: id == null ? null : () => _viewDoc(d, external: true)),
         IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: id == null ? null : () => _deleteDoc(id)),
       ]),
     );
@@ -5249,10 +5249,10 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
               final isEin = k['richtung'] == 'eingang';
               final kColor = isEin ? Colors.green : Colors.blue;
               return Card(margin: const EdgeInsets.only(bottom: 6), child: Padding(padding: const EdgeInsets.all(10), child: Row(children: [
-                Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: kColor.shade700),
+                Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: F.h(kColor, 700)),
                 const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text((k['betreff']?.toString() ?? '').isEmpty ? '(kein Betreff)' : k['betreff'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kColor.shade800)),
+                  Text((k['betreff']?.toString() ?? '').isEmpty ? '(kein Betreff)' : k['betreff'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(kColor, 800))),
                   Row(children: [
                     Text(_fmtLbDate(k['datum']), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                     if ((k['methode']?.toString() ?? '').isNotEmpty) ...[const SizedBox(width: 6), Text(_lbMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)))],

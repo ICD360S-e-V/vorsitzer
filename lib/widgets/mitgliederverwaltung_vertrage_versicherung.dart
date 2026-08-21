@@ -387,13 +387,13 @@ class _MitgliederverwaltungVertraegeVersicherungState
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: color.shade100,
-          child: Icon(Icons.shield, color: color.shade800),
+          backgroundColor: F.h(color, 100),
+          child: Icon(Icons.shield, color: F.h(color, 800)),
         ),
         title: Text(versName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (sparteLabel.isNotEmpty)
-            Text(sparteLabel, style: TextStyle(fontSize: 11, color: color.shade700, fontWeight: FontWeight.w600)),
+            Text(sparteLabel, style: TextStyle(fontSize: 11, color: F.h(color, 700), fontWeight: FontWeight.w600)),
           if ((v['vertragsnummer']?.toString() ?? '').isNotEmpty)
             Text('Nr.: ${v['vertragsnummer']}', style: const TextStyle(fontSize: 11)),
           if ((v['vertragsbeginn']?.toString() ?? '').isNotEmpty)

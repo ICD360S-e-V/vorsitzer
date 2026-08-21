@@ -381,11 +381,11 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       message: tooltip,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
+        decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(color, 200))),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 11, color: color.shade700),
+          Icon(icon, size: 11, color: F.h(color, 700)),
           const SizedBox(width: 3),
-          Text(count, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade800)),
+          Text(count, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(color, 800))),
         ]),
       ),
     );
@@ -396,8 +396,8 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
     if (s == null) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(color: s.color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: s.color.shade300)),
-      child: Text(s.label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: s.color.shade800)),
+      decoration: BoxDecoration(color: F.h(s.color, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(s.color, 300))),
+      child: Text(s.label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(s.color, 800))),
     );
   }
 
@@ -693,13 +693,13 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
   Widget _miniPill(IconData icon, String text, MaterialColor color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.shade200)),
+      decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(color, 200))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 11, color: color.shade700),
+        Icon(icon, size: 11, color: F.h(color, 700)),
         const SizedBox(width: 4),
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 220),
-          child: Text(text, style: TextStyle(fontSize: 10, color: color.shade800, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+          child: Text(text, style: TextStyle(fontSize: 10, color: F.h(color, 800), fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
         ),
       ]),
     );
@@ -710,24 +710,24 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       width: fullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [color.shade50, F.flaeche]),
+        gradient: LinearGradient(colors: [F.h(color, 50), F.flaeche]),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.shade200),
+        border: Border.all(color: F.h(color, 200)),
       ),
       child: Row(children: [
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: color.shade100, shape: BoxShape.circle),
-          child: Icon(icon, size: 18, color: color.shade800),
+          decoration: BoxDecoration(color: F.h(color, 100), shape: BoxShape.circle),
+          child: Icon(icon, size: 18, color: F.h(color, 800)),
         ),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(fontSize: 10, color: color.shade600, fontWeight: FontWeight.w600)),
+          Text(label, style: TextStyle(fontSize: 10, color: F.h(color, 600), fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
           if (isPhoneIcon(icon))
-            PhoneText(primary, label: label, color: color.shade900, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900))
+            PhoneText(primary, label: label, color: color.shade900, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 900)))
           else
-            SelectableText(primary, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900)),
+            SelectableText(primary, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 900))),
           if (secondary.isNotEmpty && secondary != primary) Padding(
             padding: const EdgeInsets.only(top: 2),
             child: isPhoneIcon(icon)
@@ -748,12 +748,12 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
+      decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(color, 200))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(titleIcon, size: 16, color: color.shade700),
+          Icon(titleIcon, size: 16, color: F.h(color, 700)),
           const SizedBox(width: 6),
-          Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800)),
+          Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 800))),
         ]),
         const SizedBox(height: 6),
         ...addrLines.map((line) => Padding(
@@ -765,7 +765,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
           child: Row(children: [
             Icon(Icons.schedule, size: 12, color: color.shade500),
             const SizedBox(width: 4),
-            Expanded(child: Text(oeffnung, style: TextStyle(fontSize: 11, color: color.shade700, fontStyle: FontStyle.italic))),
+            Expanded(child: Text(oeffnung, style: TextStyle(fontSize: 11, color: F.h(color, 700), fontStyle: FontStyle.italic))),
           ]),
         ),
       ]),
@@ -827,7 +827,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
             Text('Einreichungsweg (wie CV gesendet)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 4),
             Wrap(spacing: 6, runSpacing: 4, children: _wege.entries.map((e) => ChoiceChip(
-              avatar: Icon(e.value.icon, size: 13, color: weg == e.key ? Colors.white : e.value.color.shade700),
+              avatar: Icon(e.value.icon, size: 13, color: weg == e.key ? Colors.white : F.h(e.value.color, 700)),
               label: Text(e.value.label, style: TextStyle(fontSize: 11, color: weg == e.key ? Colors.white : null)),
               selected: weg == e.key,
               selectedColor: e.value.color.shade600,
@@ -947,14 +947,14 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                           const SizedBox(width: 8),
                           if (w != null) Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: w.color.shade50, borderRadius: BorderRadius.circular(8)),
-                            child: Text(w.label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: w.color.shade800)),
+                            decoration: BoxDecoration(color: F.h(w.color, 50), borderRadius: BorderRadius.circular(8)),
+                            child: Text(w.label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(w.color, 800))),
                           ),
                           const SizedBox(width: 6),
                           if (st != null) Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: st.color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: st.color.shade300)),
-                            child: Text(st.label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: st.color.shade800)),
+                            decoration: BoxDecoration(color: F.h(st.color, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(st.color, 300))),
+                            child: Text(st.label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(st.color, 800))),
                           ),
                         ]),
                         if ((e['notiz']?.toString() ?? '').isNotEmpty) Padding(
@@ -1078,7 +1078,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
             Text('Kanal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 4),
             Wrap(spacing: 6, runSpacing: 4, children: _wege.entries.map((e) => ChoiceChip(
-              avatar: Icon(e.value.icon, size: 13, color: kanal == e.key ? Colors.white : e.value.color.shade700),
+              avatar: Icon(e.value.icon, size: 13, color: kanal == e.key ? Colors.white : F.h(e.value.color, 700)),
               label: Text(e.value.label, style: TextStyle(fontSize: 11, color: kanal == e.key ? Colors.white : null)),
               selected: kanal == e.key,
               selectedColor: e.value.color.shade600,
@@ -1224,7 +1224,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                         Text(e['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                         if (kanal != null) ...[
                           const SizedBox(width: 6),
-                          Icon(kanal.icon, size: 12, color: kanal.color.shade700),
+                          Icon(kanal.icon, size: 12, color: F.h(kanal.color, 700)),
                         ],
                         const Spacer(),
                         IconButton(
@@ -1349,10 +1349,10 @@ class _StellenanzeigeTabState extends State<_StellenanzeigeTab> {
 
   Widget _badge(IconData icon, String text, MaterialColor color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
+    decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(color, 200))),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 12, color: color.shade800), const SizedBox(width: 4),
-      Text(text, style: TextStyle(fontSize: 11, color: color.shade900)),
+      Icon(icon, size: 12, color: F.h(color, 800)), const SizedBox(width: 4),
+      Text(text, style: TextStyle(fontSize: 11, color: F.h(color, 900))),
     ]),
   );
 

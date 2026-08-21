@@ -1557,15 +1557,15 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
         break;
       case 'txt':
         fileIcon = Icons.description;
-        iconColor = Colors.grey.shade700;
+        iconColor = F.h(Colors.grey, 700);
         break;
       case 'zip':
         fileIcon = Icons.folder_zip;
-        iconColor = Colors.amber.shade700;
+        iconColor = F.h(Colors.amber, 700);
         break;
       default:
         fileIcon = Icons.insert_drive_file;
-        iconColor = Colors.grey;
+        iconColor = F.h(Colors.grey, 500);
     }
 
     final sizeStr = attachment.filesize < 1024

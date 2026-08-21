@@ -1282,21 +1282,21 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: farbe.shade50,
+          color: F.h(farbe, 50),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: farbe.shade200),
+          border: Border.all(color: F.h(farbe, 200)),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(symbol, size: 18, color: farbe.shade700),
+          Icon(symbol, size: 18, color: F.h(farbe, 700)),
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(titel,
                   style: TextStyle(
-                      fontSize: 12.5, fontWeight: FontWeight.bold, color: farbe.shade900)),
+                      fontSize: 12.5, fontWeight: FontWeight.bold, color: F.h(farbe, 900))),
               const SizedBox(height: 3),
               Text(text,
-                  style: TextStyle(fontSize: 11.5, color: farbe.shade900, height: 1.45)),
+                  style: TextStyle(fontSize: 11.5, color: F.h(farbe, 900), height: 1.45)),
             ]),
           ),
         ]),

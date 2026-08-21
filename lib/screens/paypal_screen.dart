@@ -220,14 +220,14 @@ class _PayPalScreenState extends State<PayPalScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.shade200)),
+      decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(color, 200))),
       child: Row(children: [
-        CircleAvatar(backgroundColor: color.shade100, radius: 20, child: Icon(icon, color: color.shade700, size: 20)),
+        CircleAvatar(backgroundColor: F.h(color, 100), radius: 20, child: Icon(icon, color: F.h(color, 700), size: 20)),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(fontSize: 11, color: color.shade600)),
+          Text(label, style: TextStyle(fontSize: 11, color: F.h(color, 600))),
           const SizedBox(height: 2),
-          Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: color.shade900)),
+          Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: F.h(color, 900))),
         ])),
         if (copyable)
           IconButton(
@@ -350,7 +350,7 @@ class _PayPalScreenState extends State<PayPalScreen> {
                 borderRadius: BorderRadius.circular(12),
                 onTap: () => _showKorrDetail(k, i),
                 child: ListTile(
-                  leading: CircleAvatar(backgroundColor: color.shade100, child: Icon(katIcon, color: color.shade700, size: 20)),
+                  leading: CircleAvatar(backgroundColor: F.h(color, 100), child: Icon(katIcon, color: F.h(color, 700), size: 20)),
                   title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   subtitle: Row(children: [
                     Text('${k['datum'] ?? ''} • ${isEin ? 'Eingehend' : 'Ausgehend'}', style: const TextStyle(fontSize: 11)),
@@ -427,14 +427,14 @@ class _PayPalScreenState extends State<PayPalScreen> {
     final katIcon = _kategorieIcons[kat] ?? Icons.email;
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(katIcon, size: 20, color: color.shade700),
+        Icon(katIcon, size: 20, color: F.h(color, 700)),
         const SizedBox(width: 8),
-        Expanded(child: Text(k['betreff']?.toString() ?? 'Korrespondenz', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color.shade800))),
+        Expanded(child: Text(k['betreff']?.toString() ?? 'Korrespondenz', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
       ]),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-            child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(12)),
+            child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
           const SizedBox(width: 8),
           Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(12)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [

@@ -273,11 +273,11 @@ class _VermieterDokumenteState extends State<VermieterDokumente> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Row(children: [
-          Icon(Icons.folder_open, size: 16, color: c.shade700),
+          Icon(Icons.folder_open, size: 16, color: F.h(c, 700)),
           const SizedBox(width: 6),
           Expanded(
             child: Text('${widget.titel} (${_items.length})',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: c.shade800)),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(c, 800))),
           ),
           ElevatedButton.icon(
             onPressed: _laedtHoch ? null : _hochladen,
@@ -298,7 +298,7 @@ class _VermieterDokumenteState extends State<VermieterDokumente> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: c.shade50,
+              color: F.h(c, 50),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: c.shade100),
             ),

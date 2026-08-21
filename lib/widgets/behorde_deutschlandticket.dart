@@ -395,12 +395,12 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
   }
 
   Widget _ruleCard(IconData icon, String title, String text, MaterialColor color) {
-    return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
+    return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(color, 200))),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 18, color: color.shade700),
+        Icon(icon, size: 18, color: F.h(color, 700)),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+          Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(color, 800))),
           const SizedBox(height: 2),
           Text(text, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), height: 1.4)),
         ])),
@@ -655,13 +655,13 @@ class _StammdatenTabState extends State<_StammdatenTab> {
           final expired = diff < 0;
           final warnRenew = diff >= 0 && diff <= 90;
           final color = expired ? Colors.red : (warnRenew ? Colors.orange : Colors.green);
-          return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
+          return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(color, 200))),
             child: Row(children: [
-              Icon(expired ? Icons.error : (warnRenew ? Icons.warning_amber : Icons.check_circle), size: 20, color: color.shade700),
+              Icon(expired ? Icons.error : (warnRenew ? Icons.warning_amber : Icons.check_circle), size: 20, color: F.h(color, 700)),
               const SizedBox(width: 10),
               Expanded(child: Text(
                 expired ? 'Karte abgelaufen! Bitte erneuern.' : (warnRenew ? 'Karte läuft in $diff Tagen ab — bitte rechtzeitig erneuern!' : 'Karte gültig bis $_karteMonat/$_karteJahr ($diff Tage)'),
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
             ]));
         }),
       ],
@@ -953,12 +953,12 @@ class _ZahlungTabState extends State<_ZahlungTab> {
             final color = bezahltBool ? Colors.green : (nichtBezahlt ? Colors.red : Colors.orange);
 
             return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(dense: true,
-              leading: Icon(bezahltBool ? Icons.check_circle : (nichtBezahlt ? Icons.cancel : Icons.pending), color: color.shade600, size: 22),
+              leading: Icon(bezahltBool ? Icons.check_circle : (nichtBezahlt ? Icons.cancel : Icons.pending), color: F.h(color, 600), size: 22),
               title: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Text('${z['betrag'] ?? '63,00'} € · $zahlungsart', style: const TextStyle(fontSize: 11)),
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-                  child: Text(bezahltBool ? 'Bezahlt' : (nichtBezahlt ? 'Nicht bezahlt' : 'Offen'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade800))),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(12)),
+                  child: Text(bezahltBool ? 'Bezahlt' : (nichtBezahlt ? 'Nicht bezahlt' : 'Offen'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
                 const SizedBox(width: 4),
                 PopupMenuButton<String>(
                   icon: Icon(Icons.more_vert, size: 18, color: F.h(Colors.grey, 500)),

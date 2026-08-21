@@ -111,7 +111,7 @@ class ChatAttachmentItem extends StatelessWidget {
                     size: 18,
                     color: savedToCloud
                         ? Colors.green.shade400
-                        : (isOwn ? Colors.white : Colors.indigo.shade600),
+                        : (isOwn ? Colors.white : F.h(Colors.indigo, 600)),
                   ),
                 ),
               ),

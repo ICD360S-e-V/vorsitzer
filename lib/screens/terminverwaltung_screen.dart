@@ -678,7 +678,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                             ? F.h(Colors.indigo, 900)
                             : isUrlaub
                                 ? F.h(Colors.red, 900)
-                                : (isToday ? Colors.blue.shade900 : Colors.black87),
+                                : (isToday ? F.h(Colors.blue, 900) : F.textStark),
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -737,15 +737,15 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
   /// - 18 Uhr    = Abendessen, keine Terminbuchung (orange + dinner_dining-Icon)
   Color _zoneColor(int hour, bool isWeekend) {
     if (hour >= 8 && hour <= 12) {
-      return isWeekend ? Colors.grey.shade300 : Colors.grey.shade200;
+      return isWeekend ? F.h(Colors.grey, 300) : F.h(Colors.grey, 200);
     }
     if (hour >= 13 && hour <= 17) {
-      return isWeekend ? Colors.green.shade100 : Colors.green.shade50;
+      return isWeekend ? F.h(Colors.green, 100) : F.h(Colors.green, 50);
     }
     if (hour == 18) {
-      return isWeekend ? Colors.orange.shade100 : Colors.orange.shade50;
+      return isWeekend ? F.h(Colors.orange, 100) : F.h(Colors.orange, 50);
     }
-    return isWeekend ? Colors.grey.shade100 : Colors.white;
+    return isWeekend ? F.h(Colors.grey, 100) : F.flaeche;
   }
 
   /// Hour label on the left of each row (8, 9, …, 18). Color matches the zone.
@@ -754,17 +754,17 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     final Color bgColor;
     final Color textColor;
     if (hour >= 8 && hour <= 12) {
-      bgColor = Colors.grey.shade200;
-      textColor = Colors.grey.shade800;
+      bgColor = F.h(Colors.grey, 200);
+      textColor = F.h(Colors.grey, 800);
     } else if (hour >= 13 && hour <= 17) {
-      bgColor = Colors.green.shade50;
-      textColor = Colors.green.shade900;
+      bgColor = F.h(Colors.green, 50);
+      textColor = F.h(Colors.green, 900);
     } else if (hour == 18) {
-      bgColor = Colors.orange.shade50;
-      textColor = Colors.orange.shade900;
+      bgColor = F.h(Colors.orange, 50);
+      textColor = F.h(Colors.orange, 900);
     } else {
-      bgColor = Colors.grey.shade50;
-      textColor = Colors.black87;
+      bgColor = F.h(Colors.grey, 50);
+      textColor = F.textStark;
     }
     return Container(
       width: 44,

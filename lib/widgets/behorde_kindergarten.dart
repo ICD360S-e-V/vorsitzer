@@ -206,7 +206,7 @@ class _State extends State<BehordeKindergartenContent> {
 
   Widget _infoRow(IconData icon, String text, MaterialColor c) {
     return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-      Icon(icon, size: 16, color: c.shade600), const SizedBox(width: 10),
+      Icon(icon, size: 16, color: F.h(c, 600)), const SizedBox(width: 10),
       Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 800)))),
     ]));
   }
@@ -505,7 +505,7 @@ class _DokTabState extends State<_DokTab> {
       Padding(
         padding: const EdgeInsets.all(12),
         child: Row(children: [
-          Icon(isVertrag ? Icons.description : Icons.event_busy, size: 18, color: col.shade700),
+          Icon(isVertrag ? Icons.description : Icons.event_busy, size: 18, color: F.h(col, 700)),
           const SizedBox(width: 8),
           Text('${_dokumente.length} $label-Dokument(e)', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), fontWeight: FontWeight.w600)),
           const Spacer(),
@@ -535,13 +535,13 @@ class _DokTabState extends State<_DokTab> {
       Container(
         margin: const EdgeInsets.symmetric(horizontal: 12),
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: col.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: col.shade200)),
+        decoration: BoxDecoration(color: F.h(col, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(col, 200))),
         child: Row(children: [
-          Icon(Icons.info_outline, size: 13, color: col.shade700),
+          Icon(Icons.info_outline, size: 13, color: F.h(col, 700)),
           const SizedBox(width: 6),
           Expanded(child: Text(
             'Erlaubte Formate: PDF, JPG, JPEG · max. 50 MB pro Datei · max. 20 Dateien gleichzeitig',
-            style: TextStyle(fontSize: 10, color: col.shade800),
+            style: TextStyle(fontSize: 10, color: F.h(col, 800)),
           )),
         ]),
       ),
@@ -568,7 +568,7 @@ class _DokTabState extends State<_DokTab> {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 6),
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: col.shade200)),
+                    decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(col, 200))),
                     child: Row(children: [
                       Icon(icon, size: 24, color: ext == 'pdf' ? Colors.red.shade400 : Colors.blue.shade400),
                       const SizedBox(width: 10),
@@ -589,7 +589,7 @@ class _DokTabState extends State<_DokTab> {
                         onPressed: () => _preview(id, fn),
                       ),
                       IconButton(
-                        icon: Icon(Icons.download, size: 18, color: col.shade700),
+                        icon: Icon(Icons.download, size: 18, color: F.h(col, 700)),
                         tooltip: 'Herunterladen / extern öffnen',
                         onPressed: () => _download(id, fn),
                       ),
@@ -959,8 +959,8 @@ class _KuendigungTabState extends State<_KuendigungTab> {
   Widget _methodChip(String value, String label, IconData icon, MaterialColor col) {
     final selected = _versandMethode == value;
     return ChoiceChip(
-      avatar: Icon(icon, size: 14, color: selected ? Colors.white : col.shade700),
-      label: Text(label, style: TextStyle(fontSize: 11, color: selected ? Colors.white : col.shade800)),
+      avatar: Icon(icon, size: 14, color: selected ? Colors.white : F.h(col, 700)),
+      label: Text(label, style: TextStyle(fontSize: 11, color: selected ? Colors.white : F.h(col, 800))),
       selected: selected,
       selectedColor: col.shade600,
       onSelected: (s) => setState(() => _versandMethode = s ? value : null),
@@ -979,27 +979,27 @@ class _KuendigungTabState extends State<_KuendigungTab> {
       decoration: BoxDecoration(
         color: F.flaeche,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: col.shade200),
+        border: Border.all(color: F.h(col, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(
           padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
           decoration: BoxDecoration(
-            color: col.shade50,
+            color: F.h(col, 50),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
           ),
           child: Row(children: [
-            Icon(icon, size: 18, color: col.shade700),
+            Icon(icon, size: 18, color: F.h(col, 700)),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: col.shade900)),
+              Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(col, 900))),
               Text(hint, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
             ])),
             const SizedBox(width: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(color: col.shade100, borderRadius: BorderRadius.circular(10)),
-              child: Text('${docs.length}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: col.shade800)),
+              decoration: BoxDecoration(color: F.h(col, 100), borderRadius: BorderRadius.circular(10)),
+              child: Text('${docs.length}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(col, 800))),
             ),
             const SizedBox(width: 6),
             FilledButton.icon(
@@ -1069,7 +1069,7 @@ class _KuendigungTabState extends State<_KuendigungTab> {
           onPressed: () => _previewDoc(id, fn),
         ),
         IconButton(
-          icon: Icon(Icons.download, size: 16, color: col.shade700),
+          icon: Icon(Icons.download, size: 16, color: F.h(col, 700)),
           tooltip: 'Herunterladen',
           padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           onPressed: () => _downloadDoc(id, fn),

@@ -611,7 +611,7 @@ class _PostScreenState extends State<PostScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(text,
-                      style: TextStyle(fontWeight: FontWeight.bold, color: farbe.shade800)),
+                      style: TextStyle(fontWeight: FontWeight.bold, color: F.h(farbe, 800))),
                   if (_guthaben != null)
                     Text('Guthaben: ${_guthaben!.toStringAsFixed(2)} €',
                         style: const TextStyle(fontSize: 13)),
@@ -860,7 +860,7 @@ class _PostScreenState extends State<PostScreen> {
             ? Colors.red
             : status == 'canceled'
                 ? F.h(Colors.grey, 500)
-                : (live ? Colors.red.shade700 : Colors.blue),
+                : (live ? F.h(Colors.red, 700) : Colors.blue),
       ),
       title: Text(
         empf.isNotEmpty ? empf : ((s['dateiname'] ?? 'ohne Namen').toString()),
@@ -936,11 +936,11 @@ class _PostScreenState extends State<PostScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: farbe.shade50,
-        border: Border.all(color: farbe.shade200),
+        color: F.h(farbe, 50),
+        border: Border.all(color: F.h(farbe, 200)),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(text, style: TextStyle(color: farbe.shade900)),
+      child: Text(text, style: TextStyle(color: F.h(farbe, 900))),
     );
   }
 

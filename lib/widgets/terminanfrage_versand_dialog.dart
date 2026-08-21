@@ -742,17 +742,17 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
         decoration: BoxDecoration(
           color: !moeglich
               ? F.h(Colors.grey, 100)
-              : (gewaehlt ? farbe.shade50 : Colors.transparent),
+              : (gewaehlt ? F.h(farbe, 50) : Colors.transparent),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
               color: !moeglich
                   ? F.h(Colors.grey, 300)
-                  : (gewaehlt ? farbe.shade400 : Colors.grey.shade300)),
+                  : (gewaehlt ? farbe.shade400 : F.h(Colors.grey, 300))),
         ),
         child: Row(children: [
           Icon(icon,
               size: 16,
-              color: !moeglich ? F.h(Colors.grey, 400) : farbe.shade700),
+              color: !moeglich ? F.h(Colors.grey, 400) : F.h(farbe, 700)),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -782,7 +782,7 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
                     ? Icons.radio_button_checked
                     : Icons.radio_button_unchecked,
                 size: 16,
-                color: gewaehlt ? farbe.shade700 : F.h(Colors.grey, 400)),
+                color: gewaehlt ? F.h(farbe, 700) : F.h(Colors.grey, 400)),
         ]),
       ),
     );

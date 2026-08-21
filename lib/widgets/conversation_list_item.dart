@@ -211,7 +211,7 @@ class ConversationListItem extends StatelessWidget {
           radius: 18,
           backgroundColor: hasActiveCall
               ? F.h(Colors.green, 100)
-              : (isAnonymous ? const Color(0xFFFFB74D) : Colors.blue.shade100),
+              : (isAnonymous ? const Color(0xFFFFB74D) : F.h(Colors.blue, 100)),
           child: hasActiveCall
               ? Icon(Icons.call, color: F.h(Colors.green, 700), size: 20)
               : isAnonymous

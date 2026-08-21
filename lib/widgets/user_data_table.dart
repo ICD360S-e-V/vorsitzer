@@ -270,8 +270,8 @@ class UserDataTable extends StatelessWidget {
       message: 'Verknüpfungstyp: $label',
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-        decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: color.shade200, width: 1)),
-        child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color.shade800)),
+        decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(color, 200), width: 1)),
+        child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(color, 800))),
       ),
     );
   }

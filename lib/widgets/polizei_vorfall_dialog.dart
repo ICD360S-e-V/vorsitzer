@@ -695,7 +695,7 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
     Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)))]));
 
   Widget _sectionLabel(String text, IconData icon, MaterialColor color) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
-    Icon(icon, size: 18, color: color.shade700), const SizedBox(width: 6), Text(text, style: TextStyle(fontWeight: FontWeight.bold, color: color.shade700))]));
+    Icon(icon, size: 18, color: F.h(color, 700)), const SizedBox(width: 6), Text(text, style: TextStyle(fontWeight: FontWeight.bold, color: F.h(color, 700)))]));
 
   Widget _buildKorrItem(Map<String, dynamic> k) {
     final isEingang = k['richtung'] == 'eingang';

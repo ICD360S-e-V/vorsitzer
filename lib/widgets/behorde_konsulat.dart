@@ -153,7 +153,7 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
   }
 
   Widget _infoRow(IconData icon, String text, MaterialColor c) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-    Icon(icon, size: 16, color: c.shade600), const SizedBox(width: 10), Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 800))))]));
+    Icon(icon, size: 16, color: F.h(c, 600)), const SizedBox(width: 10), Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 800))))]));
 
   // ──── TAB 2: Vorfall ────
   Widget _buildVorfallTab() {
@@ -187,8 +187,8 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
                       Expanded(child: Text(v['titel']?.toString() ?? v['typ']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)))),
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: sc.shade100, borderRadius: BorderRadius.circular(6)),
-                        child: Text(sInfo.$1, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: sc.shade800))),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: F.h(sc, 100), borderRadius: BorderRadius.circular(6)),
+                        child: Text(sInfo.$1, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(sc, 800)))),
                     ]),
                     if ((v['datum']?.toString() ?? '').isNotEmpty) Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                   ])),
@@ -323,8 +323,8 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 8, 0), child: Row(children: [
         Icon(Icons.assignment, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8),
         Expanded(child: Text(v['titel']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)), overflow: TextOverflow.ellipsis)),
-        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: sc.shade100, borderRadius: BorderRadius.circular(6)),
-          child: Text(sInfo.$1, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: sc.shade800))),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: F.h(sc, 100), borderRadius: BorderRadius.circular(6)),
+          child: Text(sInfo.$1, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(sc, 800)))),
         PopupMenuButton<String>(icon: const Icon(Icons.more_vert, size: 18), itemBuilder: (_) => _konsulatStatusMap.entries.map((e) =>
           PopupMenuItem(value: e.key, child: Text(e.value.$1, style: const TextStyle(fontSize: 12)))).toList(),
           onSelected: (s) async {
@@ -419,15 +419,15 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final c = isEin ? Colors.green : Colors.blue;
             const mL = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online', 'persoenlich': 'Persönlich', 'fax': 'Fax'};
             return InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showKorrDetail(k),
-              child: Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+              child: Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(c, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(c, 200))),
                 child: Row(children: [
-                  Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: c.shade700), const SizedBox(width: 8),
+                  Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: F.h(c, 700)), const SizedBox(width: 8),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800)),
+                    Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(c, 800))),
                     if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   ])),
-                  if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: c.shade100, borderRadius: BorderRadius.circular(4)),
-                    child: Text(mL[k['methode']] ?? k['methode'].toString(), style: TextStyle(fontSize: 9, color: c.shade700))),
+                  if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: F.h(c, 100), borderRadius: BorderRadius.circular(4)),
+                    child: Text(mL[k['methode']] ?? k['methode'].toString(), style: TextStyle(fontSize: 9, color: F.h(c, 700)))),
                   Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
                 ])));
           })),
@@ -442,8 +442,8 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
     showDialog(context: context, builder: (ctx) => AlertDialog(
       titlePadding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
       title: Row(children: [
-        Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: c.shade700), const SizedBox(width: 8),
-        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: c.shade800), overflow: TextOverflow.ellipsis)),
+        Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: F.h(c, 700)), const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(c, 800)), overflow: TextOverflow.ellipsis)),
         IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () async {
           await widget.apiService.deleteKonsulatKorr(widget.userId, kId); _load(); if (ctx.mounted) Navigator.pop(ctx);
         }),
@@ -452,8 +452,8 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 14, color: c.shade600), const SizedBox(width: 6),
-              Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.shade700))]),
+            Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 14, color: F.h(c, 600)), const SizedBox(width: 6),
+              Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(c, 700)))]),
             const SizedBox(height: 6),
             if ((k['methode']?.toString() ?? '').isNotEmpty) _row(Icons.send, 'Methode', mL[k['methode']] ?? k['methode'].toString()),
             if ((k['datum']?.toString() ?? '').isNotEmpty) _row(Icons.calendar_today, 'Datum', k['datum'].toString()),

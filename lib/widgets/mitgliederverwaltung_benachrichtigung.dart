@@ -279,9 +279,9 @@ class _MitgliederBenachrichtigungWidgetState
                 child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                  color: farbe.shade50,
+                  color: F.h(farbe, 50),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: farbe.shade200),
+                  border: Border.all(color: F.h(farbe, 200)),
                 ),
                 child: Text(
                   switch (status) {
@@ -289,7 +289,7 @@ class _MitgliederBenachrichtigungWidgetState
                     'nein' => 'abgelehnt',
                     _ => 'noch nicht gefragt',
                   },
-                  style: TextStyle(fontSize: 11, color: farbe.shade800),
+                  style: TextStyle(fontSize: 11, color: F.h(farbe, 800)),
                 ),
               ),
               ),
@@ -333,9 +333,9 @@ class _MitgliederBenachrichtigungWidgetState
           : () => _speichern({feld: status, '${feld}_quelle': quelle}),
       style: OutlinedButton.styleFrom(
         visualDensity: VisualDensity.compact,
-        foregroundColor: aktiv ? Colors.white : farbe.shade700,
+        foregroundColor: aktiv ? Colors.white : F.h(farbe, 700),
         backgroundColor: aktiv ? farbe.shade600 : null,
-        side: BorderSide(color: farbe.shade300),
+        side: BorderSide(color: F.h(farbe, 300)),
       ),
       child: Text(text, style: const TextStyle(fontSize: 12)),
     );
@@ -414,14 +414,14 @@ class _MitgliederBenachrichtigungWidgetState
       Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: farbe.shade50,
+          color: F.h(farbe, 50),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: farbe.shade200),
+          border: Border.all(color: F.h(farbe, 200)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 18, color: farbe.shade700),
+            Icon(icon, size: 18, color: F.h(farbe, 700)),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -431,8 +431,8 @@ class _MitgliederBenachrichtigungWidgetState
                       style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
-                          color: farbe.shade900)),
-                  Text(text, style: TextStyle(fontSize: 12, color: farbe.shade900)),
+                          color: F.h(farbe, 900))),
+                  Text(text, style: TextStyle(fontSize: 12, color: F.h(farbe, 900))),
                 ],
               ),
             ),

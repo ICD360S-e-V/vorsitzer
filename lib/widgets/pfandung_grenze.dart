@@ -563,13 +563,13 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
         decoration: BoxDecoration(
           color: F.flaeche,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.shade200),
+          border: Border.all(color: F.h(color, 200)),
         ),
         child: Column(
           children: [
-            Text(label, style: TextStyle(fontSize: 10, color: color.shade600)),
+            Text(label, style: TextStyle(fontSize: 10, color: F.h(color, 600))),
             const SizedBox(height: 4),
-            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color.shade800)),
+            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(color, 800))),
           ],
         ),
       ),

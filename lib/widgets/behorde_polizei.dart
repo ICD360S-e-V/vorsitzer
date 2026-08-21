@@ -953,8 +953,8 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Flexible(child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: badgeColor.shade100, borderRadius: BorderRadius.circular(4)),
-                    child: Text(typLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: badgeColor.shade800), overflow: TextOverflow.ellipsis))),
+                    decoration: BoxDecoration(color: F.h(badgeColor, 100), borderRadius: BorderRadius.circular(4)),
+                    child: Text(typLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(badgeColor, 800)), overflow: TextOverflow.ellipsis))),
                   const SizedBox(width: 8),
                   if (formattedDatum.isNotEmpty) Text(formattedDatum, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                   if (v['aktenzeichen'] != null && v['aktenzeichen'].toString().isNotEmpty) ...[

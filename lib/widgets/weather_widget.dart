@@ -1157,7 +1157,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
       margin: const EdgeInsets.symmetric(vertical: 3),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: isToday ? F.h(Colors.blue, 50) : (i.isEven ? Colors.grey.shade50 : null),
+        color: isToday ? F.h(Colors.blue, 50) : (i.isEven ? F.h(Colors.grey, 50) : null),
         borderRadius: BorderRadius.circular(8),
         border: isToday ? Border.all(color: F.h(Colors.blue, 200)) : null,
       ),
@@ -2230,7 +2230,7 @@ class _StuendlichViewState extends State<_StuendlichView> {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isNow ? F.h(Colors.blue, 50) : (idx.isEven ? Colors.grey.shade50 : null),
+        color: isNow ? F.h(Colors.blue, 50) : (idx.isEven ? F.h(Colors.grey, 50) : null),
         borderRadius: BorderRadius.circular(6),
         border: isNow ? Border.all(color: F.h(Colors.blue, 200)) : null,
       ),
@@ -2571,7 +2571,7 @@ class _MinutelyTimelineState extends State<_MinutelyTimeline> {
           // Compact cells drop the mm-bar (used in dashboard sticky header).
           final labelColor = compact
               ? (isCurrent ? Colors.amber.shade200 : Colors.white70)
-              : (isCurrent ? Colors.blue.shade900 : Colors.grey.shade700);
+              : (isCurrent ? F.h(Colors.blue, 900) : F.h(Colors.grey, 700));
           final tempColor = compact
               ? (e.temperature < 0 ? Colors.lightBlue.shade200 : Colors.orange.shade200)
               : (e.temperature < 0 ? Colors.blue.shade800 : Colors.orange.shade800);
@@ -2625,10 +2625,10 @@ class _MinutelyTimelineState extends State<_MinutelyTimeline> {
                                   ? Colors.white70
                                   : Colors.white54))
                           : (e.humidity! >= 85
-                              ? Colors.blue.shade900
+                              ? F.h(Colors.blue, 900)
                               : (e.humidity! >= 65
-                                  ? Colors.blue.shade600
-                                  : Colors.grey.shade600)),
+                                  ? F.h(Colors.blue, 600)
+                                  : F.h(Colors.grey, 600))),
                     ),
                   ),
                 // Regenmenge in mm — nur wenn tatsächlich Niederschlag misst.

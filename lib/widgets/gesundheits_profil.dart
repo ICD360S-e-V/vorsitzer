@@ -507,15 +507,15 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
         return Container(
           margin: const EdgeInsets.only(bottom: 4),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: color.shade200)),
+          decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(color, 200))),
           child: Row(children: [
-            Icon(icon, size: 16, color: color.shade700),
+            Icon(icon, size: 16, color: F.h(color, 700)),
             const SizedBox(width: 8),
-            Icon(c['icon'] as IconData, size: 14, color: color.shade600),
+            Icon(c['icon'] as IconData, size: 14, color: F.h(color, 600)),
             const SizedBox(width: 6),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(c['name'] as String, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800)),
-              Text(c['text'] as String, style: TextStyle(fontSize: 10, color: color.shade700)),
+              Text(c['name'] as String, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 800))),
+              Text(c['text'] as String, style: TextStyle(fontSize: 10, color: F.h(color, 700))),
             ])),
           ]),
         );
@@ -543,11 +543,11 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+      decoration: BoxDecoration(color: F.h(c, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(c, 200))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Flexible(child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.shade800), overflow: TextOverflow.ellipsis)),
+        Flexible(child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(c, 800)), overflow: TextOverflow.ellipsis)),
         const SizedBox(width: 6),
-        Icon(icon, size: 14, color: c.shade600),
+        Icon(icon, size: 14, color: F.h(c, 600)),
       ]),
     );
   }
@@ -557,16 +557,16 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+      decoration: BoxDecoration(color: F.h(c, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(c, 200))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 14, color: c.shade600),
+        Icon(icon, size: 14, color: F.h(c, 600)),
         const SizedBox(width: 6),
         // `mainAxisSize.min` macht die Reihe klein, wenn sie kann — nicht,
         // wenn sie muss. Bei doppelter Schrift 65 dp Überlauf.
         Flexible(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, color: c.shade600)),
-            Text(value, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: c.shade800)),
+            Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, color: F.h(c, 600))),
+            Text(value, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(c, 800))),
           ]),
         ),
       ]),

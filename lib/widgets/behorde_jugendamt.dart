@@ -382,8 +382,8 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
-                          child: Text(_jaStatusLabel(status).toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800)),
+                          decoration: BoxDecoration(color: F.h(statusColor, 100), borderRadius: BorderRadius.circular(8)),
+                          child: Text(_jaStatusLabel(status).toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(statusColor, 800))),
                         ),
                       ]),
                       onTap: () {
@@ -781,10 +781,10 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
                 borderRadius: BorderRadius.circular(8),
                 onTap: () => _showKorrDetail(k),
                 child: Padding(padding: const EdgeInsets.all(10), child: Row(children: [
-                  Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: kColor.shade700),
+                  Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: F.h(kColor, 700)),
                   const SizedBox(width: 8),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text((k['betreff']?.toString() ?? '').isEmpty ? '(kein Betreff)' : k['betreff'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kColor.shade800)),
+                    Text((k['betreff']?.toString() ?? '').isEmpty ? '(kein Betreff)' : k['betreff'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(kColor, 800))),
                     Row(children: [
                       Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                       if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
@@ -807,14 +807,14 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
     final color = isEin ? Colors.green : Colors.blue;
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: color.shade700),
+        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: F.h(color, 700)),
         const SizedBox(width: 8),
-        Expanded(child: Text((k['betreff']?.toString() ?? '').isEmpty ? '(kein Betreff)' : k['betreff'].toString(), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800))),
+        Expanded(child: Text((k['betreff']?.toString() ?? '').isEmpty ? '(kein Betreff)' : k['betreff'].toString(), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
       ]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
-            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
           if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
             const SizedBox(width: 8),
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8)),

@@ -252,16 +252,16 @@ class _VermieterMahnverfahrenState extends State<VermieterMahnverfahren> {
         margin: const EdgeInsets.only(top: 8),
         padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
-          color: farbe.shade50,
+          color: F.h(farbe, 50),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: farbe.shade200),
+          border: Border.all(color: F.h(farbe, 200)),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(symbol, size: 17, color: farbe.shade700),
+          Icon(symbol, size: 17, color: F.h(farbe, 700)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
-                style: TextStyle(fontSize: 12, color: farbe.shade900, height: 1.4)),
+                style: TextStyle(fontSize: 12, color: F.h(farbe, 900), height: 1.4)),
           ),
         ]),
       );

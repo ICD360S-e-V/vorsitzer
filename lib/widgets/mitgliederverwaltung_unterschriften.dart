@@ -985,18 +985,18 @@ class _Banner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: farbe.shade50,
-        border: Border.all(color: farbe.shade200),
+        color: F.h(farbe, 50),
+        border: Border.all(color: F.h(farbe, 200)),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(symbol, size: 18, color: farbe.shade700),
+          Icon(symbol, size: 18, color: F.h(farbe, 700)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
-                style: TextStyle(fontSize: 12, color: farbe.shade900)),
+                style: TextStyle(fontSize: 12, color: F.h(farbe, 900))),
           ),
         ],
       ),

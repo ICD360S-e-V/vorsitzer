@@ -153,16 +153,21 @@ class _OpnvDialogState extends State<OpnvDialog> with SingleTickerProviderStateM
 // Palette — adaptive light/dark colors
 // ══════════════════════════════════════════════════════════════
 //
-// The app forces Brightness.light globally, but this dialog opts out by
-// reading the DEVICE brightness directly (MediaQuery.platformBrightnessOf).
-// So a user with system dark mode on their Samsung tablet sees a dark
-// ÖPNV dialog even though the rest of the app is light. Contrast ratios
-// tuned to WCAG AA (≥4.5:1 for body text) for BFSG 2025 compliance.
+// ⚠️ Diese Palette las die GERÄTE-Helligkeit, und der Kommentar nannte auch
+// den Grund: „the app forces Brightness.light globally". Das stimmt seit
+// Hell/Dunkel/System nicht mehr — die Anwendung hat ein eigenes
+// Erscheinungsbild. Bliebe es beim Gerätewert, liefe der Dialog gegen den
+// Rest: Anwendung auf „Dunkel", Gerät hell → alles dunkel, nur die
+// ÖPNV-Abfahrten hell. `Theme.of` deckt beide Fälle ab, „System" eingeschlossen.
+//
+// Die eigenen Farben BLEIBEN: sie sind auf WCAG AA (≥ 4,5:1 für Fliesstext)
+// ausgemessen, wegen BFSG 2025. Nur die Frage, welcher Satz gilt, wird jetzt
+// richtig gestellt.
 class _Palette {
   final bool dark;
   const _Palette._(this.dark);
   factory _Palette.of(BuildContext ctx) =>
-      _Palette._(MediaQuery.platformBrightnessOf(ctx) == Brightness.dark);
+      _Palette._(Theme.of(ctx).brightness == Brightness.dark);
 
   Color get bg => dark ? const Color(0xFF1E1E1E) : Colors.white;
   Color get surface => dark ? const Color(0xFF2A2A2A) : Colors.grey.shade50;
@@ -2737,9 +2742,9 @@ class _TripStopRow extends StatelessWidget {
             ? Colors.green.shade600
             : (isTarget ? Colors.red.shade600 : (beforeCurrent ? Colors.grey.shade400 : lineColor)));
     final textColor = isCurrent
-        ? (p.dark ? Colors.green.shade200 : Colors.green.shade900)
+        ? (p.dark ? Colors.green.shade200 : F.h(Colors.green, 900))
         : (isTarget
-            ? (p.dark ? Colors.red.shade200 : Colors.red.shade900)
+            ? (p.dark ? Colors.red.shade200 : F.h(Colors.red, 900))
             : (beforeCurrent ? p.onSurfaceFaint : p.onSurface));
     final fontWeight = (isCurrent || isTarget || isBusHere) ? FontWeight.bold : FontWeight.w500;
 
@@ -2779,7 +2784,7 @@ class _TripStopRow extends StatelessWidget {
                     Expanded(
                       child: Container(
                         width: 2,
-                        color: isFirst ? Colors.transparent : (beforeCurrent ? Colors.grey.shade300 : lineColor.withValues(alpha: 0.6)),
+                        color: isFirst ? Colors.transparent : (beforeCurrent ? F.h(Colors.grey, 300) : lineColor.withValues(alpha: 0.6)),
                       ),
                     ),
                     Expanded(
@@ -4039,19 +4044,19 @@ class _LocationFieldState extends State<_LocationField> {
                   switch (o.type) {
                     case 'stop':
                       icn = Icons.directions_bus;
-                      iconColor = Colors.blue.shade600;
+                      iconColor = F.h(Colors.blue, 600);
                       break;
                     case 'address':
                       icn = Icons.home_outlined;
-                      iconColor = Colors.green.shade700;
+                      iconColor = F.h(Colors.green, 700);
                       break;
                     case 'poi':
                       icn = Icons.star_outline;
-                      iconColor = Colors.amber.shade700;
+                      iconColor = F.h(Colors.amber, 700);
                       break;
                     default:
                       icn = Icons.location_city;
-                      iconColor = Colors.grey.shade600;
+                      iconColor = F.h(Colors.grey, 600);
                   }
                   return InkWell(
                     onTap: () => onSelected(o),

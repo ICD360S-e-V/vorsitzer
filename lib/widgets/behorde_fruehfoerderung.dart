@@ -342,13 +342,13 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
             final ergebnis = a['ergebnis']?.toString() ?? 'offen';
             return Card(child: ListTile(
               onTap: () => _showAnfrageDetail(a),
-              leading: CircleAvatar(backgroundColor: pColor.shade50, child: Icon(plaetze == 'ja' ? Icons.check_circle : (plaetze == 'nein' ? Icons.cancel : Icons.help), color: pColor.shade700, size: 20)),
+              leading: CircleAvatar(backgroundColor: F.h(pColor, 50), child: Icon(plaetze == 'ja' ? Icons.check_circle : (plaetze == 'nein' ? Icons.cancel : Icons.help), color: F.h(pColor, 700), size: 20)),
               title: Text('Anfrage — ${a['art'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Row(children: [
                 Text(a['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 const SizedBox(width: 8),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: pColor.shade100, borderRadius: BorderRadius.circular(6)),
-                  child: Text('Plätze: $plaetze', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: pColor.shade800))),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(pColor, 100), borderRadius: BorderRadius.circular(6)),
+                  child: Text('Plätze: $plaetze', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(pColor, 800)))),
                 const SizedBox(width: 6),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(6)),
                   child: Text(ergebnis, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)))),
@@ -419,16 +419,16 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
         child: DefaultTabController(length: 2, child: Column(children: [
           Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: pColor.shade50),
+            decoration: BoxDecoration(color: F.h(pColor, 50)),
             child: Row(children: [
-              Icon(Icons.question_answer, size: 22, color: pColor.shade700),
+              Icon(Icons.question_answer, size: 22, color: F.h(pColor, 700)),
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Anfrage — ${a['art'] ?? ''}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: pColor.shade800)),
+                Text('Anfrage — ${a['art'] ?? ''}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(pColor, 800))),
                 Text('$stelleName • ${a['datum'] ?? ''}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               ])),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: pColor.shade100, borderRadius: BorderRadius.circular(8)),
-                child: Text('Plätze: $plaetze', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: pColor.shade800))),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(pColor, 100), borderRadius: BorderRadius.circular(8)),
+                child: Text('Plätze: $plaetze', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(pColor, 800)))),
               const SizedBox(width: 8),
               IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
             ]),
@@ -469,11 +469,11 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
   Widget _anfInfoBox(String label, String value, MaterialColor color) {
     return Expanded(child: Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+      decoration: BoxDecoration(color: F.h(color, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(color, 200))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: TextStyle(fontSize: 10, color: color.shade600)),
+        Text(label, style: TextStyle(fontSize: 10, color: F.h(color, 600))),
         const SizedBox(height: 2),
-        Text(value[0].toUpperCase() + value.substring(1), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade800)),
+        Text(value[0].toUpperCase() + value.substring(1), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(color, 800))),
       ]),
     ));
   }
@@ -494,13 +494,13 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
             final st = v['status']?.toString() ?? 'offen';
             final sColor = st == 'erledigt' ? Colors.green : (st == 'offen' ? Colors.orange : Colors.grey);
             return Card(child: ListTile(
-              leading: CircleAvatar(backgroundColor: sColor.shade50, child: Icon(Icons.warning, color: sColor.shade700, size: 20)),
+              leading: CircleAvatar(backgroundColor: F.h(sColor, 50), child: Icon(Icons.warning, color: F.h(sColor, 700), size: 20)),
               title: Text(v['titel']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Row(children: [
                 Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 const SizedBox(width: 8),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: sColor.shade100, borderRadius: BorderRadius.circular(6)),
-                  child: Text(st, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: sColor.shade800))),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(sColor, 100), borderRadius: BorderRadius.circular(6)),
+                  child: Text(st, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(sColor, 800)))),
               ]),
               trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
                 await widget.apiService.fruehfoerderungAction({'action': 'delete_vorfall', 'id': v['id']});
@@ -521,7 +521,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
         TextField(controller: titelC, decoration: InputDecoration(labelText: 'Titel', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 10),
         Wrap(spacing: 8, children: ['offen', 'in Bearbeitung', 'erledigt'].map((s) => ChoiceChip(label: Text(s[0].toUpperCase() + s.substring(1)), selected: status == s,
-          selectedColor: s == 'erledigt' ? F.h(Colors.green, 100) : (s == 'offen' ? Colors.orange.shade100 : Colors.blue.shade100),
+          selectedColor: s == 'erledigt' ? F.h(Colors.green, 100) : (s == 'offen' ? F.h(Colors.orange, 100) : F.h(Colors.blue, 100)),
           onSelected: (_) => setDlg(() => status = s))).toList()),
         const SizedBox(height: 10),
         TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -630,7 +630,7 @@ class _AnfrageKorrespondenzTabState extends State<_AnfrageKorrespondenzTab> {
                 borderRadius: BorderRadius.circular(12),
                 onTap: () => _showKorrDetail(k),
                 child: ListTile(
-                  leading: CircleAvatar(backgroundColor: color.shade50, child: Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700, size: 18)),
+                  leading: CircleAvatar(backgroundColor: F.h(color, 50), child: Icon(isEin ? Icons.call_received : Icons.call_made, color: F.h(color, 700), size: 18)),
                   title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingehend' : 'Ausgehend'}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                   trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
@@ -683,14 +683,14 @@ class _AnfrageKorrespondenzTabState extends State<_AnfrageKorrespondenzTab> {
     final kId = k['id'] is int ? k['id'] as int : int.tryParse(k['id'].toString()) ?? 0;
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: color.shade700),
+        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: F.h(color, 700)),
         const SizedBox(width: 8),
-        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800))),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
       ]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
-            child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(color, 100), borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(color, 800)))),
           const Spacer(),
           Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         ]),
