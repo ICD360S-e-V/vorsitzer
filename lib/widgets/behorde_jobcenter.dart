@@ -5039,6 +5039,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
             memberMnr: widget.memberMnr,
             kundennummer: (widget.jcData['stammdaten.kundennummer'] ?? '').toString(),
             bgNummer: (widget.jcData['stammdaten.bg_nummer'] ?? '').toString(),
+            faxNummer: (widget.jcData['stammdaten.selected_amt_fax'] ?? '').toString(),
           ),
         ])),
       ])),
@@ -5068,6 +5069,8 @@ class _AvSchweigepflichtTab extends StatefulWidget {
   final String? memberMnr;
   final String kundennummer;
   final String bgNummer;
+  /// Faxnummer des zuständigen Jobcenters, aus den Stammdaten.
+  final String faxNummer;
   const _AvSchweigepflichtTab({
     required this.apiService,
     required this.userId,
@@ -5077,6 +5080,7 @@ class _AvSchweigepflichtTab extends StatefulWidget {
     required this.memberMnr,
     required this.kundennummer,
     required this.bgNummer,
+    required this.faxNummer,
   });
   @override
   State<_AvSchweigepflichtTab> createState() => _AvSchweigepflichtTabState();
@@ -5120,7 +5124,6 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
   DateTime? _gueltigBis;
   final _notizC = TextEditingController();
 
-  int? _verwaltungId;
   final Set<int> _arbeitet = {};
 
   bool get _kannSignieren => (widget.adminMnr ?? '').isNotEmpty;
@@ -5128,7 +5131,7 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
   @override
   void initState() {
     super.initState();
-    _sub = TabController(length: 3, vsync: this);
+    _sub = TabController(length: 2, vsync: this);
     _laden();
   }
 
@@ -5188,7 +5191,6 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
       _gesundheitKatalog = ges;
       _eintraege = liste;
       _laedt = false;
-      if (_verwaltungId == null && liste.isNotEmpty) _verwaltungId = liste.first['id'] as int?;
     });
     await _vorgaengeLaden();
   }
@@ -5244,7 +5246,6 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
       backgroundColor: ok ? Colors.green : Colors.red,
     ));
     if (ok) {
-      _verwaltungId = res['id'] as int?;
       await _laden();
       if (mounted) _sub.animateTo(2);
     }
@@ -5438,6 +5439,64 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
     }
   }
 
+  /// Die deutsche Fassung per Fax ans Jobcenter.
+  ///
+  /// ⚠️ Immer DEUTSCH. Eine Behörde bekommt das maßgebliche Papier, nicht die
+  /// Lesehilfe des Mitglieds.
+  Future<void> _faxSenden(Map<String, dynamic> e) async {
+    final id = e['id'] as int;
+    final nummer = widget.faxNummer.trim();
+    if (nummer.isEmpty) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Fax jetzt senden?', style: TextStyle(fontSize: 15)),
+        content: Text(
+          'Die Erklärung geht als Fax an $nummer — an eine Behörde, sofort und '
+          'nicht zurückholbar.\n\nUnterschrieben sein muss sie vorher: ein Fax der '
+          'leeren Fassung ist für das Jobcenter wertlos.',
+          style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.brown.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Fax senden')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _arbeitet.add(id));
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final r = await widget.apiService.jcAvSchweigepflichtAction({
+        'action': 'fax_senden', 'id': id, 'fax_nummer': nummer,
+      });
+      final gut = r['success'] == true;
+      await _versandBuchen(id, 'fax',
+        fassung: 'de', ziel: nummer, erfolg: gut,
+        notiz: gut ? 'an sipgate uebergeben' : null,
+        fehler: gut ? null : (r['message'] ?? 'Fax nicht angenommen').toString());
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text(gut
+            ? 'Fax an $nummer beauftragt. Der Sendebericht kommt von sipgate.'
+            : 'Fax nicht beauftragt: ${r['message'] ?? 'unbekannter Fehler'}'),
+        backgroundColor: gut ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 7)));
+      if (gut) await _laden();
+    } catch (ex) {
+      await _versandBuchen(id, 'fax', fassung: 'de', ziel: nummer, erfolg: false, fehler: '$ex');
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('Fax fehlgeschlagen: $ex'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _arbeitet.remove(id));
+    }
+  }
+
   // ── Unterschrift anfordern ──────────────────────────────────────────────
 
   /// Das erzeugte PDF dem Mitglied zur Unterschrift stellen.
@@ -5477,6 +5536,16 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
         fristBis: frist,
         quelleTabelle: kJcAvSchweigepflichtQuelle,
         quelleId: id,
+        // ⚠️ OHNE Rolle wird die Unterschrift NICHT auf die Linie gesetzt.
+        // signatur_manage.php ordnet die vermessenen Koordinaten über den
+        // Rollennamen zu (`isset($felder[$u['rolle']])`); fehlt er, hängt
+        // seal_signaturen.php nur das Beweisblatt an und das Blatt selbst
+        // bleibt leer. Genau so war es, als ein Mitglied unterschrieb und
+        // niemand die Unterschrift fand.
+        //
+        // Der Name muss zu dem passen, unter dem
+        // jc_av_schweigepflicht_create.php gemessen hat.
+        unterzeichner: [Unterzeichner(userId: widget.userId, rolle: 'mitglied')],
       );
       if (!erg.ok) {
         await _versandBuchen(id, 'signatur', fassung: 'de', erfolg: false,
@@ -5648,13 +5717,11 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
         tabs: const [
           Tab(icon: Icon(Icons.add_circle_outline, size: 16), text: 'Erstellen'),
           Tab(icon: Icon(Icons.history, size: 16), text: 'Historie'),
-          Tab(icon: Icon(Icons.verified_user_outlined, size: 16), text: 'Verwaltung'),
         ],
       ),
       Expanded(child: TabBarView(controller: _sub, children: [
         _erstellenTab(),
         _historieTab(),
-        _verwaltungTab(),
       ])),
     ]);
   }
@@ -5983,6 +6050,22 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
               const SizedBox(height: 4),
               _unterschriftPlakette(e),
               _versandProtokoll(e),
+              // Die Aktionen sitzen zugeklappt an der Karte selbst. Der
+              // eigene Reiter davor war ein Umweg ohne eigene Logik: man
+              // suchte dort noch einmal die Erklärung aus, die man hier
+              // längst vor sich hatte.
+              Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(bottom: 4),
+                  dense: true,
+                  visualDensity: const VisualDensity(vertical: -3),
+                  title: Text('Aktionen', style: TextStyle(
+                    fontSize: 11.5, fontWeight: FontWeight.w600, color: _akzent)),
+                  children: [_aktionenFuer(e)],
+                ),
+              ),
               const SizedBox(height: 6),
               Wrap(spacing: 6, runSpacing: 4, children: [
                 OutlinedButton.icon(
@@ -6016,146 +6099,144 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
     );
   }
 
-  Widget _verwaltungTab() {
-    if (_eintraege.isEmpty) {
-      return const Center(child: Padding(padding: EdgeInsets.all(24),
-        child: Text('Noch keine Erklärung. Bitte zuerst im Reiter „Erstellen" eine erzeugen.',
-          textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 13))));
-    }
-    final e = _eintraege.firstWhere((x) => x['id'] == _verwaltungId, orElse: () => _eintraege.first);
+  /// Alles, was man mit EINER Erklärung tun kann — direkt an ihrer Karte.
+  ///
+  /// Früher war das ein eigener Reiter „Verwaltung" mit einem Auswahlfeld
+  /// obendrauf. Der Reiter hatte keine eigene Logik: man suchte dort noch
+  /// einmal die Erklärung aus, die man in der Historie gerade vor sich
+  /// hatte. Ein Umweg, der nichts konnte, was die Karte nicht selbst kann.
+  Widget _aktionenFuer(Map<String, dynamic> e) {
     final id = e['id'] as int;
     final status = (e['status'] ?? '').toString();
     final v = _vorgangVon(e);
     final laeuft = _arbeitet.contains(id);
+    final lang = (e['translation_language'] ?? '').toString();
+    final hatUeb = lang.isNotEmpty && (e['pdf_translation_filename'] ?? '').toString().isNotEmpty;
+    final kannSenden = (widget.memberMnr ?? '').isNotEmpty && (widget.adminMnr ?? '').isNotEmpty;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(14),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        DropdownButtonFormField<int>(
-          isExpanded: true,
-          initialValue: id,
-          decoration: const InputDecoration(labelText: 'Erklärung', isDense: true, border: OutlineInputBorder()),
-          items: _eintraege.map((x) => DropdownMenuItem<int>(
-            value: x['id'] as int,
-            child: Text('Nr. ${x['id']} — ${x['erteilt_am']} — ${(x['status'] ?? '').toString().toUpperCase()}',
-              style: const TextStyle(fontSize: 12)))).toList(),
-          onChanged: (n) => setState(() => _verwaltungId = n),
-        ),
-        const SizedBox(height: 14),
-
-        _abschnitt(Icons.draw_outlined, 'Digitale Unterschrift'),
-        if (!_kannSignieren)
-          _hinweisKasten('Ohne Mitgliedsnummer des Absenders kann keine Unterschrift angefordert werden.',
-            farbe: Colors.orange.shade800, icon: Icons.warning_amber_rounded)
-        else ...[
-          _hinweisKasten(
-            'Das Mitglied bekommt eine TAN und unterschreibt in seiner App. Danach wird die '
-            'Fassung gesiegelt und mit einem Zeitstempel versehen — daran lässt sich später '
-            'nachrechnen, dass genau dieses Dokument vorlag.'),
-          const SizedBox(height: 8),
-          if (v == null && e['signatur_id'] == null)
-            FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: _akzent),
-              icon: laeuft
-                  ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.send, size: 16),
-              label: Text(laeuft ? 'Wird gestellt…' : 'Zur Unterschrift stellen'),
-              onPressed: laeuft ? null : () => _zurUnterschrift(e))
-          else
-            Row(children: [
-              Expanded(child: _unterschriftPlakette(e)),
-              if (v != null && !v.istSigniert && v.istOffen)
-                TextButton.icon(
-                  icon: const Icon(Icons.refresh, size: 14),
-                  label: const Text('Stand prüfen', style: TextStyle(fontSize: 11)),
-                  onPressed: _vorgaengeLaden),
-            ]),
-        ],
-
-        _abschnitt(Icons.chat_outlined, 'Zum Lesen an das Mitglied'),
-        Builder(builder: (_) {
-          final lang = (e['translation_language'] ?? '').toString();
-          final hatUeb = lang.isNotEmpty && (e['pdf_translation_filename'] ?? '').toString().isNotEmpty;
-          final kannSenden = (widget.memberMnr ?? '').isNotEmpty && (widget.adminMnr ?? '').isNotEmpty;
-          if (!kannSenden) {
-            return _hinweisKasten('Ohne Mitgliedsnummer kann nichts in den Chat gelegt werden.',
-              farbe: Colors.orange.shade800, icon: Icons.warning_amber_rounded);
-          }
-          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            _hinweisKasten(hatUeb
-                ? 'Zum Lesen geht die Fassung in ${lang.toUpperCase()} in den Live-Chat. '
-                  'Unterschrieben wird davon nichts — dafür ist die deutsche Fassung da.'
-                : 'Für die Sprache des Mitglieds gibt es keine übersetzte Fassung. Es ginge '
-                  'die deutsche, mit einem Satz, der das sagt.',
-              farbe: hatUeb ? _akzent : Colors.orange.shade800,
-              icon: hatUeb ? Icons.translate : Icons.info_outline),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(foregroundColor: _akzent,
-                side: BorderSide(color: _akzent.withValues(alpha: 0.5)),
-                padding: const EdgeInsets.symmetric(vertical: 10)),
-              icon: laeuft
-                  ? SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: _akzent))
-                  : const Icon(Icons.send_outlined, size: 16),
-              label: Text(hatUeb
-                  ? 'In den Chat legen (${lang.toUpperCase()})'
-                  : 'In den Chat legen (deutsche Fassung)'),
-              onPressed: laeuft ? null : () => _anMitgliedSenden(e)),
-          ]);
-        }),
-
-        _abschnitt(Icons.play_circle_outline, 'Status'),
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // ── Unterschrift ────────────────────────────────────────────────
+      _abschnitt(Icons.draw_outlined, 'Digitale Unterschrift'),
+      if (!_kannSignieren)
+        _hinweisKasten('Ohne Mitgliedsnummer des Absenders kann keine Unterschrift angefordert werden.',
+          farbe: Colors.orange.shade800, icon: Icons.warning_amber_rounded)
+      else if (v == null && e['signatur_id'] == null) ...[
+        _hinweisKasten(
+          'Das Mitglied bekommt eine TAN und unterschreibt in seiner App. Die Unterschrift '
+          'wird auf die Linie im Dokument gesetzt, zusammen mit Ort und Datum; danach wird '
+          'die Fassung gesiegelt und mit einem Zeitstempel versehen.'),
+        const SizedBox(height: 8),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: _akzent),
+          icon: laeuft
+              ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.send, size: 16),
+          label: Text(laeuft ? 'Wird gestellt…' : 'Zur Unterschrift stellen'),
+          onPressed: laeuft ? null : () => _zurUnterschrift(e)),
+      ] else
         Row(children: [
-          _statusPlakette(status),
-          const SizedBox(width: 10),
-          if (status == 'draft')
-            Expanded(child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700,
-                padding: const EdgeInsets.symmetric(vertical: 10)),
-              icon: const Icon(Icons.check_circle_outline, size: 16),
-              label: const Text('Als aktiv setzen', style: TextStyle(fontSize: 12)),
-              onPressed: () => _aktivieren(e))),
+          Expanded(child: _unterschriftPlakette(e)),
+          if (v != null && !v.istSigniert && v.istOffen)
+            TextButton.icon(
+              icon: const Icon(Icons.refresh, size: 14),
+              label: const Text('Stand prüfen', style: TextStyle(fontSize: 11)),
+              onPressed: _vorgaengeLaden),
         ]),
-        if (status == 'draft') Padding(padding: const EdgeInsets.only(top: 6),
-          child: Text(
-            'Ein Entwurf ist noch keine Einwilligung. Aktiv wird die Erklärung erst, wenn sie '
-            'unterschrieben und beim Jobcenter eingereicht ist.',
-            style: TextStyle(fontSize: 10.5, color: Colors.grey.shade700))),
 
-        _abschnitt(Icons.send_outlined, 'Einreichung beim Jobcenter'),
-        _EinreichungBlock(
-          eintrag: e,
-          akzent: _akzent,
-          onSpeichern: (felder) async {
-            final res = await widget.apiService.jcAvSchweigepflichtAction({
-              'action': 'submit', 'id': id, ...felder,
-            });
-            // Auch der Gang zum Jobcenter ist Versand — und zwar der, auf den
-            // es am Ende ankommt. Nur buchen, wenn Weg UND Datum stehen:
-            // ein halb ausgefülltes Formular ist noch keine Einreichung.
-            final weg = (felder['method'] ?? '').toString();
-            final wann = (felder['submitted_at'] ?? '').toString();
-            if (res['success'] == true && weg.isNotEmpty && wann.isNotEmpty) {
-              await _versandBuchen(id, weg,
-                fassung: 'de',
-                ziel: (e['jobcenter_name'] ?? '').toString(),
-                notiz: [
-                  if ((felder['reference'] ?? '').toString().isNotEmpty)
-                    'Az. ${felder['reference']}',
-                  if ((felder['notes'] ?? '').toString().isNotEmpty)
-                    felder['notes'].toString(),
-                ].join(' · '));
-            }
-            if (!mounted) return false;
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(res['success'] == true ? 'Gespeichert' : (res['message'] ?? 'Fehler').toString()),
-              backgroundColor: res['success'] == true ? Colors.green : Colors.red));
-            if (res['success'] == true) await _laden();
-            return res['success'] == true;
-          },
-        ),
+      // ── An das Mitglied ─────────────────────────────────────────────
+      _abschnitt(Icons.chat_outlined, 'Zum Lesen an das Mitglied'),
+      if (!kannSenden)
+        _hinweisKasten('Ohne Mitgliedsnummer kann nichts in den Chat gelegt werden.',
+          farbe: Colors.orange.shade800, icon: Icons.warning_amber_rounded)
+      else ...[
+        _hinweisKasten(hatUeb
+            ? 'Zum Lesen geht die Fassung in ${lang.toUpperCase()} in den Live-Chat. '
+              'Unterschrieben wird davon nichts — dafür ist die deutsche Fassung da.'
+            : 'Für die Sprache des Mitglieds gibt es keine übersetzte Fassung. Es ginge '
+              'die deutsche, mit einem Satz, der das sagt.',
+          farbe: hatUeb ? _akzent : Colors.orange.shade800,
+          icon: hatUeb ? Icons.translate : Icons.info_outline),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(foregroundColor: _akzent,
+            side: BorderSide(color: _akzent.withValues(alpha: 0.5))),
+          icon: const Icon(Icons.send_outlined, size: 16),
+          label: Text(hatUeb ? 'In den Chat legen (${lang.toUpperCase()})' : 'In den Chat legen (DE)'),
+          onPressed: laeuft ? null : () => _anMitgliedSenden(e)),
+      ],
+
+      // ── An das Jobcenter ────────────────────────────────────────────
+      _abschnitt(Icons.print_outlined, 'Per Fax an das Jobcenter'),
+      if (widget.faxNummer.trim().isEmpty)
+        _hinweisKasten(
+          'Für dieses Jobcenter ist keine Faxnummer hinterlegt — im Reiter „Zuständiges '
+          'Jobcenter" nachtragen, dann geht die Erklärung von hier aus direkt raus.',
+          farbe: Colors.orange.shade800, icon: Icons.info_outline)
+      else ...[
+        _hinweisKasten(
+          'Es geht die deutsche Fassung an ${widget.faxNummer.trim()}. Der Sendebericht '
+          'kommt von sipgate und landet im Fax-Bildschirm.'),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.brown.shade700,
+            side: BorderSide(color: Colors.brown.shade300)),
+          icon: const Icon(Icons.print_outlined, size: 16),
+          label: const Text('Jetzt faxen'),
+          onPressed: laeuft ? null : () => _faxSenden(e)),
+      ],
+
+      // ── Status ──────────────────────────────────────────────────────
+      _abschnitt(Icons.play_circle_outline, 'Status'),
+      Row(children: [
+        _statusPlakette(status),
+        const SizedBox(width: 10),
+        if (status == 'draft')
+          Expanded(child: FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700),
+            icon: const Icon(Icons.check_circle_outline, size: 16),
+            label: const Text('Als aktiv setzen', style: TextStyle(fontSize: 12)),
+            onPressed: () => _aktivieren(e))),
       ]),
-    );
+      if (status == 'draft') Padding(padding: const EdgeInsets.only(top: 6),
+        child: Text(
+          'Ein Entwurf ist noch keine Einwilligung. Aktiv wird die Erklärung erst, wenn sie '
+          'unterschrieben und beim Jobcenter eingereicht ist.',
+          style: TextStyle(fontSize: 10.5, color: Colors.grey.shade700))),
+
+      // ── Einreichung ─────────────────────────────────────────────────
+      _abschnitt(Icons.assignment_turned_in_outlined, 'Einreichung beim Jobcenter'),
+      _EinreichungBlock(
+        eintrag: e,
+        akzent: _akzent,
+        onSpeichern: (felder) async {
+          final res = await widget.apiService.jcAvSchweigepflichtAction({
+            'action': 'submit', 'id': id, ...felder,
+          });
+          // Auch der Gang zum Jobcenter ist Versand — und zwar der, auf den
+          // es am Ende ankommt. Nur buchen, wenn Weg UND Datum stehen:
+          // ein halb ausgefülltes Formular ist noch keine Einreichung.
+          final weg = (felder['method'] ?? '').toString();
+          final wann = (felder['submitted_at'] ?? '').toString();
+          if (res['success'] == true && weg.isNotEmpty && wann.isNotEmpty) {
+            await _versandBuchen(id, weg,
+              fassung: 'de',
+              ziel: (e['jobcenter_name'] ?? '').toString(),
+              notiz: [
+                if ((felder['reference'] ?? '').toString().isNotEmpty)
+                  'Az. ${felder['reference']}',
+                if ((felder['notes'] ?? '').toString().isNotEmpty)
+                  felder['notes'].toString(),
+              ].join(' · '));
+          }
+          if (!mounted) return false;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(res['success'] == true ? 'Gespeichert' : (res['message'] ?? 'Fehler').toString()),
+            backgroundColor: res['success'] == true ? Colors.green : Colors.red));
+          if (res['success'] == true) await _laden();
+          return res['success'] == true;
+        },
+      ),
+    ]);
   }
 }
 
