@@ -71,74 +71,103 @@ class VollmachtLinkKnoepfe extends StatefulWidget {
   State<VollmachtLinkKnoepfe> createState() => _VollmachtLinkKnoepfeState();
 }
 
+/// Die Rückfrage vor dem Versand — Wortlaut, Warnung und Reihenfolgeregel.
+///
+/// ⚠️ Sie steht als FREIE Funktion und nicht im State von
+/// [VollmachtLinkKnoepfe], weil die Anwaltsakte ihre Vollmacht über ein
+/// Auswahlmenü bedient und keine Knopfleiste hat. Läge der Text im Widget,
+/// müsste sie ihn abschreiben — und zwei Abschriften sind zwei Stände:
+/// derselbe Versand, hier mit dem Hinweis auf die 30 Minuten und dort ohne.
+Future<bool> vollmachtLinkBestaetigen(
+  BuildContext context, {
+  required String zweck,
+  required String was,
+  required MaterialColor farbe,
+}) async {
+  final bestaetigt = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Row(children: [
+        Icon(Icons.sms_outlined, color: F.h(farbe, 700)),
+        const SizedBox(width: 8),
+        Expanded(child: Text('$was per SMS schicken?', style: const TextStyle(fontSize: 15))),
+      ]),
+      content: Column(mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            zweck == 'lesen'
+                ? 'Das Mitglied bekommt einen Link auf sein Handy und kann die Vollmacht '
+                  'in seiner Sprache lesen und herunterladen. Unterschrieben wird dabei '
+                  'nichts.'
+                : 'Das Mitglied bekommt einen Link auf sein Handy und unterschreibt dort '
+                  'mit dem Finger. Den Bestätigungscode bekommt es danach per SMS.',
+            style: const TextStyle(fontSize: 13)),
+          const SizedBox(height: 10),
+          Text('⚠️ Der Link gilt 30 Minuten.',
+            style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900))),
+          const SizedBox(height: 4),
+          Text(
+            'Danach ist er tot. Das Mitglied kann sich auf der Seite selbst einen '
+            'neuen an dieselbe Nummer schicken lassen — Sie müssen dafür nichts tun.',
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
+          if (zweck == 'signieren') ...[
+            const SizedBox(height: 10),
+            Text(
+              'Unterschrieben wird die deutsche Fassung — sie ist die verbindliche. '
+              'Schicken Sie diesen Link erst, wenn das Mitglied das Leseexemplar '
+              'bestätigt hat.',
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
+          ],
+        ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: farbe.shade700, foregroundColor: Colors.white),
+          icon: const Icon(Icons.send, size: 16),
+          label: const Text('Schicken'),
+          onPressed: () => Navigator.pop(ctx, true)),
+      ],
+    ),
+  );
+  return bestaetigt == true;
+}
+
+/// Was der Server geantwortet hat, als Satz.
+///
+/// ⚠️ Die Rufnummer steht hier nur MASKIERT — so schickt der Server sie. Der
+/// Klartext-Token steht ausschließlich in der SMS; stünde er in der Antwort,
+/// wäre das Protokoll ein Weg, einen fremden Link zu öffnen.
+///
+/// Gibt zurück, ob der Versand geklappt hat.
+bool vollmachtLinkErgebnisMelden(BuildContext context, Map<String, dynamic> antwort) {
+  final ok = antwort['success'] == true;
+  final ziel = (antwort['gesendet_an'] ?? '').toString();
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text(ok
+        ? 'Link unterwegs an $ziel — gilt ${antwort['gueltig_minuten'] ?? 30} Minuten'
+        : (antwort['message'] ?? 'Der Link konnte nicht geschickt werden').toString()),
+    backgroundColor: ok ? Colors.green : Colors.red,
+    duration: const Duration(seconds: 7)));
+  return ok;
+}
+
 class _VollmachtLinkKnoepfeState extends State<VollmachtLinkKnoepfe> {
   String? _laeuft;
 
   Future<void> _senden(BuildContext context, String zweck, String was) async {
-    final bestaetigt = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(children: [
-          Icon(Icons.sms_outlined, color: F.h(widget.farbe, 700)),
-          const SizedBox(width: 8),
-          Expanded(child: Text('$was per SMS schicken?', style: const TextStyle(fontSize: 15))),
-        ]),
-        content: Column(mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(
-              zweck == 'lesen'
-                  ? 'Das Mitglied bekommt einen Link auf sein Handy und kann die Vollmacht '
-                    'in seiner Sprache lesen und herunterladen. Unterschrieben wird dabei '
-                    'nichts.'
-                  : 'Das Mitglied bekommt einen Link auf sein Handy und unterschreibt dort '
-                    'mit dem Finger. Den Bestätigungscode bekommt es danach per SMS.',
-              style: const TextStyle(fontSize: 13)),
-            const SizedBox(height: 10),
-            Text('⚠️ Der Link gilt 30 Minuten.',
-              style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900))),
-            const SizedBox(height: 4),
-            Text(
-              'Danach ist er tot. Das Mitglied kann sich auf der Seite selbst einen '
-              'neuen an dieselbe Nummer schicken lassen — Sie müssen dafür nichts tun.',
-              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
-            if (zweck == 'signieren') ...[
-              const SizedBox(height: 10),
-              Text(
-                'Unterschrieben wird die deutsche Fassung — sie ist die verbindliche. '
-                'Schicken Sie diesen Link erst, wenn das Mitglied das Leseexemplar '
-                'bestätigt hat.',
-                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
-            ],
-          ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: widget.farbe.shade700, foregroundColor: Colors.white),
-            icon: const Icon(Icons.send, size: 16),
-            label: const Text('Schicken'),
-            onPressed: () => Navigator.pop(ctx, true)),
-        ],
-      ),
-    );
-    if (bestaetigt != true || !mounted) return;
+    final bestaetigt = await vollmachtLinkBestaetigen(
+      context, zweck: zweck, was: was, farbe: widget.farbe);
+    if (!bestaetigt || !mounted) return;
 
     setState(() => _laeuft = zweck);
     final r = await widget.onSenden(zweck);
     if (!mounted) return;
     setState(() => _laeuft = null);
 
-    final ok = r['success'] == true;
-    final ziel = (r['gesendet_an'] ?? '').toString();
     // ⚠️ `this.context` des States, nicht der übergebene: nur für den prüft
     // `mounted` oben tatsächlich mit.
-    ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
-      content: Text(ok
-          ? 'Link unterwegs an $ziel — gilt ${r['gueltig_minuten'] ?? 30} Minuten'
-          : (r['message'] ?? 'Der Link konnte nicht geschickt werden').toString()),
-      backgroundColor: ok ? Colors.green : Colors.red,
-      duration: const Duration(seconds: 7)));
-    if (ok) widget.onGesendet?.call();
+    if (vollmachtLinkErgebnisMelden(this.context, r)) widget.onGesendet?.call();
   }
 
   Widget _knopf(String zweck, String beschriftung, IconData symbol, Color ton) {

@@ -11,6 +11,7 @@ import '../utils/ra_antwort.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
+import 'vollmacht_link_aktionen.dart';
 import 'mitgliederverwaltung_vertrag_rechtsanwalt.dart';
 import 'phone_link.dart';
 import '../utils/app_farben.dart';
@@ -1261,6 +1262,9 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
   /// nicht sperren, und ein zweiter Druck auf „Per Fax" würde dasselbe
   /// Dokument ein zweites Mal faxen.
   int? _faxtGerade;
+  /// Vollmacht-Id, deren SMS-Link gerade rausgeht. Aus demselben Grund ein
+  /// eigenes Feld wie [_faxtGerade].
+  int? _linktGerade;
 
   int get _akzId => int.tryParse(raWert(widget.akte['id'])) ?? 0;
 
@@ -1760,11 +1764,58 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
     }
   }
 
+  /// Schickt dem Mitglied einen SMS-Link — zum Lesen oder zum Unterschreiben.
+  ///
+  /// Für Mitglieder OHNE App. Am 18.08.2026 gemessen: von 44 aktiven haben
+  /// 20 die App und 24 eine Mobilnummer — zwölf haben eine Nummer, aber keine
+  /// App und können sonst überhaupt nichts unterschreiben.
+  ///
+  /// ⚠️ Der zweite geht von HAND, nachdem das Mitglied bestätigt hat. Nicht
+  /// automatisch nach dem Herunterladen: er stünde sonst in derselben Sekunde
+  /// im Postfach, in der jemand auf „herunterladen" getippt hat — also bevor
+  /// er etwas lesen konnte, und dafür gibt es die Übersetzung ja gerade.
+  ///
+  /// ⚠️ Rückfrage und Rückmeldung kommen aus `vollmacht_link_aktionen.dart`,
+  /// nicht aus diesem Bildschirm. Der Gerichtszweig bedient denselben Versand
+  /// über eine Knopfleiste; abgeschriebene Texte wären zwei Stände.
+  Future<void> _linkSenden(Map<String, dynamic> v, String zweck) async {
+    final id = int.tryParse(raWert(v['id'])) ?? 0;
+    if (id <= 0) return;
+    final was = zweck == 'lesen' ? 'Link zum Lesen' : 'Link zum Unterschreiben';
+
+    // ⚠️ `Colors.teal`, nicht `kRaFarbe`: die Rückfrage braucht eine
+    // MaterialColor, um sich einen Ton zu greifen — `kRaFarbe` ist ein
+    // einzelner Farbwert (teal.shade800), also derselbe Zweig, nur ohne
+    // Abstufungen.
+    final los = await vollmachtLinkBestaetigen(
+      context, zweck: zweck, was: was, farbe: Colors.teal);
+    if (!los || !mounted) return;
+
+    setState(() => _linktGerade = id);
+    final r = await widget.apiService.raVollmachtLinkSenden(vollmachtId: id, zweck: zweck);
+    if (!mounted) return;
+    setState(() => _linktGerade = null);
+
+    if (vollmachtLinkErgebnisMelden(context, r)) {
+      _laden();
+      widget.onChanged();
+    }
+  }
+
   Future<void> _versandprotokoll(Map<String, dynamic> v) async {
     final res = await widget.apiService
         .listVertragRaVollmachtVersand(int.tryParse(raWert(v['id'])) ?? 0);
     if (!mounted) return;
     final zeilen = raListe(res);
+    // ⚠️ Die Linkzeilen stehen ABGESETZT von den Sendungen an die Kanzlei.
+    // Eine Fax- oder Mailzeile beantwortet „wann ging was an wen"; eine
+    // Linkzeile beantwortet zusätzlich, was das Mitglied damit GETAN hat —
+    // geöffnet, heruntergeladen, bestätigt, unterschrieben.
+    final links = (res['links'] is List)
+        ? List<Map<String, dynamic>>.from(
+            (res['links'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+        : <Map<String, dynamic>>[];
+    final linkBlock = vollmachtLinkBlock(links);
     final breite = MediaQuery.of(context).size.width;
 
     await showDialog(
@@ -1773,9 +1824,13 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
         title: const Text('Versandprotokoll'),
         content: SizedBox(
           width: breite < 560 ? breite * 0.86 : 480,
-          child: zeilen.isEmpty
+          child: (zeilen.isEmpty && linkBlock == null)
               ? const Text('Noch nicht verschickt.', style: TextStyle(fontSize: 13))
-              : ListView.separated(
+              : SingleChildScrollView(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (zeilen.isNotEmpty) ListView.separated(
                   shrinkWrap: true,
                   itemCount: zeilen.length,
                   separatorBuilder: (_, __) => const Divider(height: 12),
@@ -1788,7 +1843,13 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                         '${raHat(z['sprache']) ? ' (${raSpracheName(raWert(z['sprache']))})' : ''}',
                         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                       ),
-                      Text('${raWert(z['weg'])} an ${raWert(z['empfaenger'])}',
+                      // ⚠️ Ausgeschrieben, nicht als Rohwert: hier stand
+                      // „fax an +49 731 …", kleingeschrieben und ohne
+                      // Präposition — wie ein Datenbankauszug, nicht wie ein
+                      // Satz über eine Sendung. Dieselbe Tabelle wie im
+                      // Gerichts- und im Jobcenter-Zweig.
+                      Text('${kVollmachtVersandWege[raWert(z['weg'])] ?? raWert(z['weg'])}'
+                           ' an ${raWert(z['empfaenger'])}',
                           style: const TextStyle(fontSize: 12)),
                       if (raHat(z['gesendet_von_name']))
                         Text('durch ${raWert(z['gesendet_von_name'])}',
@@ -1799,6 +1860,8 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                     ]);
                   },
                 ),
+                    if (linkBlock != null) linkBlock,
+                  ])),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
@@ -2114,6 +2177,10 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                       trailing: PopupMenuButton<String>(
                         onSelected: (wahl) {
                           switch (wahl) {
+                            case 'link_lesen':
+                              _linkSenden(v, 'lesen');
+                            case 'link_signieren':
+                              _linkSenden(v, 'signieren');
                             case 'oeffnen':
                               _oeffnen(v);
                             case 'speichern':
@@ -2213,7 +2280,41 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                                     dense: true,
                                     leading: Icon(Icons.draw, size: 18, color: kRaFarbe),
                                     title: Text('Zur Unterschrift stellen'))),
-                          if ((int.tryParse(raWert(v['versand_anzahl'])) ?? 0) > 0)
+                          // Für Mitglieder OHNE App: die Vollmacht geht als
+                          // SMS-Link auf ihr Handy. Erst zum Lesen in ihrer
+                          // Sprache, dann — von Hand, nach ihrer Bestätigung
+                          // — zum Unterschreiben.
+                          //
+                          // ⚠️ Beide stehen NEBENEINANDER im Menü, aber die
+                          // Reihenfolge ist keine Frage des Geschmacks: das
+                          // Leseexemplar trägt kein Unterschriftsfeld, und
+                          // wer beide zugleich verschickt, lässt jemanden
+                          // etwas unterschreiben, bevor er es lesen konnte.
+                          // Die Rückfrage sagt das beim zweiten noch einmal.
+                          if (st != 'widerrufen') ...[
+                            PopupMenuItem(
+                                value: 'link_lesen',
+                                enabled: _linktGerade == null,
+                                child: const ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.translate, size: 18, color: Colors.teal),
+                                    title: Text('Link zum Lesen (SMS)'))),
+                            PopupMenuItem(
+                                value: 'link_signieren',
+                                enabled: _linktGerade == null,
+                                child: const ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.draw, size: 18, color: kRaFarbe),
+                                    title: Text('Link zum Unterschreiben (SMS)'))),
+                          ],
+                          // ⚠️ Auch bei `link_anzahl`: ein SMS-Link ist keine
+                          // Sendung an die Kanzlei und zählt deshalb nicht in
+                          // `versand_anzahl` mit. Ohne die zweite Zahl bliebe
+                          // das Protokoll unerreichbar, solange nur Links
+                          // hinausgingen — also genau dann, wenn dort das
+                          // Interessante steht.
+                          if ((int.tryParse(raWert(v['versand_anzahl'])) ?? 0) > 0
+                              || (int.tryParse(raWert(v['link_anzahl'])) ?? 0) > 0)
                             const PopupMenuItem(
                                 value: 'versand',
                                 child: ListTile(
