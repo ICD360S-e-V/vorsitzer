@@ -55,6 +55,7 @@ import 'mail_screen.dart';
 import 'tv_screen.dart';
 import 'eigene_unterschriften_screen.dart';
 import 'sipgate_fax_screen.dart';
+import '../services/fax_badge_service.dart';
 import 'post_screen.dart';
 import 'sipgate_screen.dart';
 import 'speedtest_screen.dart';
@@ -251,6 +252,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     MailBadgeService()
       ..refreshBadge()
       ..start();
+    // Und fürs Fax. Eingehende Faxe holt ein Cron alle fünf Minuten ab und
+    // meldet sie per ntfy — wer die Meldung wegwischt, erfuhr davon in der App
+    // bislang gar nichts.
+    FaxBadgeService()
+      ..aktualisieren()
+      ..start();
 
     // sipgate: registriert NUR, wenn der Schalter im Bildschirm an ist —
     // Standard ist aus, wie die Automatik beim Speedtest. Eine dauerhaft
@@ -364,6 +371,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       YoutubeService().refreshBadge();
       // Post kommt genauso an, während das Telefon in der Tasche liegt.
       MailBadgeService().refreshBadge();
+      // Ein Fax kommt genauso an, während das Telefon in der Tasche liegt.
+      FaxBadgeService().aktualisieren();
       debugPrint('[Dashboard] App resumed - data refreshed, update check restarted');
     } else if (state == AppLifecycleState.detached) {
       // Die App wird beendet: den Cloud-Schlüssel aus dem Speicher werfen und
@@ -408,6 +417,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _disruptionsService.stop();
     _newsService.stop();
     MailBadgeService().stop();
+    FaxBadgeService().stop();
     _radioService.dispose();
     super.dispose();
   }
@@ -1624,12 +1634,55 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           // dieser Knopf auch nicht am SipgateService: er hat mit der
           // SIP-Registrierung nichts zu tun und darf nicht ausgrauen, wenn das
           // Softphone gerade nicht angemeldet ist.
-          IconButton(
-            icon: const Icon(Icons.fax),
-            tooltip: 'Fax senden und empfangen',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const SipgateFaxScreen(),
-            )),
+          //
+          // Abzeichen = eingegangene, noch nicht angesehene Faxe. Ohne das gab
+          // es in der App **kein einziges Zeichen** für ein eingegangenes Fax:
+          // der Cron meldete es per ntfy, und wer die Meldung wegwischte,
+          // erfuhr davon nichts mehr. sipgate löscht seinen Verlauf nach
+          // 30 Tagen — bei uns bleibt es, aber nur, wenn jemand hinsieht.
+          ValueListenableBuilder<int>(
+            valueListenable: FaxBadgeService().ungelesen,
+            builder: (context, ungelesen, _) => Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.fax),
+                  tooltip: ungelesen > 0
+                      ? 'Fax — $ungelesen neu im Eingang'
+                      : 'Fax senden und empfangen',
+                  onPressed: () async {
+                    await Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const SipgateFaxScreen(),
+                    ));
+                    // Nach dem Verlassen neu zählen: im Bildschirm wurden
+                    // vermutlich gerade welche angesehen.
+                    FaxBadgeService().aktualisieren();
+                  },
+                ),
+                if (ungelesen > 0)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints:
+                          const BoxConstraints(minWidth: 18, minHeight: 18),
+                      child: Text(
+                        ungelesen > 9 ? '9+' : '$ungelesen',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
           // Briefversand — direkt neben dem Fax, weil es derselbe Gedanke ist:
           // ein Dokument verlässt das Haus, ohne dass jemand zum Briefkasten
