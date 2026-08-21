@@ -240,13 +240,23 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   bool _auskunftVerlangt = true;
   final Set<String> _gruende = {};
 
-  /// Die Insolvenzakten des Mitglieds. Der Beschluss liegt dort — ihn hier
-  /// ein zweites Mal zu erfassen hieße, zwei Wahrheiten zu pflegen.
+  /// Die Insolvenzvorgänge des Mitglieds. Der Beschluss liegt dort — ihn
+  /// hier ein zweites Mal zu erfassen hieße, zwei Wahrheiten zu pflegen.
+  ///
+  /// ⚠️ Sie kommen aus ZWEI Tabellen: ältere Verfahren stehen als
+  /// Gerichtsvorfall, neuere als Insolvenzakte. Deshalb reicht eine `id`
+  /// nicht — dieselbe Zahl gibt es in beiden. `_quelle` sagt, welche
+  /// gemeint ist, und ohne sie lädt der Anhang das falsche Dokument.
   List<Map<String, dynamic>> _akten = [];
   int? _akteId;
+  String? _quelle;
 
-  /// Die Dokumente der gewählten Insolvenzakte. Der Brief kündigt den
+  /// Die Dokumente des gewählten Vorgangs. Der Brief kündigt den
   /// Beschluss an — dann muss er auch mitgehen.
+  ///
+  /// Sie kommen mit der Liste mit, nicht über einen zweiten Ruf: der
+  /// Server liest ohnehin beide Tabellen, und ein Nachladen je Auswahl
+  /// wäre ein Netzweg für Daten, die schon da sind.
   List<Map<String, dynamic>> _akteDocs = [];
   final Set<int> _anhaenge = {};
   String _signatur = '';
@@ -352,9 +362,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   Future<void> _laden() async {
     try {
       final res = await widget.apiService.getVermieterWiderspruch(widget.vorfallId);
-      final akten = await widget.apiService.listInsolvenzAktenFuerWiderspruch(widget.userId);
+      final akten = await widget.apiService.listInsolvenzQuellen(widget.userId);
       if (!mounted) return;
-      _akten = List<Map<String, dynamic>>.from(akten['items'] as List? ?? []);
+      _akten = List<Map<String, dynamic>>.from(akten['quellen'] as List? ?? []);
       // ⚠️ Nicht warten, bis jemand daran denkt: ist am Mitglied eine
       // Insolvenz vermerkt, ist das der stärkste Einwand überhaupt — und
       // der, den ein Büro einkalkuliert, wenn niemand ihn kennt. Die Akte
@@ -385,7 +395,17 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         if (d != null) {
           _umfang = d['umfang']?.toString() ?? 'voll';
           _status = d['status']?.toString() ?? 'entwurf';
-          _akteId = int.tryParse(d['insolvenz_akte_id']?.toString() ?? '');
+          // Genau eine der beiden Spalten ist gesetzt. Welche, sagt die
+          // Herkunft — ohne sie wäre die Zahl mehrdeutig.
+          final vorfall = int.tryParse(d['insolvenz_vorfall_id']?.toString() ?? '');
+          final akte = int.tryParse(d['insolvenz_akte_id']?.toString() ?? '');
+          if (vorfall != null && vorfall > 0) {
+            _akteId = vorfall;
+            _quelle = 'gericht_vorfall';
+          } else if (akte != null && akte > 0) {
+            _akteId = akte;
+            _quelle = 'insolvenz_akte';
+          }
           // Der Server liefert das SET kommagetrennt zurück.
           _versandwege
             ..clear()
@@ -422,10 +442,10 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         _bezugVorbelegen();
       });
       // ⚠️ Ohne diese Zeile blieb die Anlagenliste beim ÖFFNEN leer: sie
-      // wurde nur beim Umschalten des Aktendropdowns geladen. Wer den
+      // wurde nur beim Umschalten des Dropdowns gefüllt. Wer den
       // Widerspruch später wieder aufmachte, sah keine Dokumente — und es
-      // ging auch keines mit, obwohl die Akte gewählt war.
-      if (_akteId != null) await _akteDocsLaden();
+      // ging auch keines mit, obwohl der Vorgang gewählt war.
+      if (_akteId != null && mounted) setState(_docsAusQuelle);
       await _schreibenDatumSuchen();
     } catch (e) {
       if (!mounted) return;
@@ -446,7 +466,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       'reaktion_am': _reaktionAm.text,
       'kopie_an_glaeubiger': _kopieGlaeubiger ? 1 : 0,
       'auskunft_verlangt': _auskunftVerlangt ? 1 : 0,
-      'insolvenz_akte_id': _akteId ?? 0,
+      // ⚠️ Beide Spalten werden IMMER geschrieben, die nicht gemeinte auf
+      // 0. Sonst bliebe beim Wechsel der Herkunft die alte Verknüpfung
+      // stehen und der Vorgang hinge an zwei Akten.
+      'insolvenz_akte_id': _quelle == 'insolvenz_akte' ? (_akteId ?? 0) : 0,
+      'insolvenz_vorfall_id': _quelle == 'gericht_vorfall' ? (_akteId ?? 0) : 0,
       'gruende': _gruende.toList(),
       'betreff': _betreffC.text.trim(),
       'schreiben_vom': _schreibenVom.text,
@@ -471,8 +495,17 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     if (ok) _laden();
   }
 
-  /// Wählt die Insolvenzakte und setzt den Grund, der zu ihrem Stand
+  /// Wählt den Insolvenzvorgang und setzt den Grund, der zu seinem Stand
   /// passt. Läuft das Verfahren noch, ist es NICHT § 301.
+  ///
+  /// ⚠️ Drei Ausgänge, nicht zwei. Der dritte ist der wichtigste: ein
+  /// Gerichtsvorfall führt kein Feld `phase` — dort steht nur ein Status
+  /// wie `bewilligt`, und der sagt, dass dem ANTRAG stattgegeben wurde,
+  /// nicht, dass am Ende Restschuldbefreiung erteilt ist. Die beiden
+  /// Gründe schließen einander aus und tragen verschiedene Paragraphen
+  /// ins Schreiben; einen davon zu raten hieße, im Brief an ein
+  /// Inkassobüro etwas zu behaupten, das aus den Daten nicht folgt.
+  /// Also: Vorgang wählen, Dokumente anbieten, Grund offen lassen.
   void _akteAuswerten() {
     if (_akten.isEmpty || _akteId != null) return;
     Map<String, dynamic>? befreit;
@@ -482,14 +515,41 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       final status = (a['status']?.toString() ?? '').toLowerCase();
       if (phase == 'restschuldbefreiung') {
         befreit ??= a;
-      } else if (status == 'laufend') {
+      } else if (phase == 'laufend' || status == 'laufend' || status == 'eroeffnet') {
         laufend ??= a;
       }
     }
-    final gewaehlt = befreit ?? laufend;
-    if (gewaehlt == null) return;
+    final gewaehlt = befreit ?? laufend ?? _akten.first;
     _akteId = int.tryParse(gewaehlt['id']?.toString() ?? '');
-    _gruende.add(befreit != null ? 'restschuldbefreiung' : 'insolvenz_laufend');
+    _quelle = gewaehlt['herkunft']?.toString();
+    if (befreit != null) {
+      _gruende.add('restschuldbefreiung');
+    } else if (laufend != null) {
+      _gruende.add('insolvenz_laufend');
+    }
+    _docsAusQuelle();
+  }
+
+  /// Übernimmt die Dokumente des gewählten Vorgangs und kreuzt an, was
+  /// nach Beschluss aussieht — das ist das Dokument, um das es geht.
+  void _docsAusQuelle() {
+    final gewaehlt = _akten
+        .where((a) =>
+            a['id'].toString() == _akteId.toString() &&
+            (a['herkunft']?.toString() ?? '') == (_quelle ?? ''))
+        .firstOrNull;
+    _akteDocs = List<Map<String, dynamic>>.from(
+        (gewaehlt?['dokumente'] ?? const []) as List);
+    _anhaenge.clear();
+    for (final d in _akteDocs) {
+      final txt =
+          '${d['kategorie'] ?? ''} ${d['datei_name'] ?? d['dateiname'] ?? ''}'
+              .toLowerCase();
+      if (txt.contains('beschluss') || txt.contains('restschuld')) {
+        final i = int.tryParse(d['id']?.toString() ?? '');
+        if (i != null) _anhaenge.add(i);
+      }
+    }
   }
 
   /// Füllt den Bezug aus dem, was schon erfasst ist.
@@ -533,43 +593,27 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     } catch (_) {}
   }
 
-  Future<void> _akteDocsLaden() async {
-    final id = _akteId;
-    if (id == null) return;
-    try {
-      final res = await widget.apiService.listInsolvenzAkteDocs(id);
-      if (!mounted) return;
-      // ⚠️ `jsonResponse` mischt in die Wurzel — der Schlüssel heißt
-      // `data`, es gibt keine Hülle darum. Die anderen beiden stehen als
-      // Rückfallebene da, falls ein anderer Endpunkt einspringt.
-      final liste = List<Map<String, dynamic>>.from(
-          (res['data'] ?? res['docs'] ?? res['items'] ?? const []) as List);
-      setState(() {
-        _akteDocs = liste;
-        // Was nach Beschluss aussieht, ist vorangekreuzt — das ist das
-        // Dokument, um das es geht. Der Rest bleibt Wahl.
-        for (final d in liste) {
-          final txt = '${d['kategorie'] ?? ''} ${d['datei_name'] ?? d['dateiname'] ?? ''}'
-              .toLowerCase();
-          if (txt.contains('beschluss') || txt.contains('restschuld')) {
-            final i = int.tryParse(d['id']?.toString() ?? '');
-            if (i != null) _anhaenge.add(i);
-          }
-        }
-      });
-    } catch (_) {
-      if (mounted) setState(() => _akteDocs = []);
-    }
-  }
+
+  /// Nur für den Test: welche Tabelle beim Anhang gelesen wird, ist
+  /// sonst nur über den vollständigen Versand erreichbar — mit Vorschau,
+  /// Knopfdruck und Netz. Geprüft werden soll aber genau eine Zeile.
+  @visibleForTesting
+  Future<List<MailOutgoingAttachment>> anhaengeFuerTest() => _anhaengeHolen();
 
   /// Holt die angekreuzten Dokumente als Bytes.
   Future<List<MailOutgoingAttachment>> _anhaengeHolen() async {
     final raus = <MailOutgoingAttachment>[];
     for (final id in _anhaenge) {
       try {
-        final r = await widget.apiService.downloadInsolvenzAkteDoc(id);
-        if (r.statusCode != 200) continue;
         final d = _akteDocs.where((x) => x['id'].toString() == id.toString()).firstOrNull;
+        // ⚠️ Die Herkunft steht am Dokument, nicht am Reiter: sie
+        // entscheidet, in welcher Tabelle der Server nachsieht. Ein fest
+        // verdrahteter Typ läge in der Hälfte der Fälle daneben — und
+        // zwar lautlos, denn eine fremde id von 26 gibt es dort auch.
+        final quelle = (d?['quelle']?.toString() ?? _quelle ?? 'insolvenz_akte');
+        final r = await widget.apiService
+            .downloadVermieterDoc(type: quelle, id: id);
+        if (r.statusCode != 200) continue;
         final name = (d?['datei_name'] ?? d?['dateiname'] ?? 'Beschluss_$id.pdf').toString();
         raus.add(MailOutgoingAttachment(filename: name, bytes: r.bodyBytes));
       } catch (_) {}
@@ -1138,11 +1182,18 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     final befreit = _akten.any((a) =>
         (a['phase']?.toString() ?? '').toLowerCase() == 'restschuldbefreiung');
     final akte = _akten
-        .where((a) => a['id'].toString() == _akteId.toString())
-        .firstOrNull ??
+            .where((a) =>
+                a['id'].toString() == _akteId.toString() &&
+                (a['herkunft']?.toString() ?? '') == (_quelle ?? ''))
+            .firstOrNull ??
         _akten.first;
-    final az = (akte['az_gericht']?.toString() ?? '').trim();
+    final az = (akte['aktenzeichen'] ?? akte['az_gericht'] ?? '').toString().trim();
     final ende = (akte['ende_am']?.toString() ?? '').trim();
+    final laufend = _akten.any((a) {
+      final ph = (a['phase']?.toString() ?? '').toLowerCase();
+      final st = (a['status']?.toString() ?? '').toLowerCase();
+      return ph == 'laufend' || st == 'laufend' || st == 'eroeffnet';
+    });
 
     if (befreit) {
       return _hinweis(
@@ -1156,14 +1207,34 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           'gewählt — prüfen Sie nur noch, ob die Forderung aus der Zeit VOR '
           'Verfahrenseröffnung stammt.');
     }
+    if (laufend) {
+      return _hinweis(
+          Colors.orange,
+          Icons.hourglass_top,
+          'Für dieses Mitglied läuft ein Insolvenzverfahren',
+          '${az.isEmpty ? '' : 'Aktenzeichen $az. '}'
+          'Eine Restschuldbefreiung ist noch nicht vermerkt — § 301 InsO greift also '
+          'noch nicht. Es gelten §§ 87, 89 InsO: die Forderung gehört zur Tabelle und an '
+          'den Verwalter, nicht an das Mitglied. Der passende Grund ist unten angekreuzt.');
+    }
+    // ⚠️ Der dritte Fall, und der häufigste bei älteren Verfahren: es ist
+    // eine Insolvenz vermerkt, aber der Datensatz sagt nicht, wie sie
+    // ausging. Der Vorgang wird gewählt und die Beschlüsse werden zum
+    // Anhängen angeboten — welcher der beiden Gründe zutrifft, entscheidet
+    // ein Mensch mit dem Beschluss in der Hand. § 301 und §§ 87/89 sind
+    // verschiedene Aussagen; die falsche im Brief nimmt dem Widerspruch
+    // seine Kraft, und geraten wäre sie hier.
+    final stand = (akte['status']?.toString() ?? '').trim();
     return _hinweis(
-        Colors.orange,
-        Icons.hourglass_top,
-        'Für dieses Mitglied läuft ein Insolvenzverfahren',
+        Colors.blue,
+        Icons.gavel_outlined,
+        'Für dieses Mitglied ist eine Insolvenz vermerkt',
         '${az.isEmpty ? '' : 'Aktenzeichen $az. '}'
-        'Eine Restschuldbefreiung ist noch nicht vermerkt — § 301 InsO greift also '
-        'noch nicht. Es gelten §§ 87, 89 InsO: die Forderung gehört zur Tabelle und an '
-        'den Verwalter, nicht an das Mitglied. Der passende Grund ist unten angekreuzt.');
+        '${stand.isEmpty ? '' : 'Vermerkter Stand: $stand. '}'
+        'Der Vorgang ist unten gewählt und die Beschlüsse stehen zum Anhängen bereit. '
+        'Welcher Grund gilt, sagt der Datensatz nicht: bei ERTEILTER '
+        'Restschuldbefreiung § 301 InsO, bei noch laufendem Verfahren §§ 87, 89 InsO. '
+        'Bitte am Beschluss ablesen und unten ankreuzen — der Reiter rät das nicht.');
   }
 
   Widget _hinweis(MaterialColor farbe, IconData symbol, String titel, String text) => Container(
@@ -1375,11 +1446,20 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
         ),
 
+        // ⚠️ Die Bedingung war einmal enger: nur wenn ein Insolvenzgrund
+        // angekreuzt war. Damit hing der Vorgangswähler samt Anlagenliste
+        // an einer Entscheidung, die genau dann noch NICHT gefallen ist,
+        // wenn der Datensatz den Grund nicht hergibt — also bei den
+        // älteren Verfahren. Der Beschluss lag in der Akte, und es gab
+        // keinen Weg, ihn anzuhängen.
         if (_gruende.contains('restschuldbefreiung') ||
-            _gruende.contains('insolvenz_laufend')) ...[
+            _gruende.contains('insolvenz_laufend') ||
+            _akten.isNotEmpty) ...[
           _abschnitt(_gruende.contains('restschuldbefreiung')
               ? 'Restschuldbefreiung'
-              : 'Laufendes Insolvenzverfahren'),
+              : _gruende.contains('insolvenz_laufend')
+                  ? 'Laufendes Insolvenzverfahren'
+                  : 'Insolvenz'),
           if (_gruende.contains('insolvenz_laufend'))
             _hinweis(Colors.orange, Icons.hourglass_top, 'Das Verfahren läuft noch',
                 'Dann gilt NICHT § 301 InsO — eine Befreiung gibt es noch nicht. Es gelten '
@@ -1401,39 +1481,45 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               'angemeldet wurde — das lässt man sich nachweisen. Zweitens Schulden, die '
               'NACH Verfahrenseröffnung entstanden sind; die sind nie erfasst.'),
           if (_akten.isEmpty)
-            _hinweis(Colors.grey, Icons.folder_off_outlined, 'Keine Insolvenzakte hinterlegt',
-                'Unter Behörde ▸ Gericht ▸ Insolvenzgericht liegt die Akte samt Beschluss. '
-                'Ist sie dort angelegt, lässt sie sich hier auswählen und Aktenzeichen und '
-                'Datum stehen von selbst im Schreiben.')
+            _hinweis(Colors.grey, Icons.folder_off_outlined, 'Keine Insolvenz hinterlegt',
+                'Unter Behörde ▸ Gericht ▸ Insolvenzgericht liegt der Vorgang samt '
+                'Beschluss. Ist er dort angelegt, lässt er sich hier auswählen und '
+                'Aktenzeichen und Datum stehen von selbst im Schreiben.')
           else
-            DropdownButtonFormField<int>(
+            DropdownButtonFormField<String>(
               isExpanded: true,
-              initialValue: _akteId,
+              initialValue: _akteId == null || _quelle == null
+                  ? null
+                  : '$_quelle:$_akteId',
               decoration: InputDecoration(
-                labelText: 'Insolvenzakte',
+                labelText: 'Insolvenzvorgang',
                 helperText: 'Aktenzeichen und Beschlussdatum kommen daraus in den Brief.',
                 helperMaxLines: 2,
                 isDense: true,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
+              // ⚠️ Der Wert ist `herkunft:id`, keine blosse Zahl. Beide
+              // Tabellen fangen bei 1 an; mit nur der id waehlte der
+              // Reiter irgendwann stillschweigend den falschen Vorgang.
               items: _akten
                   .map((a) => DropdownMenuItem(
-                        value: a['id'] as int,
+                        value: '${a['herkunft']}:${a['id']}',
                         child: Text(
-                            [a['bezeichnung'], a['az_gericht']]
-                                .where((x) => (x?.toString() ?? '').isNotEmpty)
+                            [a['bezeichnung'], a['aktenzeichen'] ?? a['az_gericht']]
+                                .where((x) => (x?.toString() ?? '').trim().isNotEmpty)
                                 .join(' · '),
                             style: const TextStyle(fontSize: 12),
                             overflow: TextOverflow.ellipsis),
                       ))
                   .toList(),
               onChanged: (v) {
+                if (v == null) return;
+                final teile = v.split(':');
                 setState(() {
-                  _akteId = v;
-                  _akteDocs = [];
-                  _anhaenge.clear();
+                  _quelle = teile.first;
+                  _akteId = int.tryParse(teile.last);
+                  _docsAusQuelle();
                 });
-                _akteDocsLaden();
               },
             ),
           if (_akteId != null) ...[
