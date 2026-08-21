@@ -36,6 +36,25 @@ const String kListeAntwort = r'''
  "notiz":"Zum Lesen","signatur_id":null,"ergebnis":"ok","fehler":""}]}]}
 ''';
 
+/// Der Faxstand, wie ihn `action: list` am 21.08.2026 für die erste im
+/// Betrieb gefaxte Erklärung geliefert hat.
+const String kFaxAntwort = r"""
+{"fax_id":14,"status":"in_zustellung","typ":"SENDING",
+ "gesendet":"2026-08-21 18:22:54","seiten":3,"fehler":""}
+""";
+
+/// Ob der Fax-Knopf noch angeboten wird.
+///
+/// ⚠️ Nur nach einem gescheiterten Versuch. Ein Fax an eine Behörde ist nicht
+/// zurückholbar; zweimal dieselbe Erklärung zu schicken sieht dort aus, als
+/// hätten wir den Überblick verloren.
+bool faxKnopfSichtbar(dynamic rohFax) {
+  final fax = rohFax is Map ? Map<String, dynamic>.from(rohFax) : null;
+  if (fax == null) return true;
+  final st = (fax['status'] ?? '').toString();
+  return st == 'fehlgeschlagen' || st == 'storniert';
+}
+
 /// Genau die Umwandlung, die die Historie beim Zeichnen macht.
 List<Map<String, dynamic>> versandLesen(dynamic roh) => roh is List
     ? roh.map((x) => Map<String, dynamic>.from(x as Map)).toList()
@@ -155,6 +174,41 @@ void main() {
       final lang = (eintrag['translation_language'] ?? '').toString();
       final datei = (eintrag['pdf_translation_filename'] ?? '').toString();
       expect(lang.isNotEmpty && datei.isNotEmpty, isTrue);
+    });
+  });
+
+  group('Faxstand', () {
+    test('ein laufendes Fax verbirgt den Knopf', () {
+      expect(faxKnopfSichtbar(jsonDecode(kFaxAntwort)), isFalse);
+    });
+
+    test('ein zugestelltes Fax verbirgt den Knopf', () {
+      final f = jsonDecode(kFaxAntwort) as Map<String, dynamic>;
+      f['status'] = 'zugestellt';
+      expect(faxKnopfSichtbar(f), isFalse);
+    });
+
+    test('nach einem Fehlschlag darf erneut gefaxt werden', () {
+      final f = jsonDecode(kFaxAntwort) as Map<String, dynamic>;
+      for (final st in ['fehlgeschlagen', 'storniert']) {
+        f['status'] = st;
+        expect(faxKnopfSichtbar(f), isTrue, reason: st);
+      }
+    });
+
+    test('ohne Fax steht der Knopf da', () {
+      expect(faxKnopfSichtbar(null), isTrue);
+      // ⚠️ Eine ältere Serverfassung liefert den Schlüssel gar nicht, und
+      // PHP macht aus einer leeren Struktur `[]`, nicht `{}`. Beides heißt
+      // „noch nicht gefaxt" — und darf kein `as Map` zerbrechen.
+      expect(faxKnopfSichtbar(jsonDecode('[]')), isTrue);
+    });
+
+    test('der Stand trägt Zeitpunkt und Seitenzahl', () {
+      final f = jsonDecode(kFaxAntwort) as Map<String, dynamic>;
+      expect(f['gesendet'], isNotEmpty);
+      expect(f['seiten'], 3);
+      expect(f['fax_id'], 14);
     });
   });
 
