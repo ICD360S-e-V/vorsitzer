@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/models/user.dart';
 import 'package:icd360sev_vorsitzer/utils/terminanfrage_vorlagen.dart';
@@ -380,5 +382,125 @@ void main() {
     expect(t, isNot(contains('per E-Mail an')));
     expect(t, isNot(contains('per Fax an')));
     expect(t, contains('telefonisch unter 0731 80159736'));
+  });
+
+  group('Jeder Tab speichert in SEINE Tabelle', () {
+    // 🔴 Der gefährlichste Fehler dieser Änderung, und der einzige, den weder
+    // `flutter analyze` noch ein Widget-Test sieht: `saveArztTermin` gibt es
+    // auf dem ApiService, also kompiliert der falsche Aufruf anstandslos. Die
+    // fünf entkoppelten Tabs schreiben aber in eigene Tabellen. Mit der
+    // gemeinsamen Funktion ginge das Fax raus, die Meldung sagte „übergeben",
+    // und der Termin landete in der falschen Tabelle — im Tab erschiene er
+    // NIE, ohne Fehler und ohne Log.
+    //
+    // Deshalb liest dieser Test die Quelltexte. Das ist ungewöhnlich, aber es
+    // ist die einzige Stelle, an der die Kopplung überhaupt auffallen kann.
+    const erwartet = {
+      'lib/widgets/gesundheit_tab_content.dart': 'saveArztTermin',
+      'lib/widgets/mitgliederverwaltung_arzten_augenarzt.dart':
+          'saveAugenarztTermin',
+      'lib/widgets/mitgliederverwaltung_arzten_hno.dart': 'saveHnoTermin',
+      'lib/widgets/mitgliederverwaltung_arzten_krankenhaus.dart':
+          'saveKrankenhausTermin',
+      'lib/widgets/mitgliederverwaltung_arzten_md.dart': 'saveMdTermin',
+      'lib/widgets/mitgliederverwaltung_arzten_rheumatologie.dart':
+          'saveRheumatologieTermin',
+    };
+
+    for (final e in erwartet.entries) {
+      test('${e.key.split('/').last} → ${e.value}', () {
+        final datei = File(e.key);
+        expect(datei.existsSync(), isTrue, reason: 'Datei fehlt: ${e.key}');
+        final quelle = datei.readAsStringSync();
+
+        // Genau eine Übergabe, und zwar die richtige.
+        final treffer = RegExp(r'speichern: widget\.apiService\.(\w+)')
+            .allMatches(quelle)
+            .map((m) => m.group(1))
+            .toList();
+        expect(treffer, [e.value],
+            reason: 'Dieser Tab muss mit ${e.value} speichern');
+      });
+    }
+  });
+
+  group('Die E-Mail spricht mit EINER Stimme', () {
+    const d = TerminanfrageDaten(
+      arztTyp: 'gesundheit_hausarzt',
+      vorname: 'Olena',
+      nachname: 'Shevchenko',
+      rueckantwortEmail: 'icd@icd360s.de',
+      rueckantwortTelefon: '0731 80159736',
+      vereinsname: 'ICD360S e.V.',
+      begleitung: true,
+    );
+
+    test('die Wir-Fassung setzt KEINE zweite Unterschrift darunter', () {
+      // 🔴 Die Mail geht aus dem Vereinspostfach und traegt darunter die
+      // Signatur eines Vorstandsmitglieds. Stuende im Text „Mit freundlichen
+      // Gruessen / Olena Shevchenko", unterschrieben zwei verschiedene
+      // Menschen dieselbe Mail.
+      final t = terminanfrageText(TerminanfrageVorlage.kontrolle, d,
+              stimme: TerminanfrageStimme.wir)
+          .alsMailText(d, stimme: TerminanfrageStimme.wir);
+      expect(t, isNot(contains('Mit freundlichen Grüßen')));
+      // ⚠️ Nicht „der Name kommt nicht vor" — er MUSS vorkommen, im ersten
+      // Satz und im Angabenblock. Und auch nicht „nicht am Ende": steht keine
+      // Kasse in den Daten, ist die Zeile `Name: …` ohnehin die letzte. Die
+      // Unterschrift erkennt man daran, dass der Name ALLEIN auf einer Zeile
+      // steht — genau das darf hier nicht vorkommen.
+      expect(t.split('\n'), isNot(contains('Olena Shevchenko')),
+          reason: 'ein Name allein auf einer Zeile ist eine Unterschrift');
+      expect(t, contains('Name: Olena Shevchenko'));
+    });
+
+    test('das Fax bleibt der Brief des Mitglieds', () {
+      final t = terminanfrageText(TerminanfrageVorlage.kontrolle, d)
+          .alsMailText(d);
+      expect(t, contains('Mit freundlichen Grüßen'));
+      // Hier IST der Name die Unterschrift — allein auf der letzten Zeile.
+      expect(t.split('\n'), contains('Olena Shevchenko'));
+    });
+
+    test('die Wir-Fassung nennt das Mitglied im ersten Satz', () {
+      // Sonst wuesste die Praxis bis zum Angabenblock nicht, für wen.
+      final t = terminanfrageText(TerminanfrageVorlage.kontrolle, d,
+          stimme: TerminanfrageStimme.wir);
+      expect(t.absaetze.first,
+          contains('bitten wir für unser Mitglied Olena Shevchenko'));
+    });
+
+    test('keine Ich-Reste in der Wir-Fassung', () {
+      // ⚠️ Genau das war beim ersten Anlauf uebrig: „andernfalls bitte ich um
+      // Aufnahme" stand mitten in einem Text, der sonst „wir" sagte.
+      for (final v in TerminanfrageVorlage.values) {
+        final t = terminanfrageText(v, d, stimme: TerminanfrageStimme.wir)
+            .absaetze
+            .join(' ');
+        expect(t, isNot(contains('bitte ich')), reason: v.titel);
+        expect(t, isNot(contains('nenne ich')), reason: v.titel);
+        expect(t, isNot(contains('teilen Sie mir')), reason: v.titel);
+        expect(t, isNot(contains('für mich')), reason: v.titel);
+      }
+    });
+  });
+
+  test('die Rufnummer des Mitglieds verlässt das Haus NICHT', () {
+    // 🔴 Wir vereinbaren den Termin, also steht im Text UNSERE Nummer samt
+    // Zeitfenster. Die private Nummer daneben führte nur dazu, dass die
+    // Anmeldung dort anruft — bei einem Menschen, der oft kein Deutsch
+    // spricht und für den wir gerade deshalb anfragen.
+    const d = TerminanfrageDaten(
+      arztTyp: 'gesundheit_hausarzt',
+      vorname: 'Olena',
+      nachname: 'Shevchenko',
+      krankenkasse: 'AOK',
+      versichertennummer: 'A987654321',
+      rueckantwortTelefon: '0731 80159736',
+    );
+    final t = terminanfrageText(TerminanfrageVorlage.kontrolle, d);
+    expect(t.angaben.map((e) => e.$1), isNot(contains('Telefon')));
+    // Die Nummer des Vereins bleibt — sie ist der Rückweg.
+    expect(t.absaetze.join(' '), contains('0731 80159736'));
   });
 }

@@ -47,6 +47,33 @@ library;
 /// verlässt, das nicht stimmt, ruft genau einmal an.
 const String kVereinErreichbarkeit = 'montags bis freitags von 14 bis 17 Uhr';
 
+/// In wessen Namen der Text steht.
+///
+/// 🔴 DER GRUND, WARUM ES ZWEI GIBT — und warum eine Fassung für beide Wege
+/// falsch wäre:
+///
+///  * Das **Fax** ist ein Brief DES MITGLIEDS. Im PDF steht oben sein
+///    Absenderblock mit seiner Anschrift, unten seine Grußformel und sein
+///    Name. „Ich bitte um einen Termin" ist dort richtig.
+///  * Die **E-Mail** geht aus dem Vereinspostfach hinaus, und darunter hängt
+///    die Signatur eines Vorstandsmitglieds — mit dessen Namen. Steht im Text
+///    darüber „Mit freundlichen Grüßen / Olena Shevchenko" und darunter
+///    „Ionut-Claudiu Duinea, Vorstand", dann unterschreiben **zwei
+///    verschiedene Menschen dieselbe Mail**. Das sieht nicht nach Sorgfalt
+///    aus, sondern nach einem Serienbrief, bei dem jemand vergessen hat,
+///    einen Platzhalter zu ersetzen.
+///
+/// In der Wir-Fassung trägt die Signatur den Abschluss, das Mitglied wird im
+/// Angabenblock genannt — dort, wo die Anmeldung es ohnehin sucht — und der
+/// Text sagt ausdrücklich, für wen geschrieben wird.
+enum TerminanfrageStimme {
+  /// Das Mitglied schreibt selbst — für das Fax-PDF.
+  ich,
+
+  /// Der Verein schreibt für das Mitglied — für die E-Mail.
+  wir,
+}
+
 /// Welche der drei Vorlagen gewählt ist.
 enum TerminanfrageVorlage {
   /// Erster Termin in dieser Praxis — die Aufnahme selbst ist die Frage.
@@ -887,7 +914,6 @@ class TerminanfrageDaten {
   final String strasse;
   final String plz;
   final String ort;
-  final String telefon;
   final String krankenkasse;
   final String versichertennummer;
 
@@ -946,7 +972,6 @@ class TerminanfrageDaten {
     this.strasse = '',
     this.plz = '',
     this.ort = '',
-    this.telefon = '',
     this.krankenkasse = '',
     this.versichertennummer = '',
     this.praxisName = '',
@@ -996,7 +1021,10 @@ class TerminanfrageText {
   /// ⚠️ Ohne Signatur — die hängt `api/mail/send.php` an und holt sie aus
   /// `users` + `vereineinstellungen`. Wer sie hier noch einmal schreibt,
   /// erzeugt sie doppelt und lässt beide auseinanderlaufen.
-  String alsMailText(TerminanfrageDaten d) {
+  String alsMailText(
+    TerminanfrageDaten d, {
+    TerminanfrageStimme stimme = TerminanfrageStimme.ich,
+  }) {
     final b = StringBuffer()
       ..writeln('Sehr geehrte Damen und Herren,')
       ..writeln();
@@ -1007,10 +1035,16 @@ class TerminanfrageText {
     for (final (label, wert) in angaben) {
       b.writeln('$label: $wert');
     }
-    b
-      ..writeln()
-      ..writeln('Mit freundlichen Grüßen')
-      ..writeln(d.vollerName);
+    // 🔴 In der Wir-Fassung KEINE Grußformel und KEIN Name: den Abschluss
+    // trägt die Mailsignatur, und die nennt den Menschen, der die Mail
+    // wirklich abgeschickt hat. Stünde hier zusätzlich der Name des
+    // Mitglieds, unterschrieben zwei verschiedene Leute dieselbe Mail.
+    if (stimme == TerminanfrageStimme.ich) {
+      b
+        ..writeln()
+        ..writeln('Mit freundlichen Grüßen')
+        ..writeln(d.vollerName);
+    }
     return b.toString();
   }
 }
@@ -1018,10 +1052,12 @@ class TerminanfrageText {
 /// Baut Betreff und Text aus Vorlage + Fach + Daten.
 TerminanfrageText terminanfrageText(
   TerminanfrageVorlage vorlage,
-  TerminanfrageDaten d,
-) {
+  TerminanfrageDaten d, {
+  TerminanfrageStimme stimme = TerminanfrageStimme.ich,
+}) {
   final fach = arztFachFuer(d.arztTyp);
   final istMd = d.arztTyp == 'gesundheit_md';
+  final wir = stimme == TerminanfrageStimme.wir;
 
   final (anlass, zusatz) = switch (vorlage) {
     TerminanfrageVorlage.erstvorstellung => (fach.erstAnlass, ''),
@@ -1032,18 +1068,23 @@ TerminanfrageText terminanfrageText(
   // ⚠️ Der MD bekommt kein „bitte ich um einen Termin": seine Vorlagen sind
   // schon als Bitte formuliert („um Mitteilung eines Termins …"). Sonst
   // stünde dort „bitte ich um einen Termin um Mitteilung eines Termins".
+  // In der Wir-Fassung MUSS das Mitglied hier genannt werden: sonst stünde am
+  // Anfang „wir bitten um einen Termin" und die Praxis wüsste bis zum
+  // Angabenblock nicht, für wen.
+  final fuerWen = wir ? ' für unser Mitglied ${d.vollerName}' : '';
+  final bitte = wir ? 'bitten wir$fuerWen' : 'bitte ich';
   final einleitung = istMd
-      ? 'hiermit bitte ich $anlass.'
+      ? 'hiermit $bitte $anlass.'
       : vorlage == TerminanfrageVorlage.akut
-          ? 'hiermit bitte ich um einen kurzfristigen Termin $anlass.'
-          : 'hiermit bitte ich um einen Termin $anlass.';
+          ? 'hiermit $bitte um einen kurzfristigen Termin $anlass.'
+          : 'hiermit $bitte um einen Termin $anlass.';
 
   final absaetze = <String>[einleitung];
   if (zusatz.isNotEmpty) absaetze.add(zusatz);
 
   // Steht direkt hinter dem Anlass, nicht am Ende: die Anmeldung entscheidet
   // als Erstes, ob sie eine Akte anlegt oder eine sucht.
-  final herkunft = _herkunftsAbsatz(vorlage, d, istMd);
+  final herkunft = _herkunftsAbsatz(vorlage, d, istMd, wir);
   if (herkunft.isNotEmpty) absaetze.add(herkunft);
 
   absaetze.addAll(_anlassSaetze(fach, d.anlaesse));
@@ -1056,7 +1097,7 @@ TerminanfrageText terminanfrageText(
     );
   }
 
-  final zeit = _terminlageAbsatz(d);
+  final zeit = _terminlageAbsatz(d, wir);
   if (zeit.isNotEmpty) absaetze.add(zeit);
 
   // Der Schlusssatz nennt den Rückweg — sonst antwortet die Praxis dorthin,
@@ -1074,9 +1115,11 @@ TerminanfrageText terminanfrageText(
     if (d.rueckantwortTelefon.isNotEmpty)
       'telefonisch unter ${d.rueckantwortTelefon}$zeitfenster',
   ];
+  final unsMir = wir ? 'uns' : 'mir';
   absaetze.add(rueckwege.isEmpty
-      ? 'Bitte teilen Sie mir mögliche Termine mit.'
-      : 'Bitte teilen Sie mir mögliche Termine ${_aufzaehlung(rueckwege)} mit.');
+      ? 'Bitte teilen Sie $unsMir mögliche Termine mit.'
+      : 'Bitte teilen Sie $unsMir mögliche Termine '
+          '${_aufzaehlung(rueckwege)} mit.');
 
   // ⚠️ Der Verein wird genannt, aber es wird KEINE Vollmacht behauptet. Eine
   // Terminorganisation braucht keine; eine Auskunft über den Gesundheits-
@@ -1085,24 +1128,42 @@ TerminanfrageText terminanfrageText(
   // „ehrenamtlich" steht nicht als Höflichkeit dabei, sondern weil es das
   // schmale Zeitfenster erklärt. Ohne den Grund liest sich „nur nachmittags"
   // wie Unlust; mit ihm ist es eine Auskunft.
-  if (d.vereinsname.isNotEmpty &&
+  final wann = d.erreichbarkeit.trim().isEmpty
+      ? ''
+      : 'Der Verein arbeitet ehrenamtlich und ist ${d.erreichbarkeit.trim()} '
+          'besetzt.';
+  if (wir) {
+    // ⚠️ Kein „die Terminorganisation übernimmt der Verein" mehr: in dieser
+    // Fassung SCHREIBT der Verein, das steht schon im ersten Satz und in der
+    // Signatur. Was bleibt, ist die Auskunft, die der Praxis wirklich hilft.
+    if (wann.isNotEmpty) absaetze.add(wann);
+  } else if (d.vereinsname.isNotEmpty &&
       (d.rueckantwortEmail.isNotEmpty || d.rueckantwortFax.isNotEmpty)) {
-    final wann = d.erreichbarkeit.trim().isEmpty
-        ? ''
-        : ' Der Verein arbeitet ehrenamtlich und ist ${d.erreichbarkeit.trim()} '
-            'besetzt.';
     absaetze.add(
       'Die Terminorganisation übernimmt für mich ${d.vereinsname}; '
-      'die genannten Kontaktdaten sind die des Vereins.$wann',
+      'die genannten Kontaktdaten sind die des Vereins.'
+      '${wann.isEmpty ? '' : ' $wann'}',
     );
   }
 
+  // 🔴 KEINE Telefonnummer des Mitglieds.
+  //
+  // Wir vereinbaren den Termin — deshalb steht im Text unsere Nummer samt
+  // Zeitfenster. Stünde daneben die private Nummer des Mitglieds, riefe die
+  // Anmeldung genau dort an: bei einem Menschen, der oft kein Deutsch spricht
+  // und für den wir gerade deswegen anfragen. Das Gespräch scheitert, der
+  // Platz ist weg, und niemand erfährt davon.
+  //
+  // Dazu kommt: die Nummer ist für die Terminvergabe schlicht nicht nötig.
+  // Was die Anmeldung braucht, ist die Akte zu finden — Name, Geburtsdatum,
+  // Anschrift, Kasse, Versichertennummer. Eine private Rufnummer an einen
+  // Dritten zu geben, der sie nicht braucht, ist genau das, was Art. 5 Abs. 1
+  // lit. c DSGVO Datenminimierung nennt.
   final angaben = <(String, String)>[
     ('Name', d.vollerName),
     if (d.geburtsdatum.isNotEmpty) ('Geburtsdatum', d.geburtsdatum),
     if (d.strasse.isNotEmpty) ('Anschrift', d.strasse),
     if ('${d.plz} ${d.ort}'.trim().isNotEmpty) ('Ort', '${d.plz} ${d.ort}'.trim()),
-    if (d.telefon.isNotEmpty) ('Telefon', d.telefon),
     if (d.krankenkasse.isNotEmpty) ('Krankenkasse', d.krankenkasse),
     if (d.versichertennummer.isNotEmpty)
       ('Versichertennummer', d.versichertennummer),
@@ -1157,7 +1218,7 @@ List<String> _anlassSaetze(ArztFach fach, List<String> gewaehlt) {
 ///
 /// ⚠️ „nach Möglichkeit" bleibt drin. Wer einer überlaufenen Praxis Bedingungen
 /// stellt, bekommt keinen Termin, sondern eine Absage.
-String _terminlageAbsatz(TerminanfrageDaten d) {
+String _terminlageAbsatz(TerminanfrageDaten d, bool wir) {
   if (d.wunschzeitAbweichend.trim().isNotEmpty) {
     return 'Termine sind ${d.wunschzeitAbweichend.trim()} möglich.';
   }
@@ -1169,7 +1230,7 @@ String _terminlageAbsatz(TerminanfrageDaten d) {
   return 'Bitte legen Sie den Termin nach Möglichkeit '
       '${d.erreichbarkeit.trim()}: In dieser Zeit kann $wer zur '
       'Sprachmittlung und Unterstützung mitkommen. Sollte das nicht möglich '
-      'sein, nenne ich Ihnen gern eine Alternative.';
+      'sein, ${wir ? 'nennen wir' : 'nenne ich'} Ihnen gern eine Alternative.';
 }
 
 /// Der Absatz, der sagt, ob hier schon einmal jemand war — und was wir davon
@@ -1188,6 +1249,7 @@ String _herkunftsAbsatz(
   TerminanfrageVorlage vorlage,
   TerminanfrageDaten d,
   bool istMd,
+  bool wir,
 ) {
   if (istMd || vorlage == TerminanfrageVorlage.akut) return '';
   final stelle = arztFachFuer(d.arztTyp).stelleDativ;
@@ -1195,15 +1257,17 @@ String _herkunftsAbsatz(
   if (d.erfassteTermine > 0) {
     // ⚠️ „vermerkt", NICHT „in Behandlung gewesen". Gezählt werden nur
     // stattgefundene Termine — siehe [terminanfrageHistorie].
+    final wo = wir ? 'bei uns' : 'bei mir';
     return d.letzterTermin.isEmpty
-        ? 'Ein früherer Termin $stelle ist bei mir vermerkt.'
-        : 'Ein früherer Termin $stelle ist bei mir vermerkt, '
+        ? 'Ein früherer Termin $stelle ist $wo vermerkt.'
+        : 'Ein früherer Termin $stelle ist $wo vermerkt, '
             'zuletzt am ${d.letzterTermin}.';
   }
 
   return 'Ob $stelle bereits eine Akte besteht, ist hier nicht bekannt — '
       'ein früherer Termin ist nicht vermerkt. Bitte prüfen Sie das anhand '
-      'der unten genannten Angaben; andernfalls bitte ich um Aufnahme als '
+      'der unten genannten Angaben; andernfalls '
+      '${wir ? 'bitten wir' : 'bitte ich'} um Aufnahme als '
       'neue Patientin bzw. neuer Patient.';
 }
 

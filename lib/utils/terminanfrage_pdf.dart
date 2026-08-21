@@ -122,13 +122,17 @@ Future<Uint8List> terminanfragePdf({
   }
 
   // ── Absender (Mitglied) ────────────────────────────────────────────
+  //
+  // ⚠️ OHNE Telefonnummer, aus demselben Grund wie im Angabenblock: den Termin
+  // vereinbaren wir, und im Brief steht unsere Nummer mit dem Zeitfenster. Die
+  // private Nummer des Mitglieds daneben führt nur dazu, dass die Anmeldung
+  // dort anruft — bei jemandem, für den wir gerade deshalb anfragen.
   pw.Widget absender() {
     final zeilen = <String>[
       daten.vollerName,
       if (daten.strasse.isNotEmpty) daten.strasse,
       if ('${daten.plz} ${daten.ort}'.trim().isNotEmpty)
         '${daten.plz} ${daten.ort}'.trim(),
-      if (daten.telefon.isNotEmpty) 'Tel.: ${daten.telefon}',
     ];
     return pw.Container(
       height: 26 * mm,
