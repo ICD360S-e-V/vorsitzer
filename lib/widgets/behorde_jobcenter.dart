@@ -2533,7 +2533,12 @@ class _JobcenterArbeitsvermittlerTabState extends State<_JobcenterArbeitsvermitt
       context: context,
       barrierDismissible: false,
       builder: (_) => _AvDetailModal(apiService: widget.apiService, userId: widget.userId, userAv: av,
-        ticketService: widget.ticketService, adminMnr: widget.adminMitgliedernummer, memberMnr: widget.memberMitgliedernummer, memberName: widget.memberName),
+        ticketService: widget.ticketService, adminMnr: widget.adminMitgliedernummer, memberMnr: widget.memberMitgliedernummer, memberName: widget.memberName,
+        // Kundennummer und BG-Nummer stehen in den Stammdaten, nicht am
+        // Vermittler. Die Schweigepflichtentbindung braucht beide: ohne sie
+        // muss das Jobcenter die Person erst suchen, und genau das ist der
+        // Grund, aus dem ein Schreiben liegen bleibt.
+        jcData: widget.data),
     );
     if (changed == true) _load();
   }
@@ -4934,8 +4939,11 @@ class _AvDetailModal extends StatefulWidget {
   final String? adminMnr;
   final String? memberMnr;
   final String? memberName;
+  /// Die Stammdaten des Jobcenter-Reiters — gebraucht für Kundennummer und
+  /// BG-Nummer in der Schweigepflichtentbindung.
+  final Map<String, dynamic> jcData;
   const _AvDetailModal({required this.apiService, required this.userId, required this.userAv,
-    this.ticketService, this.adminMnr, this.memberMnr, this.memberName});
+    this.ticketService, this.adminMnr, this.memberMnr, this.memberName, this.jcData = const {}});
   @override
   State<_AvDetailModal> createState() => _AvDetailModalState();
 }
@@ -4952,7 +4960,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 7, vsync: this);
+    _tab = TabController(length: 8, vsync: this);
     _loadEinladungen();
     _loadTermine();
   }
@@ -4996,6 +5004,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
           Tab(icon: Icon(Icons.fact_check, size: 18), text: 'Eigenbemühungen'),
           Tab(icon: Icon(Icons.handshake, size: 18), text: 'Kooperationsplan'),
           Tab(icon: Icon(Icons.forum, size: 18), text: 'Korrespondenz'),
+          Tab(icon: Icon(Icons.privacy_tip_outlined, size: 18), text: 'Schweigepflicht'),
         ]),
         Expanded(child: TabBarView(controller: _tab, children: [
           _AvDetailsTab(apiService: widget.apiService, personal: av, userAv: av, onChanged: () { _changed = true; }),
@@ -5007,9 +5016,1079 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
           _AvEigenbemTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, avName: name),
           _AvKooperationsplanTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId),
           _AvKorrespondenzTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, onChanged: () { _changed = true; }),
+          _AvSchweigepflichtTab(
+            apiService: widget.apiService,
+            userId: widget.userId,
+            userAvId: _userAvId,
+            userAv: av,
+            adminMnr: widget.adminMnr,
+            memberMnr: widget.memberMnr,
+            kundennummer: (widget.jcData['stammdaten.kundennummer'] ?? '').toString(),
+            bgNummer: (widget.jcData['stammdaten.bg_nummer'] ?? '').toString(),
+          ),
         ])),
       ])),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Schweigepflichtentbindung / Einwilligung nach § 67b Abs. 2 SGB X
+//
+//  Aufbau wie _JCVollmachtSection (Generierung / Historie / Verwaltung) —
+//  unterschrieben wird aber nicht mit einem eingescannten Blatt, sondern
+//  über SignaturService: TAN ans Mitglied, Siegel, Hash-Kette.
+//
+//  ⚠️ Der Themenkatalog steht NICHT hier, sondern kommt vom Server
+//  (action: katalog). Stünde er doppelt, zeigte die App irgendwann andere
+//  Punkte an, als das PDF druckt — und jemand hätte in etwas eingewilligt,
+//  das er nie gesehen hat. Preis dafür: ein Ladevorgang beim Öffnen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _AvSchweigepflichtTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final int userAvId;
+  final Map<String, dynamic> userAv;
+  final String? adminMnr;
+  final String? memberMnr;
+  final String kundennummer;
+  final String bgNummer;
+  const _AvSchweigepflichtTab({
+    required this.apiService,
+    required this.userId,
+    required this.userAvId,
+    required this.userAv,
+    required this.adminMnr,
+    required this.memberMnr,
+    required this.kundennummer,
+    required this.bgNummer,
+  });
+  @override
+  State<_AvSchweigepflichtTab> createState() => _AvSchweigepflichtTabState();
+}
+
+class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with SingleTickerProviderStateMixin {
+  static const _akzent = Color(0xFF6D28D9); // violett — wie die Ärzte-Fassung
+
+  late TabController _sub;
+  final _signatur = SignaturService();
+
+  bool _laedt = true;
+  bool _erzeugt = false;
+  String? _fehler;
+
+  /// Gruppenüberschrift → { schlüssel: beschriftung }, vom Server.
+  Map<String, Map<String, String>> _katalog = {};
+  Map<String, String> _gesundheitKatalog = {};
+
+  List<Map<String, dynamic>> _eintraege = [];
+  Map<int, Signaturvorgang> _vorgaenge = {};
+
+  // Auswahl. Alle drei Richtungen sind vorbelegt: der Vordruck des
+  // Jobcenters Gießen nennt den direkten Austausch ausdrücklich als
+  // Regelfall („in bestimmten Fällen kann aber auch ein direkter
+  // Informationsaustausch zwischen den Stellen erforderlich sein"), und ohne
+  // ihn müsste jede Rückfrage über das Mitglied laufen — also genau der
+  // Umweg, den die Erklärung abkürzen soll. Wer ihn nicht will, nimmt den
+  // Haken weg; er steht sichtbar an erster Stelle.
+  final Map<String, bool> _umfang = {
+    'richtung_jc_verein': true,
+    'richtung_verein_jc': true,
+    'richtung_direkt': true,
+  };
+  // ⚠️ Gesundheitspunkte starten ALLE aus. Art. 9 Abs. 2 lit. a DSGVO
+  // verlangt eine ausdrückliche Einwilligung; ein vorbelegter Haken wäre
+  // das Gegenteil davon.
+  final Map<String, bool> _gesundheit = {};
+
+  DateTime _erteiltAm = DateTime.now();
+  DateTime? _gueltigBis;
+  final _notizC = TextEditingController();
+
+  int? _verwaltungId;
+  final Set<int> _arbeitet = {};
+
+  bool get _kannSignieren => (widget.adminMnr ?? '').isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = TabController(length: 3, vsync: this);
+    _laden();
+  }
+
+  @override
+  void dispose() {
+    _sub.dispose();
+    _notizC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _laden() async {
+    setState(() { _laedt = true; _fehler = null; });
+    final katRes = await widget.apiService.jcAvSchweigepflichtAction({'action': 'katalog'});
+    final lstRes = await widget.apiService.jcAvSchweigepflichtAction({
+      'action': 'list', 'user_id': widget.userId, 'user_av_id': widget.userAvId,
+    });
+    if (!mounted) return;
+
+    if (katRes['success'] != true) {
+      setState(() {
+        _laedt = false;
+        _fehler = (katRes['message'] ?? 'Themenkatalog konnte nicht geladen werden').toString();
+      });
+      return;
+    }
+
+    final kat = <String, Map<String, String>>{};
+    final rohKat = katRes['umfang'];
+    if (rohKat is Map) {
+      rohKat.forEach((gruppe, items) {
+        if (items is Map) {
+          kat['$gruppe'] = items.map((k, v) => MapEntry('$k', '$v'));
+        }
+      });
+    }
+    final ges = <String, String>{};
+    final rohGes = katRes['gesundheit'];
+    if (rohGes is Map) rohGes.forEach((k, v) => ges['$k'] = '$v');
+
+    // Beim ersten Laden alle Themen anhaken — die Erklärung soll breit
+    // decken, und einzelne wegzunehmen ist leichter, als vierzig zu setzen.
+    // Die Gesundheitspunkte bleiben davon unberührt.
+    if (_katalog.isEmpty) {
+      for (final g in kat.values) {
+        for (final k in g.keys) {
+          _umfang.putIfAbsent(k, () => true);
+        }
+      }
+      for (final k in ges.keys) {
+        _gesundheit.putIfAbsent(k, () => false);
+      }
+    }
+
+    final liste = List<Map<String, dynamic>>.from(lstRes['eintraege'] ?? []);
+    setState(() {
+      _katalog = kat;
+      _gesundheitKatalog = ges;
+      _eintraege = liste;
+      _laedt = false;
+      if (_verwaltungId == null && liste.isNotEmpty) _verwaltungId = liste.first['id'] as int?;
+    });
+    await _vorgaengeLaden();
+  }
+
+  /// Den Stand der Unterschriften nachziehen.
+  ///
+  /// Die Nummer des Vorgangs steht bei uns, der Zustand aber bei
+  /// signatur_manage.php — sonst zeigte die Zeile „wartet", nachdem längst
+  /// unterschrieben wurde.
+  Future<void> _vorgaengeLaden() async {
+    if (!_kannSignieren) return;
+    final alle = await _signatur.liste(
+      callerMitgliedernummer: widget.adminMnr!,
+      userId: widget.userId,
+    );
+    if (!mounted) return;
+    final proId = <int, Signaturvorgang>{ for (final v in alle) v.id: v };
+    setState(() => _vorgaenge = proId);
+  }
+
+  Signaturvorgang? _vorgangVon(Map<String, dynamic> e) {
+    final sid = e['signatur_id'];
+    if (sid == null) return null;
+    return _vorgaenge[sid is int ? sid : int.tryParse('$sid') ?? -1];
+  }
+
+  // ── Erzeugen ────────────────────────────────────────────────────────────
+
+  Future<void> _erzeugen() async {
+    setState(() => _erzeugt = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final res = await widget.apiService.createJcAvSchweigepflicht({
+      'user_id': widget.userId,
+      'user_av_id': widget.userAvId,
+      'kundennummer': widget.kundennummer,
+      'bg_nummer': widget.bgNummer,
+      'erteilt_am': _erteiltAm.toIso8601String().substring(0, 10),
+      'gueltig_bis': _gueltigBis?.toIso8601String().substring(0, 10),
+      'umfang': _umfang,
+      'gesundheit': _gesundheit,
+      'notes': _notizC.text.trim(),
+    });
+    if (!mounted) return;
+    setState(() => _erzeugt = false);
+    final ok = res['success'] == true;
+    final lang = (res['translation_language'] ?? '').toString();
+    messenger.showSnackBar(SnackBar(
+      content: Text(ok
+          ? (lang.isNotEmpty
+              ? 'Erklärung erstellt (Nr. ${res['id']}) — DE + Übersetzung ${lang.toUpperCase()}'
+              : 'Erklärung erstellt (Nr. ${res['id']}) — nur DE')
+          : (res['message'] ?? 'Fehler').toString()),
+      backgroundColor: ok ? Colors.green : Colors.red,
+    ));
+    if (ok) {
+      _verwaltungId = res['id'] as int?;
+      await _laden();
+      if (mounted) _sub.animateTo(2);
+    }
+  }
+
+  // ── PDF öffnen ──────────────────────────────────────────────────────────
+
+  Future<void> _pdfOeffnen(int id, String name, {String typ = 'pdf'}) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final r = await widget.apiService.downloadJcAvSchweigepflichtPdf(id, type: typ);
+      if (!mounted) return;
+      // Der Server antwortet im Fehlerfall mit JSON, nicht mit einem PDF.
+      // Das ungeprüft in den Betrachter zu geben ergäbe eine kaputte Datei
+      // statt der Erklärung, warum nichts kam.
+      final istJson = (r.headers['content-type'] ?? '').contains('json');
+      if (r.statusCode == 200 && !istJson && r.bodyBytes.isNotEmpty) {
+        await FileViewerDialog.showFromBytes(context, r.bodyBytes, name);
+        return;
+      }
+      String meldung = 'Fehler (${r.statusCode})';
+      if (istJson) {
+        try {
+          final d = jsonDecode(r.body);
+          if (d is Map && d['message'] != null) meldung = d['message'].toString();
+        } catch (_) { /* dann eben ohne Klartext */ }
+      }
+      messenger.showSnackBar(SnackBar(content: Text(meldung), backgroundColor: Colors.red));
+    } catch (e) {
+      if (mounted) messenger.showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  // ── Dem Mitglied in seiner Sprache schicken ─────────────────────────────
+
+  /// Die übersetzte Fassung in den Live-Chat des Mitglieds legen.
+  ///
+  /// ⚠️ Bewusst die ÜBERSETZUNG, nicht das deutsche Original: gelesen wird
+  /// hier, unterschrieben wird dort. Zum Unterschreiben geht über
+  /// SignaturService die deutsche Fassung — die ist die rechtlich
+  /// maßgebliche, und ein Siegel über einer Übersetzung beglaubigte das
+  /// falsche Dokument.
+  ///
+  /// Gibt es keine Übersetzung (Arabisch, oder das Mitglied ist auf Deutsch
+  /// gesetzt), geht das Original — mit einem Satz, der das sagt, statt so zu
+  /// tun, als sei es die eigene Sprache.
+  Future<void> _anMitgliedSenden(Map<String, dynamic> e) async {
+    final id = e['id'] as int;
+    final mnr = widget.memberMnr;
+    final admin = widget.adminMnr;
+    if (mnr == null || mnr.isEmpty || admin == null || admin.isEmpty) return;
+
+    final lang = (e['translation_language'] ?? '').toString();
+    final hatUeb = lang.isNotEmpty && (e['pdf_translation_filename'] ?? '').toString().isNotEmpty;
+
+    final bestaetigt = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('An das Mitglied senden?', style: TextStyle(fontSize: 15)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(hatUeb
+              ? 'Die Erklärung geht als PDF in den Live-Chat — in der Sprache des '
+                'Mitglieds (${lang.toUpperCase()}), damit es lesen kann, worin es einwilligt.'
+              : 'Für die Sprache des Mitglieds gibt es keine Übersetzung. Es geht die '
+                'deutsche Fassung, und der Begleitsatz sagt das auch.',
+            style: const TextStyle(fontSize: 13)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.blueGrey.shade50, borderRadius: BorderRadius.circular(5)),
+            child: const Text(
+              'Unterschrieben wird davon nichts. Zum Unterschreiben geht die deutsche '
+              'Fassung über den Weg mit TAN und Siegel — das ist der Knopf darüber.',
+              style: TextStyle(fontSize: 11.5)),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _akzent),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Senden')),
+        ],
+      ),
+    );
+    if (bestaetigt != true || !mounted) return;
+
+    setState(() => _arbeitet.add(id));
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final start = await widget.apiService.adminStartChat(admin, mnr);
+      final convId = start['conversation_id'] as int?;
+      if (convId == null) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text('Kein Gespräch mit diesem Mitglied möglich'), backgroundColor: Colors.red));
+        return;
+      }
+
+      final r = await widget.apiService.downloadJcAvSchweigepflichtPdf(
+        id, type: hatUeb ? 'translation' : 'pdf');
+      if (r.statusCode != 200 || (r.headers['content-type'] ?? '').contains('json')) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Dokument konnte nicht gelesen werden (${r.statusCode})'),
+          backgroundColor: Colors.red));
+        return;
+      }
+
+      // ⚠️ Der Begleitsatz läuft durch NLLB, sobald das Mitglied ihn liest —
+      // chat/upload.php kennt kein skip_translation. Genau deshalb steht er
+      // auf Deutsch und OHNE Zahlen, Daten oder Aktenzeichen: die erfindet
+      // NLLB, ganze Sätze übersetzt es zuverlässig. So kommt der Hinweis
+      // auch in Sprachen an, für die es kein übersetztes PDF gibt.
+      final satz = hatUeb
+          ? 'Hier ist die Schweigepflichtentbindung für das Jobcenter, in Ihrer Sprache '
+            'zum Lesen. Bitte schauen Sie sie in Ruhe an. Zum Unterschreiben bekommen Sie '
+            'die deutsche Fassung getrennt zugeschickt. Wenn etwas unklar ist, fragen Sie uns.'
+          : 'Hier ist die Schweigepflichtentbindung für das Jobcenter. Eine Übersetzung in '
+            'Ihre Sprache gibt es leider noch nicht. Wenn Sie möchten, gehen wir sie '
+            'gemeinsam durch, bevor Sie unterschreiben.';
+
+      final name = hatUeb
+          ? 'Schweigepflichtentbindung_${lang.toUpperCase()}.pdf'
+          : 'Schweigepflichtentbindung_DE.pdf';
+
+      final up = await widget.apiService.uploadChatAttachmentBytes(
+        conversationId: convId,
+        mitgliedernummer: admin,
+        bytes: r.bodyBytes,
+        filename: name,
+        message: satz,
+      );
+      if (!mounted) return;
+      final ok = up['success'] == true;
+      messenger.showSnackBar(SnackBar(
+        content: Text(ok
+            ? 'Im Chat abgelegt${hatUeb ? ' — ${lang.toUpperCase()}' : ' — deutsche Fassung'}'
+            : (up['message'] ?? 'Senden fehlgeschlagen').toString()),
+        backgroundColor: ok ? Colors.green : Colors.red));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Senden fehlgeschlagen: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _arbeitet.remove(id));
+    }
+  }
+
+  // ── Unterschrift anfordern ──────────────────────────────────────────────
+
+  /// Das erzeugte PDF dem Mitglied zur Unterschrift stellen.
+  ///
+  /// Es wird vom Server geholt und aus dem Speicher weitergereicht — es
+  /// liegt dort verschlüsselt, und der Umweg über eine temporäre Datei legte
+  /// den Klartext auf die Platte, ausgerechnet für das Dokument, dessen
+  /// Unversehrtheit gleich beglaubigt werden soll.
+  Future<void> _zurUnterschrift(Map<String, dynamic> e) async {
+    final id = e['id'] as int;
+    if (!_kannSignieren) return;
+    final name = (e['pdf_filename'] ?? 'schweigepflichtentbindung.pdf').toString().replaceAll('.enc', '');
+
+    final frist = await showDialog<DateTime?>(
+      context: context,
+      builder: (ctx) => _FristDialog(dateiname: name),
+    );
+    if (frist == null || !mounted) return;
+
+    setState(() => _arbeitet.add(id));
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final r = await widget.apiService.downloadJcAvSchweigepflichtPdf(id);
+      if (r.statusCode != 200 || (r.headers['content-type'] ?? '').contains('json')) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Dokument konnte nicht gelesen werden (${r.statusCode})'),
+          backgroundColor: Colors.red));
+        return;
+      }
+      final erg = await _signatur.anfordernAusBytes(
+        callerMitgliedernummer: widget.adminMnr!,
+        userId: widget.userId,
+        dokumentTyp: 'schweigepflichtentbindung_jobcenter',
+        dokumentTitel: 'Schweigepflichtentbindung — ${widget.userAv['vorname'] ?? ''} ${widget.userAv['nachname'] ?? ''}'.trim(),
+        pdfBytes: r.bodyBytes,
+        dateiname: name,
+        fristBis: frist,
+        quelleTabelle: kJcAvSchweigepflichtQuelle,
+        quelleId: id,
+      );
+      if (!mounted) return;
+      if (!erg.ok) {
+        messenger.showSnackBar(SnackBar(
+          content: Text(erg.fehler ?? 'Anforderung fehlgeschlagen'), backgroundColor: Colors.red));
+        return;
+      }
+      // Die Nummer bei uns festhalten. Ohne sie fände dieser Reiter seinen
+      // eigenen Vorgang nie wieder — der Dateiname taugt nicht, weil eine
+      // zweite Erzeugung denselben trüge.
+      await widget.apiService.jcAvSchweigepflichtAction({
+        'action': 'signatur_merken', 'id': id, 'signatur_id': erg.signaturId,
+      });
+      if (!mounted) return;
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Zur Unterschrift gestellt. Das Mitglied wird benachrichtigt.'),
+        backgroundColor: Colors.green));
+      await _laden();
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Anforderung fehlgeschlagen: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _arbeitet.remove(id));
+    }
+  }
+
+  Future<void> _signiertesOeffnen(Signaturvorgang v) async {
+    if (!_kannSignieren) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final gesiegelt = await _signatur.herunterladenMitGrund(
+      callerMitgliedernummer: widget.adminMnr!, signaturId: v.id, welche: 'signiert');
+    if (!mounted) return;
+    if (gesiegelt.bytes != null) {
+      await FileViewerDialog.showFromBytes(
+        context, Uint8List.fromList(gesiegelt.bytes!), jcFassungsName(v.dokumentTitel, 'signiert'));
+      return;
+    }
+    // „Noch nicht gesiegelt" und „fehlgeschlagen" sind zwei verschiedene
+    // Dinge: gesiegelt wird im Minutentakt, unmittelbar nach der
+    // Unterschrift ist die Fassung regulär noch nicht da.
+    final weiter = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Siegel noch nicht fertig', style: TextStyle(fontSize: 15)),
+        content: Text(
+          '${gesiegelt.hinweis ?? 'Die gesiegelte Fassung wird noch erstellt.'}\n\n'
+          'Solange kann die Fassung geöffnet werden, die dem Mitglied vorlag — '
+          'ohne Siegel und ohne Zeitstempel.',
+          style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Original öffnen')),
+        ],
+      ),
+    );
+    if (weiter != true || !mounted) return;
+    final orig = await _signatur.herunterladenMitGrund(
+      callerMitgliedernummer: widget.adminMnr!, signaturId: v.id, welche: 'original');
+    if (!mounted) return;
+    if (orig.bytes == null) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(orig.hinweis ?? 'Dokument konnte nicht geladen werden'), backgroundColor: Colors.red));
+      return;
+    }
+    await FileViewerDialog.showFromBytes(
+      context, Uint8List.fromList(orig.bytes!), jcFassungsName(v.dokumentTitel, 'original'));
+  }
+
+  // ── Aktivieren / Widerrufen ─────────────────────────────────────────────
+
+  Future<void> _aktivieren(Map<String, dynamic> e) async {
+    final id = e['id'] as int;
+    final hatUnterschrift = _vorgangVon(e)?.istSigniert == true;
+    if (!hatUnterschrift) {
+      final trotzdem = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Ohne Unterschrift aktivieren?', style: TextStyle(fontSize: 15)),
+          content: const Text(
+            'Zu dieser Erklärung liegt keine digitale Unterschrift vor.\n\n'
+            'Als aktiv gilt sie damit nur, wenn sie auf Papier unterschrieben und beim '
+            'Jobcenter eingereicht wurde. Ohne beides ist es keine wirksame Einwilligung.',
+            style: TextStyle(fontSize: 13)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade800),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Trotzdem aktivieren')),
+          ],
+        ),
+      );
+      if (trotzdem != true) return;
+    }
+    final res = await widget.apiService.jcAvSchweigepflichtAction({
+      'action': 'aktivieren', 'id': id, if (!hatUnterschrift) 'ohne_signatur': true,
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(res['success'] == true ? 'Erklärung ist aktiv' : (res['message'] ?? 'Fehler').toString()),
+      backgroundColor: res['success'] == true ? Colors.green : Colors.red));
+    if (res['success'] == true) _laden();
+  }
+
+  Future<void> _widerrufen(int id) async {
+    final grundC = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Einwilligung widerrufen', style: TextStyle(fontSize: 15)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text(
+            'Die Erklärung wird als widerrufen vermerkt.\n\n'
+            'Damit der Widerruf auch gilt, muss er dem Jobcenter mitgeteilt werden — '
+            'ein Vermerk in dieser App erreicht die Behörde nicht.',
+            style: TextStyle(fontSize: 13)),
+          const SizedBox(height: 12),
+          TextField(controller: grundC, maxLines: 2,
+            decoration: const InputDecoration(labelText: 'Grund (optional)', border: OutlineInputBorder(), isDense: true)),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(ctx, true), child: const Text('Widerrufen')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final res = await widget.apiService.jcAvSchweigepflichtAction({
+      'action': 'revoke', 'id': id, 'reason': grundC.text.trim(),
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(res['success'] == true ? 'Widerrufen' : (res['message'] ?? 'Fehler').toString()),
+      backgroundColor: res['success'] == true ? Colors.orange : Colors.red));
+    if (res['success'] == true) _laden();
+  }
+
+  // ── Aufbau ──────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    if (_laedt) return const Center(child: CircularProgressIndicator());
+    if (_fehler != null) {
+      return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(
+        mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.cloud_off, size: 36, color: Colors.grey.shade500),
+          const SizedBox(height: 10),
+          Text(_fehler!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13)),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(onPressed: _laden, icon: const Icon(Icons.refresh, size: 16), label: const Text('Erneut versuchen')),
+        ])));
+    }
+    return Column(children: [
+      TabBar(
+        controller: _sub,
+        labelColor: _akzent,
+        indicatorColor: _akzent,
+        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+        tabs: const [
+          Tab(icon: Icon(Icons.add_circle_outline, size: 16), text: 'Erstellen'),
+          Tab(icon: Icon(Icons.history, size: 16), text: 'Historie'),
+          Tab(icon: Icon(Icons.verified_user_outlined, size: 16), text: 'Verwaltung'),
+        ],
+      ),
+      Expanded(child: TabBarView(controller: _sub, children: [
+        _erstellenTab(),
+        _historieTab(),
+        _verwaltungTab(),
+      ])),
+    ]);
+  }
+
+  Widget _hinweisKasten(String text, {Color? farbe, IconData icon = Icons.info_outline}) {
+    final c = farbe ?? _akzent;
+    return Container(
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.07),
+        border: Border.all(color: c.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(6)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 16, color: c), const SizedBox(width: 7),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 11.5, height: 1.35))),
+      ]),
+    );
+  }
+
+  Widget _abschnitt(IconData icon, String titel) => Padding(
+    padding: const EdgeInsets.only(top: 14, bottom: 4),
+    child: Row(children: [
+      Icon(icon, size: 16, color: _akzent), const SizedBox(width: 6),
+      Flexible(child: Text(titel, overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _akzent))),
+    ]),
+  );
+
+  Widget _haken(Map<String, bool> zustand, String schluessel, String beschriftung, {Color? aktiv}) =>
+      CheckboxListTile(
+        dense: true,
+        visualDensity: const VisualDensity(vertical: -3),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 2),
+        controlAffinity: ListTileControlAffinity.leading,
+        activeColor: aktiv ?? _akzent,
+        title: Text(beschriftung, style: const TextStyle(fontSize: 11.5, height: 1.25)),
+        value: zustand[schluessel] ?? false,
+        onChanged: (v) => setState(() => zustand[schluessel] = v ?? false),
+      );
+
+  Widget _erstellenTab() {
+    final avName = '${widget.userAv['vorname'] ?? ''} ${widget.userAv['nachname'] ?? ''}'.trim();
+    final anzahl = _umfang.entries.where((e) => e.value && !e.key.startsWith('richtung_')).length;
+    final gesAnzahl = _gesundheit.values.where((v) => v).length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Schweigepflichtentbindung', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _akzent)),
+        const Text('Einwilligung nach § 67b Abs. 2 SGB X i.V.m. § 35 Abs. 1 SGB I',
+          style: TextStyle(fontSize: 11, color: Colors.grey)),
+        const SizedBox(height: 10),
+
+        _hinweisKasten(
+          'Ein Sachbearbeiter im Jobcenter hat keine Schweigepflicht nach § 203 StGB, sondern '
+          'ist ans Sozialgeheimnis gebunden. Das Papier heißt trotzdem so, weil die Jobcenter '
+          'ihre eigenen Vordrucke so nennen — die Rechtsgrundlage darunter ist die richtige.'),
+        const SizedBox(height: 8),
+        _hinweisKasten(
+          'Das ist KEINE Vollmacht. Sie erlaubt, Auskünfte zu empfangen — nicht, Anträge zu '
+          'stellen oder Widerspruch einzulegen. Dafür gibt es den Reiter „Vollmacht".',
+          farbe: Colors.blueGrey, icon: Icons.call_split),
+
+        _abschnitt(Icons.person_outline, 'Betrifft'),
+        Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(avName.isEmpty ? '(kein Name)' : avName,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            Text('${widget.userAv['rolle'] ?? ''} · ${widget.userAv['jobcenter_name'] ?? '?'}',
+              style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            if (widget.kundennummer.isNotEmpty || widget.bgNummer.isNotEmpty)
+              Padding(padding: const EdgeInsets.only(top: 3), child: Text(
+                [
+                  if (widget.kundennummer.isNotEmpty) 'Kundennr. ${widget.kundennummer}',
+                  if (widget.bgNummer.isNotEmpty) 'BG ${widget.bgNummer}',
+                ].join(' · '),
+                style: const TextStyle(fontSize: 11, color: Colors.grey))),
+            if (widget.kundennummer.isEmpty)
+              Padding(padding: const EdgeInsets.only(top: 4), child: Text(
+                'Keine Kundennummer in den Stammdaten — das Jobcenter muss die Akte dann suchen.',
+                style: TextStyle(fontSize: 10.5, color: Colors.orange.shade900))),
+          ]),
+        ),
+
+        _abschnitt(Icons.swap_horiz, 'Richtung des Austauschs'),
+        _haken(_umfang, 'richtung_jc_verein', 'Das Jobcenter darf dem Verein Auskünfte erteilen'),
+        _haken(_umfang, 'richtung_verein_jc', 'Der Verein darf dem Jobcenter Angaben und Unterlagen übermitteln'),
+        _haken(_umfang, 'richtung_direkt', 'Direkter Austausch ohne Umweg über das Mitglied'),
+
+        for (final gruppe in _katalog.entries) ...[
+          _abschnitt(Icons.checklist, gruppe.key),
+          for (final punkt in gruppe.value.entries) _haken(_umfang, punkt.key, punkt.value),
+        ],
+
+        _abschnitt(Icons.health_and_safety_outlined, 'Gesundheitsbezogene Angaben'),
+        _hinweisKasten(
+          'Eigene Einwilligung nach Art. 9 Abs. 2 lit. a DSGVO. Alles hier ist standardmäßig '
+          'AUS und muss einzeln gewollt sein. Ärztliche Unterlagen selbst brauchen zusätzlich '
+          'eine Entbindung gegenüber der Praxis.',
+          farbe: Colors.red.shade700, icon: Icons.warning_amber_rounded),
+        for (final punkt in _gesundheitKatalog.entries)
+          _haken(_gesundheit, punkt.key, punkt.value, aktiv: Colors.red.shade700),
+
+        _abschnitt(Icons.event_outlined, 'Geltungsdauer'),
+        Row(children: [
+          Expanded(child: ListTile(
+            dense: true, contentPadding: EdgeInsets.zero,
+            title: const Text('Erteilt am', style: TextStyle(fontSize: 11, color: Colors.grey)),
+            subtitle: Text(DateFormat('dd.MM.yyyy').format(_erteiltAm),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            trailing: const Icon(Icons.calendar_today, size: 15),
+            onTap: () async {
+              final d = await showDatePicker(context: context, initialDate: _erteiltAm,
+                firstDate: DateTime(2020), lastDate: DateTime(2099));
+              if (d != null) setState(() => _erteiltAm = d);
+            },
+          )),
+          Expanded(child: ListTile(
+            dense: true, contentPadding: EdgeInsets.zero,
+            title: const Text('Gültig bis', style: TextStyle(fontSize: 11, color: Colors.grey)),
+            subtitle: Text(_gueltigBis != null ? DateFormat('dd.MM.yyyy').format(_gueltigBis!) : 'bis auf Widerruf',
+              style: const TextStyle(fontSize: 13)),
+            trailing: _gueltigBis != null
+                ? IconButton(icon: const Icon(Icons.clear, size: 15), onPressed: () => setState(() => _gueltigBis = null))
+                : const Icon(Icons.calendar_today, size: 15),
+            onTap: () async {
+              final d = await showDatePicker(context: context,
+                initialDate: _gueltigBis ?? _erteiltAm.add(const Duration(days: 365)),
+                firstDate: _erteiltAm, lastDate: DateTime(2099));
+              if (d != null) setState(() => _gueltigBis = d);
+            },
+          )),
+        ]),
+
+        const SizedBox(height: 6),
+        TextField(controller: _notizC, maxLines: 2, style: const TextStyle(fontSize: 12),
+          decoration: const InputDecoration(labelText: 'Anmerkungen (erscheinen im PDF)',
+            isDense: true, border: OutlineInputBorder())),
+
+        const SizedBox(height: 16),
+        Center(child: Column(children: [
+          Text('$anzahl Themen angekreuzt${gesAnzahl > 0 ? ' · $gesAnzahl gesundheitsbezogen' : ''}',
+            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          const SizedBox(height: 6),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: _akzent,
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12)),
+            icon: _erzeugt
+                ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.picture_as_pdf, size: 18),
+            label: Text(_erzeugt ? 'Erzeuge…' : 'PDF erzeugen'),
+            onPressed: (_erzeugt || anzahl == 0) ? null : _erzeugen),
+          if (anzahl == 0) const Padding(padding: EdgeInsets.only(top: 6),
+            child: Text('Ohne angekreuztes Thema wäre die Erklärung leer.',
+              style: TextStyle(fontSize: 11, color: Colors.grey))),
+        ])),
+      ]),
+    );
+  }
+
+  Widget _statusPlakette(String status) {
+    final (String text, Color farbe) = switch (status) {
+      'aktiv'   => ('AKTIV', Colors.green.shade700),
+      'draft'   => ('ENTWURF', Colors.blue.shade700),
+      'revoked' => ('WIDERRUFEN', Colors.red.shade700),
+      'expired' => ('ABGELAUFEN', Colors.grey.shade600),
+      _         => (status.toUpperCase(), Colors.grey),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(color: farbe.withValues(alpha: 0.12),
+        border: Border.all(color: farbe), borderRadius: BorderRadius.circular(9)),
+      child: Text(text, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: farbe)),
+    );
+  }
+
+  Widget _unterschriftPlakette(Map<String, dynamic> e) {
+    final v = _vorgangVon(e);
+    if (v == null) {
+      if (e['signatur_id'] != null) {
+        return const Text('Unterschrift angefordert', style: TextStyle(fontSize: 10.5, color: Colors.grey));
+      }
+      return const SizedBox.shrink();
+    }
+    final (String text, Color farbe, IconData icon) = switch (v.status) {
+      'signiert'   => ('unterschrieben', Colors.green.shade700, Icons.verified),
+      'abgelehnt'  => ('abgelehnt', Colors.red.shade600, Icons.cancel_outlined),
+      'widerrufen' => ('zurückgezogen', Colors.grey.shade600, Icons.undo),
+      'abgelaufen' => ('Frist abgelaufen', Colors.orange.shade700, Icons.timer_off_outlined),
+      _ => v.istUeberfaellig
+          ? ('Frist abgelaufen', Colors.orange.shade700, Icons.timer_off_outlined)
+          : ('wartet auf Unterschrift', Colors.indigo.shade600, Icons.hourglass_bottom),
+    };
+    final inhalt = Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 12, color: farbe), const SizedBox(width: 3),
+      Text(v.istSigniert && v.signedAtUtc != null
+          ? '$text ${DateFormat('dd.MM.yyyy').format(v.signedAtUtc!.toLocal())}'
+          : text,
+        style: TextStyle(fontSize: 10.5, color: farbe, fontWeight: FontWeight.w600,
+          decoration: v.istSigniert ? TextDecoration.underline : null, decorationColor: farbe)),
+      if (v.istSigniert) ...[const SizedBox(width: 3), Icon(Icons.open_in_new, size: 10, color: farbe)],
+    ]);
+    if (!v.istSigniert) return inhalt;
+    return InkWell(
+      onTap: () => _signiertesOeffnen(v),
+      borderRadius: BorderRadius.circular(4),
+      child: Tooltip(message: 'Unterschriebenes Dokument öffnen', child: inhalt));
+  }
+
+  Widget _historieTab() {
+    if (_eintraege.isEmpty) {
+      return const Center(child: Padding(padding: EdgeInsets.all(24),
+        child: Text('Für diesen Arbeitsvermittler wurde noch keine Erklärung erstellt.',
+          textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 13))));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(10),
+      itemCount: _eintraege.length,
+      itemBuilder: (_, i) {
+        final e = _eintraege[i];
+        final id = e['id'] as int;
+        final status = (e['status'] ?? '').toString();
+        final tLang = (e['translation_language'] ?? '').toString();
+        final hatUeb = tLang.isNotEmpty && (e['pdf_translation_filename'] ?? '').toString().isNotEmpty;
+        final name = (e['pdf_filename'] ?? 'schweigepflichtentbindung_$id.pdf').toString().replaceAll('.enc', '');
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: Padding(padding: const EdgeInsets.all(10), child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.privacy_tip_outlined, size: 18, color: _akzent),
+                const SizedBox(width: 6),
+                Expanded(child: Text('Erklärung Nr. $id', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                _statusPlakette(status),
+              ]),
+              const SizedBox(height: 3),
+              Text('Erteilt: ${e['erteilt_am'] ?? '?'} · Gültig bis: ${e['gueltig_bis'] ?? 'auf Widerruf'}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              if (status == 'revoked')
+                Text('Widerrufen: ${e['revoked_at'] ?? ''}${(e['revoked_reason'] ?? '').toString().isNotEmpty ? ' — ${e['revoked_reason']}' : ''}',
+                  style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
+              const SizedBox(height: 4),
+              _unterschriftPlakette(e),
+              const SizedBox(height: 6),
+              Wrap(spacing: 6, runSpacing: 4, children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.picture_as_pdf, size: 13),
+                  label: const Text('DE (maßgeblich)', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 28),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: () => _pdfOeffnen(id, name)),
+                if (hatUeb) OutlinedButton.icon(
+                  icon: const Icon(Icons.translate, size: 13),
+                  label: Text('Übersetzung ${tLang.toUpperCase()}', style: const TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 28),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: Colors.amber.shade900,
+                    side: BorderSide(color: Colors.amber.shade700)),
+                  onPressed: () => _pdfOeffnen(id, name.replaceAll('.pdf', '_$tLang.pdf'), typ: 'translation')),
+                if (status != 'revoked') OutlinedButton.icon(
+                  icon: const Icon(Icons.cancel_outlined, size: 13),
+                  label: const Text('Widerrufen', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 28),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: Colors.red.shade700, side: BorderSide(color: Colors.red.shade300)),
+                  onPressed: () => _widerrufen(id)),
+              ]),
+            ])),
+        );
+      },
+    );
+  }
+
+  Widget _verwaltungTab() {
+    if (_eintraege.isEmpty) {
+      return const Center(child: Padding(padding: EdgeInsets.all(24),
+        child: Text('Noch keine Erklärung. Bitte zuerst im Reiter „Erstellen" eine erzeugen.',
+          textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 13))));
+    }
+    final e = _eintraege.firstWhere((x) => x['id'] == _verwaltungId, orElse: () => _eintraege.first);
+    final id = e['id'] as int;
+    final status = (e['status'] ?? '').toString();
+    final v = _vorgangVon(e);
+    final laeuft = _arbeitet.contains(id);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        DropdownButtonFormField<int>(
+          isExpanded: true,
+          initialValue: id,
+          decoration: const InputDecoration(labelText: 'Erklärung', isDense: true, border: OutlineInputBorder()),
+          items: _eintraege.map((x) => DropdownMenuItem<int>(
+            value: x['id'] as int,
+            child: Text('Nr. ${x['id']} — ${x['erteilt_am']} — ${(x['status'] ?? '').toString().toUpperCase()}',
+              style: const TextStyle(fontSize: 12)))).toList(),
+          onChanged: (n) => setState(() => _verwaltungId = n),
+        ),
+        const SizedBox(height: 14),
+
+        _abschnitt(Icons.draw_outlined, 'Digitale Unterschrift'),
+        if (!_kannSignieren)
+          _hinweisKasten('Ohne Mitgliedsnummer des Absenders kann keine Unterschrift angefordert werden.',
+            farbe: Colors.orange.shade800, icon: Icons.warning_amber_rounded)
+        else ...[
+          _hinweisKasten(
+            'Das Mitglied bekommt eine TAN und unterschreibt in seiner App. Danach wird die '
+            'Fassung gesiegelt und mit einem Zeitstempel versehen — daran lässt sich später '
+            'nachrechnen, dass genau dieses Dokument vorlag.'),
+          const SizedBox(height: 8),
+          if (v == null && e['signatur_id'] == null)
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: _akzent),
+              icon: laeuft
+                  ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.send, size: 16),
+              label: Text(laeuft ? 'Wird gestellt…' : 'Zur Unterschrift stellen'),
+              onPressed: laeuft ? null : () => _zurUnterschrift(e))
+          else
+            Row(children: [
+              Expanded(child: _unterschriftPlakette(e)),
+              if (v != null && !v.istSigniert && v.istOffen)
+                TextButton.icon(
+                  icon: const Icon(Icons.refresh, size: 14),
+                  label: const Text('Stand prüfen', style: TextStyle(fontSize: 11)),
+                  onPressed: _vorgaengeLaden),
+            ]),
+        ],
+
+        _abschnitt(Icons.chat_outlined, 'Zum Lesen an das Mitglied'),
+        Builder(builder: (_) {
+          final lang = (e['translation_language'] ?? '').toString();
+          final hatUeb = lang.isNotEmpty && (e['pdf_translation_filename'] ?? '').toString().isNotEmpty;
+          final kannSenden = (widget.memberMnr ?? '').isNotEmpty && (widget.adminMnr ?? '').isNotEmpty;
+          if (!kannSenden) {
+            return _hinweisKasten('Ohne Mitgliedsnummer kann nichts in den Chat gelegt werden.',
+              farbe: Colors.orange.shade800, icon: Icons.warning_amber_rounded);
+          }
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            _hinweisKasten(hatUeb
+                ? 'Zum Lesen geht die Fassung in ${lang.toUpperCase()} in den Live-Chat. '
+                  'Unterschrieben wird davon nichts — dafür ist die deutsche Fassung da.'
+                : 'Für die Sprache des Mitglieds gibt es keine übersetzte Fassung. Es ginge '
+                  'die deutsche, mit einem Satz, der das sagt.',
+              farbe: hatUeb ? _akzent : Colors.orange.shade800,
+              icon: hatUeb ? Icons.translate : Icons.info_outline),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(foregroundColor: _akzent,
+                side: BorderSide(color: _akzent.withValues(alpha: 0.5)),
+                padding: const EdgeInsets.symmetric(vertical: 10)),
+              icon: laeuft
+                  ? SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: _akzent))
+                  : const Icon(Icons.send_outlined, size: 16),
+              label: Text(hatUeb
+                  ? 'In den Chat legen (${lang.toUpperCase()})'
+                  : 'In den Chat legen (deutsche Fassung)'),
+              onPressed: laeuft ? null : () => _anMitgliedSenden(e)),
+          ]);
+        }),
+
+        _abschnitt(Icons.play_circle_outline, 'Status'),
+        Row(children: [
+          _statusPlakette(status),
+          const SizedBox(width: 10),
+          if (status == 'draft')
+            Expanded(child: FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700,
+                padding: const EdgeInsets.symmetric(vertical: 10)),
+              icon: const Icon(Icons.check_circle_outline, size: 16),
+              label: const Text('Als aktiv setzen', style: TextStyle(fontSize: 12)),
+              onPressed: () => _aktivieren(e))),
+        ]),
+        if (status == 'draft') Padding(padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            'Ein Entwurf ist noch keine Einwilligung. Aktiv wird die Erklärung erst, wenn sie '
+            'unterschrieben und beim Jobcenter eingereicht ist.',
+            style: TextStyle(fontSize: 10.5, color: Colors.grey.shade700))),
+
+        _abschnitt(Icons.send_outlined, 'Einreichung beim Jobcenter'),
+        _EinreichungBlock(
+          eintrag: e,
+          akzent: _akzent,
+          onSpeichern: (felder) async {
+            final res = await widget.apiService.jcAvSchweigepflichtAction({
+              'action': 'submit', 'id': id, ...felder,
+            });
+            if (!mounted) return false;
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(res['success'] == true ? 'Gespeichert' : (res['message'] ?? 'Fehler').toString()),
+              backgroundColor: res['success'] == true ? Colors.green : Colors.red));
+            if (res['success'] == true) await _laden();
+            return res['success'] == true;
+          },
+        ),
+      ]),
+    );
+  }
+}
+
+/// Wann und wie die Erklärung beim Jobcenter gelandet ist.
+///
+/// Eigenes Widget, weil die Felder einen eigenen Bearbeitungszustand haben:
+/// wird die Liste neu geladen, während jemand tippt, dürfen die Eingaben
+/// nicht zurückspringen.
+class _EinreichungBlock extends StatefulWidget {
+  final Map<String, dynamic> eintrag;
+  final Color akzent;
+  final Future<bool> Function(Map<String, dynamic>) onSpeichern;
+  const _EinreichungBlock({required this.eintrag, required this.akzent, required this.onSpeichern});
+  @override
+  State<_EinreichungBlock> createState() => _EinreichungBlockState();
+}
+
+class _EinreichungBlockState extends State<_EinreichungBlock> {
+  static const _wege = {
+    'persoenlich': 'Persönlich abgegeben',
+    'post': 'Per Post',
+    'fax': 'Per Fax',
+    'online': 'Über jobcenter.digital',
+    'email': 'Per E-Mail',
+  };
+
+  int? _fuerId;
+  DateTime? _datum;
+  String? _weg;
+  final _zeichenC = TextEditingController();
+  final _notizC = TextEditingController();
+  bool _speichert = false;
+
+  @override
+  void dispose() { _zeichenC.dispose(); _notizC.dispose(); super.dispose(); }
+
+  void _uebernehmen() {
+    final e = widget.eintrag;
+    _fuerId = e['id'] as int?;
+    final d = (e['submitted_at'] ?? '').toString();
+    _datum = d.isEmpty ? null : DateTime.tryParse(d);
+    _weg = _wege.containsKey(e['submitted_method']) ? e['submitted_method'] as String? : null;
+    _zeichenC.text = (e['submitted_reference'] ?? '').toString();
+    _notizC.text = (e['submitted_notes'] ?? '').toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Nur beim Wechsel auf einen anderen Eintrag übernehmen — sonst
+    // überschriebe jeder Neuaufbau das, was gerade getippt wird.
+    if (_fuerId != widget.eintrag['id']) _uebernehmen();
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ListTile(
+        dense: true, contentPadding: EdgeInsets.zero,
+        title: const Text('Eingereicht am', style: TextStyle(fontSize: 11, color: Colors.grey)),
+        subtitle: Text(_datum != null ? DateFormat('dd.MM.yyyy').format(_datum!) : '— noch nicht eingereicht —',
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (_datum != null) IconButton(icon: const Icon(Icons.clear, size: 16),
+            onPressed: () => setState(() => _datum = null)),
+          IconButton(icon: const Icon(Icons.calendar_today, size: 16), onPressed: () async {
+            final d = await showDatePicker(context: context, initialDate: _datum ?? DateTime.now(),
+              firstDate: DateTime(2020), lastDate: DateTime(2099));
+            if (d != null) setState(() => _datum = d);
+          }),
+        ]),
+      ),
+      DropdownButtonFormField<String>(
+        isExpanded: true,
+        initialValue: _weg,
+        decoration: const InputDecoration(labelText: 'Weg', isDense: true, border: OutlineInputBorder()),
+        items: _wege.entries.map((w) => DropdownMenuItem(value: w.key,
+          child: Text(w.value, style: const TextStyle(fontSize: 12)))).toList(),
+        onChanged: (w) => setState(() => _weg = w),
+      ),
+      const SizedBox(height: 8),
+      TextField(controller: _zeichenC, style: const TextStyle(fontSize: 12),
+        decoration: const InputDecoration(labelText: 'Aktenzeichen / Sendungsnummer',
+          isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 8),
+      TextField(controller: _notizC, maxLines: 2, style: const TextStyle(fontSize: 12),
+        decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      FilledButton.icon(
+        style: FilledButton.styleFrom(backgroundColor: widget.akzent),
+        icon: _speichert
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Icon(Icons.save_outlined, size: 16),
+        label: Text(_speichert ? 'Speichere…' : 'Einreichung speichern'),
+        onPressed: _speichert ? null : () async {
+          setState(() => _speichert = true);
+          await widget.onSpeichern({
+            'submitted_at': _datum?.toIso8601String().substring(0, 10) ?? '',
+            'method': _weg ?? '',
+            'reference': _zeichenC.text.trim(),
+            'notes': _notizC.text.trim(),
+          });
+          if (mounted) setState(() => _speichert = false);
+        }),
+    ]);
   }
 }
 
@@ -9742,6 +10821,16 @@ String jcFassungsName(String titel, String zusatz) {
 }
 
 const String kJcSignaturQuelle = 'korrespondenz_attachments';
+
+/// Herkunft einer Unterschrift, die aus dem Reiter „Schweigepflicht" eines
+/// Arbeitsvermittlers gestellt wurde.
+///
+/// Eigener Wert, nicht [kJcSignaturQuelle]: dort sind die IDs die von
+/// `korrespondenz_attachments`, hier die von `jc_av_schweigepflicht`. Beide
+/// Zähler beginnen bei 1, also träfe derselbe Quellenname irgendwann auf
+/// dieselbe Nummer — und der Reiter zeigte den Stand eines fremden Dokuments.
+const String kJcAvSchweigepflichtQuelle = 'jc_av_schweigepflicht';
+
 const String kJcSignaturTypWba = 'jobcenter_wba';
 const String kJcSignaturTypVm = 'jobcenter_anlage_vm';
 

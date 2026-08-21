@@ -2549,6 +2549,54 @@ class ApiService {
     }
   }
 
+  /// Wie [uploadChatAttachments], nur mit der Datei direkt aus dem Speicher.
+  ///
+  /// Gebraucht für Dokumente, die der Server erzeugt und dort verschlüsselt
+  /// ablegt — sie kommen entschlüsselt im RAM an. Sie erst über eine
+  /// temporäre Datei zu schicken hiesse, den Klartext auf die Platte zu
+  /// legen; bei einer Schweigepflichtentbindung steht darin, wer wem was
+  /// über einen Menschen erzählen darf.
+  ///
+  /// ⚠️ `chat/upload.php` kennt kein `skip_translation`. Die Bildunterschrift
+  /// läuft also durch NLLB, sobald das Mitglied sie liest. Das ist hier
+  /// gewollt — so kommt der Begleitsatz auch in Sprachen an, für die es kein
+  /// übersetztes PDF gibt. Sie darf deshalb keine Zahlen, Daten oder
+  /// Aktenzeichen enthalten: genau die halluziniert NLLB.
+  Future<Map<String, dynamic>> uploadChatAttachmentBytes({
+    required int conversationId,
+    required String mitgliedernummer,
+    required List<int> bytes,
+    required String filename,
+    String? message,
+  }) async {
+    try {
+      final deviceKey = _deviceKeyService.deviceKey;
+      if (deviceKey == null) {
+        return {'success': false, 'message': 'Device not registered'};
+      }
+      final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/chat/upload.php'));
+      request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
+      request.headers['X-Device-Key'] = deviceKey;
+      request.fields['conversation_id'] = conversationId.toString();
+      request.fields['mitgliedernummer'] = mitgliedernummer;
+      if (message != null && message.isNotEmpty) {
+        request.fields['message'] = message;
+      }
+      // Feldname MUSS `files[]` heißen — der Server liest nichts anderes.
+      request.files.add(http.MultipartFile.fromBytes('files[]', bytes, filename: filename));
+
+      final streamed = await _client.send(request).timeout(const Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamed);
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Upload failed: $e'};
+    }
+  }
+
   // Download chat attachment
   /// Download arbitrary bytes from one of our own endpoints (e.g. chat/stream.php).
   /// Sends the device-key headers so the server can authenticate the request.
@@ -13192,6 +13240,42 @@ class ApiService {
       body: jsonEncode(body),
     ).timeout(const Duration(seconds: 20));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  // === SCHWEIGEPFLICHTENTBINDUNG für einen Arbeitsvermittler ===
+  //
+  // Eigene Endpunkte, kein `arzt_typ` auf schweigepflicht_create.php: dort
+  // steht § 203 StGB im PDF, und der gilt für einen Sachbearbeiter nicht.
+  // Er ist ans Sozialgeheimnis (§ 35 Abs. 1 SGB I) gebunden, das Instrument
+  // ist die Einwilligung nach § 67b Abs. 2 SGB X.
+
+  /// Erzeugt die Erklärung als PDF (DE, plus Übersetzung wenn das Mitglied
+  /// eine andere Sprache gesetzt hat). Antwort enthält `id`.
+  Future<Map<String, dynamic>> createJcAvSchweigepflicht(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/jc_av_schweigepflicht_create.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 45));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// action: katalog | list | get | aktivieren | revoke | signatur_merken
+  ///       | submit | delete_draft
+  Future<Map<String, dynamic>> jcAvSchweigepflichtAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/jc_av_schweigepflicht_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// type: 'pdf' (maßgeblich) | 'translation' (nachrichtlich)
+  Future<http.Response> downloadJcAvSchweigepflichtPdf(int id, {String type = 'pdf'}) async {
+    return await _client
+        .get(Uri.parse('$baseUrl/admin/jc_av_schweigepflicht_pdf.php?id=$id&type=$type'), headers: _headers)
+        .timeout(const Duration(seconds: 30));
   }
 
   // Termin-Chronik, Beistand und die vier Schreiben ans Jobcenter.
