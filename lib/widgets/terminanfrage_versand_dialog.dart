@@ -199,6 +199,19 @@ Future<void> terminanfrageAblegen({
   // Der versandte Text landet als ausgehende Korrespondenz am Termin — dort
   // sucht ihn jeder, der später fragt „was haben wir denen eigentlich
   // geschrieben?".
+  //
+  // 🔴 DIESER AUFRUF ERSETZT DIE GANZE LISTE, er hängt nicht an.
+  // Serverseitig macht `aa_replaceKorr()` erst `DELETE FROM …_termin_korr
+  // WHERE termin_id = ?` und schreibt dann die übergebene Liste; die
+  // gemeinsame Fassung überschreibt `korrespondenz` im Blob genauso. Hier ist
+  // das harmlos, weil [terminId] Sekunden vorher aus `action: add` kam und der
+  // Termin folglich noch keine Korrespondenz hat.
+  //
+  // ⚠️ Wer diese Funktion je auf einen BESTEHENDEN Termin richtet — etwa um
+  // eine zweite Anfrage anzuhängen —, löscht damit alles, was vorher am Termin
+  // stand. Dann muss die vorhandene Liste erst gelesen und mitgeschickt
+  // werden. Der Aufruf sieht harmlos aus; er ist es nur, solange der Termin
+  // neu ist.
   if (terminId != null) {
     try {
       await speichern({
