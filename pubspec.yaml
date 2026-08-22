@@ -110,8 +110,6 @@ dependencies:
   # UUID generation for device ID
   uuid: ^4.5.3
 
-  # AES-256 encryption for routine data (client-side encryption)
-  encrypt: ^5.0.3
 
   # AES-256-GCM (pure Dart, no native plugin — works in Flatpak sandbox).
   # Used by StartupDiagnostics to encrypt the startup transcript before

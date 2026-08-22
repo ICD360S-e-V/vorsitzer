@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
-import 'package:encrypt/encrypt.dart' as enc;
 import 'api_service.dart';
 import 'device_key_service.dart';
 import 'http_client_factory.dart';
@@ -9,31 +8,26 @@ import 'logger_service.dart';
 
 final _log = LoggerService();
 
-class _AtRoutineCrypto {
-  static const _keyHex = String.fromEnvironment('ROUTINE_AES_KEY_V2');
-  static final enc.Encrypter? _enc = _keyHex.isEmpty
-      ? null
-      : enc.Encrypter(enc.AES(enc.Key.fromBase16(_keyHex),
-          mode: enc.AESMode.cbc, padding: 'PKCS7'));
-  static const String _v2Prefix = 'v2:';
-
-  static String decrypt(String ciphertext) {
-    if (_enc == null || !ciphertext.startsWith(_v2Prefix)) return ciphertext;
-    try {
-      final combined = base64Decode(ciphertext.substring(_v2Prefix.length));
-      if (combined.length < 17) return ciphertext;
-      final iv = enc.IV(combined.sublist(0, 16));
-      return _enc!.decrypt(enc.Encrypted(combined.sublist(16)), iv: iv);
-    } catch (_) {
-      return ciphertext;
-    }
-  }
-
-  static String? decryptNullable(String? v) {
-    if (v == null || v.isEmpty) return v;
-    return decrypt(v);
-  }
-}
+// ─── Verschlüsselung: jetzt serverseitig ──────────────────────────────
+// Hier stand bis 22.08.2026 eine Client-Verschlüsselung mit einem
+// AES-256-Schlüssel, der per --dart-define fest in die App kompiliert wurde.
+// Der Kommentar versprach "Server stores only ciphertext" — der Server sollte
+// die Titel also nicht lesen können.
+//
+// Die Zusage hat nie gehalten: der Schlüssel steckte in JEDEM Exemplar der
+// App, und die App wird öffentlich über unser F-Droid-Repo ausgeliefert.
+// Nachgewiesen: APK herunterladen, `strings` über libapp.so, 24 Kandidaten —
+// einer entschlüsselte 30 von 31 echten Werten aus der Produktionsdatenbank.
+// Wer je einen Datenbankabzug hatte (2026-07-25 lagen SQL-Dumps öffentlich
+// abrufbar), konnte alles mitlesen. OWASP MASTG beschreibt genau das.
+//
+// Verschlüsselt wird jetzt auf dem Server mit AES-256-GCM (CryptoHelper),
+// wie bei den übrigen Tabellen auch. Der Schlüssel liegt in der
+// PHP-FPM-Pool-Umgebung und damit NICHT im Datenbankabzug.
+//
+// ⚠️ Klartext geht hier hinaus und kommt hier herein. Wer je wieder
+// clientseitig verschlüsseln will, braucht dafür einen Schlüssel, den der
+// Server nicht kennt — ein einkompilierter ist keiner.
 
 // ─── Granularity ──────────────────────────────────────────────────────
 
@@ -256,7 +250,7 @@ class ArbeitstagMember {
         terminState: j['termin_state'] ?? 'offen',
         routineDoneAt: _dt(j['routine_done_at']),
         routineExecutionId: _intN(j['routine_execution_id']),
-        routineTitle: _AtRoutineCrypto.decryptNullable(j['routine_title']?.toString()),
+        routineTitle: j['routine_title']?.toString(),
         routineScheduledDate: _dt(j['routine_scheduled_date']),
         routineState: j['routine_state'] ?? 'offen',
         notfallDoneAt: _dt(j['notfall_done_at']),
@@ -317,9 +311,9 @@ class ArbeitstagPickerItem {
     final rawTitle = j['title']?.toString() ?? '';
     return ArbeitstagPickerItem(
       id: _int(j['id']),
-      title: decryptTitle ? _AtRoutineCrypto.decrypt(rawTitle) : rawTitle,
+      title: decryptTitle ? rawTitle : rawTitle,
       subtitle: j['subtitle']?.toString(),
-      meta: decryptTitle ? _AtRoutineCrypto.decryptNullable(j['meta']?.toString()) : j['meta']?.toString(),
+      meta: decryptTitle ? j['meta']?.toString() : j['meta']?.toString(),
     );
   }
 }
@@ -467,7 +461,7 @@ class ArbeitstagHistoryEntry {
         terminDate: _dt(j['termin_date']),
         routineState: j['routine_state'] ?? 'offen',
         routineExecutionId: _intN(j['routine_execution_id']),
-        routineTitle: _AtRoutineCrypto.decryptNullable(j['routine_title']?.toString()),
+        routineTitle: j['routine_title']?.toString(),
         notfallState: j['notfall_state'] ?? 'offen',
         notfallTerminId: _intN(j['notfall_termin_id']),
         notfallTerminTitle: j['notfall_termin_title'],
