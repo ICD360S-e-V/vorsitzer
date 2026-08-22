@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -11,6 +10,7 @@ import 'cloud_file_picker.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Wie viele Dateien noch angenommen werden dürfen.
 ///
@@ -584,11 +584,15 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
                 final resp = await _apiDownload(a['id'] as int);
                 if (resp.statusCode == 200 && mounted) {
                   final dir = await getTemporaryDirectory();
-                  final file = File('${dir.path}/${a['datei_name']}');
+                  final file = sichereDatei(dir, a['datei_name']);
                   await file.writeAsBytes(resp.bodyBytes);
                   if (context.mounted) await FileViewerDialog.show(context, file.path, a['datei_name']?.toString() ?? '');
                 }
-              } catch (_) {}
+              } catch (e) {
+                // `context.mounted`, nicht `mounted`: hier gilt der Builder-Context,
+                // wie zwei Zeilen darüber beim Betrachter auch.
+                if (context.mounted) dateiFehlerMelden(context, e);
+              }
             }, child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.visibility, size: 14, color: F.h(Colors.indigo, 600)))),
             // Herunterladen heißt behalten. Vorher landete die Datei im
             // Temp-Verzeichnis und wurde nur an eine fremde App gereicht —

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
@@ -12,6 +11,7 @@ import 'mitgliederverwaltung_vertrage_versicherung.dart';
 import 'mitgliederverwaltung_vertrag_rechtsanwalt.dart';
 import 'feld_reihe.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 class VertraegeContent extends StatefulWidget {
   final ApiService apiService;
@@ -1277,7 +1277,7 @@ class _DokTabState extends State<VertragDokTab> {
       final resp = await widget.apiService.downloadVertragDokument(d['id'] as int);
       if (resp.statusCode == 200 && mounted) {
         final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/${d['datei_name'] ?? 'dokument.pdf'}');
+        final file = sichereDatei(dir, d['datei_name'] ?? 'dokument.pdf');
         await file.writeAsBytes(resp.bodyBytes);
         if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? '');
       }

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'cloud_file_picker.dart';
@@ -18,6 +17,7 @@ import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/zbfs_kontaktformular.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Antragsarten des Versorgungsamts (Schwerbehindertenrecht SGB IX +
 /// soziales Entschädigungsrecht SGB XIV). (key, langes Label, kurzes Label)
@@ -2543,7 +2543,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         Icon(Icons.attach_file, size: 18, color: F.h(Colors.green, 700)), const SizedBox(width: 8),
         Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800)))),
         IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.indigo, 600)), onPressed: () async {
-          try { final resp = await widget.apiService.downloadVaAntragDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); }} catch (_) {}
+          try { final resp = await widget.apiService.downloadVaAntragDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = sichereDatei(dir, d['datei_name']); await file.writeAsBytes(resp.bodyBytes); if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); }} catch (e) { if (mounted) dateiFehlerMelden(context, e); }
         }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
         IconButton(icon: Icon(Icons.download, size: 18, color: F.h(Colors.green, 700)), onPressed: () async {
           try {

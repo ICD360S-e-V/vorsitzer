@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,6 +29,7 @@ import '../widgets/mail_quota_bar.dart';
 import 'mail_compose_screen.dart';
 import 'mail_signature_screen.dart';
 import 'mail_wiedervorlage_screen.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Öffnet die Verfassen-Ansicht — vorbelegt für Antwort/Weiterleitung.
 typedef MailComposeCallback = Future<void> Function({
@@ -2538,7 +2538,7 @@ class _MailMessageViewState extends State<MailMessageView> {
 
       // Nur für Formate ohne eingebauten Betrachter — etwa Word oder Excel.
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/${_safeName(name)}');
+      final file = sichereDatei(dir, _safeName(name));
       await file.writeAsBytes(Uint8List.fromList(bytes));
       final opened = await OpenFilex.open(file.path);
       if (opened.type != ResultType.done) {

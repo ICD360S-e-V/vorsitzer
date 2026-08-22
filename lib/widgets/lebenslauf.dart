@@ -1,10 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// ATS-optimized Lebenslauf (CV) generator
 /// Simple layout, standard fonts, no icons/images, standard section headings
@@ -42,7 +42,7 @@ class LebenslaufGenerator {
       final dir = await getTemporaryDirectory();
       // Server liefert 'Lebenslauf_Vorname_Nachname.pdf' via Content-Disposition.
       final fileName = res.filename;
-      final file = File('${dir.path}/$fileName');
+      final file = sichereDatei(dir, fileName);
       await file.writeAsBytes(res.bytes);
 
       if (!context.mounted) return;

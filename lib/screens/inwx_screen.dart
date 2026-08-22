@@ -12,6 +12,7 @@ import '../widgets/eastern.dart';
 import '../widgets/korrespondenz_message_dialog.dart';
 import '../widgets/phone_link.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Der Leistungskatalog von inwx.de, so wie er dort heißt.
 /// Der Schlüssel muss mit INWX_KATEGORIEN in api/vereinverwaltung/inwx_lib.php
@@ -1384,7 +1385,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
       if (r['success'] == true) {
         final bytes = base64Decode(r['pdf_base64'].toString());
         final dir = await getTemporaryDirectory();
-        final datei = File('${dir.path}/INWX-Zahlungsbeleg-$id.pdf');
+        final datei = sichereDatei(dir, 'INWX-Zahlungsbeleg-$id.pdf');
         await datei.writeAsBytes(bytes);
         final auf = await OpenFilex.open(datei.path);
         if (auf.type != ResultType.done) widget.melde('Gespeichert unter ${datei.path}');
@@ -2978,7 +2979,7 @@ class _RechnungenTabState extends State<_RechnungenTab> with AutomaticKeepAliveC
       if (r['success'] == true) {
         final bytes = base64Decode(r['pdf_base64'].toString());
         final dir = await getTemporaryDirectory();
-        final datei = File('${dir.path}/$dateiname');
+        final datei = sichereDatei(dir, dateiname);
         await datei.writeAsBytes(bytes);
         final auf = await OpenFilex.open(datei.path);
         if (auf.type != ResultType.done) widget.melde('Gespeichert unter ${datei.path}');
@@ -4645,7 +4646,7 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab>
     }
     try {
       final dir = await getTemporaryDirectory();
-      final datei = File('${dir.path}/${(f['original_name'] ?? 'datei').toString().replaceAll(RegExp(r'[^\w.\-]'), '_')}');
+      final datei = sichereDatei(dir, (f['original_name'] ?? 'datei').toString().replaceAll(RegExp(r'[^\w.\-]'), '_'));
       await datei.writeAsBytes(r.bodyBytes);
       final auf = await OpenFilex.open(datei.path);
       if (auf.type != ResultType.done) widget.melde('Gespeichert unter ${datei.path}');

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -8,6 +7,7 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Vorsitzer-only Kundenkarten / Treuekarten pro Mitglied ("Karten").
 ///
@@ -1221,7 +1221,7 @@ class _KartenDocsSectionState extends State<_KartenDocsSection> {
       final dir = await getTemporaryDirectory();
       final raw = (d['filename']?.toString() ?? 'karte_${d['id']}');
       final safeName = raw.replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
-      final f = File('${dir.path}/$safeName');
+      final f = sichereDatei(dir, safeName);
       await f.writeAsBytes(resp.bodyBytes);
       if (externalApp) {
         await OpenFilex.open(f.path);

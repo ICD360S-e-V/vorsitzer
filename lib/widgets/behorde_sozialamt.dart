@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
@@ -12,6 +11,7 @@ import 'cloud_file_picker.dart';
 import '../utils/cloud_picker_helper.dart';
 import 'feld_reihe.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 class BehordeSozialamtContent extends StatefulWidget {
   final ApiService? apiService;
@@ -588,11 +588,13 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
                         final resp = await widget.apiService.downloadAntragDoc(d['id'] as int);
                         if (resp.statusCode == 200 && mounted) {
                           final dir = await getTemporaryDirectory();
-                          final file = File('${dir.path}/${d['datei_name']}');
+                          final file = sichereDatei(dir, d['datei_name']);
                           await file.writeAsBytes(resp.bodyBytes);
                           if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? '');
                         }
-                      } catch (_) {}
+                      } catch (e) {
+                        if (mounted) dateiFehlerMelden(context, e);
+                      }
                     }, child: Icon(Icons.visibility, size: 14, color: F.h(Colors.indigo, 600))),
                     const SizedBox(width: 8),
                     InkWell(onTap: () async {
@@ -1098,11 +1100,13 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
                       final resp = await widget.apiService.downloadBewilligungDoc(d['id'] as int);
                       if (resp.statusCode == 200 && mounted) {
                         final dir = await getTemporaryDirectory();
-                        final file = File('${dir.path}/${d['datei_name']}');
+                        final file = sichereDatei(dir, d['datei_name']);
                         await file.writeAsBytes(resp.bodyBytes);
                         if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? '');
                       }
-                    } catch (_) {}
+                    } catch (e) {
+                      if (mounted) dateiFehlerMelden(context, e);
+                    }
                   }),
                   IconButton(icon: Icon(Icons.download, size: 18, color: F.h(Colors.green, 700)), tooltip: 'Herunterladen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
                     try {

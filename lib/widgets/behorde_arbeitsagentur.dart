@@ -17,6 +17,7 @@ import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 class BehordeArbeitsagenturContent extends StatefulWidget {
   final ApiService apiService;
@@ -5144,7 +5145,7 @@ class _AaAntragDocsSectionState extends State<_AaAntragDocsSection> {
     if (resp.statusCode != 200) return null;
     final dir = await getTemporaryDirectory();
     final name = (d['datei_name'] ?? 'dokument').toString();
-    final file = File('${dir.path}/$name');
+    final file = sichereDatei(dir, name);
     await file.writeAsBytes(resp.bodyBytes);
     return file;
   }

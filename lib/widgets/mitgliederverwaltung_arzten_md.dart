@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:io';
 import 'package:flutter/services.dart';
 import '../utils/clipboard_helper.dart';
 import '../utils/file_picker_helper.dart';
@@ -41,6 +40,7 @@ import '../widgets/responsive_layout.dart';
 import 'faltbare_kopfleiste.dart';
 import 'feld_reihe.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Medizinischer Dienst (MD, ehemals MDK) — eigenständiger Sub-Tab unter
 /// Ärzte, geklont vom Krankenhaus-Screen (eigene md_* Tabellen, relational,
@@ -9589,7 +9589,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
     final pdfBytes = await pdf.save();
     final tempDir = await getTemporaryDirectory();
     final fileName = 'Medikamentenplan_${userName.replaceAll(' ', '_')}_${arztTitle.replaceAll(' ', '_')}_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf';
-    await File('${tempDir.path}/$fileName').writeAsBytes(pdfBytes);
+    await sichereDatei(tempDir, fileName).writeAsBytes(pdfBytes);
 
     if (!mounted) return;
 

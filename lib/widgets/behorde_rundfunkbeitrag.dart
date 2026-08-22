@@ -14,6 +14,7 @@ import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 class BehordeRundfunkbeitragContent extends StatefulWidget {
   final ApiService? apiService;
@@ -1244,11 +1245,13 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
                       final resp = await widget.apiService.downloadRfbAntragDoc(d['id'] as int);
                       if (resp.statusCode == 200 && mounted) {
                         final dir = await getTemporaryDirectory();
-                        final file = File('${dir.path}/${d['datei_name']}');
+                        final file = sichereDatei(dir, d['datei_name']);
                         await file.writeAsBytes(resp.bodyBytes);
                         if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? '');
                       }
-                    } catch (_) {}
+                    } catch (e) {
+                      if (mounted) dateiFehlerMelden(context, e);
+                    }
                   }),
                   IconButton(icon: Icon(Icons.download, size: 18, color: F.h(Colors.green, 700)), tooltip: 'Herunterladen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
                     try {
@@ -1607,13 +1610,15 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
                       final resp = await widget.apiService.downloadRfbAntragDoc(d['id'] as int);
                       if (resp.statusCode == 200 && mounted) {
                         final dir = await getTemporaryDirectory();
-                        final file = File('${dir.path}/${d['datei_name']}');
+                        final file = sichereDatei(dir, d['datei_name']);
                         await file.writeAsBytes(resp.bodyBytes);
                         if (mounted) {
                           await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? '');
                         }
                       }
-                    } catch (_) {}
+                    } catch (e) {
+                      if (mounted) dateiFehlerMelden(context, e);
+                    }
                   },
                 ),
                 IconButton(

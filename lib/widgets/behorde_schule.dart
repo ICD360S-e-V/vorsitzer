@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
@@ -9,6 +8,7 @@ import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 class BehordeSchuleContent extends StatefulWidget {
   final ApiService apiService;
@@ -214,7 +214,7 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
                           final response = await widget.apiService.downloadSchulbildungDokument(docId);
                           if (response.statusCode == 200 && ctx.mounted) {
                             final dir = await getTemporaryDirectory();
-                            final f = File('${dir.path}/${doc['datei_name'] ?? 'dokument'}');
+                            final f = sichereDatei(dir, doc['datei_name'] ?? 'dokument');
                             await f.writeAsBytes(response.bodyBytes);
                             if (ctx.mounted) { final handled = await FileViewerDialog.show(ctx, f.path, doc['datei_name'] ?? ''); if (!handled && ctx.mounted) await OpenFilex.open(f.path); }
                           }

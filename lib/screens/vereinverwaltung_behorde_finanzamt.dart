@@ -13,6 +13,7 @@ import '../widgets/korrespondenz_message_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/phone_link.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 // ─── Korrespondenz vocabulary ───────────────────────────────────────────────
 
@@ -1868,7 +1869,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
       // The keystore has to exist as a file for the browser to pick it up.
       // Written 0600 into the temp dir and removed again below.
       final dir = await getTemporaryDirectory();
-      tmp = File('${dir.path}/elster_${DateTime.now().millisecondsSinceEpoch}.pfx');
+      tmp = sichereDatei(dir, 'elster_${DateTime.now().millisecondsSinceEpoch}.pfx');
       await tmp.writeAsBytes(base64Decode(b64));
 
       if (Platform.isLinux) {

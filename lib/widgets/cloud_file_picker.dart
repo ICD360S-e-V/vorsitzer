@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
@@ -7,6 +6,7 @@ import '../services/global_chat_service.dart';
 import '../services/secure_cloud_service.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Endung eines Dateinamens — klein geschrieben, ohne Punkt; leer, wenn keine da ist.
 String cloudDateiEndung(String name) {
@@ -264,7 +264,7 @@ class _CloudFilePickerDialogState extends State<_CloudFilePickerDialog> {
     if (r['success'] == true && r['content'] != null) {
       final bytes = base64Decode(r['content']);
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$name');
+      final file = sichereDatei(dir, name);
       await file.writeAsBytes(bytes);
       if (mounted) await FileViewerDialog.show(context, file.path, name);
     } else {

@@ -7,6 +7,7 @@ import 'package:android_package_installer/android_package_installer.dart';
 import 'http_client_factory.dart';
 import 'platform_service.dart';
 import 'logger_service.dart';
+import '../utils/sicherer_dateiname.dart';
 
 final _log = LoggerService();
 
@@ -363,7 +364,7 @@ Stop-Transcript | Out-Null
       //    We write the plist to a temp file and parse with python3 since
       //    Process.run doesn't support piping stdin easily in Dart.
       final tempDir = await getTemporaryDirectory();
-      final plistFile = File('${tempDir.path}/hdiutil_output.plist');
+      final plistFile = sichereDatei(tempDir, 'hdiutil_output.plist');
       await plistFile.writeAsString(mountResult.stdout as String);
 
       final parseResult = await Process.run('python3', [
