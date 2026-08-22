@@ -1003,6 +1003,13 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
         antragDatum: antrag['datum']?.toString() ?? '',
         wertmarkeBis: _wertmarken.isNotEmpty ? _wertmarken.first.bisLabel : '',
         ausweisGueltigBis: _ausweisUnbefristet ? '' : _ausweisGueltigBisC.text,
+        // Unterschrieben wird mit dem Namen des Mitglieds: die Sache ist seine,
+        // und die Personendaten im Formular sind ebenfalls seine.
+        unterzeichner: [u.vorname ?? '', u.nachname ?? '']
+            .where((t) => t.trim().isNotEmpty)
+            .join(' ')
+            .trim(),
+        vereinName: verein['vereinsname']?.toString() ?? '',
       ),
     );
 
