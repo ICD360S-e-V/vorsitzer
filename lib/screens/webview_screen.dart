@@ -365,6 +365,20 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final versicherung = d['versicherung'] ?? 'gesetzlich';
     final versNr = (d['versichertennummer'] ?? '').toString().replaceAll("'", "\\'");
     final geburtsname = (d['geburtsname'] ?? '').toString().replaceAll("'", "\\'");
+    // Kündigungsformulare (o2 & Co.) verlangen Angaben, die ein Praxisportal
+    // nicht kennt. Fehlen sie in der Karte, bleiben sie leer und `setVal`
+    // überspringt das Feld — die Ärzte-Strecke merkt davon nichts.
+    final kundennummer = (d['kundennummer'] ?? '').toString().replaceAll("'", "\\'");
+    final hausnummer = (d['hausnummer'] ?? '').toString().replaceAll("'", "\\'");
+    final rufnummer = (d['rufnummer'] ?? '').toString().replaceAll("'", "\\'");
+    final land = (d['land'] ?? '').toString().replaceAll("'", "\\'");
+    // ⚠️ Praxisportale verlangen ein Häkchen unter der Datenschutzerklärung,
+    // bevor sich ein Termin buchen lässt — dafür gibt es unten den Block
+    // „Einwilligungen ankreuzen". Auf einem Kündigungsformular steht neben
+    // demselben Muster aber die **Werbeeinwilligung**. Deshalb kann der
+    // Aufrufer den Block abschalten; wer den Schlüssel nicht setzt, bekommt
+    // das bisherige Verhalten.
+    final einwilligungAnkreuzen = (d['einwilligung_ankreuzen'] ?? 'ja') != 'nein';
 
     // The script defines window.__icd360sFill (the fill function) and runs it
     // once. On first call it ALSO installs a MutationObserver so that when
@@ -402,6 +416,18 @@ class _WebViewScreenState extends State<WebViewScreen> {
   // Bootstrap forms. Dispatches input/change/blur for HTML5 + jQuery for legacy.
   function setVal(el, val) {
     if (!el || val == null || val === '') return false;
+    // ⚠️ Die Sperre steht HIER und nicht nur in der Schleife: die
+    // Sicherheitsnetze weiter unten (E-Mail, Telefon) greifen mit eigenen
+    // Selektoren am Schleifenkopf vorbei. Gemessen bei 1&1 und WEtell — dort
+    // heisst das Werbe-Einverständnis im Namen „mail", wurde vom E-Mail-Netz
+    // erwischt und stand danach auf ANGEHAKT. Eine Einwilligung in Werbung
+    // setzt kein Skript, die setzt ein Mensch. Gegenprobe ohne Einspielen:
+    // ohne uns bewegte sich nichts.
+    if (el.type === 'checkbox' || el.type === 'radio') return false;
+    // Ebenso nie in einen Suchschlitz — bei LIDL Connect landete die
+    // Vereins-Adresse im Shop-Suchfeld.
+    var _nm = ((el.name || '') + ' ' + (el.id || '') + ' ' + (el.placeholder || '')).toLowerCase();
+    if (el.type === 'search' || _nm.indexOf('search') >= 0 || _nm.indexOf('such') >= 0) return false;
     val = String(val);
     try {
       var proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype
@@ -429,6 +455,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
   function setSelect(el, val) {
     if (!el || !val) return false;
+    var _sn = ((el.name || '') + ' ' + (el.id || '')).toLowerCase();
+    if (_sn.indexOf('search') >= 0 || _sn.indexOf('such') >= 0) return false;
     var lv = String(val).toLowerCase();
     for (var i = 0; i < el.options.length; i++) {
       var ov = String(el.options[i].value).toLowerCase();
@@ -495,7 +523,19 @@ class _WebViewScreenState extends State<WebViewScreen> {
   for (var i = 0; i < inputs.length; i++) {
     var el = inputs[i];
     if (el.disabled || el.readOnly || el.type === 'hidden' || el.type === 'submit' || el.type === 'button') continue;
+    // ⚠️ Ankreuz- und Auswahlknöpfe werden NIE angefasst. `setVal` setzt zwar
+    // nur `.value` und hakt nichts an, aber auf der Seite von 1&1 und WEtell
+    // steht neben dem Formular je ein Werbe-Einverständnis — und ein Skript,
+    // das dort auch nur in der Nähe arbeitet, ist eines zu viel. Was
+    // angekreuzt wird, entscheidet der Mensch.
+    if (el.type === 'checkbox' || el.type === 'radio') continue;
     var combined = getCombined(el);
+    // „Geburtstag" ohne das eingebaute „tag" — siehe Tag-Zweig unten.
+    var cTag = combined.split('geburtstag').join('geburt');
+    // ⚠️ Suchfelder überspringen. Auf der Seite von LIDL Connect landete die
+    // Vereins-Adresse im Suchschlitz des Shops — gemessen, nicht vermutet.
+    // Ein Suchfeld ist nie ein Formularfeld, das wir füllen wollen.
+    if (el.type === 'search' || combined.indexOf('such') >= 0 || combined.indexOf('search') >= 0) continue;
 
     // Geburtsname BEFORE generic geburt (otherwise birthdate steals it)
     if (combined.indexOf('geburtsname') >= 0 || combined.indexOf('birthname') >= 0 || combined.indexOf('maiden') >= 0) {
@@ -503,7 +543,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
     // ── Split-date fields: bday-day, bday-month, bday-year (HTML5 autocomplete)
     //    or name/id containing tag/monat/jahr/day/month/year + Geburts label
-    else if ((combined.indexOf('bday-day') >= 0 || (combined.indexOf('geburt') >= 0 && (combined.indexOf('tag') >= 0 || combined.indexOf('day') >= 0))) && gebTag) {
+    // ⚠️ Für den TAG wird auf `cTag` geprüft, nicht auf `combined`: das
+    // deutsche Wort „Geburtstag" enthält „tag". Ohne das griff der Tag-Zweig
+    // auch bei `Geburtstag-month` und `Geburtstag-year` — bei Tchibo mobil
+    // stand danach in Tag, Monat UND Jahr die 27. Und ein einzelnes Feld
+    // namens „Geburtstag" bekam nur den Tag statt des ganzen Datums.
+    else if ((combined.indexOf('bday-day') >= 0 || (combined.indexOf('geburt') >= 0 && (cTag.indexOf('tag') >= 0 || combined.indexOf('day') >= 0))) && gebTag) {
       if (el.tagName === 'SELECT' ? setSelect(el, String(parseInt(gebTag, 10))) || setSelect(el, gebTag.padStart(2,'0')) : setVal(el, gebTag.padStart(2, '0')))
         { filled++; fillLog.push('geb_tag'); dateInputs.push(el); }
     }
@@ -530,6 +575,30 @@ class _WebViewScreenState extends State<WebViewScreen> {
         }
         if (ok) { filled++; fillLog.push('geb_single'); }
       }
+    }
+    // ── Kündigungsformulare ──────────────────────────────────────────
+    // Zuerst die Kundennummer: sie steht bei o2 als `postpaidCustomerId`
+    // mit dem Label „Kundennummer" da und darf keinem der Nummern-Zweige
+    // weiter unten in die Hände fallen.
+    else if (combined.indexOf('kundennummer') >= 0 || combined.indexOf('kundennr') >= 0 || combined.indexOf('customerid') >= 0 || combined.indexOf('kundenkennzahl') >= 0) {
+      if (setVal(el, '$kundennummer')) { filled++; fillLog.push('kundennummer'); }
+    }
+    // Die Rufnummer MUSS vor dem Telefon-Zweig stehen: „Mobilfunknummer"
+    // enthält „mobil", würde also dort landen — und damit die private
+    // Nummer des Mitglieds tragen statt der Nummer, die gekündigt wird.
+    else if (combined.indexOf('rufnummer') >= 0 || combined.indexOf('msisdn') >= 0 || combined.indexOf('mobilfunknummer') >= 0) {
+      if (setVal(el, '$rufnummer')) { filled++; fillLog.push('rufnummer'); }
+    }
+    // Hausnummer als eigenes Feld (o2: `address.houseNumber`). Beim
+    // Praxisportal gibt es nur ein Straßenfeld — dort ist dieser Wert leer
+    // und der Zweig fällt durch.
+    else if (combined.indexOf('hausnummer') >= 0 || combined.indexOf('housenumber') >= 0 || combined.indexOf('hausnr') >= 0) {
+      if (setVal(el, '$hausnummer')) { filled++; fillLog.push('hausnummer'); }
+    }
+    // Land nur als Auswahlliste und nie bei „Bundesland" — sonst stünde
+    // „Deutschland" im Feld für das Bundesland.
+    else if (el.tagName === 'SELECT' && combined.indexOf('bundesland') < 0 && (combined.indexOf('land') >= 0 || combined.indexOf('country') >= 0)) {
+      if (setSelect(el, '$land')) { filled++; fillLog.push('land'); }
     }
     else if (combined.indexOf('vorname') >= 0 || combined.indexOf('firstname') >= 0 || combined.indexOf('first name') >= 0 || combined.indexOf('given-name') >= 0) {
       if (setVal(el, '$vorname')) { filled++; fillLog.push('vorname'); }
@@ -644,15 +713,23 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
-  // Auto-check Datenschutz / Einwilligung checkboxes
+  // Einwilligungen ankreuzen — nur wenn der Aufrufer es erlaubt.
+  if (${einwilligungAnkreuzen ? 'true' : 'false'}) {
   var checkboxes = document.querySelectorAll('input[type="checkbox"]');
   for (var ci = 0; ci < checkboxes.length; ci++) {
     var cb = checkboxes[ci];
     var parent = cb.closest('label') || cb.parentElement;
     var txt = parent ? parent.textContent.toLowerCase() : '';
+    // ⚠️ Werbung wird NIE angekreuzt, auch nicht beim Praxisportal. Bei 1&1
+    // und WEtell hakte dieser Block die Werbeeinwilligung an — nachgewiesen
+    // mit zwei Gegenproben: ohne Einspielen bewegte sich nichts, und ein
+    // Mensch, der bloss drei Buchstaben tippt, löst es auch nicht aus.
+    if (txt.indexOf('werbung') >= 0 || txt.indexOf('werbe') >= 0 || txt.indexOf('newsletter') >= 0
+        || txt.indexOf('marketing') >= 0 || txt.indexOf('reklame') >= 0 || txt.indexOf('einverstanden von') >= 0) continue;
     if (txt.indexOf('willige ein') >= 0 || txt.indexOf('einwillig') >= 0 || txt.indexOf('datenschutz') >= 0 || txt.indexOf('akzeptier') >= 0 || txt.indexOf('agb') >= 0) {
       if (!cb.checked) { cb.click(); filled++; fillLog.push('consent'); }
     }
+  }
   }
 
   // BRUTE-FORCE last resort: any STILL-EMPTY visible text-input whose

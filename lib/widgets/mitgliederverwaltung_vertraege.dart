@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/mobilfunk_anbieter.dart';
+import '../utils/kuendigung_autofill.dart';
+import '../screens/webview_screen.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'mitgliederverwaltung_vertrage_versicherung.dart';
@@ -24,17 +25,62 @@ Color _netzFarbe(String netz) {
   return F.h(Colors.blueGrey, 600);
 }
 
-/// Öffnet die geprüfte Kündigungsseite des Anbieters im Browser.
-Future<void> _kuendigungOeffnen(BuildContext ctx, MobilfunkAnbieter a) async {
+/// Öffnet die geprüfte Kündigungsseite und trägt die Daten ein.
+///
+/// Läuft über denselben Weg wie Ärzte → Termin → Online-Portal: der
+/// [WebViewScreen] bekommt die Werte, der eingebaute Beobachter füllt sie
+/// ein, sobald die Felder auftauchen.
+///
+/// ⚠️ Das Formular von o2 zeigt die Felder **erst nach zwei Klicks**
+/// (Postpaid/Prepaid wählen, dann „Jetzt kündigen") — und zwar unter
+/// derselben Adresse, es ist eine Einseiten-Anwendung. Genau dafür hängt im
+/// Füllskript ein MutationObserver: er lässt die Füllung erneut laufen,
+/// sobald die Felder im Baum erscheinen. Ein einmaliger Versuch beim Laden
+/// fände nichts vor — nachgemessen am echten Formular.
+///
+/// ⚠️ Welche Auswahl getroffen wird — Postpaid oder Prepaid, ganzer
+/// Anschluss oder nur eine Option, fristgerecht oder außerordentlich, zu
+/// welchem Termin — wird **nicht** vorbelegt. Das sind Entscheidungen mit
+/// Geldfolgen, keine Stammdaten; ein stillschweigend gesetzter Punkt hiesse,
+/// die App kündigt den ganzen Vertrag anstelle des Vorsitzers.
+Future<void> _kuendigungOeffnen(
+  BuildContext ctx,
+  MobilfunkAnbieter a, {
+  required ApiService apiService,
+  required int userId,
+  required Map<String, dynamic> vertrag,
+}) async {
   final url = a.kuendigungUrl;
   if (url == null) return;
-  final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-  // Ein stiller Fehlschlag sähe aus wie ein kaputter Knopf. Ohne Browser
-  // (Kiosk-Gerät) muss man wenigstens die Adresse abschreiben können.
-  if (!ok && ctx.mounted) {
-    ScaffoldMessenger.of(ctx).showSnackBar(
-      SnackBar(content: Text('Konnte nicht geöffnet werden: $url')),
-    );
+
+  Map<String, dynamic>? stammdaten;
+  try {
+    final r = await apiService.getUserDetails(userId);
+    if (r['success'] == true && r['user'] is Map) {
+      stammdaten = Map<String, dynamic>.from(r['user'] as Map);
+    }
+  } catch (_) {
+    // Ohne Stammdaten geht die Seite trotzdem auf — dann eben leer. Ein
+    // Netzfehler darf die Kündigung nicht verhindern.
+  }
+  if (!ctx.mounted) return;
+
+  final werte = kuendigungAutofill(stammdaten: stammdaten, vertrag: vertrag);
+  final fehlt = kuendigungFehlendePflichtfelder(werte);
+
+  await Navigator.push(ctx, MaterialPageRoute(
+    builder: (_) => WebViewScreen(
+      title: 'Kündigung ${a.name}',
+      url: url,
+      go2docAutoFill: werte,
+    ),
+  ));
+
+  if (fehlt.isNotEmpty && ctx.mounted) {
+    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 6),
+      content: Text('Nicht ausgefüllt, weil nicht hinterlegt: ${fehlt.join(', ')}'),
+    ));
   }
 }
 
@@ -378,7 +424,8 @@ class _VertraegeContentState extends State<VertraegeContent> {
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
-                onPressed: () => _kuendigungOeffnen(context, anb),
+                onPressed: () => _kuendigungOeffnen(context, anb,
+                    apiService: widget.apiService, userId: widget.userId, vertrag: v),
                 icon: const Icon(Icons.public, size: 15),
                 label: const Text('Kündigung online jetzt', style: TextStyle(fontSize: 11)),
                 style: TextButton.styleFrom(
@@ -802,7 +849,8 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () => _kuendigungOeffnen(context, anb),
+              onPressed: () => _kuendigungOeffnen(context, anb,
+                  apiService: widget.apiService, userId: widget.userId, vertrag: v),
               icon: const Icon(Icons.public, size: 18),
               label: const Text('Kündigung online jetzt', style: TextStyle(fontSize: 13)),
               style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade700),
