@@ -5194,7 +5194,7 @@ class _AaAntragDocsSectionState extends State<_AaAntragDocsSection> {
                 allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
                 attach: (id) => widget.apiService.attachAaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, bereich: widget.bereich),
                 hochladen: (r) => _upload(ausCloud: r));
-            if (res != null && context.mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+            if (res != null && context.mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16),
           label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),

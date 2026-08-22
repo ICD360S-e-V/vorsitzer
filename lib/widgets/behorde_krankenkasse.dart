@@ -4673,7 +4673,7 @@ class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
                 hochladen: (r) => _upload(ausCloud: r));
     if (res == null || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('${res.ok} von ${res.total} aus Cloud übernommen'),
+      content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'),
       backgroundColor: res.ok == res.total ? Colors.green : Colors.orange,
     ));
     widget.onChanged?.call();
@@ -5080,7 +5080,7 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
                 // Gleiche Typen wie der Geräte-Knopf „Anhängen" (_uploadDoc); dort ohne Stückzahl-Grenze.
                 allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
                 hochladen: (r) => _uploadDoc('schreiben', ausCloud: r));
-            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
           style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700))),
@@ -5120,7 +5120,7 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
                 allowedExtensions: const ['jpg', 'jpeg', 'png'],
                 maxFiles: 1,
                 hochladen: (r) => _uploadFoto(ausCloud: r));
-            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
           style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700))),
