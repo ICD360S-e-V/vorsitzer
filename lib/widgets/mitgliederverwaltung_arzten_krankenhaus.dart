@@ -13131,17 +13131,38 @@ $vollName$footer''';
     Future<void> openSearch(BuildContext ctx) async {
       final searchC = TextEditingController();
       List<Map<String, dynamic>> results = [];
+      // Warum nicht nur eine leere Liste: die Suche ist serverseitig dem
+      // Vorsitz vorbehalten. Ein abgelehnter Aufruf muss seinen Grund nennen,
+      // sonst ist er von "kein Treffer" nicht zu unterscheiden.
+      String? suchFehler;
       await showDialog(
         context: ctx,
         builder: (dCtx) => StatefulBuilder(builder: (dCtx, setS) {
           Future<void> doSearch(String q) async {
-            if (q.trim().length < 2) { setS(() => results = []); return; }
+            if (q.trim().length < 2) { setS(() { results = []; suchFehler = null; }); return; }
             try {
               final res = await widget.apiService.searchMedikamente(q.trim());
               if (res['success'] == true && res['data'] is List) {
-                setS(() => results = (res['data'] as List).cast<Map<String, dynamic>>());
+                setS(() {
+                  results = (res['data'] as List).cast<Map<String, dynamic>>();
+                  suchFehler = null;
+                });
+              } else {
+                // Frueher fiel dieser Zweig ersatzlos aus: die vorherige
+                // Trefferliste blieb stehen, obwohl der Server abgelehnt hatte.
+                setS(() {
+                  results = [];
+                  suchFehler = res['message']?.toString().trim().isNotEmpty == true
+                      ? res['message'].toString()
+                      : 'Suche nicht moeglich';
+                });
               }
-            } catch (_) { setS(() => results = []); }
+            } catch (_) {
+              setS(() {
+                results = [];
+                suchFehler = 'Keine Verbindung zur Medikamenten-Datenbank';
+              });
+            }
           }
           return AlertDialog(
             title: Text('Medikament $nr suchen', style: TextStyle(fontSize: 14, color: F.h(Colors.pink, 700))),
@@ -13160,7 +13181,23 @@ $vollName$footer''';
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 300),
                 child: results.isEmpty
-                  ? Center(child: Text('Mindestens 2 Zeichen eingeben', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12)))
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: suchFehler == null
+                          ? Text('Mindestens 2 Zeichen eingeben', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12))
+                          : Column(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(Icons.error_outline, size: 22, color: F.h(Colors.red, 400)),
+                              const SizedBox(height: 6),
+                              Text(suchFehler!, textAlign: TextAlign.center,
+                                   style: TextStyle(color: F.h(Colors.red, 700), fontSize: 12, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              Text('Der Name kann weiterhin von Hand eingetragen werden.',
+                                   textAlign: TextAlign.center,
+                                   style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 11)),
+                            ]),
+                      ),
+                    )
                   : ListView.builder(
                     shrinkWrap: true,
                     itemCount: results.length,
