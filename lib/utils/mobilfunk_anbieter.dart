@@ -77,8 +77,11 @@ const List<MobilfunkAnbieter> kMobilfunkAnbieter = [
       kuendigungUrl: 'https://www.edeka-smart.de/vertrag-kuendigen', alias: ['edeka']),
   MobilfunkAnbieter('fraenk', kNetzTelekom, 'Eigenmarke'),
   MobilfunkAnbieter('High Mobile', kNetzTelekom, 'Brandingmarke', alias: ['high mobil']),
-  MobilfunkAnbieter('ja! mobil', kNetzTelekom, 'Brandingmarke',
-      kuendigungUrl: 'https://www.ja-mobil.de/kuendigung', alias: ['rewe']),
+  // ⚠️ Kein Kündigungslink: `ja-mobil.de/kuendigung` liefert zwar HTTP 200,
+  // die Domain ist aber geparkt („This domain is for sale") — beim Test
+  // landete die Vereins-Adresse im Kontaktformular des Parkdienstes. Ein
+  // Status-200 allein sagt nichts, die Seite muss man ansehen.
+  MobilfunkAnbieter('ja! mobil', kNetzTelekom, 'Brandingmarke', alias: ['rewe']),
   MobilfunkAnbieter('Kaufland mobil', kNetzTelekom, 'Brandingmarke',
       kuendigungUrl: 'https://www.kaufland-mobil.de/kuendigung/', alias: ['kaufland']),
   MobilfunkAnbieter('NORMA Connect', kNetzTelekom, 'Brandingmarke', alias: ['norma']),
@@ -88,8 +91,11 @@ const List<MobilfunkAnbieter> kMobilfunkAnbieter = [
   // ── Vodafone-Netz ────────────────────────────────────────────────────────
   MobilfunkAnbieter('otelo', kNetzVodafone, 'Eigenmarke',
       kuendigungUrl: 'https://www.otelo.de/otelo-vertrag-kuendigen'),
-  MobilfunkAnbieter('LIDL Connect', kNetzVodafone, 'Brandingmarke',
-      kuendigungUrl: 'https://www.lidl-connect.de/vertrag-kuendigen', alias: ['lidl', 'lidl mobile']),
+  // ⚠️ Kein Kündigungslink: `lidl-connect.de/vertrag-kuendigen` leitet auf
+  // die Tarif-Werbeseite im Lidl-Shop um (`lidl.de/c/lidl-connect/...`).
+  // Dort gibt es kein Formular, dafür einen Suchschlitz — in dem beim Test
+  // unsere Daten landeten.
+  MobilfunkAnbieter('LIDL Connect', kNetzVodafone, 'Brandingmarke', alias: ['lidl', 'lidl mobile']),
   MobilfunkAnbieter('SIMon mobile', kNetzVodafone, 'Eigenmarke',
       kuendigungUrl: 'https://www.simonmobile.de/kuendigung', alias: ['simon']),
   MobilfunkAnbieter('Fyve', kNetzVodafone, 'Brandingmarke'),
