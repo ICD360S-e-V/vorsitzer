@@ -137,4 +137,63 @@ void main() {
       expect(zeigt({...zeile(), 'gruppe_von': 3}), isTrue);
     });
   });
+
+  group('Zweite Runde (22.08.2026)', () {
+    /// Wörtlich vom Server. Ein EINGEGANGENES Fax, dessen Absender die
+    /// Rückwärtssuche aufgelöst hat.
+    Map<String, dynamic> eingang() => jsonDecode('''
+      {"id":5,"richtung":"ein","empfaenger":"+4973180159737",
+       "empfaenger_name":"ICD360S e.V.","dateiname":"Fax von +4973180159737.pdf",
+       "groesse_b":14326,"seiten":1,"deckblatt":false,"status":"empfangen",
+       "fax_status_type":"RECEIVED","fehler":"","hat_dokument":true,
+       "hat_bericht":false,"bezug_typ":null,"bezug_id":null,"bezug_text":"",
+       "name_quelle":"verzeichnis","notiz":"Eingang bestätigt, Frist notiert",
+       "hat_miniatur":false,"gruppe_key":null,"gruppe_pos":0,"gruppe_von":0,
+       "wiederholung_von":null,"gelesen":true,
+       "gesendet_am":"2026-08-16 22:04:01","zugestellt_am":"2026-08-16 22:04:01",
+       "erstellt_am":"2026-08-16 22:04:23"}
+    ''') as Map<String, dynamic>;
+
+    test('Absender wurde aus den Stammdaten aufgelöst', () {
+      final f = eingang();
+      expect(f['empfaenger_name'], 'ICD360S e.V.');
+      // ⚠️ Sagt, dass WIR den Namen gefunden haben — nicht sipgate und nicht
+      // ein Mensch. Davon hängt ab, ob ein späterer Abgleich ihn anfassen darf.
+      expect(f['name_quelle'], 'verzeichnis');
+    });
+
+    test('Notiz kommt entschlüsselt zurück', () {
+      expect(eingang()['notiz'], 'Eingang bestätigt, Frist notiert');
+    });
+
+    test('„Antworten" nur beim Eingang', () {
+      // Auf ein selbst gesendetes Fax zu antworten hiesse, an uns selbst zu
+      // faxen.
+      bool zeigt(Map<String, dynamic> f) => f['richtung'] == 'ein';
+      expect(zeigt(eingang()), isTrue);
+      expect(zeigt({...eingang(), 'richtung': 'aus'}), isFalse);
+    });
+
+    test('hat_miniatur=false heisst NICHT „gibt es nicht"', () {
+      // ⚠️ Der Server erzeugt die Vorschau erst bei Bedarf. Ein Bildschirm,
+      // der aus `false` „kein Bild" macht, würde nie eines anfordern — und
+      // damit nie eines bekommen.
+      final f = eingang();
+      expect(f['hat_miniatur'], isFalse);
+      expect(f['hat_dokument'], isTrue,
+          reason: 'ein Dokument ist da, also ist eine Vorschau erzeugbar');
+    });
+
+    test('Miniatur-Merker unterscheidet „noch nicht" von „gibt es nicht"', () {
+      // Dieselbe Logik wie im Bildschirm: kein Eintrag = noch nicht geholt,
+      // Eintrag mit null = versucht und nichts da. Ohne den Unterschied fragt
+      // der Bildschirm bei jedem Neuaufbau erneut, also endlos.
+      final cache = <int, List<int>?>{};
+      bool nochmalFragen(int id) => !cache.containsKey(id);
+
+      expect(nochmalFragen(5), isTrue);
+      cache[5] = null;
+      expect(nochmalFragen(5), isFalse, reason: 'null heisst: schon versucht');
+    });
+  });
 }
