@@ -1368,7 +1368,10 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
               Text('Schwerbehindertenausweis (Scan)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
             ]),
             const SizedBox(height: 2),
-            Text('Vorder- und Rückseite, ggf. mit Beiblatt — maximal 5 Seiten. Erlaubt: JPG, JPEG, PDF.',
+            // 5 ist eine Obergrenze, keine Vorgabe: ein einzelnes Blatt reicht.
+            // Der Satz sagt das ausdrücklich, weil der Zähler daneben („1 von
+            // max. 5") sonst wie eine unerfüllte Bedingung aussieht.
+            Text('Ein Dokument genügt. Bis zu 5 Seiten möglich — Vorder- und Rückseite, ggf. mit Beiblatt. Erlaubt: JPG, JPEG, PDF.',
                 style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
             const SizedBox(height: 8),
             KorrAttachmentsWidget(
@@ -2695,7 +2698,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
                 hochladen: (r) => _uploadDoc(ausCloud: r));
     if (res == null || !mounted) return;
     messenger.showSnackBar(SnackBar(
-      content: Text('${res.ok} von ${res.total} aus Cloud übernommen'),
+      content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'),
       backgroundColor: res.ok == res.total ? Colors.green : Colors.orange));
     _load();
   }

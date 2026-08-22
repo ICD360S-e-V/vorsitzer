@@ -960,7 +960,7 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
                 allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'],
                 attach: (id) => widget.apiService.attachBehoerdeAntragDocFromCloud(userId: widget.userId, behoerdeType: 'jobcenter', antragId: _antragId, cloudFileId: id),
                 hochladen: (r) => _uploadDoc(ausCloud: r));
-            if (res != null && context.mounted) { _loadDocs(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+            if (res != null && context.mounted) { _loadDocs(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16),
           label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),

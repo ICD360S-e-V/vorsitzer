@@ -567,7 +567,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
                         // bis auf die erste Datei verworfen.
                         maxFiles: 1,
                         hochladen: (r) => _uploadDoc(docTyp, label, ausCloud: r));
-                    if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+                    if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
                   },
                 ),
                 IconButton(

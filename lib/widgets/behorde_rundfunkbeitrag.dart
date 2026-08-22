@@ -1217,7 +1217,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
                 allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
                 attach: (id) => widget.apiService.attachRfbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: kategorie),
                 hochladen: (r) => _uploadDoc(kategorie: kategorie, ausCloud: r));
-            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
           style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700))),
@@ -1538,7 +1538,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
                 allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
                 attach: (id) => widget.apiService.attachRfbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'bewilligung'),
                 hochladen: (r) => _uploadDoc(kategorie: 'bewilligung', ausCloud: r));
-            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 14),
           label: const Text('Aus Cloud', style: TextStyle(fontSize: 11)),

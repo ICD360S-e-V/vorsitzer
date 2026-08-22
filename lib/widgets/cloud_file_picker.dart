@@ -76,7 +76,13 @@ String cloudZeilenDateiname(Map<String, dynamic> r) {
 /// Convenience wrapper: open the cloud picker (admin mitgliedernummer taken
 /// from GlobalChatService) and attach each selected file via [attach].
 /// Returns (ok, total) counts, or null if cancelled / nothing selected.
-Future<({int ok, int total})?> pickAndAttachFromCloud(
+///
+/// [grund] trägt die Begründung des ersten Fehlschlags mit. Ohne sie sah eine
+/// abgelehnte Übernahme exakt aus wie „es ist nichts passiert": ein Zähler
+/// „0 von 2" ohne jeden Hinweis. Genau daran ist unbemerkt geblieben, dass der
+/// Endpunkt korrespondenz_id 0 mit HTTP 400 zurückwies — obwohl der Knopf
+/// „Datei" daneben dieselbe Ablage anstandslos annahm.
+Future<({int ok, int total, String? grund})?> pickAndAttachFromCloud(
   BuildContext context, {
   required ApiService apiService,
   required int memberId,
@@ -120,11 +126,16 @@ Future<({int ok, int total})?> pickAndAttachFromCloud(
     }
   }
   var ok = 0;
+  String? grund;
   for (final f in auswahl) {
     final r = await attach((f['id'] as num).toInt());
-    if (r['success'] == true) ok++;
+    if (r['success'] == true) {
+      ok++;
+    } else {
+      grund ??= r['message']?.toString();
+    }
   }
-  return (ok: ok, total: auswahl.length);
+  return (ok: ok, total: auswahl.length, grund: ok < auswahl.length ? grund : null);
 }
 
 /// Reusable "Aus Cloud wählen" picker — Stage 2 of the member-cloud feature.

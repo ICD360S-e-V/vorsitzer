@@ -658,7 +658,7 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
                 attach: (id) => widget.apiService.attachWgAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id),
                 hochladen: (r) => _uploadDoc(ausCloud: r));
-            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
           style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700))),

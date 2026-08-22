@@ -140,7 +140,7 @@ class CloudPickerHelper {
   /// Aufrufer ihre Meldung behalten. Auf dem verschlüsselten Weg kommt null —
   /// dort meldet und lädt [hochladen] bereits selbst, eine zweite Meldung
   /// wäre doppelt.
-  static Future<({int ok, int total})?> uebernehmen(
+  static Future<({int ok, int total, String? grund})?> uebernehmen(
     BuildContext context, {
     required ApiService apiService,
     required int memberId,

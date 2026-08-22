@@ -436,15 +436,26 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
     if (auswahl.isEmpty) return;
     final svc = SecureCloudService(widget.apiService, mitgliedernummer);
     var ok = 0;
+    // Der Grund des ersten Fehlschlags wird mitgeführt: eine Meldung „0 von 2"
+    // ohne Begründung ist von „es ist nichts passiert" nicht zu unterscheiden.
+    String? grund;
     for (final f in auswahl) {
       final klartext = await svc.downloadToMemory(f);
-      if (klartext == null) continue;
+      if (klartext == null) {
+        grund ??= 'Entschlüsselung fehlgeschlagen';
+        continue;
+      }
       final r = await _apiUploadBytes(klartext, f.name);
-      if (r['success'] == true) ok++;
+      if (r['success'] == true) {
+        ok++;
+      } else {
+        grund ??= r['message']?.toString();
+      }
     }
     if (!mounted) return;
     messenger.showSnackBar(SnackBar(
-      content: Text('$ok von ${auswahl.length} aus dem verschlüsselten Cloud übernommen'),
+      content: Text('$ok von ${auswahl.length} aus dem verschlüsselten Cloud übernommen'
+          '${ok < auswahl.length && grund != null ? ' — $grund' : ''}'),
       backgroundColor: ok == auswahl.length ? Colors.green : Colors.orange,
     ));
     _load();
@@ -472,14 +483,20 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
     );
     if (r == null || r.files.isEmpty || !mounted) return;
     var ok = 0;
+    String? grund;
     for (final f in r.files) {
       if (f.path == null) continue;
       final res = await _apiUpload(f.path!, f.name);
-      if (res['success'] == true) ok++;
+      if (res['success'] == true) {
+        ok++;
+      } else {
+        grund ??= res['message']?.toString();
+      }
     }
     if (!mounted) return;
     messenger.showSnackBar(SnackBar(
-      content: Text('$ok von ${r.files.length} aus Cloud übernommen'),
+      content: Text('$ok von ${r.files.length} aus Cloud übernommen'
+          '${ok < r.files.length && grund != null ? ' — $grund' : ''}'),
       backgroundColor: ok == r.files.length ? Colors.green : Colors.orange,
     ));
     _load();
@@ -518,7 +535,7 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
     );
     if (res == null || !mounted) return;
     messenger.showSnackBar(SnackBar(
-      content: Text('${res.ok} von ${res.total} aus Cloud übernommen'),
+      content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'),
       backgroundColor: res.ok == res.total ? Colors.green : Colors.orange,
     ));
     _load();
@@ -531,7 +548,9 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
         Icon(Icons.attach_file, size: 14, color: F.h(Colors.grey, 500)),
         const SizedBox(width: 4),
         Text(
-          'Anhänge${_loaded ? (widget.maxTotal != null ? ' (${_attachments.length}/${widget.maxTotal})' : ' (${_attachments.length})') : ''}',
+          // „0/5" liest sich wie eine Vorgabe — es ist eine Obergrenze.
+          // Ein einziges Dokument genügt überall, wo dieses Widget hängt.
+          'Anhänge${_loaded ? (widget.maxTotal != null ? ' (${_attachments.length} von max. ${widget.maxTotal})' : ' (${_attachments.length})') : ''}',
           style: TextStyle(
             fontSize: 11,
             color: _voll ? F.h(Colors.orange, 800) : F.h(Colors.grey, 600),
