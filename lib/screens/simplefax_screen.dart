@@ -48,7 +48,6 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     _gutscheinController.dispose();
     _newEmailController.dispose();
     _newEmailRepController.dispose();
-    _mail2faxNewController.dispose();
     _faxEmpfangsEmailController.dispose();
     _newAbsenderController.dispose();
     _newAbsenderRepController.dispose();
@@ -154,6 +153,42 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
             ],
           ),
           const SizedBox(height: 16),
+          // ⚠️ FAX WIRD ÜBER SIPGATE GESENDET, NICHT MEHR VON HIER.
+          //
+          // Mail2Fax war ein ZWEITER Sendeweg: eine Mail an
+          // <faxnummer>@simple-fax.de ging als Fax raus. Am 20.08.2026 ist so
+          // ein Schreiben ans Jobcenter gegangen — es kam an, tauchte aber in
+          // keinem Faxbildschirm auf und hat keinen Sendebericht. Der Weg ist
+          // seit dem 22.08.2026 am Mailserver dicht (postfix transport_maps).
+          //
+          // ⚠️ BEWUSST KURZ. Die erste Fassung war ein Kasten mit sechs Zeilen
+          // Erklärung — bei Schriftgröße 2,0 auf einem Pixel lief der
+          // Bildschirm damit um 321 Pixel über (von den Auflösungstests
+          // gefunden, nicht vermutet). Die Begründung steht ausführlich beim
+          // Mail2Fax-Abschnitt, und der liegt in einem scrollbaren Reiter.
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.10),
+              border: Border.all(color: Colors.red.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(children: [
+              Icon(Icons.block, color: Colors.red.shade700, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Kein Versand über SimpleFax — Faxe laufen über sipgate. '
+                  'Archiv und Konto bleiben hier.',
+                  style: TextStyle(
+                      fontSize: 12.5, height: 1.3, color: Colors.red.shade800,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ]),
+          ),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
@@ -1798,7 +1833,6 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
   // ===== E-MAIL ADRESSEN =====
   final _newEmailController = TextEditingController();
   final _newEmailRepController = TextEditingController();
-  final _mail2faxNewController = TextEditingController();
 
   Widget _buildEmailAdressen() {
     final primEmail = _data['primaere_email']?.toString() ?? '';
@@ -1841,9 +1875,20 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         ]),
       ),
       const SizedBox(height: 24),
-      Text('Mail2Fax Adressen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
+      Row(children: [
+        Icon(Icons.block, size: 16, color: Colors.red.shade700),
+        const SizedBox(width: 6),
+        Text('Mail2Fax Adressen — stillgelegt',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+      ]),
       const SizedBox(height: 4),
-      Text('E-Mails von diesen Adressen werden automatisch als Fax versendet', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+      // ⚠️ Der alte Satz lautete „E-Mails von diesen Adressen werden
+      // automatisch als Fax versendet" — eine Gebrauchsanweisung für genau
+      // den Weg, der jetzt zu ist. Wer sie liest, tippt die Adresse von Hand.
+      Text('Dieser Sendeweg ist gesperrt. Eine Mail an @simple-fax.de wird vom '
+           'Mailserver abgewiesen; Faxe laufen über sipgate. Die Liste steht '
+           'nur noch als Beleg, was früher eingetragen war.',
+           style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
       const SizedBox(height: 10),
       ..._mail2fax.map((m) => Card(
         margin: const EdgeInsets.only(bottom: 6),
@@ -1860,24 +1905,10 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
           ),
         ),
       )),
-      const SizedBox(height: 8),
-      Row(children: [
-        Expanded(child: TextField(controller: _mail2faxNewController, keyboardType: TextInputType.emailAddress,
-          decoration: InputDecoration(labelText: 'E-Mail hinzufügen', isDense: true, prefixIcon: const Icon(Icons.add, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-        const SizedBox(width: 10),
-        FilledButton.icon(
-          onPressed: () async {
-            final em = _mail2faxNewController.text.trim();
-            if (em.isEmpty) return;
-            await widget.apiService.simplefaxAction({'action': 'save_mail2fax', 'email': em});
-            _mail2faxNewController.clear();
-            _load();
-          },
-          icon: const Icon(Icons.add, size: 16),
-          label: const Text('Hinzufügen'),
-          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700),
-        ),
-      ]),
+      // ⚠️ Das Eingabefeld ist ENTFERNT, nicht ausgegraut. Eine neue
+      // Mail2Fax-Adresse einzutragen hiesse, den gesperrten Sendeweg wieder
+      // zu bewerben — und am Mailserver käme sie ohnehin nicht durch. Löschen
+      // bleibt möglich: eine Adresse loszuwerden ist immer richtig.
     ]);
   }
 

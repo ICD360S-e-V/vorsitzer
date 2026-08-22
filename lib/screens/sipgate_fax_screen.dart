@@ -308,9 +308,11 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     String gruppe = '',
     int pos = 0,
     int von = 0,
+    bool trotzdem = false,
   }) {
     return _api.sipgateFaxAction({
       'action': 'senden',
+      if (trotzdem) 'trotzdem': true,
       'empfaenger': _empfaenger.text.trim(),
       'empfaenger_name': _name.text.trim(),
       'dateiname': anhang.name,
@@ -389,6 +391,37 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
         pos: mehrere ? i + 1 : 0,
         von: mehrere ? _dokumente.length : 0,
       );
+
+      // ⚠️ SCHON ZUGESTELLT? Dann nachfragen, nicht einfach senden.
+      //
+      // Gebremst wird ausschließlich, wenn dasselbe Dokument an dieselbe
+      // Nummer nachweislich ANGEKOMMEN ist. War der erste Versuch
+      // fehlgeschlagen, kommt diese Antwort gar nicht — dann ist die zweite
+      // Sendung genau das Richtige und darf nichts im Weg stehen.
+      if (r['success'] != true && '${r['grund'] ?? ''}' == 'dublette') {
+        if (!mounted) break;
+        final nochmal = await showDialog<bool>(
+          context: context,
+          builder: (c) => AlertDialog(
+            title: const Text('Wurde schon zugestellt'),
+            content: Text('${r['message'] ?? ''}',
+                style: const TextStyle(fontSize: 13.5, height: 1.4)),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(c, false),
+                  child: const Text('Nicht senden')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(c, true),
+                  child: const Text('Trotzdem senden')),
+            ],
+          ),
+        );
+        if (nochmal != true) { letzteMeldung = 'Abgebrochen — war schon zugestellt'; break; }
+        r = await _einesSenden(_dokumente[i],
+            mitDeckblatt: _deckblatt && i == 0, deckblattSeparat: separat,
+            gruppe: gruppe, pos: mehrere ? i + 1 : 0, von: mehrere ? _dokumente.length : 0,
+            trotzdem: true);
+      }
 
       // ⚠️ Das gesiegelte Dokument: der Server lehnt das Zusammenfügen ab und
       // sagt WARUM (`grund: signiert`). Erst hier wird gefragt, statt in einer
@@ -1371,8 +1404,15 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     final roh = f['fax_status_type']?.toString();
     final (ikone, farbe) = _statusZeichen(status, roh);
     final ein = f['richtung'] == 'ein';
-    final name = (f['empfaenger_name'] ?? '').toString();
-    final nummer = (f['empfaenger'] ?? '').toString();
+    // ⚠️ , nicht . Die Spalte hiess bis zum
+    // 22.08.2026  und trug bei EINGEGANGENEN Faxen die Nummer des
+    // ABSENDERS — ein Feld in beide Richtungen. Der Rückfall auf den alten
+    // Schlüssel bleibt, solange der Server beide liefert; er verschwindet mit
+    // der übernächsten Fassung.
+    final name = (f['gegenstelle_name'] ?? f['empfaenger_name'] ?? '').toString();
+    final nummer = (f['gegenstelle'] ?? f['empfaenger'] ?? '').toString();
+    final gesendetVon = (f['gesendet_von'] ?? '').toString();
+    final nachgetragen = (f['herkunft'] ?? 'app') == 'abgleich';
     final fehler = (f['fehler'] ?? '').toString();
     final bezugText = (f['bezug_text'] ?? '').toString();
     final notiz = (f['notiz'] ?? '').toString();
@@ -1441,8 +1481,26 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               '${f['deckblatt'] == true ? ' · mit Deckblatt' : ''}'),
           Text('${ungelesen ? 'Neu · ' : ''}'
               '${_statusText(status, roh)} · '
-              '${(f['gesendet_am'] ?? f['erstellt_am'] ?? '').toString()}',
+              '${(f['gesendet_am'] ?? f['erstellt_am'] ?? '').toString()}'
+              // ⚠️ Der Verein hat ZWEI Vorsitzende. „Wer hat es geschickt?"
+              // ist bei einer Frist die erste Rückfrage, und die Antwort lag
+              // in der Datenbank, ohne je angezeigt zu werden.
+              '${gesendetVon.isNotEmpty ? ' · von $gesendetVon' : ''}',
               style: TextStyle(color: farbe, fontSize: 12)),
+          // ⚠️ Ein nachgetragenes Fax ist NICHT dasselbe wie eines aus
+          // unserem Sendeweg: wir wissen davon nur, was sipgate erzählt —
+          // kein Anlass, kein Bezug, keine Notiz. Das muss man ihm ansehen,
+          // sonst gilt ein rekonstruierter Beleg als vollwertiger.
+          if (nachgetragen)
+            Row(children: [
+              Icon(Icons.restore, size: 12, color: F.h(Colors.orange, 800)),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text('Nachgetragen aus dem sipgate-Verlauf — ging an '
+                    'unserem Sendeweg vorbei',
+                    style: TextStyle(fontSize: 11.5, color: F.h(Colors.orange, 800))),
+              ),
+            ]),
           // Zu welchem Vorgang gehört das Fax? Sechs Endpunkte schreiben in
           // denselben Verlauf; ohne diese Zeile beantwortet er ein Jahr später
           // die Frage „ist die Vollmacht je rausgegangen?" nicht mehr.
