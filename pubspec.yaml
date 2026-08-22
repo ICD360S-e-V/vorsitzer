@@ -46,6 +46,11 @@ dependencies:
   # SHA-256 for live document-content hash compare in Stufe 6/7/8 Beweis dialog.
   crypto: ^3.0.0
 
+  # ASN.1 — den SubjectPublicKeyInfo aus dem Serverzertifikat ziehen
+  # (spki_pin.dart). Kam bisher nur transitiv herein; hier deklariert,
+  # damit der Import stabil ist — wie bei flutter_svg.
+  asn1lib: ^1.5.0
+
   # AccumulatorSink — SHA-256 mitlaufend beim Herunterladen eines Updates
   # bilden, statt ein 100-MB-APK noch einmal komplett einzulesen.
   # Kam bisher nur transitiv ueber `crypto` herein; hier deklariert,
