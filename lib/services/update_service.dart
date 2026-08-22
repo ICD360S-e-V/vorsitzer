@@ -4,6 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:android_package_installer/android_package_installer.dart';
+import 'package:crypto/crypto.dart' as crypto;
+import 'package:convert/convert.dart' show AccumulatorSink;
+import '../utils/update_verifikation.dart';
 import 'http_client_factory.dart';
 import 'platform_service.dart';
 import 'logger_service.dart';
@@ -26,6 +29,32 @@ class UpdateService {
 
   late http.Client _client;
   late HttpClient _httpClient;
+
+  /// Warum das letzte Update abgelehnt wurde, oder `null`.
+  ///
+  /// Ein ausbleibendes Update sieht sonst genauso aus wie „es gibt keins" —
+  /// und das ist der Zustand, in dem ein Angriff am laengsten unbemerkt bleibt.
+  UpdateAblehnung? letzteAblehnung;
+
+  /// Holt die abgesetzte Signatur zum Manifest (`…json.sig`).
+  ///
+  /// Eigenes Asset statt eines Feldes im Manifest: laege die Signatur im
+  /// Manifest, muesste man sie vor dem Pruefen herausrechnen und den Rest
+  /// wieder in genau dieselben Bytes bringen. Das geht schief, sobald sich
+  /// Einrueckung oder Schluesselreihenfolge aendert.
+  Future<String?> _signaturHolen() async {
+    try {
+      final r = await _client.get(
+        Uri.parse('$versionUrl.sig'),
+        headers: const {'User-Agent': 'ICD360S-Vorsitzer/1.0'},
+      ).timeout(const Duration(seconds: 10));
+      if (r.statusCode != 200) return null;
+      final t = r.body.trim();
+      return t.isEmpty ? null : t;
+    } catch (_) {
+      return null;
+    }
+  }
 
   // Singleton
   static final UpdateService _instance = UpdateService._internal();
@@ -60,7 +89,25 @@ class UpdateService {
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
+        // ── Signatur zuerst, Inhalt danach ───────────────────────────────────
+        //
+        // ⚠️ Geprueft werden die ROHEN Bytes (`bodyBytes`), nicht ein neu
+        // serialisiertes JSON: signiert wurde die Datei, nicht ihr Inhalt.
+        // Schon eine andere Einrueckung machte die Signatur ungueltig.
+        final signatur = await _signaturHolen();
+        if (!await manifestSignaturGueltig(response.bodyBytes, signatur)) {
+          letzteAblehnung = signatur == null
+              ? UpdateAblehnung.signaturFehlt
+              : UpdateAblehnung.signaturFalsch;
+          _log.error(
+            'Update-Manifest abgelehnt: ${letzteAblehnung!.text}',
+            tag: 'UPDATE',
+          );
+          // Lieber kein Update als ein ungeprueftes — dieselbe Haltung wie bei
+          // der Artefakt-Endung ein paar Zeilen weiter unten.
+          return null;
+        }
+        final result = jsonDecode(utf8.decode(response.bodyBytes));
 
         // Check if API returned success
         if (result['success'] == true) {
@@ -96,11 +143,23 @@ class UpdateService {
               );
               return null;
             }
+            // Die Pruefsumme gehoert zu der Plattform, deren Artefakt wir
+            // oben ausgewaehlt haben — sonst pruefte man die APK-Summe gegen
+            // ein DMG und lehnte jedes Update ab.
+            final summe = result[pruefsummenSchluessel(
+                PlatformService.platformName.toLowerCase())] as String?;
+            if (summe == null || summe.trim().isEmpty) {
+              letzteAblehnung = UpdateAblehnung.pruefsummeFehlt;
+              _log.error('Update $serverVersion: ${letzteAblehnung!.text}',
+                  tag: 'UPDATE');
+              return null;
+            }
             return UpdateInfo(
               version: serverVersion,
               buildNumber: serverBuildNumber,
               downloadUrl: downloadUrl,
               changelog: changelog,
+              erwarteteSumme: summe,
               minVersion: minVersion,
               forceUpdate: forceUpdate,
             );
@@ -168,7 +227,15 @@ class UpdateService {
   }
 
   /// Download the update installer (cross-platform)
-  Future<String?> downloadUpdate(String downloadUrl, Function(double) onProgress) async {
+  /// Laedt das Artefakt und gibt den Pfad zurueck — **nur** wenn die
+  /// Pruefsumme zu der aus dem signierten Manifest passt.
+  ///
+  /// ⚠️ Nimmt bewusst das ganze [UpdateInfo] statt nur des URL. Mit einem
+  /// blossen URL-Parameter koennte ein Aufrufer die Pruefung uebersehen und
+  /// haette dann still ein ungeprueftes Artefakt; so ist sie nicht umgehbar.
+  Future<String?> downloadUpdate(
+      UpdateInfo info, Function(double) onProgress) async {
+    final downloadUrl = info.downloadUrl;
     try {
       final tempDir = await getTemporaryDirectory();
       final separator = Platform.isWindows ? '\\' : '/';
@@ -184,17 +251,40 @@ class UpdateService {
         final totalBytes = response.contentLength ?? 0;
         int receivedBytes = 0;
 
+        // Mitlaufend hashen statt hinterher die ganze Datei zu lesen: ein
+        // APK sind ueber 100 MB, die muessen nicht noch einmal in den Speicher.
+        final hashAusgabe = AccumulatorSink<crypto.Digest>();
+        final hashEingabe = crypto.sha256.startChunkedConversion(hashAusgabe);
+
         final sink = file.openWrite();
         await for (final chunk in response.stream) {
           sink.add(chunk);
+          hashEingabe.add(chunk);
           receivedBytes += chunk.length;
           if (totalBytes > 0) {
             onProgress(receivedBytes / totalBytes);
           }
         }
         await sink.close();
+        hashEingabe.close();
 
-        _log.info('Update downloaded successfully: $filePath', tag: 'UPDATE');
+        final tatsaechlich = hashAusgabe.events.single.toString();
+        if (!pruefsummeStimmt(info.erwarteteSumme, tatsaechlich)) {
+          letzteAblehnung = UpdateAblehnung.pruefsummeFalsch;
+          _log.error(
+            'Update abgelehnt: erwartet ${info.erwarteteSumme}, '
+            'bekommen $tatsaechlich',
+            tag: 'UPDATE',
+          );
+          // Weg damit. Eine liegengebliebene Datei koennte spaeter von Hand
+          // oder versehentlich ausgefuehrt werden.
+          try {
+            await file.delete();
+          } catch (_) {}
+          return null;
+        }
+
+        _log.info('Update downloaded and verified: $filePath', tag: 'UPDATE');
         return filePath;
       }
     } catch (e) {
@@ -498,11 +588,19 @@ class UpdateInfo {
   final String? minVersion;
   final bool forceUpdate;
 
+  /// SHA-256 des angekuendigten Artefakts, aus dem signierten Manifest.
+  ///
+  /// Pflichtfeld, damit [UpdateService.downloadUpdate] gar nicht erst ohne
+  /// Pruefsumme aufgerufen werden kann. Frueher nahm die Methode nur den URL —
+  /// ein Aufrufer, der die Pruefung vergisst, waere sonst still ungeprueft.
+  final String erwarteteSumme;
+
   UpdateInfo({
     required this.version,
     required this.buildNumber,
     required this.downloadUrl,
     required this.changelog,
+    required this.erwarteteSumme,
     this.minVersion,
     this.forceUpdate = false,
   });

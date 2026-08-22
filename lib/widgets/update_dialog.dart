@@ -161,7 +161,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
 
     final updateService = UpdateService();
     final installerPath = await updateService.downloadUpdate(
-      widget.updateInfo.downloadUrl,
+      widget.updateInfo,
       (progress) {
         setState(() => _downloadProgress = progress);
       },
