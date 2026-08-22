@@ -83,6 +83,11 @@ class ApiService {
   /// On platforms where the keychain is unavailable (e.g. unsigned macOS builds → -34018),
   /// tokens are kept ONLY in memory — user must re-login on next app start.
   /// We never persist secrets to plaintext disk storage.
+  ///
+  /// ⚠️ Dieser Satz stimmt seit dem 22.08.2026 wieder. Bis dahin schrieb
+  /// [saveTokens] bei jedem Fehlschlag des Schlüsselbunds genau das, was
+  /// hier ausgeschlossen wird — der Kommentar widersprach dem Code direkt
+  /// darunter, und wer nur ihn las, hielt die Sache für sicher.
   Future<void> loadTokens() async {
     try {
       _token = await _secureStorage.read(key: 'access_token');
@@ -90,17 +95,42 @@ class ApiService {
     } catch (e) {
       LoggerService().warning('Keychain read failed: $e', tag: 'API');
     }
-    // Always check SharedPreferences if tokens are still null.
-    // On macOS unsigned, keychain write fails → tokens go to SP only.
-    // But keychain read returns null (key not found) instead of throwing,
-    // so the catch above doesn't trigger → must check SP regardless.
+    // Altbestand aus SharedPreferences: EINMALIG holen, in den sicheren
+    // Speicher schreiben und dort löschen.
+    //
+    // ⚠️ Frueher wurden die Token bei jedem Fehlschlag des Schluesselbunds im
+    // KLARTEXT hierhin geschrieben — waehrend der Kopfkommentar dieser Methode
+    // versprach „We never persist secrets to plaintext disk storage". OWASP
+    // sagt dazu unmissverstaendlich: „Never park long-lived secrets in
+    // SharedPreferences", auch nicht als Rueckfall. Geschrieben wird jetzt
+    // nichts mehr; gelesen nur noch, damit niemand durch das Update abgemeldet
+    // wird, dessen Token noch dort liegt.
     if (_token == null || _refreshToken == null) {
       try {
         final prefs = await SharedPreferences.getInstance();
-        _token ??= prefs.getString('access_token');
-        _refreshToken ??= prefs.getString('refresh_token');
-        if (_token != null) {
-          LoggerService().info('Tokens loaded from SharedPreferences fallback', tag: 'API');
+        final altToken = prefs.getString('access_token');
+        final altRefresh = prefs.getString('refresh_token');
+        if (altToken != null || altRefresh != null) {
+          _token ??= altToken;
+          _refreshToken ??= altRefresh;
+          LoggerService().info(
+              'Token aus altem Klartext-Bestand übernommen — wird verschoben',
+              tag: 'API');
+          if (_token != null && _refreshToken != null) {
+            try {
+              await _secureStorage.write(key: 'access_token', value: _token!);
+              await _secureStorage.write(
+                  key: 'refresh_token', value: _refreshToken!);
+            } catch (e) {
+              LoggerService().warning(
+                  'Verschieben in den sicheren Speicher misslang: $e',
+                  tag: 'API');
+            }
+          }
+          // Auch wenn das Verschieben scheiterte: der Klartext geht weg. Lieber
+          // eine neue Anmeldung als ein Token, das dauerhaft offen daliegt.
+          await prefs.remove('access_token');
+          await prefs.remove('refresh_token');
         }
       } catch (_) {}
     }
@@ -115,11 +145,23 @@ class ApiService {
       await _secureStorage.write(key: 'access_token', value: token);
       await _secureStorage.write(key: 'refresh_token', value: refreshToken);
     } catch (e) {
-      LoggerService().warning('Keychain write failed, using SharedPreferences fallback: $e', tag: 'API');
+      // ⚠️ KEIN Klartext-Rueckfall mehr. Hier landeten die Token bisher offen
+      // in SharedPreferences — und von dort in jede Geraetesicherung.
+      //
+      // Was stattdessen passiert: die Token bleiben im Speicher, die laufende
+      // Sitzung funktioniert, und beim naechsten Start meldet man sich neu an.
+      // Aergerlich, aber die richtige Richtung: ein Token, das nur diese
+      // Sitzung ueberlebt, ist besser als eines, das offen auf der Platte liegt.
+      LoggerService().error(
+          'Sicherer Speicher nicht beschreibbar — Token nur im Arbeitsspeicher: $e',
+          tag: 'API');
+      // Ein beschaedigter Eintrag (BadPaddingException nach einem
+      // System-Update, auf Samsung-Geraeten belegt) laesst sich nicht
+      // ueberschreiben, solange er dasteht. Wegraeumen, damit der naechste
+      // Versuch eine Chance hat.
       try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('access_token', token);
-        await prefs.setString('refresh_token', refreshToken);
+        await _secureStorage.delete(key: 'access_token');
+        await _secureStorage.delete(key: 'refresh_token');
       } catch (_) {}
     }
     // Push the new JWT to subscribers holding their own copy. ntfy fetches the
