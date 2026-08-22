@@ -6292,7 +6292,17 @@ class ApiService {
     request.fields['rufnummernmitnahme'] = rufnummernmitnahme ? '1' : '0';
     request.fields['kuendigung_grund'] = kuendigungGrund;
     request.fields['notiz'] = notiz;
-    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    // ⚠️ Nur anhängen, wenn es wirklich eine Datei gibt. Die Schritte der
+    // Kündigungs-Chronologie werden überwiegend OHNE Beleg abgehakt
+    // („Kündigung eingereicht", „14 Tage warten", „Vertrag beendet") und
+    // rufen hier mit leerem Pfad an. `MultipartFile.fromPath` wirft dann
+    // PathNotFoundException — der Aufrufer sah nur einen Knopf, der ewig
+    // „Speichern…" anzeigte, und der Schritt liess sich nie abhaken.
+    // Der Endpunkt kann das längst: er prüft `isset($_FILES['file'])` und
+    // legt die Zeile auch ohne Datei an.
+    if (filePath.isNotEmpty) {
+      request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    }
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }

@@ -820,7 +820,9 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
           VertragKorrTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0),
           _DokSubTabs(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0),
           VertragDokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'rechnung', label: 'Rechnungen'),
-          VertragDokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'kuendigung', label: 'Kündigung'),
+          VertragDokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0,
+              kategorie: 'kuendigung', label: 'Kündigung',
+              vertrag: v, userId: widget.userId, onChanged: widget.onChanged),
           _InkassoTab(apiService: widget.apiService,
               vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0,
               userId: widget.userId,
@@ -1201,7 +1203,17 @@ class VertragDokTab extends StatefulWidget {
   final String kategorie;
   final String label;
   final VoidCallback? onChanged;
-  const VertragDokTab({super.key, required this.apiService, required this.vertragId, required this.kategorie, required this.label, this.onChanged});
+
+  /// Der Vertrag selbst — nur für die Kündigungs-Chronologie. Damit kann der
+  /// Reiter die Kündigung auch wirklich vollziehen (Anbieterformular öffnen,
+  /// Kündigung am Vertrag festhalten) statt nur Schritte abzuhaken.
+  ///
+  /// ⚠️ Optional, weil derselbe Reiter aus anderen Dateien für Rechnungen und
+  /// Dokumente gebaut wird. Fehlt er, bleibt alles wie vorher.
+  final Map<String, dynamic>? vertrag;
+  final int? userId;
+
+  const VertragDokTab({super.key, required this.apiService, required this.vertragId, required this.kategorie, required this.label, this.onChanged, this.vertrag, this.userId});
 
   @override
   State<VertragDokTab> createState() => _DokTabState();
@@ -1344,6 +1356,10 @@ class _DokTabState extends State<VertragDokTab> {
           const SizedBox(width: 8),
           Text('Kündigungs-Chronologie', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800))),
         ]),
+        if (widget.vertrag != null) ...[
+          const SizedBox(height: 12),
+          _kuendigungKopf(),
+        ],
         const SizedBox(height: 16),
         for (int i = 0; i < _kuendigungSchritte.length; i++) ...[
           Builder(builder: (_) {
@@ -1427,6 +1443,159 @@ class _DokTabState extends State<VertragDokTab> {
     );
   }
 
+  /// Stand der Kündigung am Vertrag plus die beiden Wege, sie zu vollziehen.
+  ///
+  /// ⚠️ Die Chronologie hakte bisher nur Schritte ab — sie hat den Vertrag nie
+  /// angefasst. Ein Vertrag konnte also durchgehend „aktiv" sein, obwohl jeder
+  /// Schritt erledigt war. Beides gehört an dieselbe Stelle.
+  Widget _kuendigungKopf() {
+    final v = widget.vertrag!;
+    final gek = (v['gekuendigt_am']?.toString() ?? '').trim();
+    final anb = mobilfunkAnbieterFinden(v['anbieter']?.toString());
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: gek.isNotEmpty ? F.h(Colors.red, 50) : F.h(Colors.grey, 50),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: gek.isNotEmpty ? F.h(Colors.red, 200) : F.h(Colors.grey, 300)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(gek.isNotEmpty ? Icons.check_circle : Icons.info_outline, size: 16,
+              color: gek.isNotEmpty ? F.h(Colors.red, 700) : F.h(Colors.grey, 600)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(
+            gek.isNotEmpty ? 'Gekündigt am $gek' : 'Vertrag läuft — noch nicht gekündigt',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
+                color: gek.isNotEmpty ? F.h(Colors.red, 800) : F.h(Colors.grey, 700)),
+          )),
+        ]),
+        if (gek.isEmpty && (v['kuendigungsfrist']?.toString() ?? '').isNotEmpty)
+          Padding(padding: const EdgeInsets.only(top: 4, left: 24),
+            child: Text('Kündigungsfrist: ${v['kuendigungsfrist']}',
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
+        if (gek.isNotEmpty && (v['vertragsende']?.toString() ?? '').isNotEmpty)
+          Padding(padding: const EdgeInsets.only(top: 4, left: 24),
+            child: Text('Vertragsende: ${v['vertragsende']}',
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          if (anb != null && anb.hatKuendigungOnline && widget.userId != null)
+            FilledButton.icon(
+              onPressed: () => _kuendigungOeffnen(context, anb,
+                  apiService: widget.apiService, userId: widget.userId!, vertrag: v),
+              icon: const Icon(Icons.public, size: 15),
+              label: const Text('Online kündigen', style: TextStyle(fontSize: 11)),
+              style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade700,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+            ),
+          OutlinedButton.icon(
+            onPressed: widget.userId == null ? null : _kuendigungErfassen,
+            icon: Icon(gek.isNotEmpty ? Icons.edit : Icons.event_busy, size: 15),
+            label: Text(gek.isNotEmpty ? 'Kündigung bearbeiten' : 'Kündigung erfassen',
+                style: const TextStyle(fontSize: 11)),
+            style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.red, 700),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  /// Hält die Kündigung am Vertrag fest — Datum, Weg, Notiz.
+  ///
+  /// ⚠️ `is_active` wird NUR dann auf 0 gesetzt, wenn ein Kündigungsdatum
+  /// dasteht. Wer das Datum wieder leert, hat sich vertan; ein Vertrag, der
+  /// danach trotzdem als beendet gilt, fällt aus der Liste der aktiven und aus
+  /// der Kostensumme, ohne dass es jemand merkt.
+  Future<void> _kuendigungErfassen() async {
+    final v = widget.vertrag!;
+    final gekC = TextEditingController(text: v['gekuendigt_am']?.toString() ?? '');
+    final endeC = TextEditingController(text: v['vertragsende']?.toString() ?? '');
+    final notizC = TextEditingController(text: v['kuendigung_notiz']?.toString() ?? '');
+    String methode = v['kuendigung_methode']?.toString() ?? '';
+
+    final ok = await showDialog<bool>(context: context, builder: (kCtx) =>
+      StatefulBuilder(builder: (kCtx2, setK) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(children: [
+          Icon(Icons.event_busy, size: 18, color: F.h(Colors.red, 700)),
+          const SizedBox(width: 8), const Text('Kündigung', style: TextStyle(fontSize: 14)),
+        ]),
+        content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Auf welchem Weg wurde gekündigt?', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
+          const SizedBox(height: 8),
+          Wrap(spacing: 6, runSpacing: 4, children: [
+            for (final m in [('online', 'Online', Icons.language), ('email', 'E-Mail', Icons.email),
+                             ('post', 'Post', Icons.mail), ('persoenlich', 'Persönlich', Icons.person)])
+              ChoiceChip(
+                label: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(m.$3, size: 13, color: methode == m.$1 ? Colors.white : F.h(Colors.grey, 700)),
+                  const SizedBox(width: 4),
+                  Text(m.$2, style: TextStyle(fontSize: 10, color: methode == m.$1 ? Colors.white : F.h(Colors.grey, 700))),
+                ]),
+                selected: methode == m.$1,
+                selectedColor: Colors.red.shade600,
+                onSelected: (_) => setK(() => methode = m.$1),
+              ),
+          ]),
+          const SizedBox(height: 12),
+          TextField(controller: gekC, readOnly: true, decoration: InputDecoration(
+            labelText: 'Gekündigt am', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
+              final p = await showDatePicker(context: kCtx2, initialDate: DateTime.now(),
+                  firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de'));
+              if (p != null) setK(() => gekC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
+            }),
+          const SizedBox(height: 8),
+          TextField(controller: endeC, readOnly: true, decoration: InputDecoration(
+            labelText: 'Vertragsende', prefixIcon: const Icon(Icons.event, size: 16), isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
+              final p = await showDatePicker(context: kCtx2, initialDate: DateTime.now(),
+                  firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de'));
+              if (p != null) setK(() => endeC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
+            }),
+          const SizedBox(height: 8),
+          TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(
+            labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(kCtx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: () => Navigator.pop(kCtx, true),
+            child: const Text('Speichern'),
+          ),
+        ],
+      )));
+    if (ok != true) return;
+
+    final gek = gekC.text.trim();
+    // Die ganze Zeile geht zurück: der Endpunkt schreibt jedes Feld seiner
+    // Weissliste, was nicht ankommt wird NULL.
+    final neu = Map<String, dynamic>.from(v)
+      ..['gekuendigt_am'] = gek
+      ..['vertragsende'] = endeC.text.trim()
+      ..['kuendigung_methode'] = methode
+      ..['kuendigung_notiz'] = notizC.text.trim()
+      ..['is_active'] = gek.isEmpty ? 1 : 0;
+    final r = await widget.apiService.saveVertrag(widget.userId!, neu);
+    if (!mounted) return;
+    if (r['success'] == true) {
+      v..['gekuendigt_am'] = neu['gekuendigt_am']
+       ..['vertragsende'] = neu['vertragsende']
+       ..['kuendigung_methode'] = neu['kuendigung_methode']
+       ..['kuendigung_notiz'] = neu['kuendigung_notiz']
+       ..['is_active'] = neu['is_active'];
+      setState(() {});
+      widget.onChanged?.call();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nicht gespeichert: ${r['message'] ?? 'unbekannter Fehler'}')));
+    }
+  }
+
   Future<void> _addKuendigungSchritt(String schrittKey, String schrittLabel) async {
     final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
     final notizC = TextEditingController();
@@ -1472,6 +1641,11 @@ class _DokTabState extends State<VertragDokTab> {
             label: Text(uploading ? 'Speichern...' : 'Erledigt markieren'),
             onPressed: uploading ? null : () async {
               setD(() => uploading = true);
+              // ⚠️ Ohne diesen Rahmen blieb der Knopf bei jedem Fehler für
+              // immer auf „Speichern…" stehen — nichts geschah, und nichts
+              // sagte warum. Ein stiller Dauerzustand ist schlimmer als eine
+              // Fehlermeldung.
+              try {
               if (filePath != null) {
                 await widget.apiService.uploadVertragDokument(
                   vertragId: widget.vertragId, kategorie: 'kuendigung',
@@ -1491,6 +1665,13 @@ class _DokTabState extends State<VertragDokTab> {
               }
               if (ctx.mounted) Navigator.pop(ctx);
               _load();
+              } catch (e) {
+                if (!ctx2.mounted) return;
+                setD(() => uploading = false);
+                ScaffoldMessenger.of(ctx2).showSnackBar(
+                  SnackBar(content: Text('Schritt nicht gespeichert: $e')),
+                );
+              }
             },
           ),
         ],
