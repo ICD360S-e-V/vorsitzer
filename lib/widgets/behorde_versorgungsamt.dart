@@ -7,6 +7,7 @@ import 'cloud_file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import '../models/user.dart';
+import '../screens/webview_screen.dart';
 import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
 import '../services/secure_cloud_service.dart';
@@ -15,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../utils/zbfs_kontaktformular.dart';
 import '../utils/app_farben.dart';
 
 /// Antragsarten des Versorgungsamts (Schwerbehindertenrecht SGB IX +
@@ -600,6 +602,12 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                             amt['telefon'] = a['telefon']?.toString() ?? '';
                             amt['email'] = a['email']?.toString() ?? '';
                             amt['oeffnungszeiten'] = a['oeffnungszeiten']?.toString() ?? '';
+                            // Adresse des Online-Kontaktformulars mitschreiben,
+                            // damit der Antrag-Tab sie ohne zweite Abfrage hat.
+                            amt['kontaktformular_url'] = a['kontaktformular_url']?.toString() ?? '';
+                            _kontaktformularUrl = (a['kontaktformular_url']?.toString() ?? '').isEmpty
+                                ? null
+                                : a['kontaktformular_url'].toString();
                           });
                           _saveNow();
                           Navigator.pop(ctx);
@@ -903,8 +911,114 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     });
   }
 
+  // ---- Online-Kontaktformular des Amtes ----
+
+  /// Adresse des Online-Kontaktformulars, das dieses Amt betreibt — oder null.
+  ///
+  /// Steht in `versorgungsaemter.kontaktformular_url` und **nicht** im Code:
+  /// das ZBFS-Formular gilt nur für die bayerischen ZBFS-Stellen. Für das
+  /// Landratsamt Alb-Donau-Kreis ist die Spalte leer, dort erscheint der Knopf
+  /// deshalb gar nicht erst.
+  String? _kontaktformularUrl;
+  Map<String, dynamic>? _vereinDaten;
+  bool _amtExtrasGeladen = false;
+
+  /// Holt die Formular-Adresse und die Vereinsdaten — beides einmal je Sitzung.
+  ///
+  /// ⚠️ Die Adresse kommt aus der Ämterliste und nicht aus dem Schnappschuss
+  /// unter `versorgungsamt_data.amt`: dieser Schnappschuss wurde beim Zuweisen
+  /// des Amtes geschrieben und kennt die Spalte bei allen Altbeständen noch
+  /// nicht. Der Schnappschuss dient nur als Rückfallebene.
+  Future<void> _ladeAmtExtras(Map<String, dynamic> data) async {
+    _amtExtrasGeladen = true;
+    final selAmt = (data['selected_amt'] is Map)
+        ? Map<String, dynamic>.from(data['selected_amt'])
+        : <String, dynamic>{};
+    var url = selAmt['kontaktformular_url']?.toString() ?? '';
+    final amtId = data['selected_amt_id']?.toString() ?? '';
+    if (url.isEmpty && amtId.isNotEmpty) {
+      try {
+        final r = await widget.apiService.searchVersorgungsaemter();
+        final liste = (r['versorgungsaemter'] as List?) ?? (r['data'] as List?) ?? const [];
+        for (final e in liste) {
+          final m = Map<String, dynamic>.from(e as Map);
+          if (m['id']?.toString() == amtId) {
+            url = m['kontaktformular_url']?.toString() ?? '';
+            break;
+          }
+        }
+      } catch (e) {
+        debugPrint('[Versorgungsamt] Ämterliste nicht erreichbar: $e');
+      }
+    }
+    try {
+      final v = await widget.apiService.getVereineinstellungen();
+      if (v['success'] == true && v['data'] is Map) {
+        _vereinDaten = Map<String, dynamic>.from(v['data'] as Map);
+      }
+    } catch (e) {
+      debugPrint('[Versorgungsamt] Vereinsdaten nicht erreichbar: $e');
+    }
+    if (!mounted) return;
+    setState(() => _kontaktformularUrl = url.isEmpty ? null : url);
+  }
+
+  /// Öffnet das Kontaktformular des Amtes und füllt es vor.
+  ///
+  /// Gefüllt wird nur; abgeschickt wird nichts. Was schon im Formular steht,
+  /// bleibt stehen.
+  Future<void> _oeffneKontaktformular(Map<String, dynamic> antrag) async {
+    final url = _kontaktformularUrl;
+    if (url == null || url.isEmpty) return;
+    final verein = _vereinDaten ?? const <String, dynamic>{};
+    final anschrift = zbfsAdresseZerlegen(verein['adresse']?.toString());
+    final art = antrag['art']?.toString() ?? '';
+    final u = widget.user;
+
+    final daten = ZbfsFormularDaten(
+      vorname: u.vorname ?? '',
+      nachname: u.nachname ?? '',
+      geschlecht: u.geschlecht ?? '',
+      strasseHausnummer: [u.strasse ?? '', u.hausnummer ?? '']
+          .where((t) => t.trim().isNotEmpty)
+          .join(' ')
+          .trim(),
+      plz: u.plz ?? '',
+      ort: u.ort ?? '',
+      land: u.land ?? '',
+      geburtsdatum: u.geburtsdatum ?? '',
+      // Der Antrag trägt sein eigenes Aktenzeichen nur, wenn eines erfasst
+      // wurde; sonst gilt das des Amtes aus dem Amt-Tab.
+      aktenzeichen: (antrag['aktenzeichen']?.toString() ?? '').isNotEmpty
+          ? antrag['aktenzeichen'].toString()
+          : _joinAkt(),
+      vereinName: verein['vereinsname']?.toString() ?? '',
+      vereinTelefon: verein['telefon_fix']?.toString() ?? '',
+      vereinStrasseHausnummer: anschrift.strasse,
+      vereinPlz: anschrift.plz,
+      vereinOrt: anschrift.ort,
+      antragsart: art,
+      mitteilung: zbfsMitteilung(
+        antragsart: art,
+        antragDatum: antrag['datum']?.toString() ?? '',
+        wertmarkeBis: _wertmarken.isNotEmpty ? _wertmarken.first.bisLabel : '',
+        ausweisGueltigBis: _ausweisUnbefristet ? '' : _ausweisGueltigBisC.text,
+      ),
+    );
+
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => WebViewScreen(
+        title: 'Kontaktformular ${vaAntragsartShort(art)}',
+        url: url,
+        customJs: zbfsAutofillJs(daten),
+      ),
+    ));
+  }
+
   Widget _buildAntragTab(Map<String, dynamic> data) {
     if (!_antraegeLoaded) { _loadAntraege(); return const Center(child: CircularProgressIndicator()); }
+    if (!_amtExtrasGeladen) _ladeAmtExtras(data);
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -956,6 +1070,12 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                         if (aid != null) _showAntragDetailDialog(aid, a);
                       },
                       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if ((_kontaktformularUrl ?? '').isNotEmpty)
+                          IconButton(
+                            icon: Icon(Icons.public, size: 19, color: Colors.indigo.shade600),
+                            tooltip: 'Online-Kontaktformular des Amtes — mit den Daten aus Stufe 1 vorausgefüllt',
+                            onPressed: () => _oeffneKontaktformular(a),
+                          ),
                         IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () async {
                           final aid = int.tryParse(a['id']?.toString() ?? '');
                           if (aid != null) await widget.apiService.deleteVersorgungsamtAntrag(aid);
