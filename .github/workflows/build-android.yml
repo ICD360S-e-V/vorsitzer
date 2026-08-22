@@ -471,6 +471,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.version.outputs.version_name }}
           BUILD: ${{ needs.version.outputs.build_number }}
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
         run: |
           set -euo pipefail
           export GH_URL="https://github.com/${GH_REPO}/releases/download/${GH_REF_NAME}/vorsitzer.apk"
@@ -501,9 +502,37 @@ jobs:
           # Wrapped in {"success": true, ...} so the app code reads it the
           # same way as the old icd360sev PHP response — no client change
           # needed beyond swapping versionUrl.
+          # ── Pruefsummen der Artefakte ───────────────────────────────────
+          # Die GitHub-API liefert zu jedem Release-Asset ein `digest`-Feld
+          # ("sha256:…"). Damit muessen die Dateien nicht heruntergeladen
+          # werden, um sie zu hashen — beim APK waeren das ueber 100 MB.
+          #
+          # ⚠️ Erst NACH dem Hochladen abfragen, sonst kennt die API das Asset
+          # noch nicht. Der Upload steht im Schritt davor.
+          #
+          # ⚠️ macOS und Windows liegen in einer ANDEREN, aelteren Release
+          # (siehe LETZTE_DESKTOP_VERSION oben) — deren Digest muss also von
+          # dort geholt werden, nicht aus der laufenden.
+          digest_holen() {   # $1 = Tag, $2 = Dateiname
+            gh api "repos/${GH_REPO}/releases/tags/$1" \
+              --jq ".assets[] | select(.name==\"$2\") | .digest" 2>/dev/null || true
+          }
+          export SHA_ANDROID="$(digest_holen "$GH_REF_NAME" "vorsitzer.apk")"
+          export SHA_MACOS="$(digest_holen "$LETZTE_DESKTOP_VERSION" "vorsitzer-${LETZTE_DESKTOP_NUMMER}-macos.dmg")"
+          export SHA_WINDOWS="$(digest_holen "$LETZTE_DESKTOP_VERSION" "vorsitzer-${LETZTE_DESKTOP_NUMMER}-windows-x64.zip")"
+
+          # ⚠️ Ohne APK-Pruefsumme wird KEIN Manifest veroeffentlicht. Der
+          # Client lehnt ein Manifest ohne Pruefsumme ohnehin ab; ein solches
+          # hochzuladen hiesse, allen Geraeten die Updates abzudrehen, ohne
+          # dass hier etwas rot wird.
+          if [ -z "$SHA_ANDROID" ]; then
+            echo "::error::Kein Digest fuer vorsitzer.apk — Manifest wird NICHT veroeffentlicht."
+            exit 1
+          fi
+
           python3 - <<'PY' > version_vorsitzer.json
           import json, os
-          json.dump({
+          eintrag = {
               'success':              True,
               'version':              os.environ['VERSION'],
               'build_number':         int(os.environ['BUILD']),
@@ -511,14 +540,49 @@ jobs:
               'download_url_macos':   os.environ['GH_URL_MACOS'],
               'download_url_windows': os.environ['GH_URL_WINDOWS'],
               'download_url':         os.environ['GH_URL'],
+              'sha256_android':       os.environ['SHA_ANDROID'],
               'release_date':         os.environ['RELEASE_DATE'],
               'changelog':            (
                   f"Version {os.environ['VERSION']}\n\n"
                   f"See full changelog at "
                   f"https://github.com/{os.environ['GH_REPO']}/releases/tag/{os.environ['GH_REF_NAME']}"
               ),
-          }, open('/dev/stdout', 'w'), indent=2)
+          }
+          # Leere Desktop-Digests gar nicht erst aufnehmen: ein leerer String
+          # saehe fuer den Client wie eine Pruefsumme aus und schlaege beim
+          # Vergleich fehl, statt als "fehlt" erkannt zu werden.
+          for schluessel, umgebung in (('sha256_macos', 'SHA_MACOS'),
+                                       ('sha256_windows', 'SHA_WINDOWS')):
+              wert = os.environ.get(umgebung, '').strip()
+              if wert:
+                  eintrag[schluessel] = wert
+          json.dump(eintrag, open('/dev/stdout', 'w'), indent=2)
           PY
-          gh release upload "$GH_REF_NAME" version_vorsitzer.json --clobber --repo "$GH_REPO"
+
+          # ── Signatur ueber die ROHEN Manifest-Bytes ─────────────────────────
+          # Der Client prueft genau diese Datei, byteweise. Nichts darf sie
+          # zwischen Signieren und Hochladen mehr anfassen — kein Umformatieren,
+          # kein erneutes json.dump.
+          #
+          # ⚠️ Ohne Secret wird NICHT unsigniert veroeffentlicht, sondern
+          # abgebrochen. Ein unsigniertes Manifest lehnt jeder aktuelle Client
+          # ab; es hochzuladen hiesse, die Updates still abzuschalten.
+          if [ -z "${UPDATE_SIGNING_KEY:-}" ]; then
+            echo "::error::UPDATE_SIGNING_KEY fehlt — Manifest wird NICHT veroeffentlicht."
+            exit 1
+          fi
+          printf '%s' "$UPDATE_SIGNING_KEY" | base64 -d > /tmp/update_key.pem
+          chmod 600 /tmp/update_key.pem
+          openssl pkeyutl -sign -inkey /tmp/update_key.pem -rawin \
+            -in version_vorsitzer.json -out /tmp/version_vorsitzer.sig
+          # Gegenprobe im selben Lauf: was wir gleich veroeffentlichen, muss
+          # sich mit dem oeffentlichen Schluessel auch pruefen lassen.
+          openssl pkey -in /tmp/update_key.pem -pubout -out /tmp/update_pub.pem
+          openssl pkeyutl -verify -pubin -inkey /tmp/update_pub.pem -rawin \
+            -in version_vorsitzer.json -sigfile /tmp/version_vorsitzer.sig
+          base64 -w0 < /tmp/version_vorsitzer.sig > version_vorsitzer.json.sig
+          rm -f /tmp/update_key.pem /tmp/update_pub.pem
+
+          gh release upload "$GH_REF_NAME" version_vorsitzer.json version_vorsitzer.json.sig --clobber --repo "$GH_REPO"
           echo "✅ version_vorsitzer.json uploaded. Stable URL:"
           echo "    https://github.com/$GH_REPO/releases/latest/download/version_vorsitzer.json"

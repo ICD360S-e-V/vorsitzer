@@ -431,7 +431,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       if (info != null && mounted) {
         _autoUpdating = true;
         _log.info('Auto-update: v${info.version} (build ${info.buildNumber}) available, downloading...', tag: 'AUTO-UPDATE');
-        final path = await updateService.downloadUpdate(info.downloadUrl, (p) {});
+        final path = await updateService.downloadUpdate(info, (p) {});
         if (path != null && mounted) {
           _log.info('Auto-update: downloaded, installing...', tag: 'AUTO-UPDATE');
           await updateService.launchInstaller(path);

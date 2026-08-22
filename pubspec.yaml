@@ -46,6 +46,12 @@ dependencies:
   # SHA-256 for live document-content hash compare in Stufe 6/7/8 Beweis dialog.
   crypto: ^3.0.0
 
+  # AccumulatorSink — SHA-256 mitlaufend beim Herunterladen eines Updates
+  # bilden, statt ein 100-MB-APK noch einmal komplett einzulesen.
+  # Kam bisher nur transitiv ueber `crypto` herein; hier deklariert,
+  # damit der Import stabil ist — wie bei flutter_svg.
+  convert: ^3.1.1
+
   # HTML parsing for client-side handelsregister.de scraping
   # Exakt gepinnt: der Sanitizer und flutter_widget_from_html_core müssen
   # DENSELBEN html5lib-Port benutzen. Die mXSS-Bypässe bei DOMPurify, Proton

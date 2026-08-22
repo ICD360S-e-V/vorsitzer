@@ -76,7 +76,7 @@ class _RdpOnlyScreenState extends State<RdpOnlyScreen> {
       final dienst = UpdateService();
       final info = await dienst.checkForUpdate();
       if (info == null || !mounted) return;
-      final pfad = await dienst.downloadUpdate(info.downloadUrl, (_) {});
+      final pfad = await dienst.downloadUpdate(info, (_) {});
       if (pfad != null && mounted) await dienst.launchInstaller(pfad);
     } catch (_) {
       // Ein Gerät, das gerade kein Netz hat, soll trotzdem auf den Rechner
