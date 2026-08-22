@@ -76,6 +76,18 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
   /// nach dem Schließen des Dialogs nicht mehr lesbar sein muss.
   List<FaxAnhang> _dokumente = [];
 
+  /// Vorschaubilder, nach Fax-Id.
+  ///
+  /// ⚠️ Ein Eintrag mit Wert `null` heißt „schon versucht, gibt es nicht" —
+  /// etwas anderes als „noch nicht geholt" (kein Eintrag). Ohne diesen
+  /// Unterschied fragte der Bildschirm für jedes Fax ohne Vorschau bei jedem
+  /// Neuaufbau erneut nach, also endlos.
+  final Map<int, Uint8List?> _miniaturen = {};
+  final Set<int> _miniaturLaeuft = {};
+
+  /// Damit das Sendefeld sichtbar wird, wenn „Antworten" es füllt.
+  final ScrollController _blaettern = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -85,6 +97,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
   @override
   void dispose() {
     _sucheEntprellen?.cancel();
+    _blaettern.dispose();
     _empfaenger.dispose();
     _name.dispose();
     _betreff.dispose();
@@ -634,6 +647,224 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     await _laden();
   }
 
+  /// Holt die Vorschau der ersten Seite — einmal je Fax.
+  ///
+  /// ⚠️ Ein Fax IST ein Bild. Der Verlauf zeigte nur Text, und der ist bei
+  /// einem eingegangenen Fax fast leer: eine Rufnummer und ein von uns selbst
+  /// erzeugter Dateiname. Woran man Behördenpost erkennt, ist der Briefkopf —
+  /// und der steht auf Seite 1.
+  ///
+  /// ⚠️ Nach dem Bildaufbau angestoßen, nicht mitten darin: `setState` während
+  /// `build` ist verboten, und ein Aufruf ohne diese Verzögerung würde bei
+  /// jedem Neuaufbau erneut starten.
+  void _miniaturAnfordern(int id) {
+    if (_miniaturen.containsKey(id) || _miniaturLaeuft.contains(id)) return;
+    _miniaturLaeuft.add(id);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final r = await _api.sipgateFaxAction({'action': 'miniatur', 'id': id},
+          timeout: const Duration(seconds: 30));
+      if (!mounted) return;
+      Uint8List? bild;
+      if (r['success'] == true) {
+        try {
+          bild = base64Decode(r['inhalt_b64'].toString());
+        } catch (_) {
+          bild = null;
+        }
+      }
+      setState(() {
+        _miniaturen[id] = bild;
+        _miniaturLaeuft.remove(id);
+      });
+    });
+  }
+
+  /// Auf ein eingegangenes Fax antworten.
+  ///
+  /// ⚠️ Füllt nur das Sendefeld — es wird nichts von allein verschickt. Ein
+  /// Fax lässt sich nicht zurückholen; ein Knopf, der sofort sendet, wäre an
+  /// dieser Stelle eine Falle.
+  void _antworten(Map<String, dynamic> f) {
+    final nummer = '${f['empfaenger'] ?? ''}';
+    if (nummer.isEmpty) {
+      _melde('Zu diesem Fax ist keine Absendernummer gespeichert', fehler: true);
+      return;
+    }
+    setState(() {
+      _empfaenger.text = nummer;
+      final name = '${f['empfaenger_name'] ?? ''}';
+      if (name.isNotEmpty) _name.text = name;
+      // Betreff nur vorschlagen, wenn das Deckblatt überhaupt an ist — sonst
+      // stünde ein Wert in einem Feld, das niemand sieht.
+      if (_deckblatt && _betreff.text.trim().isEmpty) {
+        _betreff.text = 'Ihr Fax vom ${_datumKurz(f)}';
+      }
+    });
+    // Nach oben, sonst füllt sich ein Formular außerhalb des Blickfelds und
+    // es sieht aus, als sei nichts passiert.
+    if (_blaettern.hasClients) {
+      _blaettern.animateTo(0,
+          duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    }
+    _melde('Empfänger übernommen — Dokument wählen und senden');
+  }
+
+  String _datumKurz(Map<String, dynamic> f) {
+    final r = '${f['gesendet_am'] ?? f['erstellt_am'] ?? ''}';
+    // „2026-08-21 18:22:54" -> „21.08.2026"
+    final t = DateTime.tryParse(r);
+    if (t == null) return r;
+    return '${t.day.toString().padLeft(2, '0')}.'
+        '${t.month.toString().padLeft(2, '0')}.${t.year}';
+  }
+
+  /// Die eigene Notiz zu einem Fax.
+  ///
+  /// ⚠️ Unsere, nicht die von sipgate. Deren Verlauf hat auch ein Notizfeld —
+  /// und wird nach 30 Tagen gelöscht. Eine Notiz, die genau dann verschwindet,
+  /// wenn man sie braucht, ist keine.
+  Future<void> _notiz(Map<String, dynamic> f) async {
+    final c = TextEditingController(text: '${f['notiz'] ?? ''}');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Notiz'),
+        content: TextField(
+          controller: c,
+          maxLines: 4,
+          maxLength: 1000,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Wozu ging das raus? Was kam zurück?',
+            helperText: 'Bleibt bei uns — auch nach den 30 Tagen bei sipgate',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Speichern')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final r = await _api.sipgateFaxAction({
+      'action': 'notiz_setzen', 'id': f['id'], 'notiz': c.text.trim(),
+    });
+    if (!mounted) return;
+    if (r['success'] == true) {
+      setState(() => f['notiz'] = c.text.trim());
+    }
+    _melde(r['message']?.toString() ?? '', fehler: r['success'] != true);
+  }
+
+  /// Den angezeigten Namen von Hand setzen.
+  Future<void> _nameSetzen(Map<String, dynamic> f) async {
+    final c = TextEditingController(text: '${f['empfaenger_name'] ?? ''}');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Gegenstelle benennen'),
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Name',
+            hintText: 'z. B. Amtsgericht Neu-Ulm',
+            // Sagt, warum der Name danach stehen bleibt.
+            helperText: 'Ein eingetragener Name wird nie automatisch ersetzt',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Speichern')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final r = await _api.sipgateFaxAction({
+      'action': 'name_setzen', 'id': f['id'], 'name': c.text.trim(),
+    });
+    _melde(r['message']?.toString() ?? '', fehler: r['success'] != true);
+    await _laden();
+  }
+
+  /// Das Faxjournal — was ein Faxgerät ausdruckt, nur vollständig.
+  ///
+  /// ⚠️ WOFÜR: bei einem Streit über den Zugang eines fristgebundenen
+  /// Schreibens ist das Journal das, was vorgelegt wird. Ein Bildschirmfoto
+  /// ist kein Beleg.
+  Future<void> _journal() async {
+    var mitBerichten = true;
+    var richtung = '';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => StatefulBuilder(
+        builder: (d2, setzen) => AlertDialog(
+          title: const Text('Faxjournal erstellen'),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text(
+              'Eine Liste aller Sendungen mit Zeitpunkt, Gegenstelle, Seitenzahl '
+              'und Ergebnis — als PDF zum Vorlegen.',
+              style: TextStyle(fontSize: 13, height: 1.35),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: richtung,
+              decoration: const InputDecoration(
+                labelText: 'Umfang', isDense: true, border: OutlineInputBorder()),
+              items: const [
+                DropdownMenuItem(value: '', child: Text('Alles')),
+                DropdownMenuItem(value: 'aus', child: Text('Nur gesendete')),
+                DropdownMenuItem(value: 'ein', child: Text('Nur empfangene')),
+              ],
+              onChanged: (v) => setzen(() => richtung = v ?? ''),
+            ),
+            const SizedBox(height: 4),
+            CheckboxListTile(
+              value: mitBerichten,
+              onChanged: (v) => setzen(() => mitBerichten = v ?? false),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('Sendeberichte anhängen'),
+              subtitle: const Text(
+                'Erst damit ist es ein Nachweis: das Journal ist unsere Angabe, '
+                'die Berichte sind die Bestätigung des Netzbetreibers.',
+                style: TextStyle(fontSize: 12, height: 1.3),
+              ),
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(d2, false), child: const Text('Abbrechen')),
+            FilledButton(onPressed: () => Navigator.pop(d2, true), child: const Text('Erstellen')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+
+    _melde('Journal wird erstellt …');
+    final r = await _api.sipgateFaxAction({
+      'action': 'journal',
+      if (richtung.isNotEmpty) 'richtung': richtung,
+      'mit_berichten': mitBerichten,
+      // Berichte anhängen heißt viele Seiten zusammenfügen — das dauert.
+    }, timeout: const Duration(seconds: 120));
+    if (!mounted) return;
+    if (r['success'] != true) {
+      _melde(r['message']?.toString() ?? 'Journal nicht erstellbar', fehler: true);
+      return;
+    }
+    try {
+      final bytes = base64Decode(r['inhalt_b64'].toString());
+      _melde(r['message']?.toString() ?? '');
+      await FileViewerDialog.showFromBytes(
+          context, bytes, (r['dateiname'] ?? 'Faxjournal.pdf').toString());
+    } catch (e) {
+      _melde('Journal ist beschädigt angekommen: $e', fehler: true);
+    }
+  }
+
   Future<void> _nachsehen(Map<String, dynamic> f) async {
     final r = await _api.sipgateFaxAction({'action': 'stand', 'id': f['id']});
     _melde(r['success'] == true
@@ -706,6 +937,11 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
         title: const Text('Fax'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.receipt_long_outlined),
+            tooltip: 'Faxjournal — Nachweis zum Vorlegen',
+            onPressed: _journal,
+          ),
+          IconButton(
             icon: const Icon(Icons.mark_email_read_outlined),
             tooltip: 'Eingang als gelesen vermerken',
             onPressed: _alleGelesen,
@@ -732,6 +968,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           : RefreshIndicator(
               onRefresh: () => _laden(live: true),
               child: ListView(
+                controller: _blaettern,
                 padding: const EdgeInsets.all(16),
                 children: [
                   _zugangsfeld(),
@@ -1079,6 +1316,56 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
         ),
       );
 
+  /// Das Bild links: die erste Seite, wenn es sie gibt — sonst das Statuszeichen.
+  ///
+  /// ⚠️ Das Statuszeichen bleibt IMMER sichtbar, als kleine Marke auf dem Bild.
+  /// Es trägt die einzige Information, die man in einer Liste wirklich braucht
+  /// („ist es angekommen?"); die Vorschau sagt nur, worum es geht. Sie darf
+  /// das Zeichen also ergänzen, nicht ersetzen.
+  Widget _vorschau(Map<String, dynamic> f, IconData ikone, Color farbe, bool hatDokument) {
+    final id = (f['id'] as num?)?.toInt() ?? 0;
+    if (hatDokument && id > 0) _miniaturAnfordern(id);
+    final bild = _miniaturen[id];
+
+    if (bild == null) {
+      // Kein Bild (noch nicht da, oder es gibt keins) — wie bisher.
+      return Icon(ikone, color: farbe);
+    }
+    return SizedBox(
+      width: 40,
+      height: 52,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: Container(
+              // Weißer Grund: ein Fax ist Papier, und ein durchscheinendes
+              // JPEG auf dunklem Untergrund liest sich wie ein Negativ.
+              color: Colors.white,
+              width: 40,
+              height: 52,
+              child: Image.memory(bild, fit: BoxFit.cover, alignment: Alignment.topCenter,
+                  gaplessPlayback: true),
+            ),
+          ),
+          Positioned(
+            left: -4,
+            bottom: -4,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                shape: BoxShape.circle,
+              ),
+              padding: const EdgeInsets.all(1),
+              child: Icon(ikone, color: farbe, size: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _faxZeile(Map<String, dynamic> f) {
     final status = (f['status'] ?? '').toString();
     final roh = f['fax_status_type']?.toString();
@@ -1088,6 +1375,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     final nummer = (f['empfaenger'] ?? '').toString();
     final fehler = (f['fehler'] ?? '').toString();
     final bezugText = (f['bezug_text'] ?? '').toString();
+    final notiz = (f['notiz'] ?? '').toString();
     final gruppeVon = (f['gruppe_von'] as num?)?.toInt() ?? 0;
     final gruppePos = (f['gruppe_pos'] as num?)?.toInt() ?? 0;
     final wiederholung = f['wiederholung_von'];
@@ -1111,7 +1399,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.07)
           : null,
       child: ListTile(
-        leading: Icon(ikone, color: farbe),
+        leading: _vorschau(f, ikone, farbe, hatDokument),
         title: Row(children: [
           Flexible(
             child: Text(
@@ -1172,6 +1460,25 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           if (wiederholung != null)
             Text('Zweiter Versuch zu Fax #$wiederholung',
                 style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
+          // Die eigene Notiz. Sie steht bewusst UNTER dem Status: sie sagt,
+          // warum das Fax rausging — nicht, ob es ankam.
+          if (notiz.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.sticky_note_2_outlined, size: 12, color: F.h(Colors.grey, 600)),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(notiz,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontStyle: FontStyle.italic,
+                          color: F.h(Colors.grey, 800))),
+                ),
+              ]),
+            ),
           if (fehler.isNotEmpty)
             Text(fehler, style: TextStyle(color: F.h(Colors.red, 700), fontSize: 12)),
         ]),
@@ -1208,6 +1515,9 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               'bericht'  => _bericht(f),
               'laden'    => _herunterladen(f),
               'erneut'   => _erneutSenden(f),
+              'antwort'  => _antworten(f),
+              'notiz'    => _notiz(f),
+              'name'     => _nameSetzen(f),
               'gelesen'  => _alsGelesen(f),
               'stand'    => _nachsehen(f),
               'loeschen' => _loeschen(f),
@@ -1227,6 +1537,19 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               if (!ein && hatDokument)
                 const PopupMenuItem(value: 'erneut',
                     child: ListTile(leading: Icon(Icons.send_outlined), title: Text('Noch einmal senden'))),
+              // ⚠️ Nur beim Eingang. „Antworten" auf ein Fax, das wir selbst
+              // geschickt haben, hiesse an uns selbst zu faxen.
+              if (ein)
+                const PopupMenuItem(value: 'antwort',
+                    child: ListTile(leading: Icon(Icons.reply), title: Text('Antworten'))),
+              PopupMenuItem(value: 'notiz',
+                  child: ListTile(
+                      leading: const Icon(Icons.sticky_note_2_outlined),
+                      title: Text(notiz.isEmpty ? 'Notiz hinzufügen' : 'Notiz ändern'))),
+              // Eine Gegenstelle, die weder sipgate noch unsere Stammdaten
+              // kennen, bleibt sonst für immer eine nackte Rufnummer.
+              const PopupMenuItem(value: 'name',
+                  child: ListTile(leading: Icon(Icons.badge_outlined), title: Text('Gegenstelle benennen'))),
               if (ungelesen)
                 const PopupMenuItem(value: 'gelesen',
                     child: ListTile(leading: Icon(Icons.mark_email_read_outlined), title: Text('Als gelesen'))),
