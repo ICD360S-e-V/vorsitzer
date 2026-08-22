@@ -81,6 +81,17 @@ void main() {
     // Navigator und mit ihm das `Overlay`, das das Passwortfeld braucht. Er
     // ist verdeckt und unbedienbar, nicht entfernt. Geprueft wird deshalb die
     // Sperrschicht, nicht seine Abwesenheit.
+    // ⚠️ DIE Probe zum schwarzen Bildschirm. In 6.137.3 gab die Huelle die
+    // Flaeche ANSTELLE des Kindes zurueck; damit fiel der Navigator und mit
+    // ihm das Overlay, das jedes EditableText braucht. Das Passwortfeld hat
+    // `autofocus`, also flog beim Erscheinen sofort „No Overlay widget found"
+    // — im Release-Build heisst das: schwarze Flaeche, keine Meldung.
+    //
+    // Auf dem Pixel selbst fiel es nicht auf, weil die Huelle dort in der
+    // fruehen Rueckgabe feststeckte und die Flaeche nie zeichnete. Am externen
+    // Monitor wird neu gebaut, `isLoggedIn` steht da schon — und es flog.
+    expect(t.takeException(), isNull,
+        reason: 'kein Aufbaufehler — sonst ist die Flaeche im Release schwarz');
     expect(find.byType(AbsorbPointer), findsWidgets,
         reason: 'der Hintergrund darf nicht mehr bedienbar sein');
     expect(find.byType(ExcludeSemantics), findsWidgets,
@@ -103,8 +114,13 @@ void main() {
     await t.pumpWidget(bauen());
     await t.pump(const Duration(seconds: 2));
 
+    expect(t.takeException(), isNull,
+        reason: 'auch die Sperrflaeche darf nicht beim Aufbau werfen');
     expect(find.text('Gesperrt'), findsOneWidget);
     expect(find.byType(AbsorbPointer), findsWidgets);
+    // Der Navigator MUSS stehenbleiben — er traegt das Overlay.
+    expect(find.byType(Navigator), findsWidgets,
+        reason: 'ohne Navigator kein Overlay, ohne Overlay kein Textfeld');
     // ⚠️ Der normale Weg ist das PASSWORT. Der Aktivierungscode darf erst
     // erscheinen, wenn man „Passwort vergessen?" ausdruecklich antippt.
     expect(find.text('App-Passwort'), findsOneWidget);
