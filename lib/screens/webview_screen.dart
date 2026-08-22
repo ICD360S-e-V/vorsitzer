@@ -11,6 +11,7 @@ import '../services/external_browser_service.dart';
 import '../services/platform_service.dart';
 import '../utils/autofill_herkunft.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/webview_bruecke.dart';
 import '../widgets/responsive_layout.dart';
 
 // Platform-specific imports
@@ -869,6 +870,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   Future<void> _injectFilePickerInterceptor() async {
     if (_fileInterceptorInjected || _mobileController == null) return;
+    // Auf einer fremden Seite wird der Umleiter gar nicht erst eingespielt.
+    // Er ist nicht das Schloss — das sitzt im Handler —, aber es gibt keinen
+    // Grund, fremden Seiten auch noch die Klickumleitung mitzugeben.
+    if (!brueckeErlaubt(widget.url, _currentUrl)) return;
     _fileInterceptorInjected = true;
     try {
       await _mobileController!.runJavaScript('''
@@ -975,6 +980,22 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   Future<void> _handleFilePickerRequest(String message) async {
+    // ⚠️ Erst die Herkunft, dann der Auswähler. Android reicht diesen Kanal an
+    // JEDEN Rahmen weiter und sagt uns nicht, wer gerufen hat — prüfbar ist nur
+    // die Adresse des Hauptrahmens. Das fängt die Seite ab, die woanders
+    // hingewandert ist; ein fremdes iframe INNERHALB der erlaubten Seite fängt
+    // es nicht (siehe webview_bruecke.dart).
+    if (!brueckeErlaubt(widget.url, _currentUrl)) {
+      debugPrint('[WebView] Dateiauswahl abgelehnt: $_currentUrl');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(brueckeAbgelehntText(widget.url)),
+          backgroundColor: Colors.orange.shade800,
+          duration: const Duration(seconds: 5),
+        ));
+      }
+      return;
+    }
     try {
       final data = jsonDecode(message);
       if (data['action'] != 'pick') return;

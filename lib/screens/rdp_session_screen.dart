@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+
+import '../utils/webview_bruecke.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart' as mobile_webview;
 
@@ -84,7 +86,8 @@ class _RdpSessionScreenState extends State<RdpSessionScreen>
       await c.addJavaScriptChannel('RdpBridge',
           onMessageReceived: (m) => _onBridge(m.message));
       await c.setNavigationDelegate(mobile_webview.NavigationDelegate(
-        onPageStarted: (_) {
+        onPageStarted: (url) {
+          _seitenUrl = url;
           if (mounted) setState(() => _loading = true);
         },
         onPageFinished: (_) {
@@ -112,7 +115,18 @@ class _RdpSessionScreenState extends State<RdpSessionScreen>
   /// anything else (Guacamole `error` instruction, tunnel closed) means the
   /// token is spent — the status code is deliberately not parsed, since
   /// Guacamole sends non-numeric codes like CONFIG_ERROR.
+  /// Adresse des Hauptrahmens, wie zuletzt gemeldet.
+  String? _seitenUrl;
+
   void _onBridge(String msg) {
+    // Dieselbe Torprüfung wie beim Dateiauswähler im WebViewScreen. Hier steht
+    // weniger auf dem Spiel — schlimmstenfalls liesse eine fremde Seite die
+    // Sitzung neu ausstellen —, aber es gibt keinen Grund, die eine Brücke zu
+    // prüfen und die andere nicht.
+    if (!brueckeErlaubt(_url, _seitenUrl)) {
+      debugPrint('[RDP] Brückenaufruf abgewiesen: $_seitenUrl');
+      return;
+    }
     if (msg == 'connected') {
       _retried = false;
       return;
