@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import '../utils/clipboard_helper.dart';
@@ -17,6 +16,7 @@ import 'arbeitgeber_bewerbungsuebersicht.dart';
 import 'stellenangeboten.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 class ArbeitgeberBehoerdeContent extends StatefulWidget {
   final User user;
@@ -506,7 +506,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                   if (response.statusCode == 200 && ctx.mounted) {
                                     final dir = await getTemporaryDirectory();
                                     final fileName = doc['datei_name'] ?? doc['dateiname'] ?? 'dokument';
-                                    final file = File('${dir.path}/$fileName');
+                                    final file = sichereDatei(dir, fileName);
                                     await file.writeAsBytes(response.bodyBytes);
                                     if (ctx.mounted) {
                                       final handled = await FileViewerDialog.show(ctx, file.path, fileName);
@@ -3865,7 +3865,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                           );
                                         } else if (isPdf) {
                                           final tempDir = await getTemporaryDirectory();
-                                          final tempFile = File('${tempDir.path}/lsb_preview_$docId.pdf');
+                                          final tempFile = sichereDatei(tempDir, 'lsb_preview_$docId.pdf');
                                           await tempFile.writeAsBytes(bytes);
                                           if (dlgCtx.mounted) {
                                             showDialog(

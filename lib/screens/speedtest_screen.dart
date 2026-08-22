@@ -15,6 +15,7 @@ import '../services/api_service.dart';
 import '../services/speedtest_service.dart';
 import '../services/termin_sms_gateway_service.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Speedtest gegen den EIGENEN Server — kein Fremdanbieter ist beteiligt.
 ///
@@ -399,7 +400,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
       final endung = format == 'brief' ? 'pdf' : format;
       final name = 'speedtest_${format}_${_zeitraum}_'
           '${DateTime.now().millisecondsSinceEpoch}.$endung';
-      final datei = File('${ordner.path}/$name');
+      final datei = sichereDatei(ordner, name);
       await datei.writeAsBytes(antwort.bodyBytes);
 
       // ⚠️ Der app-private Dokumentenordner ist auf Android von aussen NICHT

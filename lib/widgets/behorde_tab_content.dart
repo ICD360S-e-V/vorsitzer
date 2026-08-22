@@ -1,4 +1,3 @@
-import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
@@ -41,6 +40,7 @@ import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../widgets/responsive_layout.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 class BehoerdeTabContent extends StatefulWidget {
   final User user;
@@ -1868,7 +1868,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 if (response.statusCode == 200) {
                   final tempDir = await getTemporaryDirectory();
                   final fileName = doc['filename'] ?? 'dokument';
-                  final tempFile = io.File('${tempDir.path}/$fileName');
+                  final tempFile = sichereDatei(tempDir, fileName);
                   await tempFile.writeAsBytes(response.bodyBytes);
                   if (context.mounted) {
                     await FileViewerDialog.show(context, tempFile.path, fileName);
@@ -5954,7 +5954,7 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
       final dir = await getTemporaryDirectory();
       final raw = (d['filename']?.toString() ?? 'bescheid_${d['jahr']}_${d['id']}');
       final safeName = raw.replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
-      final file = io.File('${dir.path}/$safeName');
+      final file = sichereDatei(dir, safeName);
       await file.writeAsBytes(resp.bodyBytes);
       if (mounted) await FileViewerDialog.show(context, file.path, safeName);
     } catch (e) {

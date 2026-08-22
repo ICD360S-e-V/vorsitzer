@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'api_service.dart';
 import 'cloud_crypto_service.dart';
+import '../utils/sicherer_dateiname.dart';
 
 // ─── Admin Secure Cloud — session orchestration ─────────────────────────────
 //
@@ -357,8 +358,8 @@ class SecureCloudService {
         mitgliedernummer: mitgliedernummer, cloudFileId: file.id);
     if (blob == null) return null;
     final tmpDir = await getTemporaryDirectory();
-    final encFile = File('${tmpDir.path}/cloud_dl_${file.id}.enc');
-    final outFile = File('${tmpDir.path}/${_safeName(file.name)}');
+    final encFile = sichereDatei(tmpDir, 'cloud_dl_${file.id}.enc');
+    final outFile = sichereDatei(tmpDir, _safeName(file.name));
     try {
       await encFile.writeAsBytes(blob);
       await CloudCrypto.decryptFile(encFile, outFile, dek);

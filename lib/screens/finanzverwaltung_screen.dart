@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -10,6 +9,7 @@ import '../services/api_service.dart';
 import '../services/logger_service.dart';
 import '../widgets/eastern.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 final _log = LoggerService();
 
@@ -1705,7 +1705,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
       // Save PDF to temp directory
       final output = await getTemporaryDirectory();
       final safeName = spenderName.replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(' ', '_');
-      final file = File('${output.path}/Zuwendungsbestaetigung_${safeName}_$datum.pdf');
+      final file = sichereDatei(output, 'Zuwendungsbestaetigung_${safeName}_$datum.pdf');
       await file.writeAsBytes(await pdf.save());
 
       // Preview / Print dialog

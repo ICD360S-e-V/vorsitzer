@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'cloud_crypto_service.dart';
 import 'logger_service.dart';
 import 'secure_store.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Das Postfach bleibt lesbar, wenn die Leitung wegbricht.
 ///
@@ -101,7 +102,7 @@ class MailCacheService {
 
   Future<File> _datei() async {
     final dir = await getApplicationSupportDirectory();
-    return File('${dir.path}/$_fileName');
+    return sichereDatei(dir, _fileName);
   }
 
   // ── Laden / Schreiben ─────────────────────────────────────────────────────

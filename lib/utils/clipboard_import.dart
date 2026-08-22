@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pasteboard/pasteboard.dart';
 
 import '../services/logger_service.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Holt Anhänge aus der Systemzwischenablage.
 ///
@@ -80,7 +81,7 @@ class ClipboardImport {
       final dir = await getTemporaryDirectory();
       final ext = mimeType == 'image/jpeg' ? 'jpg' : 'png';
       final name = 'einfuegen_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      final file = File('${dir.path}/$name');
+      final file = sichereDatei(dir, name);
       await file.writeAsBytes(bytes, flush: true);
       return file;
     } catch (e) {

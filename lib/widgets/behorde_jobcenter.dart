@@ -21,6 +21,7 @@ import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/jc_termin_gruende.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 class BehordeJobcenterContent extends StatefulWidget {
   final ApiService apiService;
@@ -6861,7 +6862,7 @@ class _EinladungDokumenteTabState extends State<_EinladungDokumenteTab> {
     if (resp.statusCode != 200) return null;
     final dir = await getTemporaryDirectory();
     final name = (d['datei_name'] ?? 'dokument').toString();
-    final file = File('${dir.path}/$name');
+    final file = sichereDatei(dir, name);
     await file.writeAsBytes(resp.bodyBytes);
     return file;
   }
@@ -7005,7 +7006,7 @@ class _AvKooperationsplanTabState extends State<_AvKooperationsplanTab> {
     if (resp.statusCode != 200) return null;
     final dir = await getTemporaryDirectory();
     final name = (d['datei_name'] ?? 'dokument').toString();
-    final file = File('${dir.path}/$name');
+    final file = sichereDatei(dir, name);
     await file.writeAsBytes(resp.bodyBytes);
     return file;
   }
@@ -7618,7 +7619,7 @@ class _AvKorrespondenzDokumenteTabState extends State<_AvKorrespondenzDokumenteT
     if (resp.statusCode != 200) return null;
     final dir = await getTemporaryDirectory();
     final name = (d['datei_name'] ?? 'dokument').toString();
-    final file = File('${dir.path}/$name');
+    final file = sichereDatei(dir, name);
     await file.writeAsBytes(resp.bodyBytes);
     return file;
   }
@@ -7783,7 +7784,7 @@ class _EinladungAbsageTabState extends State<_EinladungAbsageTab> {
     if (bytes == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF-Erzeugung fehlgeschlagen'), backgroundColor: Colors.red)); return; }
     final dir = await getTemporaryDirectory();
     final fname = 'Absage_Einladung_${widget.einladungId}.pdf';
-    final file = File('${dir.path}/$fname');
+    final file = sichereDatei(dir, fname);
     await file.writeAsBytes(bytes);
     if (mounted) await FileViewerDialog.show(context, file.path, fname);
   }

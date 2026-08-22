@@ -11,6 +11,7 @@ import '../services/global_chat_service.dart';
 import '../services/secure_cloud_service.dart';
 import '../widgets/cloud_file_picker.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Zweiter Weg neben `FilePickerHelper`: Unterlagen nicht vom Gerät, sondern
 /// aus dem Cloud holen — und zwar aus dem *richtigen* der beiden Speicher.
@@ -381,7 +382,7 @@ class _HolDialogState extends State<_HolDialog> {
         if (bytes == null) {
           fehler.add(d.name);
         } else {
-          final ziel = File('${ordner.path}/${i}_${_sicher(d.name)}');
+          final ziel = sichereDatei(ordner, '${i}_${_sicher(d.name)}');
           await ziel.writeAsBytes(bytes);
           dateien.add(PlatformFile(
             path: ziel.path,

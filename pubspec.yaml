@@ -87,6 +87,11 @@ dependencies:
   # Path provider for temp directory
   path_provider: ^2.1.0
 
+  # Pfadarithmetik für sicherer_dateiname.dart (kanonisieren + isWithin).
+  # Kam bisher nur transitiv herein; hier deklariert, damit der Import
+  # stabil ist — wie bei flutter_svg.
+  path: ^1.9.0
+
   # Bilder aus der Systemzwischenablage (Strg+V im Chat). Flutters eigenes
   # Clipboard kann nur Text — flutter#46418. Reines Plattform-C/ObjC/Kotlin,
   # keine zusätzliche Toolchain (super_clipboard bräuchte Rust + NDK).

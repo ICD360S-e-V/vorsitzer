@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
@@ -9,6 +8,7 @@ import '../utils/cloud_picker_helper.dart';
 import 'cloud_file_picker.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Auswahl aus dem ZUSTÄNDIGEN Cloud — es gibt zwei, mit verschiedener Anbindung:
 ///
@@ -787,7 +787,7 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
       final resp = await widget.apiService.downloadPflegeboxKorrespondenz(id);
       if (resp.statusCode == 200 && mounted) {
         final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/$name');
+        final file = sichereDatei(dir, name);
         await file.writeAsBytes(resp.bodyBytes);
         if (mounted) await FileViewerDialog.show(context, file.path, name);
       }
@@ -1311,7 +1311,7 @@ class _LieferungenTabState extends State<_LieferungenTab> {
                 final resp = await widget.apiService.downloadPflegeboxLieferschein(l['id'] as int);
                 if (resp.statusCode == 200 && ctx.mounted) {
                   final dir = await getTemporaryDirectory();
-                  final file = File('${dir.path}/${l['datei_name'] ?? 'lieferschein.pdf'}');
+                  final file = sichereDatei(dir, l['datei_name'] ?? 'lieferschein.pdf');
                   await file.writeAsBytes(resp.bodyBytes);
                   if (ctx.mounted) await FileViewerDialog.show(ctx, file.path, l['datei_name']?.toString() ?? '');
                 }

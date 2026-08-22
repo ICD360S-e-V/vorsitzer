@@ -18,6 +18,7 @@ import '../utils/cloud_picker_helper.dart';
 import '../utils/ra_antwort.dart';
 import '../services/signatur_service.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 /// Kategorien der Dokumente an einem Gerichts-Vorfall (Reiter „Dokumente").
 ///
@@ -1454,14 +1455,16 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       if (resp.statusCode != 200 || !mounted) return;
       final fname = _bestFilename(resp, it, fallback);
       final dir = await getTemporaryDirectory();
-      final f = File('${dir.path}/$fname');
+      final f = sichereDatei(dir, fname);
       await f.writeAsBytes(resp.bodyBytes);
       if (openInApp) {
         await OpenFilex.open(f.path);
       } else if (mounted) {
         await FileViewerDialog.show(context, f.path, fname);
       }
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) dateiFehlerMelden(context, e);
+    }
   }
 
   Widget _buildDokSection(String title, IconData icon, List<Map<String, dynamic>> docs, String kategorie, {String? hint}) {
@@ -1533,7 +1536,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
             if ((d['created_at']?.toString() ?? '').isNotEmpty) Text(d['created_at'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
           ])),
           IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.indigo, 600)), tooltip: 'Anzeigen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
-            try { final resp = await widget.apiService.downloadGerichtVorfallDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); } } catch (_) {}
+            try { final resp = await widget.apiService.downloadGerichtVorfallDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = sichereDatei(dir, d['datei_name']); await file.writeAsBytes(resp.bodyBytes); if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); } } catch (e) { if (mounted) dateiFehlerMelden(context, e); }
           }),
           IconButton(icon: Icon(Icons.download, size: 18, color: F.h(Colors.green, 700)), tooltip: 'Herunterladen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
             try {
@@ -2597,7 +2600,7 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
         try {
           final dir = await getTemporaryDirectory();
           final ts = DateTime.now().millisecondsSinceEpoch;
-          final f = File('${dir.path}/Anregung_Betreuung_$ts.pdf');
+          final f = sichereDatei(dir, 'Anregung_Betreuung_$ts.pdf');
           await f.writeAsBytes(pdfBytes, flush: true);
           debugPrint('[Anregung] PDF cached at: ${f.path}');
         } catch (e) { debugPrint('[Anregung] cache write failed (non-fatal): $e'); }
@@ -6767,11 +6770,13 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
                 final resp = await widget.apiService.downloadInsolvenzAkteDoc(d['id'] as int);
                 if (resp.statusCode == 200 && mounted) {
                   final dir = await getTemporaryDirectory();
-                  final file = File('${dir.path}/${d['datei_name']}');
+                  final file = sichereDatei(dir, d['datei_name']);
                   await file.writeAsBytes(resp.bodyBytes);
                   if (mounted) await FileViewerDialog.show(context, file.path, (d['datei_name'] ?? '').toString());
                 }
-              } catch (_) {}
+              } catch (e) {
+                if (mounted) dateiFehlerMelden(context, e);
+              }
             }),
           IconButton(icon: Icon(Icons.download, size: 17, color: F.h(Colors.green, 700)),
             tooltip: 'Herunterladen', padding: EdgeInsets.zero,

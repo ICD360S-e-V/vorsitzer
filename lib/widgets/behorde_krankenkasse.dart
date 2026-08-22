@@ -19,6 +19,7 @@ import 'mitgliederverwaltung_behorde_krankenkasse_pflegegrad.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../widgets/responsive_layout.dart';
 import '../utils/app_farben.dart';
+import '../utils/sicherer_dateiname.dart';
 
 class BehordeKrankenkasseContent extends StatefulWidget {
   final ApiService apiService;
@@ -1451,7 +1452,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
 
   Future<String> _writeTemp(Uint8List bytes, String name) async {
     final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/$name');
+    final file = sichereDatei(dir, name);
     await file.writeAsBytes(bytes);
     return file.path;
   }
@@ -2831,7 +2832,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                       final response = await widget.apiService.downloadKKKorrespondenzDoc(dId);
                                       if (response.statusCode == 200) {
                                         final dir = await getTemporaryDirectory();
-                                        final file = File('${dir.path}/${doc['name']}');
+                                        final file = sichereDatei(dir, doc['name']);
                                         await file.writeAsBytes(response.bodyBytes);
                                         if (ctx2.mounted) await FileViewerDialog.show(ctx2, file.path, doc['name']?.toString() ?? '');
                                       }
