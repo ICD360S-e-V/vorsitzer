@@ -144,6 +144,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
           setState(() {
             _isLoading = state == windows_webview.LoadingState.loading;
           });
+          if (state == windows_webview.LoadingState.loading) {
+            // Siehe _tryCustomJs: pro Seite neu einspielen.
+            _customJsInjected = false;
+          }
           if (state == windows_webview.LoadingState.navigationCompleted) {
             _tryAutoFill();
           }
@@ -189,6 +193,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
           },
           onPageStarted: (url) {
             debugPrint('[WebView] Page started: $url');
+            // Neue Seite = neues Dokument: das Autofill-Skript ist weg und muss
+            // erneut laufen, sonst bleibt bei mehrseitigen Assistenten alles
+            // nach der Einstiegsseite leer.
+            _customJsInjected = false;
             if (mounted) {
               setState(() {
                 _isLoading = true;
@@ -722,8 +730,15 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
-  /// Auto-fill login credentials via JavaScript injection
-  /// Retries up to 5 times with delay for SPA sites that load fields dynamically
+  /// Führt das mitgegebene [WebViewScreen.customJs] auf der gerade geladenen
+  /// Seite aus.
+  ///
+  /// ⚠️ Läuft **einmal je Seite**, nicht einmal je Bildschirm. Mehrseitige
+  /// Assistenten (IntelliForm beim ZBFS, Rundfunkbeitrag) liefern jede Seite
+  /// als eigenes Dokument aus; ein Merker über die ganze Sitzung hätte das
+  /// Skript nur auf der Einstiegsseite laufen lassen — also überall dort nicht,
+  /// wo die Felder tatsächlich stehen. Zurückgesetzt wird in `onPageStarted`
+  /// bzw. beim Windows-Ladewechsel.
   bool _customJsInjected = false;
 
   Future<void> _tryCustomJs() async {
@@ -732,6 +747,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
     try {
       if (_mobileController != null) {
         await _mobileController!.runJavaScript(widget.customJs!);
+      } else if (_windowsController != null) {
+        await _windowsController!.executeScript(widget.customJs!);
       }
     } catch (_) {}
   }
