@@ -110,10 +110,34 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
     return client;
   }
 
+  /// Client für den WebSocket-Handshake — `null` im Debug-Build.
+  ///
+  /// ⚠️ `null` heisst „nimm den eingebauten", genau wie bei
+  /// [createPinnedSecurityContext]. Das ist nicht nur Bequemlichkeit für die
+  /// Entwicklung: die Testumgebung ersetzt `HttpClient` durch eine Attrappe,
+  /// die nur einfache Abrufe kann. Reicht man die an `WebSocket.connect`
+  /// weiter, stirbt der Aufstieg mit einem Fehler, den niemand mehr faengt —
+  /// vier Dialog-Tests sind genau daran zerbrochen.
+  static HttpClient? createPinnedWebSocketClient() =>
+      kDebugMode ? null : createPinnedHttpClient();
+
   /// SecurityContext mit denselben Ankern (für WebSocket u. a.).
   /// Returns null in debug mode (use default).
   static SecurityContext? createPinnedSecurityContext() {
     if (kDebugMode) return null;
+    return baueAnkerKontext();
+  }
+
+  /// Baut den Kontext IMMER, auch im Debug-Build.
+  ///
+  /// ⚠️ Existiert, damit sich das Pinning ueberhaupt pruefen laesst. Tests
+  /// laufen im Debug-Build, dort geben beide Fabriken oben absichtlich einen
+  /// ungepinnten Client zurueck — gegen den koennte man das Pinning nur
+  /// behaupten, nicht messen. Diese Tuer umgeht nichts: sie baut denselben
+  /// Kontext aus denselben zwei Ankern, sie entscheidet nur nicht mit, ob er
+  /// benutzt wird.
+  @visibleForTesting
+  static SecurityContext baueAnkerKontext() {
     final ctx = SecurityContext(withTrustedRoots: false);
     ctx.setTrustedCertificatesBytes(utf8.encode(_vertrauensanker));
     return ctx;
