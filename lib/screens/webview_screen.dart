@@ -713,6 +713,31 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
+  // ⚠️ Scroll-Sperre lösen. o2 lässt auf der Kündigungsseite
+  // `body { overflow: hidden }` aus seinem Stylesheet stehen, nachdem das
+  // Formular aufgeklappt ist. Nach CSS erbt der Anzeigebereich sein
+  // Überlaufverhalten von <body>, wenn <html> auf `visible` steht — die Seite
+  // lässt sich dann nicht mehr durchscrollen, obwohl unten noch etwas steht.
+  // Gemessen mit echtem Mausrad: 12 Umdrehungen kamen bis 970 von 2382; nach
+  // dem Lösen bis ans Ende. Genau das ist „ich komme nach der Rufnummer nicht
+  // weiter".
+  //
+  // ⚠️ Erst NACH dem ersten gefüllten Feld. Solange der Einwilligungsbanner
+  // oben liegt, ist die Sperre gewollt — und dann steht auch noch kein Feld
+  // da, das wir hätten füllen können. Die Bedingung trennt beide Fälle, ohne
+  // dass wir Banner erkennen müssten.
+  if (filled > 0) {
+    try {
+      var _d = document.documentElement, _b = document.body;
+      if (_d.scrollHeight > window.innerHeight + 200) {
+        var _bo = getComputedStyle(_b).overflowY;
+        if (_bo === 'hidden' || _bo === 'clip') _b.style.overflowY = 'auto';
+        var _ho = getComputedStyle(_d).overflowY;
+        if (_ho === 'hidden' || _ho === 'clip') _d.style.overflowY = 'auto';
+      }
+    } catch (e) {}
+  }
+
   // Einwilligungen ankreuzen — nur wenn der Aufrufer es erlaubt.
   if (${einwilligungAnkreuzen ? 'true' : 'false'}) {
   var checkboxes = document.querySelectorAll('input[type="checkbox"]');
