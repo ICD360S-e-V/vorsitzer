@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
+import '../utils/spki_pin.dart';
+
 /// Factory for creating HttpClient instances with certificate pinning.
 ///
 /// Im Release: nur Zertifikate, die auf einen der einprogrammierten
@@ -99,14 +101,49 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
         ..idleTimeout = idleTimeout;
     }
 
-    final securityContext = SecurityContext(withTrustedRoots: false);
-    securityContext.setTrustedCertificatesBytes(utf8.encode(_vertrauensanker));
+    final securityContext = baueAnkerKontext();
 
     final client = HttpClient(context: securityContext)
       ..connectionTimeout = connectionTimeout
       ..idleTimeout = idleTimeout;
 
-    debugPrint('[SSL] Certificate pinning ENABLED (ISRG Root X1 + X2)');
+    // ── Schlüsselpinning ──────────────────────────────────────────────────
+    //
+    // Die Anker oben pruefen weiterhin Kette, Name und Laufzeit. DARUEBER
+    // liegt jetzt der Pin auf den oeffentlichen Schluessel unseres Servers.
+    //
+    // ⚠️ Warum ueber eine eigene Verbindungsfabrik und nicht ueber
+    // `badCertificateCallback`: der wird nur bei FEHLGESCHLAGENER Pruefung
+    // gerufen — und, nachgemessen am 22.08.2026 gegen unseren Server, mit dem
+    // AUSSTELLER statt mit dem Serverzertifikat. Er lieferte
+    // `CN=ISRG Root X2`, nicht `CN=icd360sev.icd360s.de`; siehe
+    // dart-lang/sdk#39425. Damit laesst sich nichts pinnen.
+    //
+    // `SecureSocket.peerCertificate` liefert dagegen das richtige, und
+    // `HttpClient.connectionFactory` nimmt einen bereits gesicherten Socket
+    // an — beides nachgemessen, nicht angenommen.
+    client.connectionFactory = (uri, proxyHost, proxyPort) {
+      final verbindung = SecureSocket.connect(
+        uri.host,
+        uri.port,
+        context: securityContext,
+        timeout: connectionTimeout,
+      ).then<Socket>((socket) {
+        // Nur der eigene Rechnername wird gepinnt. `turn.icd360s.de` und
+        // `mail.icd360s.de` liegen auf derselben Maschine, tragen aber eigene
+        // Zertifikate mit eigenen Schluesseln.
+        if (uri.host.toLowerCase() == spkiHost &&
+            !spkiPasst(socket.peerCertificate)) {
+          socket.destroy();
+          throw const HandshakeException(
+              'Schlüsselpin passt nicht — Verbindung abgewiesen');
+        }
+        return socket;
+      });
+      return Future.value(ConnectionTask.fromSocket(verbindung, () {}));
+    };
+
+    debugPrint('[SSL] Pinning aktiv: Anker ISRG X1+X2 und ${spkiPins.length} Schlüsselpins');
     return client;
   }
 
