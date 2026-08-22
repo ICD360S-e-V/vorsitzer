@@ -19,9 +19,30 @@ const _serverPhasen = <String>{
   'schlusstermin', 'wohlverhalten', 'restschuldbefreiung', 'aufgehoben',
 };
 const _serverStatus = <String>{'laufend', 'ruhend', 'abgeschlossen'};
-const _serverKategorien = <String>{
+/// Die Abschnitte, die der Client heute anbietet — das, was eine
+/// Insolvenzverwaltung nach § 97 InsO anfordert.
+const _serverKategorienAktuell = <String>{
+  'ausweis', 'einkommen_gehalt', 'alg1', 'buergergeld', 'rente',
+  'grundsicherung_sozialamt', 'steuerbescheid', 'mietvertrag', 'kaution',
+  'versicherungen', 'bausparvertrag', 'kfz', 'grundbuch', 'kontoauszuege',
+  'zwangsvollstreckung', 'insoup', 'merkblatt', 'sonstiges',
+};
+
+/// Schlüssel aus der früheren Aufteilung. Der Server nimmt sie weiter an,
+/// der Client bietet sie nicht mehr an, zeigt sie aber, solange etwas
+/// darunter liegt.
+///
+/// ⚠️ Sie dürfen NICHT aus der Server-Whitelist verschwinden: ein
+/// Altdokument fiele sonst beim nächsten Anfassen still auf `sonstiges`.
+const _serverKategorienAlt = <String>{
   'beschluss', 'forderungsanmeldung', 'einkommen', 'vermoegen',
-  'abtretung', 'schriftverkehr', 'sonstiges',
+  'abtretung', 'schriftverkehr',
+};
+
+/// Was `INSOLVENZ_KATEGORIEN` in `insolvenz_manage.php` insgesamt führt.
+const _serverKategorien = <String>{
+  ..._serverKategorienAktuell,
+  ..._serverKategorienAlt,
 };
 
 void main() {
@@ -29,8 +50,62 @@ void main() {
     test('Rollen', () => expect(kInsolvenzRollen.keys.toSet(), _serverRollen));
     test('Phasen', () => expect(kInsolvenzPhasen.keys.toSet(), _serverPhasen));
     test('Status', () => expect(kInsolvenzAkteStatus.keys.toSet(), _serverStatus));
-    test('Dokumentkategorien',
-        () => expect(kInsolvenzDokKategorien.keys.toSet(), _serverKategorien));
+    test('Dokumentkategorien — angebotene Abschnitte', () {
+      expect(kInsolvenzUnterlagen.map((u) => u.schluessel).toSet(),
+          _serverKategorienAktuell);
+    });
+
+    test('Dokumentkategorien — alte Schlüssel bleiben anzeigbar', () {
+      // Ohne diese Tabelle wäre ein Altdokument unsichtbar: die Anzeige
+      // geht über kInsolvenzUnterlagen, und was dort keinen Abschnitt hat,
+      // sammelt keine Zeile ein.
+      expect(kInsolvenzDokKategorienAlt.keys.toSet(), _serverKategorienAlt);
+    });
+
+    test('kein Schlüssel doppelt zwischen alt und neu', () {
+      // Ein Schlüssel in beiden Listen ergäbe ZWEI Kästen mit denselben
+      // Dateien — und Löschen im einen ließe den anderen stehen.
+      expect(
+        _serverKategorienAktuell.intersection(kInsolvenzDokKategorienAlt.keys.toSet()),
+        isEmpty,
+      );
+    });
+
+    test('kein Schlüssel überschreitet die Spaltenbreite', () {
+      // `insolvenz_akte_docs.kategorie` ist varchar(50). Ein längerer Wert
+      // wird unter STRICT_TRANS_TABLES nicht gekürzt, sondern der INSERT
+      // schlägt fehl — der Upload bräche also erst auf dem Server ab,
+      // nachdem die Datei schon übertragen wurde.
+      for (final k in _serverKategorien) {
+        expect(k.length, lessThanOrEqualTo(50), reason: '„$k" ist zu lang');
+      }
+    });
+
+    test('jeder Abschnitt hat einen lesbaren Titel', () {
+      for (final u in kInsolvenzUnterlagen) {
+        expect(u.titel.trim(), isNotEmpty);
+        expect(u.titel.contains('_'), isFalse,
+            reason: '„${u.titel}" ist ein Schlüssel, kein Titel');
+      }
+    });
+
+    test('jede Quelle, die genannt wird, kennt der Server auch', () {
+      // Die Bandzeile fragt `_quellen[u.quelle]` ab. Ein Schlüssel, den
+      // `type=quellen` nicht liefert, bliebe still ohne Zeile — der Bildschirm
+      // sähe genauso aus wie bei einem Abschnitt ganz ohne Quelle, und
+      // niemand merkte, dass der Verweis fehlt.
+      const serverQuellen = <String>{
+        'einkommen_gehalt', 'alg1', 'buergergeld', 'rente',
+        'grundsicherung_sozialamt', 'steuerbescheid', 'mietvertrag', 'kaution',
+        'versicherungen', 'bausparvertrag', 'kfz', 'kontoauszuege',
+      };
+      final genannt = kInsolvenzUnterlagen
+          .map((u) => u.quelle)
+          .whereType<String>()
+          .toSet();
+      expect(genannt.difference(serverQuellen), isEmpty,
+          reason: 'Diese Quellen liefert type=quellen nicht');
+    });
 
     test('jede Rolle und jede Phase hat einen lesbaren deutschen Namen', () {
       for (final v in [...kInsolvenzRollen.values, ...kInsolvenzPhasen.values]) {

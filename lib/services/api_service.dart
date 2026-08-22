@@ -8775,6 +8775,27 @@ class ApiService {
     final r = await _client.get(Uri.parse('$baseUrl/admin/insolvenz_manage.php?akte_id=$akteId&type=docs'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
+
+  /// Zählstände zu den Unterlagen der Insolvenzakte: liegt die angeforderte
+  /// Angabe schon woanders im Haus?
+  ///
+  /// Antwort: `{quellen: {<kategorie>: {wo, anzahl, zustand}}}` mit
+  /// `zustand` ∈ vorhanden | leer | unbekannt.
+  ///
+  /// ⚠️ `unbekannt` ist NICHT dasselbe wie `leer`. Es heißt, dass die
+  /// Abfrage selbst nicht durchkam — daraus darf der Bildschirm nicht
+  /// „nichts hinterlegt" machen, sonst schickt der Vorsitzer das Mitglied
+  /// wegen eines kaputten Feldes hinter Unterlagen her, die längst da sind.
+  ///
+  /// Es kommen nur ZAHLEN zurück, keine Inhalte. Der Blick in diesen
+  /// Abschnitt ist damit kein Zugriff auf fremde Unterlagen.
+  Future<Map<String, dynamic>> listInsolvenzUnterlagenQuellen(int userId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/insolvenz_manage.php?type=quellen&user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
   Future<Map<String, dynamic>> uploadInsolvenzAkteDoc({required int akteId, required String filePath, required String fileName, String kategorie = 'sonstiges'}) async {
     final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/insolvenz_manage.php'));
     request.headers.addAll(_headers);
