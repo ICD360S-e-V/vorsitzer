@@ -163,7 +163,7 @@ jobs:
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
-            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
+            --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
@@ -224,7 +224,7 @@ jobs:
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
-            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
+            --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
             --split-per-abi \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
@@ -289,7 +289,7 @@ jobs:
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
-            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
+            --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
@@ -350,7 +350,7 @@ jobs:
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
-            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
+            --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
             --dart-define=STORE=fdroid \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
@@ -412,7 +412,7 @@ jobs:
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
-            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
+            --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
             --dart-define=STORE=huawei \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
@@ -468,7 +468,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows
-        run: flutter build windows --release --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} --build-name=${{ needs.version.outputs.version_name }} --build-number=${{ needs.version.outputs.build_number }}
+        run: flutter build windows --release --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} --build-name=${{ needs.version.outputs.version_name }} --build-number=${{ needs.version.outputs.build_number }}
 
       - name: Create ZIP archive
         shell: pwsh
@@ -618,7 +618,7 @@ jobs:
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
-            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
+            --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
@@ -752,7 +752,7 @@ jobs:
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
-            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
+            --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }} \
             --export-options-plist=ios/ExportOptions.plist
@@ -764,7 +764,7 @@ jobs:
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
-            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
+            --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
             --no-codesign \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}

@@ -87,7 +87,6 @@ concurrency:
 # Runtime dart-defines (must match build.yml exactly):
 #   TURN_HOST (TURN creds are now ephemeral — fetched at runtime via api/auth/turn_credentials.php)
 #   HAFAS_AID
-#   ROUTINE_AES_KEY_V2
 #   VORSITZER_STARTUP_DIAG_KEY
 #
 # Server JSON update (icd360sev):
@@ -286,7 +285,6 @@ jobs:
         env:
           TURN_HOST: ${{ secrets.TURN_HOST }}
           HAFAS_AID: ${{ secrets.HAFAS_AID }}
-          ROUTINE_AES_KEY_V2: ${{ secrets.ROUTINE_AES_KEY_V2 }}
           STARTUP_DIAG_KEY: ${{ secrets.VORSITZER_STARTUP_DIAG_KEY }}
           VERSION_NAME: ${{ needs.version.outputs.version_name }}
           BUILD_NUMBER: ${{ needs.version.outputs.build_number }}
@@ -322,7 +320,6 @@ jobs:
             --target-platform android-arm64 \
             --dart-define=TURN_HOST="$TURN_HOST" \
             --dart-define=HAFAS_AID="$HAFAS_AID" \
-            --dart-define=ROUTINE_AES_KEY_V2="$ROUTINE_AES_KEY_V2" \
             --dart-define=STARTUP_DIAG_KEY="$STARTUP_DIAG_KEY" \
             --build-name="$VERSION_NAME" \
             --build-number="$BUILD_NUMBER"

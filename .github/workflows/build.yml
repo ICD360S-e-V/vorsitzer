@@ -59,7 +59,6 @@ concurrency:
 # Runtime dart-defines (all platforms):
 #   TURN_HOST (TURN creds are now ephemeral — fetched at runtime via api/auth/turn_credentials.php)
 #   HAFAS_AID
-#   ROUTINE_AES_KEY_V2
 #
 # Deploy (still gated off — kept for re-enabling):
 #   DEPLOY_HOST / DEPLOY_PORT / DEPLOY_USER / DEPLOY_SSH_KEY / DEPLOY_PATH
@@ -323,7 +322,6 @@ jobs:
             --no-tree-shake-icons \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
-            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
             --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
