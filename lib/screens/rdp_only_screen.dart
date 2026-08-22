@@ -252,6 +252,18 @@ class _RdpOnlyScreenState extends State<RdpOnlyScreen> {
               subtitle: const Text('Schaltet „Nur Remote Desktop" ab'),
               onTap: () => Navigator.pop(ctx, 'voll'),
             ),
+            // Auf dem Pixel gibt es das Armaturenbrett nicht (Kiosk-Betrieb),
+            // der Knopf aus dessen Kopfzeile fehlt hier also — ohne diesen
+            // Eintrag haette gerade das Geraet, das man am ehesten aus der Hand
+            // gibt, keine Moeglichkeit zu sperren.
+            if (AppSperreService().istEingerichtet)
+              ListTile(
+                leading: const Icon(Icons.lock_outline),
+                title: const Text('Jetzt sperren'),
+                subtitle: const Text(
+                    'Fragt beim naechsten Antippen nach dem App-Passwort'),
+                onTap: () => Navigator.pop(ctx, 'sperren'),
+              ),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text('Abmelden', style: TextStyle(color: Colors.red)),
@@ -284,6 +296,9 @@ class _RdpOnlyScreenState extends State<RdpOnlyScreen> {
             currentRole: widget.currentRole,
           ),
         ));
+        break;
+      case 'sperren':
+        AppSperreService().sperren();
         break;
       case 'abmelden':
         await _abmelden();
