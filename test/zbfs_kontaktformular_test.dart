@@ -41,13 +41,18 @@ void main() {
   });
 
   group('zbfsAktenzeichen', () {
-    test('entfernt den Bindestrich unserer Eingabemaske', () {
-      expect(zbfsAktenzeichen('4641-1720'), '46411720');
-      expect(zbfsAktenzeichen('4641 - 1720'), '46411720');
-      expect(zbfsAktenzeichen('46411720'), '46411720');
+    test('schreibt vier Ziffern, Bindestrich, vier Ziffern', () {
+      // Der Bindestrich gehört zur Schreibweise des ZBFS. Er war zeitweise
+      // entfernt, weil er nach einer Zutat unserer Eingabemaske aussah.
+      expect(zbfsAktenzeichen('4641-1720'), '4641-1720');
+      expect(zbfsAktenzeichen('46411720'), '4641-1720');
+      expect(zbfsAktenzeichen('4641 1720'), '4641-1720');
+      expect(zbfsAktenzeichen(' 4641 - 1720 '), '4641-1720');
     });
 
-    test('liefert leer statt Müll', () {
+    test('baut nichts um, was nicht acht Ziffern hat', () {
+      expect(zbfsAktenzeichen('123456'), '123456');
+      expect(zbfsAktenzeichen('AZ 4711'), 'AZ 4711');
       expect(zbfsAktenzeichen(''), '');
       expect(zbfsAktenzeichen(null), '');
     });
@@ -97,17 +102,52 @@ void main() {
   group('zbfsMitteilung', () {
     test('Wertmarke nennt die Rechtsgrundlage und die bekannte Gültigkeit', () {
       final t = zbfsMitteilung(
-          antragsart: 'wertmarke', antragDatum: '2026-08-20', wertmarkeBis: '07/2026');
-      expect(t, contains('§ 228 SGB IX'));
-      expect(t, contains('gilt bis 07/2026'));
+          antragsart: 'wertmarke', antragDatum: '2026-08-20', wertmarkeBis: '09/2026');
+      expect(t, contains('§ 228 Absatz 5 SGB IX'));
+      expect(t, contains('gilt bis einschließlich 09/2026'));
       expect(t, contains('Antrag vom 20.08.2026'));
+    });
+
+    test('Wertmarke wird ausgegeben, nicht verlängert', () {
+      // Das ZBFS schreibt selbst „Nach Ablauf der Gültigkeitsdauer können Sie
+      // eine neue Wertmarke erwerben"; § 228 Abs. 5 SGB IX spricht von der
+      // „Ausgabe der Wertmarken … auf Antrag". „Verlängerung" gibt es dort nicht.
+      final t = zbfsMitteilung(antragsart: 'wertmarke');
+      expect(t, contains('Ausgabe eines Beiblatts mit einer neuen Wertmarke'));
+      expect(t, isNot(contains('Verlängerung')));
     });
 
     test('lässt die Gültigkeit weg, wenn wir sie nicht kennen', () {
       final t = zbfsMitteilung(antragsart: 'wertmarke');
-      expect(t, contains('§ 228 SGB IX'));
       expect(t, isNot(contains('gilt bis')));
       expect(t, contains('hiermit'));
+    });
+
+    test('unterschrieben wird mit dem Namen des Mitglieds', () {
+      final t = zbfsMitteilung(antragsart: 'wertmarke', unterzeichner: 'Maria Musterfrau');
+      expect(t, contains('Mit freundlichen Grüßen\nMaria Musterfrau'));
+    });
+
+    test('ohne Namen bleibt keine leere Zeile unter dem Gruß', () {
+      final t = zbfsMitteilung(antragsart: 'wertmarke');
+      expect(t, endsWith('Mit freundlichen Grüßen'));
+    });
+
+    test('der Schlussvermerk nennt den Verein und die Ehrenamtlichkeit', () {
+      final t = zbfsMitteilung(
+          antragsart: 'wertmarke', unterzeichner: 'Maria Musterfrau', vereinName: 'ICD360S e.V.');
+      expect(t, contains('automatisch erstellt durch den ICD360S e.V.'));
+      expect(t, contains('gemeinnützigen Verein'));
+      expect(t, contains('ehrenamtlich und unentgeltlich'));
+      // Der Vermerk steht unter der Unterschrift, nicht dazwischen.
+      expect(t.indexOf('Maria Musterfrau'), lessThan(t.indexOf('automatisch erstellt')));
+    });
+
+    test('ohne Vereinsnamen entfällt der Vermerk ganz', () {
+      // „…erstellt durch den , einen gemeinnützigen Verein" wäre schlechter
+      // als gar kein Vermerk.
+      final t = zbfsMitteilung(antragsart: 'wertmarke', unterzeichner: 'Maria Musterfrau');
+      expect(t, isNot(contains('automatisch erstellt')));
     });
 
     test('jede Antragsart bekommt einen eigenen Satz', () {
@@ -119,7 +159,6 @@ void main() {
       ]) {
         final t = zbfsMitteilung(antragsart: art);
         expect(t, startsWith('Sehr geehrte Damen und Herren,'));
-        expect(t, endsWith('Mit freundlichen Grüßen'));
         saetze.add(t);
       }
       expect(saetze.length, 10, reason: 'kein Satz darf doppelt vorkommen');
@@ -162,7 +201,7 @@ void main() {
       expect(w['person.plz'], '89231');
       expect(w['person.ort'], 'Neu-Ulm');
       expect(w['person.geburtsdatum'], '05.01.1980');
-      expect(w['person.aktenzeichen'], '46411720');
+      expect(w['person.aktenzeichen'], '4641-1720');
     });
 
     test('die Telefonnummer ist die des Vereins, nicht die des Mitglieds', () {

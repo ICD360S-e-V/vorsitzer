@@ -114,18 +114,25 @@ String zbfsDatumDe(String? roh) {
   return s;
 }
 
-/// Unser Aktenzeichen steht als `1234-5678` in der Datenbank — der Bindestrich
-/// stammt aus **unserer** Eingabemaske (zwei Vierergruppen), nicht vom ZBFS.
-/// Ans Formular gehen deshalb nur die Ziffern.
+/// Bringt das Aktenzeichen auf die Schreibweise des ZBFS: vier Ziffern,
+/// Bindestrich, vier Ziffern — `1234-5678`.
 ///
-/// ⚠️ Welche Schreibweise der ZBFS-Server akzeptiert, ließ sich nicht prüfen:
-/// er lehnt jede erfundene Nummer ab („Das Aktenzeichen ist ungültig."),
-/// gleich in welcher Schreibweise — er gleicht offenbar gegen den eigenen
-/// Bestand ab. Sollte das Feld die Eingabe zurückweisen, ist die Nummer
-/// selbst zu prüfen, nicht die Formatierung.
+/// ⚠️ Der Bindestrich gehört dazu und ist **nicht** bloß die Darstellung
+/// unserer zweigeteilten Eingabemaske. Er wurde zwischenzeitlich entfernt, weil
+/// das nach einer eigenen Zutat aussah; das war falsch.
+///
+/// ⚠️ Der ZBFS-Server prüft die Nummer gegen den **eigenen Bestand**, nicht
+/// gegen ein Muster: er lehnt jede erfundene Nummer ab („Das Aktenzeichen ist
+/// ungültig."), gleich in welcher Schreibweise. Weist das Feld die Eingabe
+/// zurück, ist also die Nummer zu prüfen, nicht die Formatierung.
+///
+/// Was nicht acht Ziffern hat, wird unverändert durchgereicht — lieber
+/// unformatiert als umgebaut.
 String zbfsAktenzeichen(String? roh) {
-  final ziffern = (roh ?? '').replaceAll(RegExp(r'[^0-9]'), '');
-  return ziffern;
+  final s = (roh ?? '').trim();
+  final ziffern = s.replaceAll(RegExp(r'[^0-9]'), '');
+  if (ziffern.length != 8) return s;
+  return '${ziffern.substring(0, 4)}-${ziffern.substring(4)}';
 }
 
 /// Zerlegt das mehrzeilige Adressfeld aus `vereineinstellungen.adresse` in
@@ -180,34 +187,48 @@ String zbfsAktenzeichen(String? roh) {
 /// gedacht zum Überschreiben. Er benennt die Antragsart mit ihrer Rechtsgrundlage
 /// und den Stand, den unsere Akte kennt — mehr weiß das Formular nicht, und
 /// mehr soll es an dieser Stelle auch nicht behaupten.
+///
+/// [unterzeichner] ist der Vor- und Nachname des Mitglieds: die Sache ist seine,
+/// und die Personendaten des Formulars sind ebenfalls seine.
+///
+/// [vereinName] trägt den Schlussvermerk. Fehlt er, entfällt der Vermerk ganz —
+/// ein „Diese Nachricht wurde automatisch erstellt durch" ohne Absender wäre
+/// schlechter als keiner.
 String zbfsMitteilung({
   required String antragsart,
   String antragDatum = '',
   String wertmarkeBis = '',
   String ausweisGueltigBis = '',
+  String unterzeichner = '',
+  String vereinName = '',
 }) {
   final datum = zbfsDatumDe(antragDatum);
   String satz;
   switch (antragsart) {
     case 'erstantrag':
       satz = 'beantrage ich die Feststellung eines Grades der Behinderung '
-          'nach § 152 SGB IX.';
+          '(§ 152 Absatz 1 SGB IX).';
       break;
     case 'neufeststellung':
       satz = 'beantrage ich die Neufeststellung des Grades der Behinderung '
           'wegen Verschlimmerung (§ 48 SGB X).';
       break;
     case 'ausweis_verlaengerung':
-      satz = 'beantrage ich die Verlängerung des Schwerbehindertenausweises'
+      satz = 'beantrage ich die Verlängerung meines Schwerbehindertenausweises'
           '${ausweisGueltigBis.isNotEmpty ? '. Der Ausweis ist gültig bis ${zbfsDatumDe(ausweisGueltigBis)}' : ''}.';
       break;
     case 'ausweis_neu':
-      satz = 'beantrage ich die Neuausstellung des Schwerbehindertenausweises.';
+      satz = 'beantrage ich die Neuausstellung meines Schwerbehindertenausweises.';
       break;
     case 'wertmarke':
-      satz = 'beantrage ich die Verlängerung des Beiblatts mit Wertmarke '
-          'nach § 228 SGB IX'
-          '${wertmarkeBis.isNotEmpty ? '. Die derzeitige Wertmarke gilt bis $wertmarkeBis' : ''}.';
+      // ⚠️ „Verlängerung" wäre falsch: eine Wertmarke wird nicht verlängert,
+      // sondern nach Ablauf neu ausgegeben — das ZBFS schreibt selbst „Nach
+      // Ablauf der Gültigkeitsdauer können Sie eine neue Wertmarke erwerben",
+      // und § 228 Absatz 5 SGB IX spricht von der „Ausgabe der Wertmarken … auf
+      // Antrag".
+      satz = 'beantrage ich die Ausgabe eines Beiblatts mit einer neuen '
+          'Wertmarke (§ 228 Absatz 5 SGB IX)'
+          '${wertmarkeBis.isNotEmpty ? '. Die derzeitige Wertmarke gilt bis einschließlich $wertmarkeBis' : ''}.';
       break;
     case 'parkausweis':
       satz = 'beantrage ich einen Parkausweis für schwerbehinderte Menschen.';
@@ -219,14 +240,21 @@ String zbfsMitteilung({
       satz = 'beantrage ich Leistungen der Sozialen Entschädigung nach dem SGB XIV.';
       break;
     case 'landesblindengeld':
-      satz = 'beantrage ich Bayerisches Landesblindengeld.';
+      satz = 'beantrage ich Bayerisches Blindengeld nach dem BayBlindG.';
       break;
     default:
       satz = 'wende ich mich in der oben genannten Angelegenheit an Sie.';
   }
   final einleitung = datum.isNotEmpty ? 'mit Antrag vom $datum ' : 'hiermit ';
-  return 'Sehr geehrte Damen und Herren,\n\n$einleitung$satz\n\n'
-      'Mit freundlichen Grüßen';
+  final gruss = unterzeichner.trim().isNotEmpty
+      ? 'Mit freundlichen Grüßen\n${unterzeichner.trim()}'
+      : 'Mit freundlichen Grüßen';
+  final vermerk = vereinName.trim().isNotEmpty
+      ? '\n\n---\nDiese Nachricht wurde automatisch erstellt durch den '
+          '${vereinName.trim()}, einen gemeinnützigen Verein. '
+          'Die Mitarbeit erfolgt ehrenamtlich und unentgeltlich.'
+      : '';
+  return 'Sehr geehrte Damen und Herren,\n\n$einleitung$satz\n\n$gruss$vermerk';
 }
 
 /// Baut das JavaScript, das die Felder des Assistenten füllt.
