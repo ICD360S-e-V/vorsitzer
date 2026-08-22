@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 import 'notification_service.dart';
+import 'http_client_factory.dart';
 import 'logger_service.dart';
 import 'api_service.dart';
 
@@ -195,16 +196,44 @@ class ChatService {
     try {
       _log.info('Connecting to $wsUrl...', tag: 'WS');
 
-      // Connect using IOWebSocketChannel with default SSL validation.
-      // Note: WebSocket.connect() uses the system's default SSL certificate
-      // validation, which is already secure. Certificate pinning for REST calls
-      // is handled at the HttpClient level via HttpClientFactory. Pinning
-      // WebSocket would require global HttpOverrides, which could interfere
-      // with other HTTP connections. The system SSL validation provides
-      // adequate protection for the WebSocket connection.
+      // Dieselben Vertrauensanker wie bei den REST-Aufrufen.
+      //
+      // ⚠️ Hier stand: „Pinning WebSocket would require global HttpOverrides,
+      // which could interfere with other HTTP connections. The system SSL
+      // validation provides adequate protection." Beides ist falsch.
+      //
+      // Falsch erstens, weil `WebSocket.connect` einen `customClient` annimmt —
+      // es braucht keine globalen HttpOverrides, nur diesen einen Client.
+      //
+      // Falsch zweitens, weil ausgerechnet DIESE Verbindung am wenigsten mit
+      // dem Systemspeicher auskommt: durch sie geht wenige Zeilen weiter unten
+      // das JWT im Klartext der Nachricht, dazu jeder Chatinhalt und die
+      // gesamte Anrufsignalisierung. Die REST-Aufrufe, wo das Token nur ein
+      // Kopfzeilenfeld ist, waren gepinnt; der Kanal, auf dem es ausdruecklich
+      // mitgeschickt wird, nicht. Ein untergeschobenes CA im Systemspeicher —
+      // ein Firmen-MDM genuegt — haette genau hier das Token abgegriffen.
+      //
+      // Im Debug-Build gibt die Fabrik einen ungepinnten Client zurueck, damit
+      // ein Zwischenrechner beim Entwickeln weiter funktioniert.
+      //
+      // ⚠️ Erst den alten wegräumen, und bei einem Fehlschlag gleich wieder
+      // schliessen. Ohne das bleibt bei JEDEM misslungenen Versuch ein Client
+      // mit offenen Verbindungen stehen — und misslingen kann es hier ständig,
+      // die Wiederverbindung versucht es mit wachsendem Abstand immer weiter.
+      // Aufgefallen ist es an den Dialog-Tests, die danach über einen nicht
+      // abgeräumten Zugriff stolperten.
+      // ⚠️ Der Client des VORIGEN Versuchs faellt hier, nicht dort. Zu diesem
+      // Zeitpunkt liegt er still; ihn im Fehlerfall sofort mit `force: true`
+      // zuzumachen, waehrend die Anfrage noch laeuft, wirft einen Fehler in
+      // den Zonenkontext, den niemand mehr faengt — die Dialog-Tests sind
+      // genau daran gestorben. So bleibt hoechstens ein einziger Client
+      // liegen, und der nur bis zum naechsten Versuch.
+      _wsClient?.close(force: true);
+      _wsClient = HttpClientFactory.createPinnedWebSocketClient();
       // ignore: close_sinks - managed by IOWebSocketChannel
       final webSocket = await WebSocket.connect(
         wsUrl,
+        customClient: _wsClient,
       );
       // Keepalive: ping every 20s. The signaling channel goes completely idle
       // once a call's ICE negotiation finishes, and an idle TCP connection gets
@@ -276,6 +305,13 @@ class ChatService {
   }
 
   /// Disconnect from WebSocket server
+  /// Der Client des laufenden Handshakes.
+  ///
+  /// ⚠️ Wird NICHT gleich nach dem Verbinden geschlossen: den Aufstieg auf
+  /// WebSocket wickelt er ab, und ein zu frueher `close()` reisst die
+  /// Verbindung mit. Er faellt beim Trennen, zusammen mit allem anderen.
+  HttpClient? _wsClient;
+
   void disconnect() {
     _log.info('Manual disconnect called', tag: 'WS');
 
@@ -287,6 +323,8 @@ class ChatService {
     _subscription?.cancel();
     _channel?.sink.close();
     _channel = null;
+    _wsClient?.close(force: true);
+    _wsClient = null;
     _isConnected = false;
     _connectionController.add(false);
   }
