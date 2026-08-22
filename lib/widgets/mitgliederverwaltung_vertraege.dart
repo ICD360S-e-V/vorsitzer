@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/mobilfunk_anbieter.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'mitgliederverwaltung_vertrage_versicherung.dart';
@@ -12,6 +14,29 @@ import 'mitgliederverwaltung_vertrag_rechtsanwalt.dart';
 import 'feld_reihe.dart';
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
+
+/// Hausfarbe des Netzes — dieselbe in Auswahlliste, Formular und Karte.
+Color _netzFarbe(String netz) {
+  if (netz.startsWith(kNetzTelekom)) return F.h(Colors.pink, 700);
+  if (netz.startsWith(kNetzVodafone)) return F.h(Colors.red, 700);
+  if (netz.startsWith(kNetzO2)) return F.h(Colors.blue, 700);
+  if (netz.startsWith(kNetzEinsUndEins)) return F.h(Colors.deepPurple, 600);
+  return F.h(Colors.blueGrey, 600);
+}
+
+/// Öffnet die geprüfte Kündigungsseite des Anbieters im Browser.
+Future<void> _kuendigungOeffnen(BuildContext ctx, MobilfunkAnbieter a) async {
+  final url = a.kuendigungUrl;
+  if (url == null) return;
+  final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  // Ein stiller Fehlschlag sähe aus wie ein kaputter Knopf. Ohne Browser
+  // (Kiosk-Gerät) muss man wenigstens die Adresse abschreiben können.
+  if (!ok && ctx.mounted) {
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      SnackBar(content: Text('Konnte nicht geöffnet werden: $url')),
+    );
+  }
+}
 
 class VertraegeContent extends StatefulWidget {
   final ApiService apiService;
@@ -141,11 +166,73 @@ class _VertraegeContentState extends State<VertraegeContent> {
     ],
   };
 
-  static const _handyAnbieter = [
-    'Telekom', 'Vodafone', 'O2 / Telefónica', '1&1', 'congstar', 'ALDI TALK',
-    'LIDL Connect', 'Blau', 'Drillisch', 'Lebara', 'Lycamobile', 'simplytel',
-    'PremiumSIM', 'winSIM', 'fraenk', 'freenet',
-  ];
+  /// Öffnet die durchsuchbare Anbieter-Datenbank (Lupe im Feld „Anbieter“).
+  ///
+  /// Bewusst derselbe Aufbau wie die Vereins-Auswahl weiter unten: Suchfeld
+  /// oben, Trefferliste darunter. Wer den Namen nicht kennt, blättert; wer ihn
+  /// kennt, tippt.
+  Future<MobilfunkAnbieter?> _mobilfunkAnbieterWaehlen(BuildContext ctx) {
+    return showDialog<MobilfunkAnbieter>(
+      context: ctx,
+      builder: (sCtx) {
+        var treffer = mobilfunkAnbieterSuchen('');
+        return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: Row(children: [
+            Icon(Icons.sim_card, size: 18, color: F.h(Colors.blue, 700)),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Mobilfunkanbieter', style: TextStyle(fontSize: 14))),
+            Text('${treffer.length}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
+          ]),
+          content: SizedBox(width: 460, height: 440, child: Column(children: [
+            TextField(
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Anbieter oder Netz suchen…',
+                prefixIcon: const Icon(Icons.search, size: 18),
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onChanged: (v) => setS(() => treffer = mobilfunkAnbieterSuchen(v)),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: treffer.isEmpty
+                  ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: F.h(Colors.grey, 500))))
+                  : ListView.builder(
+                      itemCount: treffer.length,
+                      itemBuilder: (_, i) {
+                        final a = treffer[i];
+                        return ListTile(
+                          dense: true,
+                          leading: CircleAvatar(
+                            radius: 14,
+                            backgroundColor: _netzFarbe(a.netz).withValues(alpha: 0.15),
+                            child: Icon(Icons.sim_card, size: 15, color: _netzFarbe(a.netz)),
+                          ),
+                          title: Text(a.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          subtitle: Text('${a.netz}-Netz · ${a.art}',
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                          // Der Haken sagt vorab, ob es später den Knopf
+                          // „Kündigung online jetzt“ gibt — sonst sucht man ihn
+                          // an der Karte vergeblich und hält es für einen Fehler.
+                          trailing: a.hatKuendigungOnline
+                              ? Tooltip(
+                                  message: 'Online-Kündigung verfügbar',
+                                  child: Icon(Icons.public, size: 16, color: F.h(Colors.blue, 400)))
+                              : null,
+                          onTap: () => Navigator.pop(sCtx, a),
+                        );
+                      },
+                    ),
+            ),
+          ])),
+          actions: [TextButton(onPressed: () => Navigator.pop(sCtx), child: const Text('Abbrechen'))],
+        ));
+      },
+    );
+  }
+
 
   @override
   void initState() {
@@ -259,6 +346,10 @@ class _VertraegeContentState extends State<VertraegeContent> {
 
   Widget _buildVertragCard(Map<String, dynamic> v, Color color, {required bool aktiv}) {
     final kosten = double.tryParse(v['monatliche_kosten']?.toString() ?? '') ?? 0;
+    // Der Knopf hängt am erkannten Anbieter, nicht an der Kategorie: derselbe
+    // Telekom-Vertrag kann unter Handy oder Internet liegen, gekündigt wird er
+    // auf derselben Seite. Wird der Anbieter nicht erkannt, erscheint nichts.
+    final anb = mobilfunkAnbieterFinden(v['anbieter']?.toString());
     return Card(
       color: aktiv ? null : F.h(Colors.grey, 50),
       child: ListTile(
@@ -277,10 +368,27 @@ class _VertraegeContentState extends State<VertraegeContent> {
               Text('seit ${v['vertragsbeginn']}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
             ],
           ]),
+          if ((v['kundennummer']?.toString() ?? '').isNotEmpty)
+            Text('Kd.-Nr.: ${v['kundennummer']}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
           if ((v['telefonnummer']?.toString() ?? '').isNotEmpty)
             Text('Tel: ${v['telefonnummer']}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
           if ((v['gekuendigt_am']?.toString() ?? '').isNotEmpty)
             Text('Gekündigt: ${v['gekuendigt_am']}', style: TextStyle(fontSize: 10, color: Colors.red.shade400)),
+          if (anb != null && anb.hatKuendigungOnline && aktiv)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => _kuendigungOeffnen(context, anb),
+                icon: const Icon(Icons.public, size: 15),
+                label: const Text('Kündigung online jetzt', style: TextStyle(fontSize: 11)),
+                style: TextButton.styleFrom(
+                  foregroundColor: F.h(Colors.blue, 700),
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  minimumSize: const Size(0, 30),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ),
         ]),
         isThreeLine: true,
         onTap: () => _showVertragDetailModal(v),
@@ -308,6 +416,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
     final fristC = TextEditingController(text: existing?['kuendigungsfrist']?.toString() ?? '');
     final gekuendigtC = TextEditingController(text: existing?['gekuendigt_am']?.toString() ?? '');
     final endeC = TextEditingController(text: existing?['vertragsende']?.toString() ?? '');
+    final kundennrC = TextEditingController(text: existing?['kundennummer']?.toString() ?? '');
     final telC = TextEditingController(text: existing?['telefonnummer']?.toString() ?? '');
     final volumenC = TextEditingController(text: existing?['datenvolumen']?.toString() ?? '');
     final emailC = TextEditingController(text: existing?['login_email']?.toString() ?? '');
@@ -320,7 +429,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
         final isVerein = selKat == 'verein';
-        final vorschlaege = selKat == 'handy' ? _handyAnbieter : (selKat == 'multimedia' ? _streamingAnbieter : <String>[]);
+        final vorschlaege = selKat == 'handy' ? kMobilfunkAnbieterNamen : (selKat == 'multimedia' ? _streamingAnbieter : <String>[]);
         final tarife = _streamingTarife[anbieterC.text.trim()];
         final hasTarife = tarife != null && tarife.isNotEmpty;
         final kostenReadonly = hasTarife && tarifC.text.isNotEmpty;
@@ -374,10 +483,42 @@ class _VertraegeContentState extends State<VertraegeContent> {
               else if (vorschlaege.isNotEmpty)
                 Autocomplete<String>(
                   initialValue: anbieterC.value,
-                  optionsBuilder: (v) => v.text.isEmpty ? vorschlaege : vorschlaege.where((a) => a.toLowerCase().contains(v.text.toLowerCase())),
+                  // Beim Handy wird über die Datenbank gesucht (Name UND Netz),
+                  // nicht nur über den Anzeigenamen: „o2“ soll auch O₂ finden
+                  // und „vodafone“ auch dessen Zweitmarken.
+                  optionsBuilder: (v) => selKat == 'handy'
+                      ? mobilfunkAnbieterSuchen(v.text).map((a) => a.name)
+                      : (v.text.isEmpty ? vorschlaege : vorschlaege.where((a) => a.toLowerCase().contains(v.text.toLowerCase()))),
                   fieldViewBuilder: (_, c, fn, __) {
                     if (c.text.isEmpty && anbieterC.text.isNotEmpty) c.text = anbieterC.text;
-                    return TextField(controller: c, focusNode: fn, decoration: InputDecoration(labelText: 'Anbieter *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onChanged: (v) { anbieterC.text = v; setD(() { tarifC.clear(); kostenC.clear(); }); });
+                    final treffer = selKat == 'handy' ? mobilfunkAnbieterFinden(c.text) : null;
+                    return TextField(
+                      controller: c,
+                      focusNode: fn,
+                      decoration: InputDecoration(
+                        labelText: 'Anbieter *',
+                        // Das Netz erscheint erst, wenn der Name wirklich in der
+                        // Datenbank steht — so sieht man sofort, ob der Eintrag
+                        // erkannt wurde oder nur Freitext ist.
+                        helperText: treffer != null ? '${treffer.netz}-Netz · ${treffer.art}' : null,
+                        helperStyle: TextStyle(fontSize: 11, color: _netzFarbe(treffer?.netz ?? '')),
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        suffixIcon: selKat == 'handy'
+                            ? IconButton(
+                                icon: Icon(Icons.search, size: 20, color: F.h(Colors.blue, 600)),
+                                tooltip: 'Alle Anbieter durchsuchen',
+                                onPressed: () async {
+                                  final a = await _mobilfunkAnbieterWaehlen(ctx2);
+                                  if (a == null) return;
+                                  c.text = a.name;
+                                  setD(() { anbieterC.text = a.name; tarifC.clear(); kostenC.clear(); });
+                                },
+                              )
+                            : null,
+                      ),
+                      onChanged: (v) { anbieterC.text = v; setD(() { tarifC.clear(); kostenC.clear(); }); },
+                    );
                   },
                   onSelected: (v) => setD(() { anbieterC.text = v; tarifC.clear(); kostenC.clear(); }),
                 )
@@ -444,13 +585,27 @@ class _VertraegeContentState extends State<VertraegeContent> {
                 const SizedBox(width: 8),
                 Expanded(child: TextField(controller: fristC, decoration: InputDecoration(labelText: 'Kündigungsfrist', hintText: 'z.B. 1 Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
               ]),
+              const SizedBox(height: 8),
+              // Kundennummer und Rufnummer stehen bei JEDER Kategorie: eine
+              // Kundennummer hat auch der Strom- und der Versicherungsvertrag,
+              // und ohne sie nimmt die Hotline keine Auskunft. Vorher gab es
+              // beide Felder nur beim Handy.
+              Row(children: [
+                Expanded(child: TextField(controller: kundennrC, decoration: InputDecoration(labelText: 'Kundennummer', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+                const SizedBox(width: 8),
+                Expanded(child: TextField(
+                  controller: telC,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    labelText: selKat == 'handy' ? 'Handynummer' : 'Telefonnummer',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                )),
+              ]),
               if (selKat == 'handy') ...[
                 const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(child: TextField(controller: telC, decoration: InputDecoration(labelText: 'Telefonnummer', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-                  const SizedBox(width: 8),
-                  Expanded(child: TextField(controller: volumenC, decoration: InputDecoration(labelText: 'Datenvolumen', hintText: 'z.B. 20 GB', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-                ]),
+                TextField(controller: volumenC, decoration: InputDecoration(labelText: 'Datenvolumen', hintText: 'z.B. 20 GB', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
               ],
               if (selKat == 'multimedia') ...[
                 const SizedBox(height: 8),
@@ -500,6 +655,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
                   'kuendigungsfrist': fristC.text.trim(),
                   'gekuendigt_am': gekuendigtC.text.trim(),
                   'vertragsende': endeC.text.trim(),
+                  'kundennummer': kundennrC.text.trim(),
                   'telefonnummer': telC.text.trim(),
                   'datenvolumen': volumenC.text.trim(),
                   'login_email': emailC.text.trim(),
@@ -628,6 +784,7 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
   }
 
   Widget _buildDetailsTab(Map<String, dynamic> v, bool aktiv) {
+    final anb = mobilfunkAnbieterFinden(v['anbieter']?.toString());
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -640,8 +797,32 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
             onPressed: widget.onEdit,
           ),
         ]),
+        if (anb != null && anb.hatKuendigungOnline) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _kuendigungOeffnen(context, anb),
+              icon: const Icon(Icons.public, size: 18),
+              label: const Text('Kündigung online jetzt', style: TextStyle(fontSize: 13)),
+              style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade700),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              // Die Adresse steht darunter, weil eine Kündigung ein Nachweis
+              // ist: der Vorsitzer muss protokollieren können, wo er sie
+              // erklärt hat — und sehen, dass es die echte Anbieterseite ist.
+              anb.kuendigungUrl!,
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
+            ),
+          ),
+        ],
         const Divider(height: 20),
         _row(Icons.business, 'Anbieter', v['anbieter']),
+        if (anb != null)
+          _row(Icons.sim_card, 'Netz', '${anb.netz} · ${anb.art}'),
         _row(Icons.label, 'Tarif', v['tarif']),
         _row(Icons.euro, 'Kosten/Monat', v['monatliche_kosten'] != null ? '${double.tryParse(v['monatliche_kosten'].toString())?.toStringAsFixed(2)} €' : null),
         _row(Icons.calendar_today, 'Vertragsbeginn', v['vertragsbeginn']),
@@ -649,8 +830,10 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
         _row(Icons.exit_to_app, 'Kündigungsfrist', v['kuendigungsfrist']),
         _row(Icons.event_busy, 'Gekündigt am', v['gekuendigt_am']),
         _row(Icons.event, 'Vertragsende', v['vertragsende']),
+        if ((v['kundennummer']?.toString() ?? '').isNotEmpty)
+          _row(Icons.badge, 'Kundennummer', v['kundennummer']),
         if ((v['telefonnummer']?.toString() ?? '').isNotEmpty)
-          _row(Icons.phone, 'Telefonnummer', v['telefonnummer']),
+          _row(Icons.phone, v['kategorie'] == 'handy' ? 'Handynummer' : 'Telefonnummer', v['telefonnummer']),
         if ((v['datenvolumen']?.toString() ?? '').isNotEmpty)
           _row(Icons.data_usage, 'Datenvolumen', v['datenvolumen']),
         if ((v['login_email']?.toString() ?? '').isNotEmpty)
