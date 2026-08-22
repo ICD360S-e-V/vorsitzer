@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/api_service.dart';
+import '../services/device_key_service.dart';
 import '../services/app_sperre_service.dart';
 import '../utils/sperre_passwort.dart';
 
@@ -222,12 +223,7 @@ class _SperrFlaecheState extends State<_SperrFlaeche> {
     if (ok) _feld.clear();
   }
 
-  Future<void> _abmelden() async {
-    // Der Weg heraus, wenn das Passwort vergessen ist. Kein Datenverlust: die
-    // Daten liegen auf dem Server, die Anmeldung stellt alles wieder her.
-    await ApiService().logout();
-    await widget.sperre.zuruecksetzen();
-  }
+  bool _zeigeWiederherstellung = false;
 
   @override
   Widget build(BuildContext context) {
@@ -295,11 +291,16 @@ class _SperrFlaecheState extends State<_SperrFlaeche> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                TextButton(
-                  onPressed: _abmelden,
-                  style: TextButton.styleFrom(foregroundColor: Colors.white60),
-                  child: const Text('Passwort vergessen — neu anmelden'),
-                ),
+                if (!_zeigeWiederherstellung)
+                  TextButton(
+                    onPressed: () =>
+                        setState(() => _zeigeWiederherstellung = true),
+                    style:
+                        TextButton.styleFrom(foregroundColor: Colors.white60),
+                    child: const Text('Passwort vergessen?'),
+                  )
+                else
+                  _Wiederherstellung(sperre: widget.sperre),
               ]),
             ),
           ),
@@ -425,4 +426,151 @@ class _EinrichtFlaecheState extends State<_EinrichtFlaeche> {
       ),
     );
   }
+}
+
+/// Der einzige Weg an der Sperre vorbei: ein Aktivierungscode vom Server.
+///
+/// ⚠️ Hier stand zuerst ein Knopf „neu anmelden", der einfach abgemeldet hat.
+/// Das war eine **Hintertür**: wer das Gerät in die Hand bekam, konnte sie
+/// antippen. Zwar kam er an keine Daten, aber ein Bildschirm, der eine Sperre
+/// zeigt und daneben einen Ausgang, ist keine Sperre. Entscheidung des Users.
+///
+/// ⚠️ Ganz weglassen ging aber auch nicht, und der Grund ist nachgemessen:
+/// „einfach neu installieren" hilft NUR auf Android. Dort werden die
+/// Keystore-Schlüssel beim Deinstallieren gelöscht; selbst wenn Auto-Backup
+/// den Chiffretext zurückholt, ist er unlesbar und gilt hier als „kein
+/// Passwort gesetzt". Unter Linux bleibt der Schlüsselbund des Flatpaks
+/// (`~/.var/app/<id>/data/keyrings`) beim Deinstallieren **stehen** — nur
+/// `flatpak uninstall --delete-data` räumt ihn weg. Ohne diesen Weg hier wäre
+/// der Vorsitzende auf seinem Linux-Rechner tatsächlich ausgesperrt.
+///
+/// Der Code ist keine Hintertür, weil ihn nur der Server ausstellt: 16 Zeichen,
+/// einmalig, und `activate_code.php` begrenzt auf fünf Fehlversuche je
+/// Viertelstunde. Wer das Gerät findet, hat keinen.
+class _Wiederherstellung extends StatefulWidget {
+  const _Wiederherstellung({required this.sperre});
+  final AppSperreService sperre;
+
+  @override
+  State<_Wiederherstellung> createState() => _WiederherstellungState();
+}
+
+class _WiederherstellungState extends State<_Wiederherstellung> {
+  final _nummer = TextEditingController();
+  final _code = TextEditingController();
+  String? _fehler;
+  bool _laeuft = false;
+
+  @override
+  void dispose() {
+    _nummer.dispose();
+    _code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _einloesen() async {
+    setState(() {
+      _fehler = null;
+      _laeuft = true;
+    });
+    try {
+      final geraeteId = await DeviceKeyService().getOrGenerateDeviceId();
+      final antwort = await ApiService().activateDeviceCode(
+        mitgliedernummer: _nummer.text.trim().toUpperCase(),
+        code: _code.text.trim(),
+        deviceId: geraeteId,
+      );
+      if (antwort['success'] != true) {
+        setState(() {
+          _fehler = (antwort['message'] ??
+                  antwort['data']?['message'] ??
+                  'Code nicht angenommen.')
+              .toString();
+          _laeuft = false;
+        });
+        return;
+      }
+      final daten = (antwort['data'] as Map?) ?? {};
+      final token = daten['token']?.toString();
+      final refresh = daten['refresh_token']?.toString();
+      final geraeteSchluessel = daten['device_key']?.toString();
+      if (token == null || refresh == null || geraeteSchluessel == null) {
+        setState(() {
+          _fehler = 'Unvollständige Antwort des Servers.';
+          _laeuft = false;
+        });
+        return;
+      }
+      await DeviceKeyService()
+          .setActivatedCredentials(geraeteSchluessel, geraeteId);
+      await ApiService().saveTokens(token, refresh);
+      // Erst wenn alles steht, das alte Passwort wegräumen — sonst stünde man
+      // nach einem Abbruch ohne Passwort UND ohne gültige Anmeldung da.
+      await widget.sperre.zuruecksetzen();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _fehler = 'Fehlgeschlagen: $e';
+          _laeuft = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      const Divider(color: Colors.white24, height: 26),
+      Text(
+        'Ein neues App-Passwort lässt sich nur mit einem Aktivierungscode '
+        'setzen. Den stellt der Vorstand über den Server aus — 16 Zeichen, '
+        'einmalig gültig.',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+            color: Colors.white.withValues(alpha: .7), fontSize: 12),
+      ),
+      const SizedBox(height: 14),
+      TextField(
+        controller: _nummer,
+        enabled: !_laeuft,
+        textCapitalization: TextCapitalization.characters,
+        style: const TextStyle(color: Colors.white),
+        decoration: _feldStil('Mitgliedernummer'),
+      ),
+      const SizedBox(height: 10),
+      TextField(
+        controller: _code,
+        enabled: !_laeuft,
+        textCapitalization: TextCapitalization.characters,
+        style: const TextStyle(color: Colors.white, letterSpacing: 1.2),
+        decoration: _feldStil('Aktivierungscode (16 Zeichen)'),
+      ),
+      if (_fehler != null) ...[
+        const SizedBox(height: 10),
+        Text(_fehler!, style: TextStyle(color: Colors.red.shade300, fontSize: 13)),
+      ],
+      const SizedBox(height: 14),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: _laeuft ? null : _einloesen,
+          child: _laeuft
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Gerät neu freischalten'),
+        ),
+      ),
+    ]);
+  }
+
+  InputDecoration _feldStil(String beschriftung) => InputDecoration(
+        labelText: beschriftung,
+        labelStyle: const TextStyle(color: Colors.white70),
+        isDense: true,
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: .08),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      );
 }

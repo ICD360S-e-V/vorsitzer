@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/services/app_sperre_service.dart';
+import 'package:icd360sev_vorsitzer/utils/sperre_passwort.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -121,6 +122,87 @@ void main() {
       s.sperren();
       expect(s.istGesperrt, isFalse,
           reason: 'ohne Passwort gäbe es keinen Weg zurück');
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Aussperr-Proben — die Fälle, in denen niemand mehr hineinkäme.
+  //
+  // Nachgemessen, worauf sie sich stützen:
+  //  * Android löscht die Keystore-Schlüssel beim Deinstallieren. Holt
+  //    Auto-Backup den Chiffretext zurück, ist er unlesbar.
+  //  * Linux/Flatpak behält `~/.var/app/<id>/data/keyrings` — Deinstallieren
+  //    allein hilft dort NICHT. Deshalb gibt es den Aktivierungscode-Weg.
+  // ══════════════════════════════════════════════════════════════════════════
+  group('Aussperren — darf nicht passieren', () {
+    test('unlesbarer Eintrag gilt als KEIN Passwort, nicht als unknackbares',
+        () async {
+      // Der Android-Fall nach Deinstallieren + Auto-Backup: der Chiffretext
+      // ist da, der Schlüssel weg. Würde das als „Passwort gesetzt" gelten,
+      // wäre das Gerät für immer zu.
+      final s = AppSperreService();
+      await s.zuruecksetzen();
+      FlutterSecureStorage.setMockInitialValues({
+        'app_sperre_v1': 'unlesbarer rest aus einem backup',
+      });
+      await s.laden();
+      expect(s.istEingerichtet, isFalse);
+      expect(s.istGesperrt, isFalse, reason: 'sonst käme niemand mehr hinein');
+    });
+
+    test('halb geschriebener Eintrag sperrt ebenfalls nicht aus', () async {
+      final s = AppSperreService();
+      for (final rest in [
+        '{"v":1,"salz":"AAAA"}',                 // Hash fehlt
+        '{"v":1,"hash":"AAAA","runden":120000}', // Salz fehlt
+        '{"v":1,"salz":"","hash":"","runden":120000}',
+        '{',                                      // abgeschnitten
+      ]) {
+        await s.zuruecksetzen();
+        FlutterSecureStorage.setMockInitialValues({'app_sperre_v1': rest});
+        await s.laden();
+        expect(s.istGesperrt, isFalse, reason: 'bei: $rest');
+        expect(s.istEingerichtet, isFalse, reason: 'bei: $rest');
+      }
+    });
+
+    test('die Wartestaffel sperrt nie dauerhaft aus', () async {
+      // Fünf Minuten sind ärgerlich. Eine Stunde wäre ein Aussperren.
+      for (final n in [5, 10, 50, 1000, 100000]) {
+        expect(sperreWartezeit(n),
+            lessThanOrEqualTo(const Duration(minutes: 5)),
+            reason: '$n Fehlversuche');
+      }
+    });
+
+    test('zuruecksetzen() öffnet immer — das ist der Weg des Codes', () async {
+      // Nach erfolgreicher Freischaltung mit dem Aktivierungscode wird genau
+      // das gerufen. Es muss unter allen Umständen aufgehen.
+      final s = AppSperreService();
+      await s.zuruecksetzen();
+      await s.passwortSetzen('vergessenes-passwort');
+      await s.laden();
+      expect(s.istGesperrt, isTrue);
+      await s.zuruecksetzen();
+      expect(s.istGesperrt, isFalse);
+      expect(s.istEingerichtet, isFalse,
+          reason: 'danach fragt die App nach einem neuen Passwort');
+      // Und ein Neustart darf das alte Passwort nicht wieder hervorholen.
+      await s.laden();
+      expect(s.istGesperrt, isFalse);
+      expect(s.istEingerichtet, isFalse);
+    });
+
+    test('ohne Passwort führt kein Weg in den gesperrten Zustand', () async {
+      final s = AppSperreService();
+      await s.zuruecksetzen();
+      await s.laden();
+      s.sperren();
+      s.pruefen();
+      for (var i = 0; i < 10; i++) {
+        await s.entsperren('falsch');
+      }
+      expect(s.istGesperrt, isFalse);
     });
   });
 

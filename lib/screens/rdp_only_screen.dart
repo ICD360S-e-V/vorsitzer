@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/anruf_gateway_service.dart';
 import '../services/api_service.dart';
+import '../services/app_sperre_service.dart';
 import '../services/rdp_nur_modus.dart';
 import '../services/rdp_service.dart';
 import '../services/signatur_gateway_service.dart';
@@ -294,6 +295,12 @@ class _RdpOnlyScreenState extends State<RdpOnlyScreen> {
   /// Fehlerquelle, die man erst bemerkt, wenn ein Gerät verloren geht.
   Future<void> _abmelden() async {
     await _api.logout();
+    // Beim Abmelden faellt auch das App-Passwort weg: es gehoert zu
+    // diesem Konto auf diesem Geraet. Wer sich danach wieder anmeldet,
+    // braucht ohnehin einen Aktivierungscode — und uebergibt man das
+    // Geraet an einen anderen Vorstand, stuende der sonst vor einer
+    // Sperre, die nach dem Passwort des Vorgaengers fragt.
+    await AppSperreService().zuruecksetzen();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('auto_login', false);
     const secureStorage = FlutterSecureStorage();
