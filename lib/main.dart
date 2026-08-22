@@ -22,6 +22,7 @@ import 'utils/keyboard_rdp_fix.dart';
 import 'package:window_manager/window_manager.dart';
 import 'services/tray_service.dart';
 import 'services/weather_profile_service.dart';
+import 'widgets/app_sperre_huelle.dart';
 
 // Windows-only package
 import 'package:windows_single_instance/windows_single_instance.dart';
@@ -261,7 +262,11 @@ class _VorsitzerAppState extends State<VorsitzerApp> {
       // also bevor irgendein Bildschirm baut — der Wert steht rechtzeitig.
       builder: (context, child) {
         F.istDunkel = Theme.of(context).brightness == Brightness.dark;
-        return child ?? const SizedBox.shrink();
+        // Bildschirmsperre ueber der ganzen App. Hier, weil `builder`
+        // oberhalb des Navigators laeuft — nur so deckt sie auch offene
+        // Dialoge und Vollbildseiten ab. Im Normalfall ist das bloss ein
+        // `Listener`; die Sperrflaeche entsteht erst beim Sperren.
+        return AppSperreHuelle(child: child ?? const SizedBox.shrink());
       },
       home: const LoginWithCodeScreen(),
       // TEMPORARY DIAGNOSTIC — elimin GlobalChatOverlay complet ca să
