@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -39,10 +41,12 @@ class _AppSperreHuelleState extends State<AppSperreHuelle>
     // Tastatur zählt auch als Bedienung — auf dem Rechner tippt man lange,
     // ohne den Zeiger zu bewegen, und würde sonst mitten im Satz gesperrt.
     HardwareKeyboard.instance.addHandler(_taste);
+    _anmeldungBeobachten();
   }
 
   @override
   void dispose() {
+    _anmeldeWache?.cancel();
     HardwareKeyboard.instance.removeHandler(_taste);
     WidgetsBinding.instance.removeObserver(this);
     _sperre.removeListener(_neu);
@@ -55,6 +59,40 @@ class _AppSperreHuelleState extends State<AppSperreHuelle>
   }
 
   bool _laedt = false;
+
+  /// Zuletzt gesehener Anmeldezustand.
+  bool _warAngemeldet = false;
+  Timer? _anmeldeWache;
+
+  /// ⚠️ Der Grund, warum die Sperre in der ersten Fassung NIE griff.
+  ///
+  /// Diese Hülle sitzt im `builder:` der `MaterialApp` und wurde nur neu
+  /// gebaut, wenn der Sperrdienst etwas meldete. Beim Start ist niemand
+  /// angemeldet — sie stieg also sofort aus, stiess das Laden nie an, und der
+  /// Dienst hatte folglich nie etwas zu melden. Ein Henne-und-Ei-Problem.
+  ///
+  /// Dass danach die Anmeldung durchlief und der Navigator auf das
+  /// Armaturenbrett wechselte, half nicht: der Navigator verwaltet seine Routen
+  /// selbst, `builder` läuft dabei NICHT erneut. Im Betrieb hiess das: keine
+  /// Sperre, und nach dem Update fragte auch niemand nach einem Passwort.
+  ///
+  /// `ApiService` meldet Anmeldungen nicht, also wird nachgesehen. Eine
+  /// Sekunde, und verglichen wird ein `bool` — das kostet nichts.
+  void _anmeldungBeobachten() {
+    _anmeldeWache?.cancel();
+    _anmeldeWache = Timer.periodic(const Duration(seconds: 1), (_) {
+      final jetzt = ApiService().isLoggedIn;
+      if (jetzt == _warAngemeldet) return;
+      _warAngemeldet = jetzt;
+      if (jetzt) {
+        _ladenAnstossen();
+      } else {
+        // Abgemeldet: beim naechsten Anmelden muss frisch geladen werden.
+        _laedt = false;
+      }
+      if (mounted) setState(() {});
+    });
+  }
 
   /// Liest den Sperrzustand — erst, wenn jemand angemeldet ist.
   ///
@@ -90,6 +128,26 @@ class _AppSperreHuelleState extends State<AppSperreHuelle>
     }
   }
 
+  /// Legt [flaeche] ÜBER den laufenden Baum, statt ihn zu ersetzen.
+  ///
+  /// ⚠️ Zuerst gab die Hülle die Sperrfläche einfach anstelle des Kindes
+  /// zurück. Damit fiel der Navigator aus dem Baum — und mit ihm das
+  /// `Overlay`, das jedes `EditableText` braucht. Das Passwortfeld hat
+  /// `autofocus`, also flog beim Sperren sofort „No Overlay widget found".
+  /// Die Sperre wäre schon beim Erscheinen kaputt gewesen.
+  ///
+  /// Der Hintergrund bleibt deshalb im Baum, wird aber unbedienbar
+  /// ([AbsorbPointer]), für Vorlesehilfen unsichtbar ([ExcludeSemantics]) und
+  /// von der deckenden Fläche verdeckt. Aufgefallen erst im Test.
+  Widget _darueberlegen(Widget kind, Widget flaeche) {
+    return Stack(
+      children: [
+        ExcludeSemantics(child: AbsorbPointer(child: kind)),
+        Positioned.fill(child: flaeche),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final kind = Listener(
@@ -108,12 +166,14 @@ class _AppSperreHuelleState extends State<AppSperreHuelle>
       _ladenAnstossen();
       return kind;
     }
+    // Ab hier ist der Zustand bekannt: entweder gesperrt, oder es fehlt noch
+    // ein Passwort, oder es laeuft alles normal weiter.
 
     if (_sperre.istGesperrt) {
-      return _SperrFlaeche(sperre: _sperre);
+      return _darueberlegen(kind, _SperrFlaeche(sperre: _sperre));
     }
     if (!_sperre.istEingerichtet) {
-      return _EinrichtFlaeche(sperre: _sperre);
+      return _darueberlegen(kind, _EinrichtFlaeche(sperre: _sperre));
     }
     if (_sperre.warntGleich) {
       return Stack(

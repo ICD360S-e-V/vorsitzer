@@ -1542,6 +1542,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           // auf dem Telefon sichtbar, und genau dort ist die Zeile schon voll
           // (siehe den Absatz darüber). Auf dem Telefon liegt er im ⋮-Menü,
           // wie alles andere auch.
+          // Von Hand sperren — fuer den Moment, in dem man das Geraet aus der
+          // Hand gibt und nicht 15 Minuten warten will.
+          //
+          // ⚠️ Nur sichtbar, wenn ein Passwort gesetzt ist. Ohne eins tut
+          // `sperren()` ohnehin nichts, und ein Knopf, der nichts tut, ist
+          // schlimmer als keiner.
+          if (AppSperreService().istEingerichtet)
+            IconButton(
+              icon: const Icon(Icons.lock_outline),
+              tooltip: 'Jetzt sperren',
+              onPressed: () => AppSperreService().sperren(),
+            ),
           IconButton(
             icon: const Icon(Icons.public),
             tooltip: 'Website — icd360s.de',
