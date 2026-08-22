@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nichts aus dieser App wird gesichert oder auf ein anderes Gerät übertragen.
+
+  Warum so hart: die App traegt Zugangstoken, den Geraeteschluessel, den
+  Pruefwert des App-Passworts und zwischengespeicherte Mitglieder-,
+  Gesundheits- und Behoerdendaten. Wiederherstellen liesse sich davon ohnehin
+  fast nichts — die Schluessel im Android-Keystore werden beim Deinstallieren
+  geloescht, ein zurueckgespielter Chiffretext waere unlesbar, und der
+  Geraeteschluessel gilt sowieso nur fuer DIESES Geraet. Es bliebe also nur das
+  Risiko ohne den Nutzen. Alles Wertvolle steht auf dem Server und kommt nach
+  dem Freischalten von selbst zurueck.
+
+  ⚠️ Beide Bloecke sind noetig, nicht nur der erste. `android:allowBackup=
+  "false"` deckt laut Android-Dokumentation auf Geraeten mancher Hersteller ab
+  Android 12 nur noch die Cloud-Sicherung ab und NICHT die Uebertragung von
+  Geraet zu Geraet. Wer nur den Schalter setzt, hat die Haelfte offen gelassen.
+
+  ⚠️ `domain="root"` mit `path="."` heisst „das ganze private Verzeichnis",
+  einschliesslich `sharedpref` — dort lagen die Token im Klartext, solange es
+  den Rueckfall in `api_service.saveTokens` gab.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+    </device-transfer>
+</data-extraction-rules>
