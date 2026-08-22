@@ -46,6 +46,17 @@ class _VertraegeContentState extends State<VertraegeContent> {
     ('gas', 'Gas', Icons.local_fire_department, Colors.deepOrange),
     ('verein', 'Verein', Icons.groups, Colors.indigo),
     ('fax', 'Fax', Icons.fax, Colors.cyan),
+    // ⚠️ Bauspar ist KEINE Versicherung, sondern ein Sparvertrag — deshalb
+    // eine eigene Kategorie und kein zwölfter Reiter unter „Versicherung".
+    // Die Insolvenzverwaltung fragt beides getrennt ab (Rückkaufswert der
+    // Lebensversicherung hier, Bausparguthaben dort), und der Abschnitt
+    // „Bausparverträge" in der Insolvenzakte zählt genau auf diesen
+    // Schlüssel: `mitglied_vertraege.kategorie = 'bauspar'`.
+    // ⚠️ `vertraege_manage.php` führt für `kategorie` KEINE Whitelist — der
+    // Wert wird genommen, wie er kommt. Ein Tippfehler hier fällt also nicht
+    // auf dem Server auf, sondern erst daran, dass die Insolvenz-Zeile ewig
+    // „nichts hinterlegt" meldet.
+    ('bauspar', 'Bausparvertrag', Icons.savings, Colors.brown),
     ('sonstige', 'Sonstige', Icons.receipt_long, Colors.grey),
   ];
 

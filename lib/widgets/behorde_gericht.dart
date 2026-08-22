@@ -5367,18 +5367,127 @@ const kInsolvenzAkteStatus = <String, String>{
   'abgeschlossen':'abgeschlossen',
 };
 
-/// Kategorien der Unterlagen — an dem ausgerichtet, was in einem
-/// Verbraucherinsolvenzverfahren tatsächlich hin und her geht. Der Verwalter
-/// fordert nach § 97 InsO Auskunft und Unterlagen an; ein Stapel „Sonstiges"
-/// hilft niemandem, der eine Nachfrage beantworten muss.
-const kInsolvenzDokKategorien = <String, String>{
+/// Ein Abschnitt in der Unterlagen-Liste der Insolvenzakte.
+///
+/// [quelle] ist der Schlüssel, unter dem `insolvenz_manage.php?type=quellen`
+/// meldet, ob dieselbe Angabe schon in einem anderen Modul dieses Hauses
+/// liegt. `null` heißt „dafür gibt es keinen anderen Ort" — dann wird auch
+/// kein Hinweis angezeigt, statt einer Zeile „nirgends gefunden", die nur
+/// aussagt, dass wir gar nicht gesucht haben.
+class InsolvenzUnterlage {
+  final String schluessel;
+  final String titel;
+
+  /// Was genau gemeint ist. Steht klein unter dem Titel — „Rente" allein
+  /// sagt nicht, ob der Bescheid oder die Anpassungsmitteilung gebraucht wird.
+  final String? hinweis;
+
+  /// Schlüssel in der `quellen`-Antwort, oder null.
+  final String? quelle;
+
+  const InsolvenzUnterlage(
+    this.schluessel,
+    this.titel, {
+    this.hinweis,
+    this.quelle,
+  });
+}
+
+/// Die Unterlagen, die eine Insolvenzverwaltung nach § 97 InsO regelmäßig
+/// anfordert — in der Reihenfolge, in der sie auf den üblichen Anforderungs-
+/// schreiben stehen: erst wer man ist, dann wovon man lebt, dann was man hat,
+/// dann was gegen einen läuft.
+///
+/// ⚠️ Die Schlüssel müssen mit `INSOLVENZ_KATEGORIEN` in
+/// `insolvenz_manage.php` übereinstimmen. Ein dort unbekannter Schlüssel
+/// fällt beim Hochladen STILL auf `sonstiges` zurück — die Datei landet
+/// dann im falschen Abschnitt, ohne Fehlermeldung.
+/// `test/insolvenz_verwalter_test.dart` hält beide Listen zusammen; das PHP
+/// liegt in keinem Repository, der Test ist also die einzige Stelle, an der
+/// ein Auseinanderlaufen überhaupt auffallen kann.
+const kInsolvenzUnterlagen = <InsolvenzUnterlage>[
+  InsolvenzUnterlage('ausweis', 'Ausweis',
+      hinweis: 'Personalausweis oder Reisepass, Vorder- und Rückseite'),
+
+  // ── Wovon das Mitglied lebt ──
+  // Vier getrennte Abschnitte statt eines Sammelpostens „Einkommen": die
+  // Verwaltung fragt jede Quelle einzeln ab, und wer alles in einen Stapel
+  // legt, muss bei jeder Nachfrage neu suchen.
+  InsolvenzUnterlage('einkommen_gehalt', 'Einkommensnachweis Gehalt — letzte 3 Monate',
+      hinweis: 'Lohn- bzw. Gehaltsabrechnungen der letzten drei Monate',
+      quelle: 'einkommen_gehalt'),
+  InsolvenzUnterlage('alg1', 'ALG I',
+      hinweis: 'Bewilligungsbescheid der Agentur für Arbeit',
+      quelle: 'alg1'),
+  InsolvenzUnterlage('buergergeld', 'Bürgergeld / Grundsicherung',
+      hinweis: 'Bewilligungsbescheid des Jobcenters (SGB II)',
+      quelle: 'buergergeld'),
+  InsolvenzUnterlage('rente', 'Rente',
+      hinweis: 'Rentenbescheid oder aktuelle Anpassungsmitteilung',
+      quelle: 'rente'),
+  InsolvenzUnterlage('grundsicherung_sozialamt', 'Grundsicherung Sozialamt',
+      hinweis: 'Bescheid des Sozialamts (SGB XII)',
+      quelle: 'grundsicherung_sozialamt'),
+  InsolvenzUnterlage('steuerbescheid', 'Letzter Steuerbescheid',
+      hinweis: 'Wegen der Steuererklärung — der zuletzt ergangene Bescheid',
+      quelle: 'steuerbescheid'),
+
+  // ── Wohnen ──
+  InsolvenzUnterlage('mietvertrag', 'Mietvertrag',
+      hinweis: 'Vollständig, mit allen Anlagen und Nachträgen',
+      quelle: 'mietvertrag'),
+  InsolvenzUnterlage('kaution', 'Zahlung Kaution Mietvertrag',
+      hinweis: 'Nachweis über die geleistete Kaution — sie gehört zur Masse',
+      quelle: 'kaution'),
+
+  // ── Was an Werten da ist ──
+  InsolvenzUnterlage('versicherungen', 'Versicherungen, auch Lebensversicherung',
+      hinweis: 'Policen und Rückkaufswerte',
+      quelle: 'versicherungen'),
+  InsolvenzUnterlage('bausparvertrag', 'Bausparverträge',
+      hinweis: 'Vertrag und aktueller Kontostand',
+      quelle: 'bausparvertrag'),
+  InsolvenzUnterlage('kfz', 'Kfz-Brief und Fahrzeugschein',
+      hinweis: 'Zulassungsbescheinigung Teil I und Teil II',
+      quelle: 'kfz'),
+  InsolvenzUnterlage('grundbuch', 'Grundbuchauszüge',
+      hinweis: 'Für jedes Grundstück ein aktueller Auszug'),
+  InsolvenzUnterlage('kontoauszuege', 'Kontoauszüge — letzte 6 Monate bis heute',
+      hinweis: 'Alle Konten, lückenlos und ungeschwärzt',
+      quelle: 'kontoauszuege'),
+
+  // ── Was gegen das Mitglied läuft ──
+  InsolvenzUnterlage('zwangsvollstreckung',
+      'Zwangsvollstreckungsmaßnahmen — letzte 3 Monate',
+      hinweis: 'Aufstellung der gegen Sie gerichteten Maßnahmen'),
+
+  // ── Was das Verfahren selbst braucht ──
+  // Das Mitglied lädt die unterschriebene Einwilligung im Live-Chat hoch;
+  // sie landet in seinem verschlüsselten 1-GB-Speicher und wird hier über
+  // „Aus Cloud" übernommen. Deshalb steht am Knopf kein zweiter Weg — der
+  // vorhandene führt schon dorthin.
+  InsolvenzUnterlage('insoup', 'Nutzung InsoUp-App — Einwilligung',
+      hinweis: 'Vom Mitglied unterschrieben — über „Aus Cloud" aus seinem '
+          'verschlüsselten Speicher übernehmen'),
+  InsolvenzUnterlage('merkblatt', 'Merkblatt für Insolvenzschuldner',
+      hinweis: 'Aushändigung bestätigt'),
+
+  InsolvenzUnterlage('sonstiges', 'Sonstiges'),
+];
+
+/// Titel der Abschnitte, die es früher gab und die der Server weiter annimmt.
+///
+/// ⚠️ Ohne diese Tabelle wäre ein Altdokument UNSICHTBAR: die Anzeige geht
+/// über [kInsolvenzUnterlagen], und was dort keinen Abschnitt hat, wird von
+/// keiner Zeile eingesammelt. Heute liegt nichts darunter — aber „heute
+/// nichts" ist kein Grund, es beim nächsten Mal zu verlieren.
+const kInsolvenzDokKategorienAlt = <String, String>{
   'beschluss':           'Beschlüsse des Gerichts',
   'forderungsanmeldung': 'Forderungsanmeldungen',
-  'einkommen':           'Einkommensnachweise',
+  'einkommen':           'Einkommensnachweise (alte Ablage)',
   'vermoegen':           'Vermögensauskunft',
   'abtretung':           'Abtretungserklärung',
   'schriftverkehr':      'Schriftverkehr',
-  'sonstiges':           'Sonstiges',
 };
 
 /// Registerzeichen aus einem gerichtlichen Aktenzeichen (`123 IN 456/24`):
@@ -6034,6 +6143,10 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
   List<Map<String, dynamic>> _korr = [];
   List<Map<String, dynamic>> _docs = [];
 
+  /// Was `type=quellen` über die anderen Module gemeldet hat:
+  /// kategorie → {wo, anzahl, zustand}.
+  Map<String, Map<String, dynamic>> _quellen = {};
+
   int get _akteId => widget.akte['id'] as int;
 
   @override
@@ -6042,12 +6155,24 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
   Future<void> _load() async {
     final k = await widget.apiService.listInsolvenzAkteKorr(_akteId);
     final d = await widget.apiService.listInsolvenzAkteDocs(_akteId);
+    final q = await widget.apiService.listInsolvenzUnterlagenQuellen(widget.userId);
     if (!mounted) return;
     setState(() {
       _korr = (k['data'] is List)
           ? (k['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
       _docs = (d['data'] is List)
           ? (d['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
+      // ⚠️ PHP kennt nur einen Array-Typ: eine leere Liste kommt als `[]`
+      // heraus, nicht als `{}`. Ein `as Map` würde darauf nicht null
+      // liefern, sondern WERFEN — und im Release-Build bliebe nur eine graue
+      // Fläche ohne Meldung. Der Server codiert deshalb mit (object), und
+      // hier wird trotzdem geprüft: die Codierung ist eine Nebenwirkung der
+      // Schlüssel, kein Vertrag.
+      final roh = q['quellen'];
+      _quellen = roh is Map
+          ? roh.map((s, v) => MapEntry(s.toString(),
+              v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{}))
+          : <String, Map<String, dynamic>>{};
       _loaded = true;
     });
   }
@@ -6511,11 +6636,69 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
               'diese dürfen als Beweismittel verwendet werden.',
               style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 900)))),
           ])),
-        ...kInsolvenzDokKategorien.entries.map((e) => _dokAbschnitt(e.key, e.value)),
+        ...kInsolvenzUnterlagen.map(_dokAbschnitt),
+        // Abschnitte aus der früheren Aufteilung — nur, solange dort noch
+        // etwas liegt. Sonst stünden sieben leere Kästen unter der Liste,
+        // die niemand mehr befüllen soll.
+        ...kInsolvenzDokKategorienAlt.entries
+            .where((e) => _docs.any((d) => (d['kategorie'] ?? '').toString() == e.key))
+            .map((e) => _dokAbschnitt(
+                  InsolvenzUnterlage(e.key, e.value,
+                      hinweis: 'Aus der früheren Aufteilung — bitte in einen '
+                          'der Abschnitte oben umlegen'),
+                )),
       ]));
   }
 
-  Widget _dokAbschnitt(String kategorie, String titel) {
+  /// Bandzeile: liegt dieselbe Angabe schon in einem anderen Modul?
+  ///
+  /// Drei Zustände, drei verschiedene Aussagen — und der dritte ist der
+  /// Grund, warum das hier nicht bloß ein grünes Häkchen ist:
+  ///   vorhanden → „dort liegen N Einträge", also nicht neu anfordern
+  ///   leer      → „dort ist nichts", also beim Mitglied nachfragen
+  ///   unbekannt → „wir konnten nicht nachsehen" — ausdrücklich NICHT „leer"
+  Widget? _quellenBand(String? quelle) {
+    if (quelle == null) return null;
+    final q = _quellen[quelle];
+    if (q == null) return null;
+
+    final zustand = (q['zustand'] ?? 'unbekannt').toString();
+    final wo = (q['wo'] ?? '').toString();
+    final anzahl = int.tryParse('${q['anzahl']}') ?? 0;
+
+    final (MaterialColor farbe, IconData sinnbild, String text) = switch (zustand) {
+      'vorhanden' => (
+          Colors.green,
+          Icons.check_circle_outline,
+          'Bereits hinterlegt: $anzahl ${anzahl == 1 ? 'Eintrag' : 'Einträge'} '
+              'unter $wo',
+        ),
+      'leer' => (
+          Colors.grey,
+          Icons.remove_circle_outline,
+          'Unter $wo ist nichts hinterlegt',
+        ),
+      _ => (
+          Colors.orange,
+          Icons.help_outline,
+          'Konnte nicht nachsehen ($wo) — das heißt nicht, dass dort nichts liegt',
+        ),
+    };
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(sinnbild, size: 13, color: F.h(farbe, 700)),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text,
+          style: TextStyle(fontSize: 10.5, color: F.h(farbe, 800)))),
+      ]),
+    );
+  }
+
+  Widget _dokAbschnitt(InsolvenzUnterlage u) {
+    final kategorie = u.schluessel;
+    final titel = u.titel;
     final docs = _docs.where((d) => (d['kategorie'] ?? 'sonstiges').toString() == kategorie).toList();
     return Container(margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(10),
@@ -6525,8 +6708,19 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
           decoration: BoxDecoration(color: F.h(widget.color, 50),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(10))),
           child: Row(children: [
-            Expanded(child: Text('$titel (${docs.length})',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(widget.color, 800)))),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('$titel (${docs.length})',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
+                    color: F.h(widget.color, 800))),
+                if (u.hinweis != null)
+                  Padding(padding: const EdgeInsets.only(top: 2),
+                    child: Text(u.hinweis!,
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)))),
+              ])),
+            const SizedBox(width: 8),
             OutlinedButton.icon(
               onPressed: () async {
                 final res = await CloudPickerHelper.uebernehmen(context,
@@ -6556,7 +6750,11 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
             ),
           ])),
-        if (docs.isEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        // Der Verweis steht ÜBER der Dateiliste, nicht darunter: er ist die
+        // Antwort auf „muss ich das überhaupt anfordern?", und die wird
+        // gestellt, bevor jemand die Liste liest.
+        ?_quellenBand(u.quelle),
+        if (docs.isEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
           child: Text('Keine Unterlagen', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 11))),
         ...docs.map((d) => Padding(padding: const EdgeInsets.fromLTRB(12, 2, 6, 2), child: Row(children: [
           Icon(Icons.attach_file, size: 15, color: F.h(widget.color, 700)), const SizedBox(width: 8),
