@@ -42,6 +42,7 @@ import 'package:icd360sev_vorsitzer/screens/postcard.dart';
 import 'package:icd360sev_vorsitzer/screens/sendungsverfolgung.dart';
 import 'package:icd360sev_vorsitzer/screens/servdiscount_screen.dart';
 import 'package:icd360sev_vorsitzer/screens/simplefax_screen.dart';
+import 'package:icd360sev_vorsitzer/screens/sipgate_fax_screen.dart';
 import 'package:icd360sev_vorsitzer/screens/statistik_screen.dart';
 import 'package:icd360sev_vorsitzer/screens/stifter_helfen_screen.dart';
 import 'package:icd360sev_vorsitzer/screens/vereinregister_screen.dart';
@@ -256,6 +257,75 @@ http.Client _mock() => MockClient((anfrage) async {
       // Ausnahme für genau die Endpunkte, die verschachtelt zugreifen.
       final alsObjekt =
           pfad.contains('bewerbung') || pfad.contains('korrespondenz');
+
+      // ⚠️ FAX BRAUCHT EIN EIGENES SCHEMA, sonst misst der Test nichts.
+      //
+      // Der Faxbildschirm zeigt Sendefeld und Verlauf nur, wenn
+      // `eingerichtet == true` ist. Mit der allgemeinen Antwort oben blieb
+      // genau die Karte „Noch kein Fax-Zugang" übrig — und das ist der eine
+      // Teil, der ganz sicher nicht überläuft. Hier stehen deshalb absichtlich
+      // die LÄNGSTEN Werte, die im Betrieb vorkommen: der längste Name aus
+      // dem echten Bestand (Lungenzentrum Ulm, 58 Zeichen) und ein
+      // Textanriss in voller Länge.
+      if (pfad.contains('sipgate_fax')) {
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'eingerichtet': true,
+            'faxline_id': 'f0',
+            'absender': '+4973180159737',
+            'token_id': 'token-LI3T38',
+            'geprueft_am': '2026-08-22 22:27:44',
+            'live': true,
+            'guthaben': 3.5,
+            'guthaben_text': '3,50 €',
+            'guthaben_knapp': true,
+            'sync_offen': 7,
+            'faxe': [
+              {
+                'id': 13,
+                'richtung': 'aus',
+                'gegenstelle': '+497319679413',
+                'gegenstelle_name':
+                    'Lungenzentrum Ulm - Pneumologische Gemeinschaftspraxis',
+                'dateiname': 'Terminanfrage_Padurean_Danut-Marius_22-08-2026.pdf',
+                'status': 'zugestellt',
+                'seiten': 7,
+                'hat_dokument': true,
+                'hat_bericht': true,
+                'bezug_text': 'Widerspruch Jobcenter 08/2026',
+                'notiz': 'Vor der Frist am 29.08. noch einmal nachfassen.',
+                'ocr_auszug':
+                    'Lungenzentrum Ulm · Pneumologische Gemeinschaftspraxis · '
+                        'Dr. Volker Töpfer · Olgastraße 83 · 89073 Ulm — '
+                        'Terminbestätigung zu Ihrer Anfrage vom 22.08.2026',
+                'ocr_zeichen': 476,
+                'ocr_stand': 'erkannt',
+                'gelesen': false,
+                'sync_offen': true,
+                'herkunft': 'abgleich',
+                'gruppe_pos': 2,
+                'gruppe_von': 3,
+                'wiederholung_von': 9,
+                'gesendet_von': 'Ionut-Claudiu Duinea',
+                'gesendet_am': '2026-08-22 10:34:51',
+                'zugestellt_am': '2026-08-22 10:35:12',
+                'erstellt_am': '2026-08-22 10:34:51',
+              },
+            ],
+            'gesamt': 17,
+            'gefunden': 17,
+            'offset': 0,
+            'limit': 50,
+            'mehr': false,
+            'ungelesen': 1,
+            'message': '',
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+
       return http.Response(
         jsonEncode({
           'success': true,
@@ -472,6 +542,12 @@ void main() {
     'SendungsverfolgungView': () => SendungsverfolgungView(apiService: api),
     'ServdiscountScreen': () => ServdiscountScreen(apiService: api, onBack: () {}),
     'SimpleFaxScreen': () => SimpleFaxScreen(onBack: () {}, apiService: api),
+    // ⚠️ Stand bis zum 22.08.2026 in KEINEM Test — auch in keinem
+    // Auflösungstest. Ausgerechnet der Bildschirm, der am stärksten
+    // gewachsen ist: Empfängerliste, Anriss des erkannten Textes,
+    // Guthabenzeile. Beim SimpleFax-Bildschirm hat genau dieser Test
+    // einen Überlauf von 321 px gefunden, den kein Mensch bemerkt hätte.
+    'SipgateFaxScreen': () => const SipgateFaxScreen(),
     'StatistikScreen': () => StatistikScreen(apiService: api, users: <User>[], currentMitgliedernummer: _langerText),
     'StifterHelfenScreen': () => StifterHelfenScreen(apiService: api, onBack: () {}),
     'VereinregisterScreen': () => VereinregisterScreen(apiService: api, onBack: () {}),
