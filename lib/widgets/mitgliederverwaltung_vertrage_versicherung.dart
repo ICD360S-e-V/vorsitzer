@@ -439,6 +439,7 @@ class _MitgliederverwaltungVertraegeVersicherungState
     }
 
     final nrC = TextEditingController(text: existing?['vertragsnummer']?.toString() ?? '');
+    final kundennrC = TextEditingController(text: existing?['kundennummer']?.toString() ?? '');
     final beginnC = TextEditingController(text: existing?['vertragsbeginn']?.toString() ?? '');
     final kostenC = TextEditingController(text: existing?['monatliche_kosten']?.toString() ?? '');
     bool submitting = false;
@@ -565,6 +566,16 @@ class _MitgliederverwaltungVertraegeVersicherungState
           ),
           const SizedBox(height: 8),
           TextField(
+            controller: kundennrC,
+            decoration: InputDecoration(
+              labelText: 'Kundennummer',
+              prefixIcon: const Icon(Icons.badge, size: 18),
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
             controller: beginnC,
             readOnly: true,
             decoration: InputDecoration(
@@ -631,10 +642,26 @@ class _MitgliederverwaltungVertraegeVersicherungState
                   'versicherung_id': selVersId,
                   'anbieter': versName,
                   'vertragsnummer': nrC.text.trim(),
+                  'kundennummer': kundennrC.text.trim(),
                   'tarif': sparte,
                   'vertragsbeginn': beginnC.text.trim(),
                   'monatliche_kosten': kostenC.text.trim().isEmpty ? null : double.tryParse(kostenC.text.trim().replaceAll(',', '.')),
                   'is_active': 1,
+                  // Der Endpunkt schreibt jedes Feld seiner Weißliste — was er
+                  // nicht bekommt, wird NULL. Ohne diese Durchreiche löschte
+                  // eine Bearbeitung hier stillschweigend Werte, die in der
+                  // Detailansicht gepflegt wurden.
+                  if (existing != null) ...{
+                    'mindestlaufzeit': existing['mindestlaufzeit'],
+                    'kuendigungsfrist': existing['kuendigungsfrist'],
+                    'gekuendigt_am': existing['gekuendigt_am'],
+                    'vertragsende': existing['vertragsende'],
+                    'telefonnummer': existing['telefonnummer'],
+                    'datenvolumen': existing['datenvolumen'],
+                    'login_email': existing['login_email'],
+                    'shared_account': existing['shared_account'],
+                    'notizen': existing['notizen'],
+                  },
                 });
                 if (r['success'] == true) {
                   if (ctx.mounted) Navigator.pop(ctx, true);
@@ -859,6 +886,8 @@ class _VersicherungDetailView extends StatelessWidget {
         _row(Icons.shield, 'Versicherung', versicherung?['name'] ?? vertrag['anbieter']),
         if (sparte.isNotEmpty) _row(Icons.category, 'Sparte', sparte),
         _row(Icons.tag, 'Vertragsnummer', vertrag['vertragsnummer']),
+        if ((vertrag['kundennummer']?.toString() ?? '').isNotEmpty)
+          _row(Icons.badge, 'Kundennummer', vertrag['kundennummer']),
         _row(Icons.calendar_today, 'Vertragsbeginn (gültig ab)',
           vertrag['vertragsbeginn'] != null ? _fmtDate(vertrag['vertragsbeginn'].toString()) : null),
         if (vertrag['monatliche_kosten'] != null)
