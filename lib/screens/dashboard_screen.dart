@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
+import '../services/app_sperre_service.dart';
 import '../services/logger_service.dart';
 import '../services/chat_service.dart';
 import '../services/voice_call_service.dart';
@@ -1364,6 +1365,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   Future<void> _logout() async {
     // Clear API tokens
     await _apiService.logout();
+    // Beim Abmelden faellt auch das App-Passwort weg: es gehoert zu
+    // diesem Konto auf diesem Geraet. Wer sich danach wieder anmeldet,
+    // braucht ohnehin einen Aktivierungscode — und uebergibt man das
+    // Geraet an einen anderen Vorstand, stuende der sonst vor einer
+    // Sperre, die nach dem Passwort des Vorgaengers fragt.
+    await AppSperreService().zuruecksetzen();
 
     // Clear auto-login flag and saved credentials
     final prefs = await SharedPreferences.getInstance();
