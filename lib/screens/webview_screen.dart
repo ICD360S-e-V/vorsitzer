@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/external_browser_service.dart';
 import '../services/platform_service.dart';
+import '../utils/autofill_herkunft.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/responsive_layout.dart';
 
@@ -325,6 +327,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   bool _autoFillDone = false;
   int _autoFillAttempts = 0;
+
+  /// Herkunft wurde vom Benutzer für dieses Portal freigegeben.
+  bool _herkunftFreigegeben = false;
+
+  /// Der Freigabedialog steht gerade offen. Ohne diesen Merker zöge die
+  /// Wiederholschleife — oder ein zweites `onPageFinished` während der
+  /// Dialog wartet — denselben Dialog mehrfach auf.
+  bool _freigabeLaeuft = false;
 
   bool _go2docInjected = false;
 
@@ -906,6 +916,109 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
+  /// Einmalige Freigabe je Portal-Herkunft, in SharedPreferences gemerkt.
+  ///
+  /// Deckt die eine Lücke ab, die eine Herkunftsprüfung allein NICHT schließt:
+  /// URL und Passwort stammen aus demselben Datensatz auf dem Server. Wer den
+  /// Datensatz ändern kann, verbiegt beides zugleich — die Prüfung fände dann
+  /// einen Datensatz vor, der zu sich selbst passt, und bliebe still. Sichtbar
+  /// wird das nur, wenn der Mensch das Ziel einmal zu sehen bekommt.
+  ///
+  /// Kein Geheimnis, nur ein Einwilligungsmerker — SharedPreferences genügt.
+  Future<bool> _herkunftFreigeben(String herkunft) async {
+    final schluessel = 'autofill_freigabe:$herkunft';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(schluessel) == true) return true;
+      if (!mounted) return false;
+      final ok = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              icon: const Icon(Icons.key, color: Colors.orange),
+              title: const Text('Zugangsdaten senden?'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Benutzername und Passwort werden auf dieser '
+                      'Seite automatisch eingetragen:'),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: SelectableText(
+                      herkunft,
+                      style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Nur dort, nirgends sonst. Wenn Ihnen diese Adresse '
+                    'unbekannt vorkommt, brechen Sie ab und prüfen Sie den '
+                    'hinterlegten Portal-Link.',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade700),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Nicht senden'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('Senden'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (ok) await prefs.setBool(schluessel, true);
+      return ok;
+    } catch (e) {
+      // Ohne belastbare Freigabe wird nichts eingetragen.
+      debugPrint('[WebView] Freigabe fehlgeschlagen: $e');
+      return false;
+    }
+  }
+
+  void _autoFillHinweis(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(text),
+      backgroundColor: Colors.orange.shade700,
+      duration: const Duration(seconds: 5),
+    ));
+  }
+
+  /// Trägt die hinterlegten Zugangsdaten ein — ausschließlich auf der Herkunft,
+  /// zu der sie gehören.
+  ///
+  /// ⚠️ **Die Herkunftsprüfung steht im eingespritzten JavaScript, nicht hier.**
+  /// Das ist der Kern der Sache und kein Stilfrage:
+  ///
+  ///  * `location` ist im HTML-Standard `[LegacyUnforgeable]` — die Eigenschaft
+  ///    ist nicht überschreibbar, eine Seite kann über ihre eigene Adresse also
+  ///    nicht lügen. Was das Skript dort liest, ist die Wahrheit.
+  ///  * Die Prüfung ist damit **untrennbar** vom Eintragen: gleiches Skript,
+  ///    gleicher Lauf, gleiches Dokument. Zwischen „geprüft" und „eingetragen"
+  ///    passt keine Weiterleitung mehr.
+  ///  * Auf Dart-Seite gäbe es diese Sicherheit nicht. `webview_windows` liefert
+  ///    bei `navigationCompleted` **keinen** URL mit; der käme aus dem separaten
+  ///    `url`-Stream, dessen Reihenfolge dazu nicht zugesichert ist. Wir würden
+  ///    also womöglich die **vorige** Herkunft prüfen, während die neue Seite
+  ///    schon steht — genau das Loch, das hier zugehen soll.
   Future<void> _tryAutoFill() async {
     if (_autoFillDone) return;
     // Also try Go2Doc patient auto-fill
@@ -918,71 +1031,74 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final pass = widget.autoFillPassword;
     if (user == null || user.isEmpty) return;
 
-    // Escape quotes for JS string safety
-    final jsUser = user.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
-    final jsPass = (pass ?? '').replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+    final herkunft = autofillHerkunft(widget.url);
+    if (herkunft == null) {
+      _autoFillDone = true;
+      _autoFillHinweis('Auto-Ausfüllen deaktiviert: die hinterlegte '
+          'Portal-Adresse ist keine HTTPS-Adresse. Bitte von Hand anmelden.');
+      return;
+    }
 
-    final js = '''
-(function() {
-  function setNativeValue(el, val) {
-    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-    setter.call(el, val);
-    el.dispatchEvent(new Event('input', {bubbles: true}));
-    el.dispatchEvent(new Event('change', {bubbles: true}));
-    el.dispatchEvent(new KeyboardEvent('keydown', {bubbles: true}));
-    el.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
-  }
+    // Einmal je Herkunft nachfragen. Das Merkerpaar verhindert, dass die
+    // Wiederholschleife (oder ein zweites onPageFinished während des offenen
+    // Dialogs) denselben Dialog mehrfach aufzieht.
+    if (!_herkunftFreigegeben) {
+      if (_freigabeLaeuft) return;
+      _freigabeLaeuft = true;
+      final ok = await _herkunftFreigeben(herkunft);
+      _freigabeLaeuft = false;
+      if (!ok) {
+        _autoFillDone = true;
+        _autoFillHinweis('Zugangsdaten wurden nicht gesendet.');
+        return;
+      }
+      _herkunftFreigegeben = true;
+    }
 
-  var userField = document.querySelector('input[type="email"]')
-    || document.querySelector('input[name*="user" i]')
-    || document.querySelector('input[name*="email" i]')
-    || document.querySelector('input[name*="login" i]')
-    || document.querySelector('input[autocomplete="username"]')
-    || document.querySelector('input[autocomplete="email"]')
-    || document.querySelector('input[id*="email" i]')
-    || document.querySelector('input[id*="user" i]')
-    || document.querySelector('input[placeholder*="email" i]')
-    || document.querySelector('input[placeholder*="E-Mail" i]')
-    || document.querySelector('input[type="text"]');
-
-  var passField = document.querySelector('input[type="password"]');
-
-  var filled = 0;
-  if (userField) {
-    userField.focus();
-    setNativeValue(userField, '$jsUser');
-    userField.blur();
-    filled++;
-  }
-  if (passField) {
-    passField.focus();
-    setNativeValue(passField, '$jsPass');
-    passField.blur();
-    filled++;
-  }
-  return filled;
-})();
-''';
+    final js = autofillSkript(
+      herkunft: herkunft,
+      benutzer: user,
+      passwort: pass ?? '',
+    );
 
     try {
+      dynamic result;
       if (Platform.isWindows && _windowsController != null) {
-        await _windowsController!.executeScript(js);
-        _autoFillDone = true;
-        debugPrint('[WebView] Auto-fill injected (Windows)');
+        result = await _windowsController!.executeScript(js);
       } else if (_mobileController != null) {
-        final result = await _mobileController!.runJavaScriptReturningResult(js);
-        debugPrint('[WebView] Auto-fill result: $result (attempt ${_autoFillAttempts + 1})');
-        if (result.toString() == '2') {
-          _autoFillDone = true;
-        } else if (_autoFillAttempts < 5) {
-          _autoFillAttempts++;
-          await Future.delayed(Duration(milliseconds: 500 * _autoFillAttempts));
-          if (mounted) _tryAutoFill();
-          return;
-        } else {
-          _autoFillDone = true;
-        }
+        result = await _mobileController!.runJavaScriptReturningResult(js);
+      } else {
+        return; // Linux: externes Chromium, hier läuft nichts.
       }
+      // Je nach Plattform kommt eine Zahl oder ein String zurück.
+      final code = int.tryParse(result?.toString().trim() ?? '');
+      debugPrint('[WebView] Auto-fill result: $result '
+          '(attempt ${_autoFillAttempts + 1})');
+
+      if (code == AutofillErgebnis.keinTls ||
+          code == AutofillErgebnis.falscheHerkunft) {
+        // Dauerzustand für diese Seite: falsche Herkunft oder Klartext. Nicht
+        // wiederholen — und nicht stillschweigend, sonst rätselt der Benutzer,
+        // warum sich hier nichts ausfüllt.
+        _autoFillDone = true;
+        _autoFillHinweis(code == AutofillErgebnis.keinTls
+            ? 'Auto-Ausfüllen abgebrochen: Diese Seite ist nicht verschlüsselt.'
+            : 'Auto-Ausfüllen abgebrochen: Diese Seite gehört nicht zu '
+                '$herkunft. Bitte von Hand anmelden.');
+        return;
+      }
+      if (code != null && code >= 1) {
+        _autoFillDone = true;
+        return;
+      }
+      // 0 = noch kein Anmeldeformular da (SPA lädt nach) → erneut versuchen.
+      if (_autoFillAttempts < 5) {
+        _autoFillAttempts++;
+        await Future.delayed(Duration(milliseconds: 500 * _autoFillAttempts));
+        if (mounted) _tryAutoFill();
+        return;
+      }
+      _autoFillDone = true;
     } catch (e) {
       debugPrint('[WebView] Auto-fill error: $e');
       if (_autoFillAttempts < 5) {
