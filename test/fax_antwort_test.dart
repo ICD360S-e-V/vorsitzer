@@ -196,4 +196,64 @@ void main() {
       expect(nochmalFragen(5), isFalse, reason: 'null heisst: schon versucht');
     });
   });
+
+  group('Dritte Runde (22.08.2026)', () {
+    /// Wörtlich vom Server: eine Zeile, die der Ausgangsabgleich
+    /// nachgetragen hat — sie ging an unserem Sendeweg vorbei.
+    Map<String, dynamic> nachgetragen() => jsonDecode('''
+      {"id":24,"richtung":"aus","gegenstelle":"+4973180159737",
+       "gegenstelle_name":"ICD360S e.V.","empfaenger":"+4973180159737",
+       "empfaenger_name":"ICD360S e.V.","dateiname":"Fax an +4973180159737.pdf",
+       "groesse_b":192,"seiten":1,"deckblatt":false,"status":"zugestellt",
+       "fax_status_type":"SENT","fehler":"","hat_dokument":true,
+       "hat_bericht":true,"bezug_typ":null,"bezug_id":null,"bezug_text":"",
+       "name_quelle":"verzeichnis","notiz":"","ocr_text":"","ocr_stand":"leer",
+       "herkunft":"abgleich","user_id":0,"hat_miniatur":false,
+       "gruppe_key":null,"gruppe_pos":0,"gruppe_von":0,"wiederholung_von":null,
+       "gesendet_von":""}
+    ''') as Map<String, dynamic>;
+
+    test('gegenstelle ersetzt empfaenger — beide sind noch da', () {
+      // ⚠️ Die Spalte hiess bis zum 22.08.2026 `empfaenger` und trug bei
+      // EINGEGANGENEN Faxen die Nummer des ABSENDERS. Der alte Schlüssel geht
+      // eine Fassung lang weiter mit, damit eine schon ausgelieferte App
+      // nicht plötzlich leere Rufnummern zeigt.
+      final f = nachgetragen();
+      expect(f['gegenstelle'], '+4973180159737');
+      expect(f['empfaenger'], f['gegenstelle'],
+          reason: 'Übergangsschlüssel muss denselben Wert tragen');
+    });
+
+    test('der Bildschirm liest neu, fällt aber auf alt zurück', () {
+      String nummer(Map<String, dynamic> f) =>
+          (f['gegenstelle'] ?? f['empfaenger'] ?? '').toString();
+
+      expect(nummer(nachgetragen()), '+4973180159737');
+      // Eine ältere Serverfassung liefert nur den alten Schlüssel.
+      final alt = Map<String, dynamic>.from(nachgetragen())..remove('gegenstelle');
+      expect(nummer(alt), '+4973180159737');
+    });
+
+    test('nachgetragene Zeile ist als solche erkennbar', () {
+      // Wir wissen von ihr nur, was sipgate erzählt — kein Anlass, kein Bezug,
+      // kein Absender. Ein rekonstruierter Beleg darf nicht aussehen wie ein
+      // selbst erzeugter.
+      final f = nachgetragen();
+      expect(f['herkunft'], 'abgleich');
+      expect(f['user_id'], 0);
+      expect(f['bezug_typ'], isNull);
+    });
+
+    test('„von wem" bleibt leer, wenn es niemand von uns war', () {
+      expect('${nachgetragen()['gesendet_von']}', isEmpty);
+    });
+
+    test('ocr_stand unterscheidet „leer" von „noch nicht versucht"', () {
+      // ⚠️ Ohne diesen Unterschied versuchte jeder Lauf die Erkennung erneut —
+      // bei einem Fax, das nur ein Unterschriftenbild enthält, also für immer.
+      expect(nachgetragen()['ocr_stand'], 'leer');
+      final offen = Map<String, dynamic>.from(nachgetragen())..['ocr_stand'] = null;
+      expect(offen['ocr_stand'], isNull);
+    });
+  });
 }
