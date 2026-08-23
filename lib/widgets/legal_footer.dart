@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math' show pi;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../screens/webview_screen.dart';
 import '../services/update_service.dart';
 import '../services/logger_service.dart';
+import '../services/api_service.dart';
 import 'debug_console.dart';
 import 'update_dialog.dart';
 import 'changelog.dart';
@@ -25,6 +27,9 @@ class _LegalFooterState extends State<LegalFooter> with SingleTickerProviderStat
   final _log = LoggerService();
   bool _isChecking = false;
   Timer? _autoCheckTimer;
+  // Versteckter Zugang zur Debug-Konsole (7 Tipps auf den Copyright-Text).
+  int _debugTipps = 0;
+  Timer? _debugTippTimer;
   late AnimationController _rotationController;
 
   @override
@@ -53,8 +58,27 @@ class _LegalFooterState extends State<LegalFooter> with SingleTickerProviderStat
   @override
   void dispose() {
     _autoCheckTimer?.cancel();
+    _debugTippTimer?.cancel();
     _rotationController.dispose();
     super.dispose();
+  }
+
+  /// Versteckter Zugang zur Debug-Konsole: 7 schnelle Tipps auf den
+  /// Copyright-Text, und NUR wenn angemeldet. Kein sichtbarer Knopf mehr — der
+  /// war in Release sogar vor der Anmeldung erreichbar (der Fußbereich sitzt
+  /// auch auf dem Login-Bildschirm). Muster wie Androids Entwickleroptionen
+  /// (7× auf die Build-Nummer). Die Konsole selbst zeigt keine Geheimnisse mehr
+  /// (siehe Log-Redigierung), aber Gerätekennung/Mitgliedsnummer haben vor der
+  /// Anmeldung nichts verloren.
+  void _verstecktesDebug() {
+    _debugTippTimer?.cancel();
+    _debugTippTimer = Timer(const Duration(seconds: 2), () => _debugTipps = 0);
+    _debugTipps++;
+    if (_debugTipps >= 7) {
+      _debugTipps = 0;
+      _debugTippTimer?.cancel();
+      if (ApiService().isLoggedIn) showDebugConsole(context);
+    }
   }
 
   Future<void> _checkForUpdates({bool silent = false}) async {
@@ -178,7 +202,11 @@ class _LegalFooterState extends State<LegalFooter> with SingleTickerProviderStat
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('© 2025 - ${DateTime.now().year} ICD360S e.V', style: TextStyle(fontSize: 11, color: textColor)),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _verstecktesDebug,
+                    child: Text('© 2025 - ${DateTime.now().year} ICD360S e.V', style: TextStyle(fontSize: 11, color: textColor)),
+                  ),
                 ],
               ),
             ),
@@ -225,23 +253,27 @@ class _LegalFooterState extends State<LegalFooter> with SingleTickerProviderStat
             ),
           ),
           const SizedBox(width: 4),
-          InkWell(
-            onTap: () => showDebugConsole(context),
-            borderRadius: BorderRadius.circular(4),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Text(
-                '>_',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Consolas',
+          // Sichtbarer >_-Knopf NUR in Debug-Builds. In Release öffnet die
+          // Konsole ausschließlich der versteckte 7-Tipp auf den Copyright-Text
+          // (und nur angemeldet) — kein casual/pre-auth-Zugang mehr.
+          if (kDebugMode)
+            InkWell(
+              onTap: () => showDebugConsole(context),
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  '>_',
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Consolas',
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 4),
+          if (kDebugMode) const SizedBox(width: 4),
           // Website link
           Tooltip(
             message: 'icd360s.de',
