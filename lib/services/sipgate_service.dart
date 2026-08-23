@@ -143,6 +143,27 @@ SipgateAnmeldeFolge sipgateAnmeldeFolge(
 /// nicht einmal rot, sondern sähe aus, als hätte jemand die Telefonie
 /// absichtlich ausgeschaltet. Das ist die schlimmere der beiden Anzeigen: rot
 /// lädt zum Nachsehen ein, „aus" nicht.
+/// Darf sich DIESES Geraet bei sipgate anmelden?
+///
+/// ⚠️ Der Server verweigert nie. `sipgateGeraetWaehlen()` in `sipgate_lib.php`
+/// sucht der Reihe nach ein Telefon fuer genau dieses Geraet, dann ein freies,
+/// und faellt zuletzt auf „irgendeines, das aktiv ist" zurueck — ausdruecklich
+/// unter dem Kommentar „Nichts frei — teilen statt verweigern". Ein
+/// `geteilt = true` in der Antwort heisst also nicht „hier ist dein Telefon",
+/// sondern „ich habe nichts Eigenes fuer dich, nimm solange das von jemand
+/// anderem".
+///
+/// Das anzunehmen war die Falle: sipgate laesst bei zwei Anmeldungen auf einer
+/// SIP-ID beide klingeln (Parallelruf), und wer zuerst abnimmt, gewinnt. Ein
+/// Anruf eines Klienten koennte in einer Hosentasche landen statt am Tablet,
+/// an dem das Bluetooth-Headset haengt — und weil `autoAktiv()` auf Android
+/// voreingestellt AN ist, brauchte es dafuer niemanden, der etwas einschaltet.
+///
+/// Entscheidung des Users (23.08.2026): nur das Geraet mit eigenem Telefon
+/// meldet sich an. Geprueft am Besitz, nicht am Geraetenamen — ein
+/// Tabletwechsel soll kein Release brauchen.
+bool sipgateDarfAnmelden({required bool geteilt}) => !geteilt;
+
 /// Welche der drei Aussagen ueber die Absendernummer zutrifft.
 enum SipgateAbsenderAnzeige {
   /// Wir kennen die Nummer und koennen sie hinschreiben.
@@ -491,6 +512,45 @@ class SipgateService {
         _fehlversuche++;
         _wiederholungPlanen(
           'Keine Anmeldedaten — im Bildschirm ein VoIP-Telefon hinterlegen.',
+        );
+        return false;
+      }
+
+      // ⚠️ NUR MIT EIGENEM TELEFON ANMELDEN.
+      //
+      // Der Server verweigert nie: `sipgateGeraetWaehlen()` in
+      // `sipgate_lib.php` sucht der Reihe nach ein Telefon fuer genau dieses
+      // Geraet, dann ein freies, und faellt zuletzt auf „irgendeines, das
+      // aktiv ist" zurueck — ausdruecklich unter dem Kommentar „Nichts frei —
+      // teilen statt verweigern". Es gibt derzeit genau ein VoIP-Telefon, und
+      // das gehoert dem Tablet. Jedes andere Android-Geraet bekaeme also
+      // dessen SIP-ID mit `geteilt = true`.
+      //
+      // Was daraus folgte, ist kein Schoenheitsfehler: sipgate laesst bei zwei
+      // Anmeldungen auf einer SIP-ID beide klingeln (Parallelruf), und wer
+      // zuerst abnimmt, gewinnt. Ein Anruf eines Klienten koennte also in
+      // einer Hosentasche landen statt am Tablet, an dem das Bluetooth-Headset
+      // haengt. Und weil `autoAktiv()` auf Android voreingestellt AN ist,
+      // brauchte es dafuer niemanden, der etwas einschaltet.
+      //
+      // Entscheidung des Users (23.08.2026): **nur das Tablet telefoniert.**
+      // Geprueft wird das aber an „hat ein eigenes Telefon", nicht am
+      // Geraetenamen — sonst braeuchte ein Tabletwechsel ein Release. Zurueck
+      // gibt es den Weg ueber „Geraetezuordnung loesen" im Bildschirm.
+      if (!sipgateDarfAnmelden(geteilt: cfg.geteilt)) {
+        _log.info('sipgate: kein eigenes VoIP-Telefon (${cfg.sipId} gehoert einem '
+            'anderen Geraet) — es wird nicht angemeldet', tag: 'SIPGATE');
+        _wiederholungAbbrechen();
+        _setz(
+          stand: SipgateStand.fremdesTelefon,
+          sipId: cfg.sipId,
+          bezeichnung: cfg.bezeichnung,
+          geteilt: true,
+          meldung: 'Dieses Gerät hat kein eigenes VoIP-Telefon — ${cfg.sipId} '
+              'gehört einem anderen Gerät.\n'
+              'Telefoniert wird dort. Soll es hier laufen, im Abschnitt '
+              '„VoIP-Telefone" ein eigenes anlegen oder die Gerätezuordnung '
+              'lösen.',
         );
         return false;
       }
@@ -2137,7 +2197,20 @@ class SipgateKonfig {
   final String notrufstandort;
 }
 
-enum SipgateStand { aus, verbindet, registriert, fehler }
+enum SipgateStand {
+  aus,
+  verbindet,
+  registriert,
+  fehler,
+
+  /// Dieses Geraet hat **kein eigenes** VoIP-Telefon — der Server hat eines
+  /// angeboten, das schon einem anderen Geraet gehoert (`geteilt`).
+  ///
+  /// ⚠️ Das ist KEIN Fehler und darf nicht rot erscheinen. Es ist eine
+  /// Feststellung: hier wird nicht telefoniert, das macht das Geraet, dem das
+  /// Telefon gehoert.
+  fremdesTelefon,
+}
 
 enum SipgateGespraechStand { waehlt, klingelt, verbunden }
 
