@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/api_service.dart';
+import '../services/anruf_badge_service.dart';
 import '../services/sipgate_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/sipgate_anruf_overlay.dart';
@@ -100,6 +101,9 @@ class _SipgateScreenState extends State<SipgateScreen> {
       final a = await ApiService().sipgateAction({'action': 'list_anrufe', 'limit': 40});
       // Flach, kein `data` — jsonResponse() macht array_merge.
       final liste = a['anrufe'];
+      // Die Antwort bringt die Zahl schon mit — eine zweite Anfrage nur fuers
+      // Abzeichen waere Arbeit fuer nichts.
+      AnrufBadgeService().uebernehmen(a);
       if (mounted) {
         setState(() {
           _verlauf = liste is List ? liste.cast<Map<String, dynamic>>() : const [];
@@ -1016,6 +1020,34 @@ class _SipgateScreenState extends State<SipgateScreen> {
               'kamen, und warum. Die fehlen im Verlauf von sipgate.',
               style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
             ),
+            const SizedBox(height: 4),
+            // ⚠️ DIESER SATZ IST KEINE HÖFLICHKEIT, SONDERN DIE GRENZE DES
+            // ABZEICHENS. Beim Fax holt ein Cron die Liste bei sipgate ab;
+            // für Anrufe geht das nicht — am 23.08.2026 gemessen liefert
+            // `GET /history?types=CALL` auf diesem Konto null Positionen
+            // (auf neo ist der Gesprächsverlauf zu den Channel Events
+            // gewandert). Gezählt wird also, was DIESES Gerät mitbekommen
+            // hat. Ein Abzeichen, das sich für vollständig ausgibt, wäre
+            // schlimmer als eines, das seine Grenze nennt.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, size: 13, color: F.h(Colors.grey, 600)),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    'Aufgezeichnet wird, was dieses Gerät mitbekommen hat. Ein '
+                    'Anruf, der eintrifft während die App hier nicht angemeldet '
+                    'ist, steht nicht in dieser Liste — sipgate liefert den '
+                    'Gesprächsverlauf nicht über die Schnittstelle.',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: F.h(Colors.grey, 600),
+                        fontStyle: FontStyle.italic),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
             if (_ladeVerlauf)
               const Center(child: Padding(
@@ -1033,9 +1065,44 @@ class _SipgateScreenState extends State<SipgateScreen> {
     );
   }
 
+  /// Hakt einen verpassten Anruf einzeln ab.
+  ///
+  /// ⚠️ EINZELN, nicht „alles gelesen beim Öffnen" wie beim Fax. „Ich habe die
+  /// Liste gesehen" heisst nicht „ich habe alle zurückgerufen" — ein
+  /// Abzeichen, das beim Hinsehen erlischt, verliert genau die Aufgabe, für
+  /// die es da ist.
+  Future<void> _abhaken(Map<String, dynamic> a) async {
+    final id = a['id'];
+    if (id == null) return;
+    // Sofort im Bild, damit der Tipp nicht ins Leere zu gehen scheint; die
+    // Antwort korrigiert die Zahl gleich darauf.
+    setState(() => a['gesehen'] = true);
+    try {
+      final r = await ApiService()
+          .sipgateAction({'action': 'anruf_gesehen', 'ids': [id]});
+      if (r['success'] == true) {
+        AnrufBadgeService().uebernehmen(r);
+      } else if (mounted) {
+        setState(() => a['gesehen'] = false);
+        _melde('Konnte nicht abgehakt werden: ${r['message'] ?? ''}', fehler: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => a['gesehen'] = false);
+        _melde('Konnte nicht abgehakt werden: $e', fehler: true);
+      }
+    }
+  }
+
   Widget _verlaufszeile(Map<String, dynamic> a) {
     final ein = a['richtung'] == 'ein';
     final status = '${a['status']}';
+    // Offen ist ein eingehender Anruf, der niemanden erreicht hat und den noch
+    // niemand abgehakt hat. `abgelehnt` gehoert nicht dazu: wegdruecken ist
+    // eine Entscheidung, kein Versaeumnis.
+    final offen = ein &&
+        a['gesehen'] != true &&
+        (status == 'verpasst' || status == 'klingelt');
     final (farbe, symbol) = switch (status) {
       'beendet' => (Colors.green.shade600, ein ? Icons.call_received : Icons.call_made),
       'verbunden' => (Colors.green.shade600, Icons.call),
@@ -1052,6 +1119,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
+      tileColor: offen ? F.h(Colors.orange, 50) : null,
       leading: Icon(symbol, size: 20, color: farbe),
       // Nur wenn der Name wirklich einer ist. sipgate schickt bei Anrufen aus
       // dem Telefonnetz die Nummer AUCH als Anzeigenamen — sonst stünde hier
@@ -1072,6 +1140,13 @@ class _SipgateScreenState extends State<SipgateScreen> {
         style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
       ),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (offen)
+          IconButton(
+            icon: const Icon(Icons.done, size: 18),
+            tooltip: 'Erledigt — aus dem Abzeichen nehmen',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _abhaken(a),
+          ),
         // ⚠️ Nur bei einem Anrufer OHNE Namen. Wer schon in den Stammdaten
         // steht, gehört nicht ein zweites Mal in eine eigene Liste — genau
         // diese Doppelpflege ist bei `arzt_telefon` schiefgegangen, wo
@@ -1105,6 +1180,9 @@ class _SipgateScreenState extends State<SipgateScreen> {
               : () {
                   _nummer.text = nummer;
                   setState(() {});
+                  // Wer zurueckruft, hat sich gekuemmert — das ist genau der
+                  // Zweck des Abzeichens, also erlischt es hier von selbst.
+                  if (offen) _abhaken(a);
                 },
         ),
       ]),

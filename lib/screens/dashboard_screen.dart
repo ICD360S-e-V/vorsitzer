@@ -27,6 +27,7 @@ import '../services/termin_sms_gateway_service.dart';
 import '../widgets/opnv_dialog.dart';
 import '../services/news_service.dart';
 import '../services/radio_service.dart';
+import '../services/anruf_badge_service.dart';
 import '../services/sipgate_service.dart';
 import '../widgets/sipgate_anruf_overlay.dart';
 import '../services/ntfy_service.dart';
@@ -257,6 +258,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     // meldet sie per ntfy — wer die Meldung wegwischt, erfuhr davon in der App
     // bislang gar nichts.
     FaxBadgeService()
+      ..aktualisieren()
+      ..start();
+
+    // Verpasste eingehende Anrufe. Gemessen am 23.08.2026: 58 in zehn Tagen,
+    // und zu sehen waren sie ausschliesslich im Verlauf INNERHALB des
+    // sipgate-Bildschirms. Wer nicht neben dem Tablet stand, erfuhr nichts.
+    AnrufBadgeService()
       ..aktualisieren()
       ..start();
 
@@ -1601,7 +1609,41 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           // braucht kein Softphone. Der Gewinn liegt am Linux-Rechner, wo es
           // keine SIM gibt und die Fernwahl die Sprache nur per Bluetooth
           // über höchstens zehn Meter bringt.
-          ValueListenableBuilder<SipgateZustand>(
+          ValueListenableBuilder<int>(
+            valueListenable: AnrufBadgeService().verpasst,
+            builder: (ctx, verpasst, kind) => Stack(children: [
+              kind!,
+              if (verpasst > 0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  // ⚠️ Die Plakette darf den Knopf nicht abschirmen: sie liegt
+                  // ueber seiner Ecke, und ohne das waere genau dort kein
+                  // Tippen mehr moeglich.
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                          color: Colors.red, shape: BoxShape.circle),
+                      constraints:
+                          const BoxConstraints(minWidth: 18, minHeight: 18),
+                      child: Text(
+                        verpasst > 9 ? '9+' : '$verpasst',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ),
+            ]),
+            // ⚠️ Als `child` durchgereicht, nicht im Builder gebaut: der
+            // Zustand darunter meldet sich waehrend eines Gespraechs jede
+            // Sekunde (die Gespraechsdauer laeuft), und ohne das wuerde die
+            // Plakette jede Sekunde mit neu aufgebaut.
+            child: ValueListenableBuilder<SipgateZustand>(
             valueListenable: SipgateService().zustand,
             builder: (ctx, z, _) {
               final imGespraech = z.gespraech != null;
@@ -1612,9 +1654,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 return IconButton(
                   icon: const Icon(Icons.settings_phone),
                   tooltip: 'Anruf vom Rechner — womit das Tablet wählt',
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const SipgateScreen(),
-                  )),
+                  onPressed: _sipgateOeffnen,
                 );
               }
               return IconButton(
@@ -1655,11 +1695,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   SipgateStand.fremdesTelefon =>
                     z.meldung ?? 'sipgate — anderes Gerät telefoniert',
                 },
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const SipgateScreen(),
-                )),
+                onPressed: _sipgateOeffnen,
               );
             },
+          ),
           ),
           // Fax über sipgate — direkt neben dem Telefon, weil es dieselbe
           // Leitung und dasselbe Konto ist.
@@ -2107,6 +2146,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   /// es eine Anzeige ist und kein Knopf. Der Rest wandert ins Menü — als Text
   /// sogar auffindbarer als ein Icon, dessen Tooltip auf einem Telefon
   /// niemand zu sehen bekommt.
+  /// Öffnet den sipgate-Bildschirm und zählt beim Zurückkommen neu.
+  ///
+  /// Ohne das Nachzählen bliebe das Abzeichen bis zum nächsten
+  /// Fünf-Minuten-Takt stehen, obwohl der Anruf gerade abgehakt wurde —
+  /// dieselbe Stelle, an der es beim Fax auch nötig war.
+  Future<void> _sipgateOeffnen() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => const SipgateScreen(),
+    ));
+    AnrufBadgeService().aktualisieren();
+  }
+
   List<Widget> _appBarTelefonAktionen() {
     return [
       // Live Chat mit Zähler ungelesener Nachrichten.
@@ -2148,12 +2199,16 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       ValueListenableBuilder<int>(
         valueListenable: YoutubeService().newCount,
         builder: (context, tvNeu, _) => ValueListenableBuilder<int>(
+        valueListenable: AnrufBadgeService().verpasst,
+        builder: (context, anrufeNeu, _) => ValueListenableBuilder<int>(
         valueListenable: MailBadgeService().unreadCount,
         builder: (context, mailNeu, _) {
           // Die versteckten Abzeichen dürfen nicht verschwinden, sonst merkt
           // niemand mehr, dass hinter dem ⋮ etwas wartet.
-          final verstecktesAbzeichen =
-              tvNeu > 0 || mailNeu > 0 || _disruptionsService.count > 0;
+          final verstecktesAbzeichen = tvNeu > 0 ||
+              mailNeu > 0 ||
+              anrufeNeu > 0 ||
+              _disruptionsService.count > 0;
           return PopupMenuButton<String>(
             icon: Badge(
               isLabelVisible: verstecktesAbzeichen,
@@ -2206,7 +2261,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               // `fremdesTelefon` auf Telefonbreite nirgends zu sehen, und der
               // Hinweis „im Bildschirm ein eigenes Telefon anlegen" zeigte auf
               // einen Bildschirm, den man von dort nicht erreichen konnte.
-              _menuePunktIcon('sipgate', Icons.phone_in_talk_outlined, 'Telefonie (sipgate)'),
+              _menuePunktIcon('sipgate', Icons.phone_in_talk_outlined, 'Telefonie (sipgate)',
+                  zaehler: anrufeNeu, zaehlerFarbe: Colors.red),
               // Fax braucht weder SIP noch SIM — ein Dokumentenweg wie E-Mail,
               // auf dem Telefon genauso nuetzlich wie am Rechner.
               _menuePunktIcon('fax', Icons.fax, 'Fax'),
@@ -2234,6 +2290,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ],
           );
         },
+        ),
         ),
       ),
     ];
@@ -2318,9 +2375,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         ));
         MailBadgeService().refreshBadge();
       case 'sipgate':
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => const SipgateScreen(),
-        ));
+        _sipgateOeffnen();
       case 'fax':
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => const SipgateFaxScreen(),
