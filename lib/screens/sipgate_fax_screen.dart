@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
-import 'package:file_picker/file_picker.dart' show FileType;
+import 'package:file_picker/file_picker.dart' show FileType, PlatformFile;
 import 'package:flutter/material.dart';
+import 'package:pdfrx/pdfrx.dart' as pdfrx show PdfDocument;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api_service.dart';
@@ -34,11 +36,84 @@ List<FaxZiel> faxZieleAusEntwurf(dynamic roh) {
   return raus;
 }
 
+/// Die Grenzen, die **sipgate** setzt — nicht wir.
+///
+/// ⚠️ NACHGESCHLAGEN, NICHT GESCHÄTZT. sipgate schreibt im eigenen
+/// Hilfecenter „Es können PDF-Dateien mit bis zu 10 MB" und „maximal 30
+/// Seiten" (help.sipgate.de → Cloud Telefonanlage → Fax einrichten, abgerufen
+/// am 24.08.2026, für neo und classic gleichlautend). Beides sind harte
+/// Grenzen der Gegenseite. Sie bei uns höher zu setzen macht kein größeres
+/// Fax möglich — es verschiebt den Fehlschlag nur hinter das Hochladen, also
+/// genau hinter die Minuten, die der Mensch schon gewartet hat.
+///
+/// ⚠️ Die Bytegrenze meint die DATEI. Auf dem Weg zu sipgate wird sie base64
+/// und bläht um ein Drittel auf; das ist auf dem Server bedacht
+/// (`SIPGATE_FAX_MAX_B`) und hier nicht noch einmal zu rechnen.
+const int kFaxMaxBytes = 10 * 1024 * 1024;
+
+/// ⚠️ Diese Grenze hat bis zum 24.08.2026 an KEINER Stelle existiert — weder
+/// hier noch auf dem Server. Ein 3 MB großes, 60-seitiges Dokument kam durch
+/// jede unserer Prüfungen und wurde erst von sipgate abgewiesen.
+const int kFaxMaxSeiten = 30;
+
+/// Was einem gewählten Dokument im Weg steht. Leerer Text heißt „nichts".
+///
+/// ⚠️ Frei stehend und ohne Bildschirm prüfbar — dieselbe Überlegung wie bei
+/// [faxZieleAusEntwurf].
+///
+/// ⚠️ `seiten == null` heißt **„nicht ermittelbar"**, nicht „null Seiten".
+/// Ein Dokument, dessen Seiten sich nicht zählen lassen, wird durchgelassen:
+/// die Zählung ist eine Vorwarnung, kein Torwächter. Ein sendbares Fax wegen
+/// unserer eigenen Unfähigkeit zu blockieren wäre der schlechtere Fehler, und
+/// sipgate prüft ohnehin selbst.
+String faxDokumentBeanstandung(String name, int bytes, int? seiten) {
+  if (bytes > kFaxMaxBytes) {
+    final mb = (bytes / 1048576).toStringAsFixed(1);
+    return '„$name" ist $mb MB groß — sipgate nimmt höchstens '
+        '${kFaxMaxBytes ~/ 1048576} MB.';
+  }
+  if (seiten != null && seiten > kFaxMaxSeiten) {
+    return '„$name" hat $seiten Seiten — sipgate faxt höchstens '
+        '$kFaxMaxSeiten Seiten je Sendung.';
+  }
+  return '';
+}
+
+/// Die Überschrift, unter die ein Fax im Verlauf gehört.
+///
+/// ⚠️ `jetzt` kommt als Parameter, statt drinnen `DateTime.now()` zu rufen.
+/// Sonst wäre die Funktion nur an dem Tag prüfbar, an dem der Test läuft.
+String faxTagesgruppe(DateTime zeitpunkt, DateTime jetzt) {
+  final tag = DateTime(zeitpunkt.year, zeitpunkt.month, zeitpunkt.day);
+  final heute = DateTime(jetzt.year, jetzt.month, jetzt.day);
+  final weg = heute.difference(tag).inDays;
+  if (weg == 0) return 'Heute';
+  if (weg == 1) return 'Gestern';
+  const monate = [
+    'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
+  ];
+  final m = monate[tag.month - 1];
+  // Das Jahr nur, wenn es ein anderes ist — sonst steht es in einer Liste
+  // fünfzig Mal da und trägt nichts bei.
+  return tag.year == heute.year
+      ? '${tag.day}. $m'
+      : '${tag.day}. $m ${tag.year}';
+}
+
 /// Ein Dokument, das mitgefaxt werden soll.
 class FaxAnhang {
   final String name;
   final List<int> bytes;
-  const FaxAnhang(this.name, this.bytes);
+
+  /// Seitenzahl. `null` heißt „ließ sich nicht ermitteln" — siehe
+  /// [faxDokumentBeanstandung].
+  final int? seiten;
+
+  /// Die erste Seite als kleines Bild, oder `null`.
+  final Uint8List? vorschau;
+
+  const FaxAnhang(this.name, this.bytes, {this.seiten, this.vorschau});
 }
 
 /// Fax über sipgate.
@@ -111,7 +186,25 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
   final TextEditingController _suche = TextEditingController();
 
   bool _lade = true;
+
+  /// Wurde beim Öffnen ein gespeicherter Entwurf eingesetzt?
+  ///
+  /// ⚠️ WOFÜR: ein Entwurf merkt sich Text, Empfänger und Aktenzeichen — die
+  /// **Dokumente nicht**, und das mit Absicht: ein mehrseitiges PDF gehört
+  /// nicht in `SharedPreferences`. Bis zum 24.08.2026 stand darüber aber kein
+  /// Wort. Wer zurückkam, sah ein ausgefülltes Formular, drückte senden und
+  /// bekam „Kein Dokument gewählt" — die Auskunft kam also erst, nachdem der
+  /// Mensch dachte, er sei fertig.
+  bool _entwurfOhneDokument = false;
   bool _sendet = false;
+
+  /// Läuft gerade das Durchsehen gewählter Dokumente?
+  ///
+  /// ⚠️ Vier mehrseitige PDF durch pdfium zu schicken dauert auf der Tablette
+  /// spürbar. Ohne dieses Kennzeichen stünde der Knopf still da und niemand
+  /// wüsste, ob der Griff angekommen ist — die häufigste Reaktion darauf ist,
+  /// ihn noch einmal zu drücken.
+  bool _sichtetDokumente = false;
   bool _mehrLaedt = false;
   bool _deckblatt = false;
   Map<String, dynamic> _zugang = const {};
@@ -231,6 +324,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
         _aktenzeichen.text = (d['aktenzeichen'] ?? '').toString();
         _deckblatt = d['deckblatt'] == true;
         _weitereZiele = faxZieleAusEntwurf(d['ziele']);
+        _entwurfOhneDokument = true;
       });
     } catch (_) {
       // Ein unlesbarer Entwurf wird verworfen, nicht gemeldet.
@@ -437,6 +531,16 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     final dateien = res?.files ?? const [];
     if (dateien.isEmpty) return;
 
+    if (mounted) setState(() => _sichtetDokumente = true);
+    try {
+      await _dokumenteSichten(dateien);
+    } finally {
+      if (mounted) setState(() => _sichtetDokumente = false);
+    }
+  }
+
+  /// Liest, prüft und sichtet die gewählten Dateien.
+  Future<void> _dokumenteSichten(List<PlatformFile> dateien) async {
     final gewaehlt = <FaxAnhang>[];
     for (final datei in dateien) {
       final List<int>? gelesen = datei.bytes ??
@@ -457,10 +561,87 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
         _melde('„${datei.name}" ist kein PDF. sipgate faxt nur PDF.', fehler: true);
         return;
       }
-      gewaehlt.add(FaxAnhang(datei.name, gelesen));
+      // ⚠️ Seiten zählen und die erste Seite ansehen — VOR dem Hochladen.
+      // Die 10-MB-Grenze stand bis zum 24.08.2026 allein auf dem Server: ein
+      // zu großes Dokument wurde erst abgewiesen, NACHDEM es über die
+      // Mobilfunkleitung der Tablette oben war. Dieselbe Überlegung wie bei
+      // der %PDF--Prüfung eine Zeile höher, nur teurer bezahlt.
+      final durchgesehen = await _pdfDurchsehen(gelesen);
+      final klage = faxDokumentBeanstandung(
+          datei.name, gelesen.length, durchgesehen.seiten);
+      if (klage.isNotEmpty) {
+        _melde(klage, fehler: true);
+        return;
+      }
+      gewaehlt.add(FaxAnhang(datei.name, gelesen,
+          seiten: durchgesehen.seiten, vorschau: durchgesehen.bild));
     }
 
-    setState(() => _dokumente = gewaehlt);
+    setState(() {
+      _dokumente = gewaehlt;
+      _entwurfOhneDokument = false;
+    });
+  }
+
+  /// Seitenzahl und ein kleines Bild der ersten Seite.
+  ///
+  /// ⚠️ Fällt STILL auf `(null, null)` zurück. pdfium scheitert an einem
+  /// verschlüsselten oder ungewöhnlich gebauten PDF, das sipgate trotzdem
+  /// faxt — eine Fehlermeldung wäre hier eine Behauptung über das Dokument,
+  /// die wir nicht belegen können. Wer nicht zählen kann, schweigt und lässt
+  /// durch.
+  Future<({int? seiten, Uint8List? bild})> _pdfDurchsehen(List<int> roh) async {
+    pdfrx.PdfDocument? doc;
+    try {
+      doc = await pdfrx.PdfDocument.openData(Uint8List.fromList(roh));
+      final anzahl = doc.pages.length;
+      Uint8List? bild;
+      if (anzahl > 0) {
+        final seite = doc.pages.first;
+        // 40 dpi. Genug, um ein Blatt wiederzuerkennen; wenig genug, dass
+        // vier gewählte Dokumente nicht den Speicher der Tablette füllen.
+        // Der Verlauf rastert seine Vorschauen mit 30.
+        final breite = (seite.width / 72.0 * 40).round();
+        final hoehe = (seite.height / 72.0 * 40).round();
+        if (breite > 0 && hoehe > 0) {
+          final g = await seite.render(
+              x: 0,
+              y: 0,
+              fullWidth: breite.toDouble(),
+              fullHeight: hoehe.toDouble());
+          if (g != null) bild = await _rgbaZuPng(g.pixels, breite, hoehe);
+        }
+      }
+      return (seiten: anzahl, bild: bild);
+    } catch (_) {
+      return (seiten: null, bild: null);
+    } finally {
+      // ⚠️ Muss sein: pdfium hält das Dokument nativ, also außerhalb dessen,
+      // was der Sammler von Dart je aufräumt. Vier Dokumente je Sendung, den
+      // Tag über, sind sonst vier undichte Stellen je Sendung.
+      try {
+        await doc?.dispose();
+      } catch (_) {}
+    }
+  }
+
+  /// Rohe Bildpunkte als PNG, damit `Image.memory` sie zeigen kann.
+  Future<Uint8List?> _rgbaZuPng(Uint8List punkte, int breite, int hoehe) async {
+    try {
+      final puffer = await ui.ImmutableBuffer.fromUint8List(punkte);
+      final beschreibung = ui.ImageDescriptor.raw(puffer,
+          width: breite, height: hoehe, pixelFormat: ui.PixelFormat.rgba8888);
+      final kodierer = await beschreibung.instantiateCodec();
+      final bild = (await kodierer.getNextFrame()).image;
+      final daten = await bild.toByteData(format: ui.ImageByteFormat.png);
+      bild.dispose();
+      kodierer.dispose();
+      beschreibung.dispose();
+      puffer.dispose();
+      return daten?.buffer.asUint8List();
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Ein einzelnes Dokument abschicken. Gibt die Antwort zurück.
@@ -1324,6 +1505,94 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     }
   }
 
+  /// Ein einzelnes Fax als Mappe: Deckblatt, Dokument und Sendebericht in
+  /// EINEM PDF.
+  ///
+  /// ⚠️ WOFÜR: bis zum 24.08.2026 gab es das nur für den **ganzen** Verlauf.
+  /// Wer ein Fax in eine Gerichtsakte legen wollte, lud Dokument und
+  /// Sendebericht einzeln herunter — zwei Dateien, die einander nichts
+  /// ansehen. Der Zugangsnachweis besteht aber aus beidem zusammen.
+  ///
+  /// ⚠️ Es ist DIESELBE Maschinerie wie beim Journal, nur mit `id`. Der Server
+  /// konnte das längst (`case 'journal'` wertet `id` seit dem 21.08. aus) —
+  /// gefragt hat nie jemand danach. Eine zweite Bauart daneben zu stellen
+  /// hieße, zwei Wege zu pflegen, die dasselbe belegen sollen.
+  Future<void> _mappe(Map<String, dynamic> f) async {
+    final id = (f['id'] as num?)?.toInt() ?? 0;
+    if (id <= 0) return;
+    var siegeln = false;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => StatefulBuilder(
+        builder: (d2, setz) => AlertDialog(
+          title: const Text('Mappe für die Akte'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text(
+              'Ein PDF mit Deckblatt, dem Dokument und dem Sendebericht — '
+              'das, was zusammen den Zugang belegt.',
+              style: TextStyle(fontSize: 13, height: 1.35),
+            ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              value: siegeln,
+              onChanged: (v) => setz(() => siegeln = v ?? false),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('Digital siegeln'),
+              subtitle: const Text(
+                'Mit Zeitstempel. Dauert ein paar Minuten, weil ein eigener '
+                'Lauf das übernimmt — die Mappe bleibt danach 30 Tage abrufbar.',
+                style: TextStyle(fontSize: 12, height: 1.3),
+              ),
+            ),
+          ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(d2, false),
+                child: const Text('Abbrechen')),
+            FilledButton(
+                onPressed: () => Navigator.pop(d2, true),
+                child: const Text('Erstellen')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+
+    _melde('Mappe wird erstellt …');
+    final r = await _api.sipgateFaxAction({
+      'action': 'journal',
+      'id': id,
+      // Bei EINEM Fax sind Dokument und Bericht der ganze Zweck — sie werden
+      // nicht zur Wahl gestellt. ⚠️ `mit_dokumenten` wertet der Server NUR
+      // aus, wenn `id` gesetzt ist: fünfhundert Dokumente an ein Journal zu
+      // hängen wäre kein Journal mehr.
+      'mit_berichten': true,
+      'mit_dokumenten': true,
+      if (siegeln) 'siegel': true,
+    }, timeout: const Duration(seconds: 120));
+    if (!mounted) return;
+    if (r['success'] != true) {
+      _melde(r['message']?.toString() ?? 'Mappe nicht erstellbar', fehler: true);
+      return;
+    }
+    if (siegeln) {
+      final auftrag = (r['auftrag_id'] as num?)?.toInt() ?? 0;
+      _melde(r['message']?.toString() ?? 'Zum Siegeln vorgemerkt');
+      if (auftrag > 0) await _siegelAbholen(auftrag);
+      return;
+    }
+    try {
+      final bytes = base64Decode(r['inhalt_b64'].toString());
+      _melde(r['message']?.toString() ?? '');
+      await FileViewerDialog.showFromBytes(
+          context, bytes, 'Fax-$id-Mappe.pdf');
+    } catch (e) {
+      _melde('Mappe ist beschädigt angekommen: $e', fehler: true);
+    }
+  }
+
   /// Wartet auf das gesiegelte Journal und zeigt es dann.
   ///
   /// ⚠️ Fragt nach, statt zu blockieren: das Siegeln übernimmt der Cron, der
@@ -1849,6 +2118,46 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
   /// bei zwei Dokumenten an drei Stellen — und es wären sechs. Bei etwas, das
   /// sich nicht zurückholen lässt, muss die Zahl auf dem Knopf die Zahl der
   /// Sendungen sein.
+  /// Das Deckblatt ansehen, bevor es rausgeht.
+  ///
+  /// 🔴 WOFÜR: es ist die einzige Seite, die **wir** erzeugen — und bis zum
+  /// 24.08.2026 hat sie niemand je gesehen, bevor sie bei einem Amt oder einem
+  /// Gericht ankam. Auf ihr stehen Betreff, Aktenzeichen und die Seitenzahl,
+  /// also genau das, woran bei einer Frist die Zuordnung hängt.
+  ///
+  /// ⚠️ Es wird nichts gesendet und nichts abgelegt — der Server schreibt für
+  /// diese Anfrage keine Zeile in den Verlauf.
+  Future<void> _deckblattAnsehen() async {
+    final ziele = _zieleJetzt();
+    // Die Seitenzahl des ERSTEN Dokuments: das Deckblatt geht nur davor.
+    final seiten = _dokumente.isEmpty ? 0 : (_dokumente.first.seiten ?? 0);
+    _melde('Deckblatt wird erzeugt …');
+    final r = await _api.sipgateFaxAction({
+      'action': 'deckblatt_probe',
+      'empfaenger': ziele.isEmpty ? '' : ziele.first.nummer,
+      'empfaenger_name': ziele.isEmpty ? '' : ziele.first.name,
+      'betreff': _betreff.text.trim(),
+      'nachricht': _nachricht.text,
+      'aktenzeichen': _aktenzeichen.text.trim(),
+      if (seiten > 0) 'seiten': seiten,
+    });
+    if (!mounted) return;
+    if (r['success'] != true) {
+      _melde(r['message']?.toString() ?? 'Deckblatt nicht erzeugbar', fehler: true);
+      return;
+    }
+    try {
+      final bytes = base64Decode(r['inhalt_b64'].toString());
+      // ⚠️ Die Meldung kommt VOR dem Anzeigen. Sie sagt unter anderem, ob die
+      // Nachricht gekürzt wurde — hinter dem Dialog gelesen wäre das zu spät.
+      _melde(r['message']?.toString() ?? '');
+      await FileViewerDialog.showFromBytes(
+          context, bytes, 'Deckblatt-Vorschau.pdf');
+    } catch (e) {
+      _melde('Vorschau ist beschädigt angekommen: $e', fehler: true);
+    }
+  }
+
   int get _sendezahl => _dokumente.length * _zieleJetzt().length;
 
   Widget _zeile(String k, String v) => Padding(
@@ -1858,6 +2167,68 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           Expanded(child: SelectableText(v, style: const TextStyle(fontSize: 13))),
         ]),
       );
+
+  /// Ein gewähltes Dokument: erste Seite, Name, Seitenzahl, Größe.
+  ///
+  /// ⚠️ Die Seitenzahl steht auch dann da, wenn sie unbekannt ist — als
+  /// „Seitenzahl unbekannt", nicht als Lücke. Eine fehlende Angabe sieht sonst
+  /// aus wie „geprüft und in Ordnung", und genau das ist sie nicht.
+  Widget _dokumentZeile(FaxAnhang d) {
+    final mb = d.bytes.length / 1048576;
+    final groesse = mb >= 0.1
+        ? '${mb.toStringAsFixed(1)} MB'
+        : '${(d.bytes.length / 1024).round()} kB';
+    final seiten = d.seiten == null
+        ? 'Seitenzahl unbekannt'
+        : '${d.seiten} ${d.seiten == 1 ? 'Seite' : 'Seiten'}';
+    // Knapp unter der Grenze ist kein Fehler, aber der Moment, in dem ein
+    // Hinweis noch etwas nützt.
+    final knapp = d.seiten != null && d.seiten! > kFaxMaxSeiten - 5;
+
+    // ⚠️ MergeSemantics ist hier richtig und in `_faxZeile` FALSCH: diese
+    // Zeile enthält nichts Bedienbares, die Verlaufszeile dagegen ein
+    // Menü. Zusammengefasst wäre der Menüknopf nicht mehr einzeln
+    // anwählbar — aus einer Verbesserung würde eine Sperre.
+    return MergeSemantics(
+      child: Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Das Papierbild sagt einem Bildschirmleser nichts, was nicht daneben
+        // stünde — Name, Seitenzahl und Größe stehen als Text.
+        ExcludeSemantics(child: Container(
+          width: 40,
+          height: 54,
+          decoration: BoxDecoration(
+            border: Border.all(color: F.h(Colors.grey, 400)),
+            borderRadius: BorderRadius.circular(3),
+            color: F.h(Colors.grey, 100),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: d.vorschau != null
+              ? Image.memory(d.vorschau!, fit: BoxFit.cover)
+              : Icon(Icons.picture_as_pdf_outlined,
+                  size: 20, color: F.h(Colors.grey, 500)),
+        )),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(d.name,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                maxLines: 2, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 2),
+            Text('$seiten · $groesse',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: knapp ? F.h(Colors.orange, 800) : F.h(Colors.grey, 700))),
+            if (knapp)
+              Text('sipgate faxt höchstens $kFaxMaxSeiten Seiten je Sendung.',
+                  style: TextStyle(fontSize: 11.5, color: F.h(Colors.orange, 800))),
+          ]),
+        ),
+      ]),
+      ),
+    );
+  }
 
   Widget _sendefeld() {
     return Card(
@@ -1892,15 +2263,34 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               // Sprachnummern liefern — in ein Faxfeld.
               tooltip: 'Aus dem Faxverzeichnis wählen',
               onPressed: () async {
-                final ziel = await Navigator.of(context).push<FaxZiel>(
+                final ziele = await Navigator.of(context).push<List<FaxZiel>>(
                     MaterialPageRoute(builder: (_) => const FaxNummerWaehlenScreen()));
-                if (ziel == null) return;
+                if (ziele == null || ziele.isEmpty) return;
                 setState(() {
-                  _empfaenger.text = ziel.nummer;
+                  // Das erste kommt ins Feld, alle weiteren in die Liste —
+                  // dieselbe Aufteilung, die `_zieleJetzt()` beim Senden
+                  // wieder zusammenführt.
+                  _empfaenger.text = ziele.first.nummer;
                   // Den Namen gleich mit: sonst steht im Verlauf später nur
                   // eine Rufnummer, und die sagt in einem Jahr nichts mehr.
-                  if (_name.text.trim().isEmpty) _name.text = ziel.name;
+                  if (_name.text.trim().isEmpty) _name.text = ziele.first.name;
+                  if (ziele.length > 1) {
+                    // ⚠️ Ziffernvergleich, nicht Textvergleich: „+49 731 …"
+                    // und „0731 …" sind dieselbe Gegenstelle. Ohne das stünde
+                    // sie zweimal in der Liste und bekäme zwei Faxe.
+                    String k(String n) => n.replaceAll(RegExp(r'\D'), '');
+                    final da = {
+                      for (final z in _weitereZiele) k(z.nummer),
+                      k(ziele.first.nummer),
+                    };
+                    _weitereZiele = [
+                      ..._weitereZiele,
+                      for (final z in ziele.skip(1))
+                        if (k(z.nummer).isNotEmpty && da.add(k(z.nummer))) z,
+                    ];
+                  }
                 });
+                _entwurfAnstossen();
               },
             ),
           ]),
@@ -1952,26 +2342,53 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               ),
             ),
           const SizedBox(height: 4),
-          OutlinedButton.icon(
-            onPressed: _dokumenteWaehlen,
-            icon: const Icon(Icons.attach_file),
-            label: Text(_dokumente.isEmpty
-                ? 'PDF wählen'
-                : _dokumente.length == 1
-                    ? _dokumente.first.name
-                    : '${_dokumente.length} Dokumente'),
-          ),
-          if (_dokumente.length > 1)
+          if (_entwurfOhneDokument && _dokumente.isEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 6),
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.info_outline, size: 16, color: F.h(Colors.blue, 700)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Empfänger und Text stammen aus dem gemerkten Entwurf. '
+                    'Das PDF war nicht dabei — Entwürfe merken sich keine '
+                    'Dokumente. Bitte neu wählen.',
+                    style: TextStyle(fontSize: 12, height: 1.3,
+                        color: F.h(Colors.blue, 800)),
+                  ),
+                ),
+              ]),
+            ),
+          OutlinedButton.icon(
+            onPressed: _sichtetDokumente ? null : _dokumenteWaehlen,
+            icon: _sichtetDokumente
+                ? const SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.attach_file),
+            label: Text(_sichtetDokumente
+                ? 'Dokument wird durchgesehen …'
+                : _dokumente.isEmpty
+                    ? 'PDF wählen'
+                    : _dokumente.length == 1
+                        ? _dokumente.first.name
+                        : '${_dokumente.length} Dokumente'),
+          ),
+          // ⚠️ WAS HIER STEHT, HAT BIS ZUM 24.08.2026 GEFEHLT: der Bildschirm
+          // hat nie gezeigt, was das Haus verlässt. Gewählt wurde eine Datei,
+          // geprüft wurde ihr %PDF--Kopf, und weg war sie. Ein Scan mit 40
+          // Seiten ging ohne ein Wort ans Jobcenter.
+          if (_dokumente.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                for (final d in _dokumente)
-                  Text('• ${d.name}',
-                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
-                const SizedBox(height: 4),
-                Text('Gehen als eigene Faxe nacheinander — ein Vorgang, '
-                    'je ein Sendebericht.',
-                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
+                for (final d in _dokumente) _dokumentZeile(d),
+                if (_dokumente.length > 1) ...[
+                  const SizedBox(height: 4),
+                  Text('Gehen als eigene Faxe nacheinander — ein Vorgang, '
+                      'je ein Sendebericht.',
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
+                ],
               ]),
             ),
           const SizedBox(height: 4),
@@ -2017,12 +2434,21 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _deckblattAnsehen,
+                icon: const Icon(Icons.visibility_outlined, size: 18),
+                label: const Text('Deckblatt ansehen'),
+              ),
+            ),
           ],
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: _sendet ? null : _senden,
+              onPressed: (_sendet || _sichtetDokumente) ? null : _senden,
               icon: _sendet
                   ? const SizedBox(width: 18, height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2))
@@ -2061,6 +2487,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           suffixIcon: _suche.text.isEmpty
               ? null
               : IconButton(
+                  tooltip: 'Suche leeren',
                   icon: const Icon(Icons.clear),
                   onPressed: () { _suche.clear(); _laden(); },
                 ),
@@ -2094,7 +2521,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           )),
         )
       else ...[
-        ..._faxe.map(_faxZeile),
+        ..._verlaufsZeilen(),
         if (_mehrDa)
           Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -2113,6 +2540,45 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           ),
       ],
     ]);
+  }
+
+  /// Der Verlauf mit Tagesüberschriften.
+  ///
+  /// ⚠️ WOFÜR: bis zum 24.08.2026 waren es fünfzig gleich aussehende Zeilen.
+  /// Bei einer laufenden Frist ist die erste Frage „ist es heute rausgegangen?",
+  /// und die wurde beantwortet, indem man Zeitstempel Zeile für Zeile las.
+  ///
+  /// ⚠️ Die Überschrift wechselt nur, wenn sie sich ändert. Beim Nachladen
+  /// wächst die Liste unten an; weil hier bei jedem Aufbau neu gruppiert wird,
+  /// steht über der ersten nachgeladenen Zeile keine zweite gleiche Überschrift.
+  List<Widget> _verlaufsZeilen() {
+    final raus = <Widget>[];
+    final jetzt = DateTime.now();
+    var letzte = '';
+    for (final f in _faxe) {
+      final roh = '${f['gesendet_am'] ?? f['erstellt_am'] ?? ''}';
+      final t = DateTime.tryParse(roh);
+      // Ohne lesbares Datum keine Überschrift — lieber gar keine als eine
+      // erfundene. Die Zeile selbst kommt trotzdem.
+      final gruppe = t == null ? '' : faxTagesgruppe(t, jetzt);
+      if (gruppe.isNotEmpty && gruppe != letzte) {
+        letzte = gruppe;
+        raus.add(Padding(
+          padding: EdgeInsets.only(top: raus.isEmpty ? 2 : 12, bottom: 2),
+          child: Text(
+            gruppe,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+              color: F.h(Colors.grey, 700),
+            ),
+          ),
+        ));
+      }
+      raus.add(_faxZeile(f));
+    }
+    return raus;
   }
 
   Widget _filterChip(String wert, String text) => Padding(
@@ -2140,9 +2606,20 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
 
     if (bild == null) {
       // Kein Bild (noch nicht da, oder es gibt keins) — wie bisher.
-      return Icon(ikone, color: farbe);
+      //
+      // ⚠️ AUS DER VORLESE-AUSGABE GENOMMEN. Das Zeichen trägt den Status,
+      // und der steht als Wort im Untertitel („Zugestellt · …"). Ein Icon
+      // ohne Beschriftung liest ein Bildschirmleser ohnehin nicht vor; mit
+      // Beschriftung käme dieselbe Auskunft zweimal. Farbe und Form sind hier
+      // die Abkürzung fürs Auge, nicht die einzige Quelle — genau das verlangt
+      // WCAG 1.4.1.
+      return ExcludeSemantics(child: Icon(ikone, color: farbe));
     }
-    return SizedBox(
+    return Semantics(
+      image: true,
+      label: 'Vorschau der ersten Seite',
+      child: ExcludeSemantics(
+        child: SizedBox(
       width: 40,
       height: 52,
       child: Stack(
@@ -2173,6 +2650,8 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
             ),
           ),
         ],
+      ),
+        ),
       ),
     );
   }
@@ -2430,6 +2909,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               'stand'    => _nachsehen(f),
               'weglegen'    => _weglegen(f),
               'zurueckholen'=> _zurueckholen(f),
+              'mappe'       => _mappe(f),
               'protokoll'   => _fahrtenbuch(f),
               _          => null,
             },
@@ -2484,6 +2964,10 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               if (!ein && (f['session_id'] != null || status == 'in_zustellung'))
                 const PopupMenuItem(value: 'stand',
                     child: ListTile(leading: Icon(Icons.refresh), title: Text('Stand nachsehen'))),
+              const PopupMenuItem(value: 'mappe',
+                  child: ListTile(
+                      leading: Icon(Icons.folder_zip_outlined),
+                      title: Text('Mappe für die Akte'))),
               const PopupMenuItem(value: 'protokoll',
                   child: ListTile(leading: Icon(Icons.history_edu_outlined),
                       title: Text('Protokoll'))),

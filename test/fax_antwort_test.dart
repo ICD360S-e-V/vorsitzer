@@ -647,4 +647,104 @@ void main() {
       expect(const SipgateFaxScreen(bezugId: 16).gefiltert, isFalse);
     });
   });
+  // =========================================================================
+  group('Grenzen von sipgate — Dokument vor dem Hochladen', () {
+    // ⚠️ Die Zahlen sind NICHT unsere Wahl. sipgate nennt im eigenen
+    // Hilfecenter „PDF-Dateien mit bis zu 10 MB" und „maximal 30 Seiten"
+    // (abgerufen 24.08.2026). Wer sie hier ändert, ändert nur, wann der
+    // Fehlschlag kommt — nicht ob.
+    test('die Grenzen sind die von sipgate', () {
+      expect(kFaxMaxBytes, 10 * 1024 * 1024);
+      expect(kFaxMaxSeiten, 30);
+    });
+
+    test('ein gewöhnliches Dokument geht durch', () {
+      expect(faxDokumentBeanstandung('Widerspruch.pdf', 240 * 1024, 3), '');
+    });
+
+    test('genau auf der Grenze geht noch durch', () {
+      expect(faxDokumentBeanstandung('a.pdf', kFaxMaxBytes, kFaxMaxSeiten), '');
+    });
+
+    test('ein Byte darüber wird beanstandet', () {
+      final k = faxDokumentBeanstandung('scan.pdf', kFaxMaxBytes + 1, 2);
+      expect(k, contains('scan.pdf'));
+      expect(k, contains('10 MB'));
+    });
+
+    test('eine Seite darüber wird beanstandet', () {
+      final k = faxDokumentBeanstandung('akte.pdf', 90 * 1024, 31);
+      expect(k, contains('31 Seiten'));
+      expect(k, contains('30'));
+    });
+
+    // 🔴 DER FALL, DEN DIE BYTEGRENZE NIE GEFANGEN HÄTTE — auf dem Server
+    // nachgemessen: ein selbst erzeugtes PDF mit 35 Seiten ist 77,6 kB groß.
+    // Bis zum 24.08.2026 gab es überhaupt keine Seitenprüfung, weder hier
+    // noch dort; sipgate wies solche Dokumente erst nach dem Hochladen ab.
+    test('viele Seiten in einer winzigen Datei werden trotzdem gefangen', () {
+      expect(faxDokumentBeanstandung('60seiten.pdf', 78 * 1024, 60), isNotEmpty);
+    });
+
+    // ⚠️ null heißt „nicht zählbar", nicht „null Seiten". pdfium scheitert an
+    // verschlüsselten PDF, die sipgate trotzdem faxt — ein sendbares Fax
+    // wegen unserer eigenen Unfähigkeit zu blockieren wäre der schlechtere
+    // Fehler. Der Server prüft ohnehin noch einmal.
+    test('unbekannte Seitenzahl blockiert nicht', () {
+      expect(faxDokumentBeanstandung('krypto.pdf', 500 * 1024, null), '');
+    });
+
+    test('unbekannte Seitenzahl rettet aber kein zu großes Dokument', () {
+      expect(faxDokumentBeanstandung('riesig.pdf', kFaxMaxBytes + 1, null),
+          isNotEmpty);
+    });
+  });
+
+  // =========================================================================
+  group('Tagesüberschriften im Verlauf', () {
+    // ⚠️ `jetzt` ist ein Parameter, damit der Test an jedem Tag des Jahres
+    // dasselbe Ergebnis hat. Mit DateTime.now() drinnen wäre er am 31.12.
+    // rot und sonst grün.
+    final jetzt = DateTime(2026, 8, 24, 14, 30);
+
+    test('heute', () {
+      expect(faxTagesgruppe(DateTime(2026, 8, 24, 0, 5), jetzt), 'Heute');
+      expect(faxTagesgruppe(DateTime(2026, 8, 24, 23, 59), jetzt), 'Heute');
+    });
+
+    test('gestern', () {
+      expect(faxTagesgruppe(DateTime(2026, 8, 23, 23, 59), jetzt), 'Gestern');
+    });
+
+    test('älter im selben Jahr — ohne Jahreszahl', () {
+      expect(faxTagesgruppe(DateTime(2026, 8, 21, 18, 22), jetzt), '21. August');
+      expect(faxTagesgruppe(DateTime(2026, 1, 3), jetzt), '3. Januar');
+    });
+
+    // Das Jahr steht nur da, wenn es ein anderes ist — sonst stünde es in
+    // einer Liste fünfzig Mal und trüge nichts bei.
+    test('anderes Jahr — mit Jahreszahl', () {
+      expect(faxTagesgruppe(DateTime(2025, 12, 31), jetzt), '31. Dezember 2025');
+    });
+
+    // ⚠️ Über die Monatsgrenze: der 31.07. ist der Vortag des 01.08., nicht
+    // „irgendwann im Juli". Eine Differenz in Tagen statt in Kalendertagen
+    // hätte hier gepatzt.
+    test('über die Monatsgrenze hinweg', () {
+      final erster = DateTime(2026, 8, 1, 9, 0);
+      expect(faxTagesgruppe(DateTime(2026, 7, 31, 22, 0), erster), 'Gestern');
+      expect(faxTagesgruppe(DateTime(2026, 7, 30, 22, 0), erster), '30. Juli');
+    });
+
+    // ⚠️ Die Uhrzeit darf nicht mitreden: 23:59 gestern und 00:01 heute sind
+    // zwei Minuten auseinander und trotzdem zwei Überschriften.
+    test('zwei Minuten Abstand, zwei Überschriften', () {
+      final kurzNachMitternacht = DateTime(2026, 8, 24, 0, 1);
+      expect(faxTagesgruppe(DateTime(2026, 8, 24, 0, 0), kurzNachMitternacht),
+          'Heute');
+      expect(faxTagesgruppe(DateTime(2026, 8, 23, 23, 59), kurzNachMitternacht),
+          'Gestern');
+    });
+  });
+
 }
