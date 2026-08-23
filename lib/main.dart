@@ -30,6 +30,17 @@ import 'package:windows_single_instance/windows_single_instance.dart';
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Android 15 (targetSdk 35) zeichnet randlos (edge-to-edge). Bewusst
+  // aktiviert, Systemleisten transparent: AppBar-Bildschirme versorgen ihre
+  // Insets selbst (Scaffold/AppBar), die wenigen ohne AppBar sind in SafeArea
+  // gefasst. `systemNavigationBarContrastEnforced` lässt das System bei Bedarf
+  // einen dezenten Schleier hinter die Gestenleiste legen, damit Inhalt darunter
+  // lesbar bleibt. Icon-Helligkeit setzt jede AppBar selbst je nach Farbe.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    systemNavigationBarColor: Colors.transparent,
+  ));
   // Load the on-device Weather-sensitivity profile so the first fetch already
   // uses personalised thresholds (cold/heat/PM/UV shifts).
   unawaited(WeatherProfileService.instance.load());
