@@ -36,6 +36,7 @@ class MailKorrespondenzBadge extends StatelessWidget {
     'github': (Icons.code, 'GitHub'),
     'inwx': (Icons.language, 'INWX'),
     'dmarc': (Icons.verified_user_outlined, 'DMARC'),
+    'tlsrpt': (Icons.lock_outline, 'TLS-RPT'),
   };
 
   static (IconData, String) _lookUp(String bereich) =>
