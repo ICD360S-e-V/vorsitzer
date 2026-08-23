@@ -10,6 +10,7 @@ import 'file_viewer_dialog.dart';
 import 'cloud_file_picker.dart';
 import '../utils/cloud_picker_helper.dart';
 import 'feld_reihe.dart';
+import 'vermieter_dokumente.dart' show dialogBreite;
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
 
@@ -288,6 +289,10 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
                 title: Text(a['leistung']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('${a['datum'] ?? ''}${(a['methode']?.toString() ?? '').isNotEmpty ? ' • ${a['methode']}' : ''}', style: const TextStyle(fontSize: 11)),
+                  if ((a['aktenzeichen']?.toString() ?? '').isNotEmpty)
+                    Text('Az. ${a['aktenzeichen']}', style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 400), fontWeight: FontWeight.w600)),
+                  if ((a['ansprechpartner']?.toString() ?? '').isNotEmpty)
+                    Text(a['ansprechpartner'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                   const SizedBox(height: 3),
                   Row(children: [
                     Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(statusColor, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(statusColor, 200))), child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(statusColor, 700)))),
@@ -304,23 +309,72 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
                   final aid = int.tryParse(a['id']?.toString() ?? '');
                   if (aid != null) _showAntragDetailDialog(aid, a);
                 },
-                trailing: Icon(Icons.chevron_right, color: F.h(Colors.grey, 400)),
+                // Antippen öffnet weiterhin die Detailansicht; Bearbeiten und
+                // Löschen sitzen im Menü. `_showAntragDialog(editIndex:)` gab
+                // es längst — nur rief es niemand auf, ein Antrag war damit
+                // nach dem Anlegen unveränderbar.
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  PopupMenuButton<String>(
+                    tooltip: 'Antrag',
+                    icon: Icon(Icons.more_vert, size: 20, color: F.h(Colors.grey, 600)),
+                    onSelected: (wahl) {
+                      if (wahl == 'bearbeiten') _showAntragDialog(editIndex: i);
+                      if (wahl == 'loeschen') _antragLoeschen(a);
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'bearbeiten', child: Row(children: [Icon(Icons.edit, size: 16), SizedBox(width: 8), Text('Bearbeiten')])),
+                      PopupMenuItem(value: 'loeschen', child: Row(children: [Icon(Icons.delete_outline, size: 16, color: Colors.red), SizedBox(width: 8), Text('Löschen', style: TextStyle(color: Colors.red))])),
+                    ],
+                  ),
+                  Icon(Icons.chevron_right, color: F.h(Colors.grey, 400)),
+                ]),
               ));
             })),
     ]);
+  }
+
+  Future<void> _antragLoeschen(Map<String, dynamic> a) async {
+    final id = int.tryParse(a['id']?.toString() ?? '');
+    if (id == null || widget.apiService == null || widget.userId == null) return;
+    final sicher = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Antrag löschen?'),
+      content: Text('„${a['leistung'] ?? ''}" vom ${a['datum'] ?? ''} wird gelöscht. '
+          'Dokumente, Verlauf und Korrespondenz dieses Antrags gehen mit.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (sicher != true) return;
+    final r = await widget.apiService!.deleteSozialamtAntrag(widget.userId!, id);
+    if (!mounted) return;
+    if (r['success'] == true) {
+      _loadFromDB();
+    } else {
+      // Grund anzeigen statt still nichts zu tun — sonst sieht ein
+      // fehlgeschlagenes Löschen aus wie ein Antrag, der wieder auftaucht.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nicht gelöscht: ${r['message'] ?? 'unbekannter Fehler'}')));
+    }
   }
 
   void _showAntragDialog({int? editIndex}) {
     final ex = editIndex != null ? _antraege[editIndex] : null;
     final datumC = TextEditingController(text: ex?['datum']?.toString() ?? '');
     final notizC = TextEditingController(text: ex?['notiz']?.toString() ?? '');
+    final aktenzeichenC = TextEditingController(text: ex?['aktenzeichen']?.toString() ?? '');
+    final ansprechpartnerC = TextEditingController(text: ex?['ansprechpartner']?.toString() ?? '');
+    final telefonC = TextEditingController(text: ex?['telefon']?.toString() ?? '');
+    final emailC = TextEditingController(text: ex?['email']?.toString() ?? '');
     String leistung = ex?['leistung']?.toString() ?? '';
     String methode = ex?['methode']?.toString() ?? '';
     String status = ex?['status']?.toString() ?? 'eingereicht';
     final leistungen = ['Grundsicherung im Alter', 'Grundsicherung bei Erwerbsminderung', 'Hilfe zum Lebensunterhalt', 'Eingliederungshilfe', 'Hilfe zur Pflege', 'Bildung und Teilhabe', 'Bestattungskosten', 'Blindengeld', 'Sonstige'];
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
       title: Text(editIndex != null ? 'Antrag bearbeiten' : 'Neuer Antrag'),
-      content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      // Feste 460 dp sprengen ein 412-dp-Telefon — und der Vorsitzer arbeitet
+      // auf einem Pixel. `dialogBreite` nimmt die Breite nur, wenn sie da ist.
+      content: SizedBox(width: dialogBreite(ctx2, 460), child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         DropdownButtonFormField<String>(
           // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
           // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
@@ -335,6 +389,25 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
         const SizedBox(height: 8),
         Wrap(spacing: 6, children: [('eingereicht', 'Eingereicht'), ('in_bearbeitung', 'In Bearbeitung'), ('bewilligt', 'Bewilligt'), ('abgelehnt', 'Abgelehnt'), ('widerspruch', 'Widerspruch')].map((s) => ChoiceChip(label: Text(s.$2, style: TextStyle(fontSize: 11, color: status == s.$1 ? Colors.white : F.textStark)), selected: status == s.$1, selectedColor: Colors.teal, onSelected: (_) => setD(() => status = s.$1))).toList()),
         const SizedBox(height: 8),
+        TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen', isDense: true, prefixIcon: const Icon(Icons.tag, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 12),
+        // Sachbearbeitung: wer den Fall führt und wie man die Person erreicht.
+        // Ohne das steht bei jedem Rückruf wieder die Frage im Raum, mit wem
+        // zuletzt gesprochen wurde.
+        Row(children: [
+          Icon(Icons.support_agent, size: 16, color: F.h(Colors.indigo, 400)),
+          const SizedBox(width: 6),
+          Text('Sachbearbeitung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 400))),
+          const SizedBox(width: 8),
+          Expanded(child: Divider(color: F.h(Colors.indigo, 100))),
+        ]),
+        const SizedBox(height: 8),
+        TextField(controller: ansprechpartnerC, decoration: InputDecoration(labelText: 'Ansprechpartner/in', isDense: true, prefixIcon: const Icon(Icons.person_outline, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 8),
+        TextField(controller: telefonC, keyboardType: TextInputType.phone, decoration: InputDecoration(labelText: 'Telefon (Durchwahl)', isDense: true, prefixIcon: const Icon(Icons.phone, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 8),
+        TextField(controller: emailC, keyboardType: TextInputType.emailAddress, decoration: InputDecoration(labelText: 'E-Mail', isDense: true, prefixIcon: const Icon(Icons.mail_outline, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 12),
         TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       ]))),
       actions: [
@@ -345,6 +418,8 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
             await widget.apiService!.saveSozialamtAntrag(widget.userId!, {
               if (ex != null) 'id': ex['id'],
               'leistung': leistung, 'datum': datumC.text, 'methode': methode, 'status': status, 'notiz': notizC.text,
+              'aktenzeichen': aktenzeichenC.text, 'ansprechpartner': ansprechpartnerC.text,
+              'telefon': telefonC.text, 'email': emailC.text,
             });
           }
           if (ctx.mounted) Navigator.pop(ctx);
@@ -501,8 +576,14 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _row(Icons.description, 'Leistung', a['leistung']),
       _row(Icons.calendar_today, 'Datum', a['datum']),
+      _row(Icons.tag, 'Aktenzeichen', a['aktenzeichen']),
       _row(Icons.send, 'Methode', a['methode']),
       _row(Icons.flag, 'Status', a['status']),
+      _row(Icons.support_agent, 'Ansprechpartner/in', a['ansprechpartner']),
+      // Icons.phone, damit die Durchwahl per `phoneAwareText` wählbar wird —
+      // genau dafür ist sie erfasst.
+      _row(Icons.phone, 'Telefon', a['telefon']),
+      _row(Icons.mail_outline, 'E-Mail', a['email']),
       if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.yellow, 50), borderRadius: BorderRadius.circular(8)),
@@ -717,7 +798,9 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
       Icon(icon, size: 14, color: F.h(Colors.grey, 600)), const SizedBox(width: 8),
       SizedBox(width: 100, child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
-      Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+      // `phoneAwareText` ist ausserhalb von Telefon-Icons ein reines
+      // `Text` — nur die Durchwahl der Sachbearbeitung wird wählbar.
+      Expanded(child: phoneAwareText(icon, s, style: const TextStyle(fontSize: 13))),
     ]));
   }
 }
