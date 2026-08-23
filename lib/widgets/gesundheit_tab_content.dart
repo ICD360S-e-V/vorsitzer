@@ -40,6 +40,7 @@ import 'sanitaetshaus.dart';
 import 'rettungsdienst.dart';
 import 'hilfsmittel_rezept_section.dart';
 import 'hkp_verordnung_tab.dart';
+import 'heilmittel_termin_tab.dart';
 import 'mitgliederverwaltung_arzten_augenarzt.dart';
 import 'mitgliederverwaltung_arzten_hno.dart';
 import 'mitgliederverwaltung_arzten_krankenhaus.dart';
@@ -12246,12 +12247,13 @@ $vollName$footer''';
               width: 620, height: 700,
               child: editMode
                 ? buildForm(setS2, (entry) { doSave(entry); Navigator.pop(dlgCtx); })
-                : DefaultTabController(length: 4, child: Column(children: [
+                : DefaultTabController(length: 5, child: Column(children: [
                     TabBar(isScrollable: true, tabAlignment: TabAlignment.start, labelColor: F.h(Colors.teal, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.teal.shade700, tabs: const [
                       Tab(icon: Icon(Icons.healing, size: 16), text: 'Details'),
                       Tab(icon: Icon(Icons.track_changes, size: 16), text: 'Verlauf'),
                       Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
                       Tab(icon: Icon(Icons.receipt, size: 16), text: 'Rechnung'),
+                      Tab(icon: Icon(Icons.event_available, size: 16), text: 'Termin'),
                     ]),
                     Expanded(child: TabBarView(children: [
                       // ── Details (read-only) ──
@@ -12634,6 +12636,12 @@ $vollName$footer''';
                                       r['physio_praxis_plz_ort'] = praxis['plz_ort']?.toString() ?? '';
                                       r['physio_praxis_telefon'] = praxis['telefon']?.toString() ?? '';
                                       r['physio_praxis_email'] = praxis['email']?.toString() ?? '';
+                                      // ⚠️ Das Fax ist kein Beiwerk: es entscheidet, ob der
+                                      // Fax-Knopf im Termin-Tab ueberhaupt angeht. Ohne diese
+                                      // Zeile blieb er bei JEDER Praxis aus — auch bei denen,
+                                      // die in der Aerzte-Datenbank sehr wohl eine Faxnummer
+                                      // haben. Siehe TerminanfrageDaten.praxisFax.
+                                      r['physio_praxis_fax'] = praxis['fax']?.toString() ?? '';
                                       doSave(r, fromStatus: true);
                                       setVerlauf(() {});
                                     });
@@ -12660,6 +12668,12 @@ $vollName$footer''';
                                     Icon(Icons.email, size: 12, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 4),
                                     Text(r['physio_praxis_email'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                                  ])),
+                                if ((r['physio_praxis_fax']?.toString() ?? '').isNotEmpty)
+                                  Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+                                    Icon(Icons.fax, size: 12, color: F.h(Colors.grey, 500)),
+                                    const SizedBox(width: 4),
+                                    Text(r['physio_praxis_fax'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                   ])),
                               ],
                             ]),
@@ -13350,6 +13364,17 @@ $vollName$footer''';
                         apiService: widget.apiService,
                         userId: widget.user.id,
                         heilmittelUid: (r['uid']?.toString() ?? ''),
+                      ),
+
+                      // ── Termin tab (Anfrage · Bestätigt · Absage) ──
+                      HeilmittelTerminTab(
+                        arztTyp: type,
+                        verordnung: r,
+                        speichern: () => doSave(r, fromStatus: true),
+                        user: widget.user,
+                        apiService: widget.apiService,
+                        ticketService: widget.ticketService,
+                        terminService: widget.terminService,
                       ),
                     ])),
                   ])),
