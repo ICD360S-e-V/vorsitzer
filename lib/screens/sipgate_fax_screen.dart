@@ -56,7 +56,45 @@ class FaxAnhang {
 /// Dokument liegt deshalb verschlüsselt auf unserem Server. Was dieser
 /// Bildschirm zeigt, überlebt die 30 Tage; was bei sipgate steht, nicht.
 class SipgateFaxScreen extends StatefulWidget {
-  const SipgateFaxScreen({super.key});
+  /// Nur die Faxe zu EINEM Mitglied.
+  ///
+  /// 🔴 Bis zum 23.08.2026 gab es diesen Weg nicht — und er fehlte an beiden
+  /// Enden: die Spalte, die sagt, wen ein Fax betrifft, existierte gar nicht,
+  /// und `user_id` bedeutete je nach Sendeweg entweder „wer hat getippt" oder
+  /// „um wen geht es". Ein Fax vom Jobcenter über ein Mitglied war von der
+  /// Mitgliederakte aus nicht auffindbar.
+  final int? betrifftUserId;
+
+  /// Nur die Faxe zu EINEM Vorgang. ⚠️ Der Server konnte das seit dem
+  /// 21.08. — der Bildschirm hat nie danach gefragt.
+  final String? bezugTyp;
+  final int? bezugId;
+
+  /// Was in der Titelzeile steht, wenn gefiltert wird. Ohne das hieße der
+  /// Bildschirm weiter „Fax" und sähe aus wie der ganze Verlauf, obwohl er
+  /// einen Ausschnitt zeigt — die gefährlichste Art von Liste.
+  final String? titel;
+
+  /// Ohne eigenes Gerüst — für die Einbettung in einen Reiter.
+  ///
+  /// ⚠️ Ein Scaffold in einem TabBarView ergäbe eine zweite Titelleiste
+  /// mitten in der Mitgliedsakte. Eingebettet fallen deshalb Titelleiste und
+  /// ihre Knöpfe weg; Journal, Protokoll und Neuladen sind ohnehin Aktionen
+  /// für den ganzen Verlauf und gehören nicht in eine einzelne Akte.
+  final bool eingebettet;
+
+  const SipgateFaxScreen({
+    super.key,
+    this.betrifftUserId,
+    this.bezugTyp,
+    this.bezugId,
+    this.titel,
+    this.eingebettet = false,
+  });
+
+  /// Zeigt der Bildschirm einen Ausschnitt statt des ganzen Verlaufs?
+  bool get gefiltert =>
+      betrifftUserId != null || (bezugTyp != null && bezugId != null);
 
   @override
   State<SipgateFaxScreen> createState() => _SipgateFaxScreenState();
@@ -237,12 +275,20 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
   //  Laden
   // ---------------------------------------------------------------------------
 
+  /// ⚠️ Der Ausschnitt geht bei JEDER Abfrage mit — auch beim Nachladen und
+  /// bei der Suche. Stünde er nur in der ersten, brächte „Mehr laden" den
+  /// ganzen Verlauf in eine Liste, die sich als Mitgliedsakte ausgibt.
   Map<String, dynamic> _listenAnfrage(int offset) => {
         'action': 'list',
         'limit': _seitenGroesse,
         'offset': offset,
         if (_suche.text.trim().isNotEmpty) 'suche': _suche.text.trim(),
         if (_stand.isNotEmpty) 'stand': _stand,
+        if (widget.betrifftUserId != null) 'betrifft_user_id': widget.betrifftUserId,
+        if (widget.bezugTyp != null && widget.bezugId != null) ...{
+          'bezug_typ': widget.bezugTyp,
+          'bezug_id': widget.bezugId,
+        },
       };
 
   Future<void> _laden({bool live = false}) async {
@@ -1570,9 +1616,10 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.eingebettet) return _koerper();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Fax'),
+        title: Text(widget.titel ?? 'Fax'),
         actions: [
           IconButton(
             icon: const Icon(Icons.receipt_long_outlined),
@@ -1606,24 +1653,54 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           ),
         ],
       ),
-      body: _lade
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: () => _laden(live: true),
-              child: ListView(
-                controller: _blaettern,
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _zugangsfeld(),
-                  const SizedBox(height: 16),
-                  if (_zugang['eingerichtet'] == true) ...[
-                    _sendefeld(),
-                    const SizedBox(height: 24),
-                  ],
-                  _verlaufsfeld(),
-                ],
-              ),
+      body: _koerper(),
+    );
+  }
+
+  /// Der Inhalt ohne Gerüst — so kann derselbe Bildschirm in einem Reiter
+  /// stehen (siehe `eingebettet`).
+  Widget _koerper() {
+    if (_lade) return const Center(child: CircularProgressIndicator());
+    return RefreshIndicator(
+      onRefresh: () => _laden(live: true),
+      child: ListView(
+        controller: _blaettern,
+        padding: const EdgeInsets.all(16),
+        children: [
+          // ⚠️ Im Ausschnitt weder Zugangskarte noch Sendefeld: wer aus einer
+          // Akte kommt, will die Faxe dazu sehen. Ein Sendefeld mit leerer
+          // Empfängernummer wäre dort eine Einladung, versehentlich etwas an
+          // niemanden zu schicken — und die Zugangskarte gehört in den
+          // Faxbildschirm, nicht in jede Akte.
+          if (!widget.gefiltert) ...[
+            _zugangsfeld(),
+            const SizedBox(height: 16),
+            if (_zugang['eingerichtet'] == true) ...[
+              _sendefeld(),
+              const SizedBox(height: 24),
+            ],
+          ],
+          if (widget.gefiltert)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(children: [
+                Icon(Icons.filter_alt_outlined, size: 16, color: F.h(Colors.grey, 700)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    widget.betrifftUserId != null
+                        ? 'Nur die Faxe zu diesem Mitglied — der vollständige '
+                          'Verlauf steht im Faxbildschirm.'
+                        : 'Nur die Faxe zu diesem Vorgang — der vollständige '
+                          'Verlauf steht im Faxbildschirm.',
+                    style: TextStyle(fontSize: 12.5, color: F.h(Colors.grey, 700)),
+                  ),
+                ),
+              ]),
             ),
+          _verlaufsfeld(),
+        ],
+      ),
     );
   }
 
@@ -2140,6 +2217,10 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     // Dokument, unverändert" — bei einer Vollmacht genau die Frage, die
     // hinterher gestellt wird.
     final gesiegelt = f['signiert'] == true;
+    // Um wen es geht — etwas anderes als „wer hat gesendet". Bis zum
+    // 23.08.2026 stand beides in derselben Spalte, und drei Module schrieben
+    // dort das Mitglied: der Verlauf hätte „gesendet von <Mitglied>" gezeigt.
+    final betrifft = (f['betrifft_name'] ?? '').toString();
     // ⚠️ Gemessene Breite, nicht Plattform: die App läuft auch auf einem
     // Android-Tablet, wo `isMobile` wahr wäre, obwohl reichlich Platz ist.
     final schmal = MediaQuery.sizeOf(context).width < 420;
@@ -2217,6 +2298,22 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           // Zu welchem Vorgang gehört das Fax? Sechs Endpunkte schreiben in
           // denselben Verlauf; ohne diese Zeile beantwortet er ein Jahr später
           // die Frage „ist die Vollmacht je rausgegangen?" nicht mehr.
+          // ⚠️ Nur wenn nicht ohnehin nach diesem Mitglied gefiltert wird —
+          // in der Akte des Mitglieds wäre die Zeile auf jedem Eintrag
+          // dieselbe und damit nur Lärm.
+          if (betrifft.isNotEmpty && widget.betrifftUserId == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(children: [
+                Icon(Icons.person_outline, size: 12, color: F.h(Colors.grey, 600)),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text('Betrifft $betrifft',
+                      style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700)),
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ]),
+            ),
           if (gesiegelt)
             Padding(
               padding: const EdgeInsets.only(top: 2),
