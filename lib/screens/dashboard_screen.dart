@@ -1625,7 +1625,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   color: switch (z.stand) {
                     SipgateStand.registriert => imGespraech ? Colors.lightGreenAccent : Colors.greenAccent,
                     SipgateStand.verbindet => Colors.amber,
-                    SipgateStand.fehler => Colors.redAccent,
+                    // ⚠️ Rot NUR, wenn wirklich niemand mehr etwas tut.
+                    // Steht ein neuer Anlauf an, ist das derselbe Zustand wie
+                    // „melde an …", nur mit Pause dazwischen — und Bernstein
+                    // sagt genau das. Beides rot zu malen hiesse: der
+                    // Vorsitzer greift ein, wo nichts zu tun ist, und übersieht
+                    // den Fall, in dem wirklich jemand ran muss.
+                    SipgateStand.fehler =>
+                      z.naechsterVersuch == null ? Colors.redAccent : Colors.amber,
                     SipgateStand.aus => null,
                   },
                 ),
@@ -1634,7 +1641,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       ? 'Gespräch läuft — ${z.gespraech!.nummer}'
                       : 'sipgate — angemeldet${z.sipId == null ? '' : ' (${z.sipId})'}',
                   SipgateStand.verbindet => 'sipgate — melde an …',
-                  SipgateStand.fehler => 'sipgate — nicht angemeldet',
+                  // Der Grund UND der nächste Anlauf, nicht bloss das Wort.
+                  // `meldung` trägt beides; ohne sie stünde hier weiter
+                  // „nicht angemeldet", also genau die Auskunft, die nichts
+                  // sagt.
+                  SipgateStand.fehler => z.meldung ?? 'sipgate — nicht angemeldet',
                   SipgateStand.aus => 'sipgate — Telefonie',
                 },
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(

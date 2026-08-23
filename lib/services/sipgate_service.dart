@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show Random;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MissingPluginException;
@@ -18,6 +19,137 @@ import 'secure_store.dart';
 import 'voice_call_service.dart' show iceServerEintraege;
 
 final _log = LoggerService();
+
+// ── Wiederanmeldung nach einer abgelehnten Anmeldung ────────────────────────
+//
+// ⚠️ `sip_ua` WIEDERHOLT VON SICH AUS NICHT. Nachgesehen in `sip_ua-1.1.0`
+// und gegen `main` von `flutter-webrtc/dart-sip-ua` gegengeprüft:
+// `registrator.dart` → `_registrationFailure()` setzt `_registering = false`,
+// meldet den Fehlschlag und hört auf. Kein Timer, kein Rückfall. Die einzige
+// selbsttätige Neuanmeldung hängt in `ua.dart` → `onTransportConnect()`, also
+// am **Wiederaufbau des WebSockets**.
+//
+// Daraus folgt genau die Lücke, die das hier schließt: reißt die Verbindung,
+// heilt es von selbst (der Socket versucht es mit 2–30 s Abstand erneut).
+// Wird aber ein REGISTER abgelehnt, während der Socket steht — eine
+// Zeitüberschreitung bei der Erneuerung nach 295 s, weil Android den Prozess
+// eingefroren hatte, oder ein `503` der Gegenstelle —, dann bleibt es dabei.
+// Für immer. Auf einem Tablet, das dauerhaft auf dem Tisch liegt, heißt das:
+// es klingelt nichts mehr, und das einzige Zeichen ist ein rotes Symbol, das
+// jemandem auffallen muss.
+
+/// Vorgabewert der RFC für den Fall, dass gar keine Verbindung mehr steht —
+/// genau unsere Lage, wir haben nur eine.
+const Duration sipgateWartebasis = Duration(seconds: 30);
+
+/// ⚠️ 300 s statt der 1800 s aus RFC 5626, und das ist nachgerechnet, nicht
+/// geschätzt: am Deckel liegen zwischen zwei REGISTER 150–300 s, die gesunde
+/// Erneuerung läuft alle 295 s (`register_expires = 300`, und
+/// `registrator.dart:227` erneuert fünf Sekunden vorher). Der Wiederholversuch
+/// erzeugt also **nie mehr Verkehr als eine funktionierende Anmeldung** —
+/// während eine halbe Stunde Stille genau der Fehler ist, den wir beheben.
+/// Dieselbe Größenordnung benutzt PJSIP als Vorgabe (`reg_retry_interval`,
+/// 300 s).
+const Duration sipgateWartedeckel = Duration(seconds: 300);
+
+/// Wie lange nach dem `fehlversuche`-ten vergeblichen Anlauf gewartet wird.
+///
+/// Form nach RFC 5626 § 4.5 („Flow Recovery"):
+///
+///     W = min(max-time, base-time × 2^consecutive-failures)
+///
+/// und die tatsächliche Wartezeit ist „a uniform random time between 50 and
+/// 100% of the upper-bound wait time". Mit [sipgateWartebasis] ergibt der
+/// erste Anlauf damit 30–60 s — dieselbe Spanne, die die RFC im Fließtext
+/// ausdrücklich nennt.
+///
+/// ⚠️ Der Zufall ist kein Schmuck. Ohne ihn klopfen nach einem Ausfall der
+/// Gegenseite alle Geräte in derselben Sekunde wieder an, und der zweite
+/// Versuch scheitert aus demselben Grund wie der erste.
+///
+/// [zufall] wird hereingereicht statt hier gezogen, damit der Test die Spanne
+/// an ihren Rändern festnageln kann statt sie zu würfeln.
+Duration sipgateWartezeit(int fehlversuche, double zufall) {
+  final n = fehlversuche < 1 ? 1 : fehlversuche;
+  // Ab dem vierten Fehlversuch greift ohnehin der Deckel; die Begrenzung auf
+  // 30 Verdopplungen hält `1 << n` aus dem Überlauf, falls ein Gerät wochenlang
+  // vergeblich anklopft.
+  final roh = n > 30
+      ? sipgateWartedeckel.inSeconds
+      : sipgateWartebasis.inSeconds * (1 << n);
+  final obergrenze =
+      roh < sipgateWartedeckel.inSeconds ? roh : sipgateWartedeckel.inSeconds;
+  final anteil = zufall.isNaN ? 0.0 : zufall.clamp(0.0, 1.0);
+  return Duration(seconds: (obergrenze * (0.5 + 0.5 * anteil)).round());
+}
+
+/// Was mit einem abgelehnten REGISTER zu tun ist.
+enum SipgateAnmeldeFolge {
+  /// Netz oder Gegenstelle — später noch einmal, mit wachsendem Abstand.
+  wiederholen,
+
+  /// Die Zugangsdaten passen nicht. Einmal frisch vom **eigenen** Server holen,
+  /// bevor weiter geklopft wird: dort liegt der HA1, und wurde das
+  /// sipgate-Passwort gewechselt, ist der zwischengespeicherte Wert veraltet.
+  /// Bloßes Wiederholen bekäme dann bis in alle Ewigkeit denselben Korb.
+  datenErneuern,
+
+  /// Auch mit frisch geholten Daten abgelehnt. Weiterprobieren hilft nicht
+  /// mehr, es muss jemand die Zugangsdaten richten.
+  aufgeben,
+}
+
+/// Ordnet einen abgelehnten Anmeldeversuch ein.
+///
+/// ⚠️ Die Einteilung ist absichtlich schmal: **alles außer der
+/// Anmelde-Familie gilt als vorübergehend.** Ein `408` entsteht bei
+/// `registrator.dart:150`, wenn gar keine Antwort kam, ein `500` bei
+/// `:155` für einen Transportfehler — beides sind genau die Fälle, für die
+/// wiederholt werden muss. Wer hier eine lange Liste „endgültiger" Codes
+/// pflegt, schaltet die Wiederholung irgendwann für einen Fall ab, der sich
+/// von selbst erholt hätte. PJSIP wiederholt aus demselben Grund
+/// **jeden** Fehlschlag.
+///
+/// `401`/`407` erreichen uns nur, wenn die Antwort auf die Aufforderung
+/// ebenfalls abgelehnt wurde — die Aufforderung selbst beantwortet `sip_ua`
+/// intern. `403` und `404` heißen: dieses Konto oder dieses Telefon gibt es so
+/// nicht (mehr).
+SipgateAnmeldeFolge sipgateAnmeldeFolge(
+  int? code, {
+  required bool datenSchonErneuert,
+}) {
+  const zugangsdaten = {401, 403, 404, 407};
+  if (code == null || !zugangsdaten.contains(code)) {
+    return SipgateAnmeldeFolge.wiederholen;
+  }
+  return datenSchonErneuert
+      ? SipgateAnmeldeFolge.aufgeben
+      : SipgateAnmeldeFolge.datenErneuern;
+}
+
+/// Ob ein eintreffendes `UNREGISTERED` den Zustand auf [SipgateStand.aus]
+/// setzen darf.
+///
+/// ⚠️ DIESE REGEL SIEHT ÜBERFLÜSSIG AUS UND IST ES NICHT.
+/// Scheitert die **Erneuerung** einer bereits stehenden Anmeldung, feuert
+/// `sip_ua` zwei Ereignisse direkt hintereinander:
+/// `registrator.dart` → `_registrationFailure()` ruft erst
+/// `_ua.registrationFailed(...)`, und weil `_registered` noch wahr war, gleich
+/// danach `_ua.unregistered(...)`. In `sip_ua_helper.dart` werden daraus
+/// `REGISTRATION_FAILED` und unmittelbar darauf `UNREGISTERED`.
+///
+/// Ohne diese Regel überschriebe das zweite Ereignis den gerade gesetzten
+/// Fehlerzustand mit „Abgemeldet." — das Symbol in der Kopfleiste wäre dann
+/// nicht einmal rot, sondern sähe aus, als hätte jemand die Telefonie
+/// absichtlich ausgeschaltet. Das ist die schlimmere der beiden Anzeigen: rot
+/// lädt zum Nachsehen ein, „aus" nicht.
+bool sipgateAbmeldungUebernehmen({
+  required bool anlaufGeplant,
+  required SipgateStand aktuell,
+}) {
+  if (anlaufGeplant) return false;
+  return aktuell != SipgateStand.aus;
+}
 
 /// Telefonieren über sipgate, direkt aus der App — SIP over WebSocket gegen
 /// `wss://sip.sipgate.de`, Sprache über WebRTC.
@@ -109,6 +241,59 @@ class SipgateService {
   int? _anrufIdB;
   String? _sipId;
   bool _startetGerade = false;
+
+  /// Läuft die Wiederanmeldung. Siehe die Begründung bei [sipgateWartezeit].
+  Timer? _erneutTakt;
+
+  /// Vergebliche Anläufe in Folge — der Exponent aus RFC 5626 § 4.5.
+  /// Wird bei jeder erfolgreichen Anmeldung auf null gesetzt.
+  int _fehlversuche = 0;
+
+  /// Ob wegen abgelehnter Zugangsdaten schon einmal frisch beim eigenen Server
+  /// nachgefragt wurde. Genau **einmal** — sonst würde ein dauerhaft falsches
+  /// Passwort unseren eigenen Server im Minutentakt befragen.
+  bool _datenErneuert = false;
+
+  /// Ob **der nächste** Anlauf die Zugangsdaten neu holen soll.
+  ///
+  /// ⚠️ Getrennt von [_datenErneuert], und das ist kein Doppel: jenes merkt
+  /// sich dauerhaft, dass es schon einmal versucht wurde (damit die Einordnung
+  /// beim nächsten `403` auf „aufgeben" springt), dieses gilt nur für den
+  /// einen eingeplanten Anlauf. Mit nur einem Merker liefe jeder spätere
+  /// Anlauf — auch der nach einem simplen `503` — durch das volle
+  /// [starten], also durch Neuaufbau der Verbindung und die
+  /// Berechtigungsdialoge.
+  bool _anlaufHoltDaten = false;
+
+  /// Ob `_helper.start()` überhaupt schon einmal durchgelaufen ist.
+  ///
+  /// ⚠️ Ohne das drehte sich die Wiederholung im Kreis: scheitert der allererste
+  /// Anlauf schon am Holen der Zugangsdaten, gibt es noch gar keinen UA — und
+  /// `SIPUAHelper.register()` läuft dann (`sip_ua_helper.dart:81`) in ein
+  /// `assert(_ua != null)` bzw. im Release in einen Null-Zugriff. Die
+  /// Wiederholung müsste also ewig `register()` rufen, während das, was
+  /// wirklich fehlt, nur [starten] beschaffen kann.
+  bool _uaGebaut = false;
+
+  /// Ob die Anmeldung überhaupt gewollt ist, also zwischen [starten] und
+  /// [stoppen].
+  ///
+  /// ⚠️ Ohne das würde ein bereits eingeplanter Wiederholversuch die
+  /// Anmeldung wieder hochziehen, nachdem der Nutzer sie gerade abgeschaltet
+  /// hat — ein Schalter, der von selbst zurückspringt.
+  bool _gewollt = false;
+
+  /// Wann der nächste Anlauf ansteht. `null` heißt: keiner geplant.
+  /// Der Bildschirm zeigt daraus die verbleibende Zeit.
+  DateTime? _naechsterVersuch;
+  DateTime? get naechsterVersuch => _naechsterVersuch;
+
+  /// Nummer des laufenden Anlaufs, für die Anzeige („3. Versuch").
+  int get fehlversuche => _fehlversuche;
+
+  /// Die Streuung aus RFC 5626 § 4.5. Kein `Random.secure()` — das hier
+  /// verteilt Anläufe, es schützt nichts.
+  final Random _zufall = Random();
 
   /// Grund der letzten Absage, im Klartext mit SIP-Code. Der Bildschirm zeigt
   /// ihn, damit „Fehler" nicht das Letzte ist, was man sieht.
@@ -220,7 +405,12 @@ class SipgateService {
   /// Vom Server kommt **HA1**, nie das Passwort. HA1 wird im [SecureStore]
   /// zwischengelagert, damit ein Netzausfall beim Start nicht bedeutet, dass
   /// das Telefon stumm bleibt — der Wert allein reicht zum Registrieren.
-  Future<bool> starten() async {
+  ///
+  /// [istWiederholung] setzt den Fehlversuchszähler **nicht** zurück — sonst
+  /// bliebe der Abstand zwischen zwei Anläufen ewig bei 30–60 s, statt zu
+  /// wachsen. Ein Druck auf „Anmelden" ist dagegen eine neue Absicht und fängt
+  /// von vorn an.
+  Future<bool> starten({bool istWiederholung = false}) async {
     if (!plattformFaehig) {
       // Kein stilles `false`: wer am Rechner auf „Anmelden" drückt, muss den
       // Grund sehen, sonst hält er es für einen Fehler.
@@ -234,14 +424,30 @@ class SipgateService {
     }
     if (_startetGerade) return istRegistriert;
     _startetGerade = true;
+    _gewollt = true;
+    // Ein von Hand ausgelöster Anlauf räumt einen eingeplanten weg: sonst
+    // liefe später ein zweites REGISTER auf eine Anmeldung, die längst steht.
+    _erneutTakt?.cancel();
+    _erneutTakt = null;
+    _naechsterVersuch = null;
+    if (!istWiederholung) {
+      _fehlversuche = 0;
+      _datenErneuert = false;
+      _anlaufHoltDaten = false;
+    }
     try {
       _setz(stand: SipgateStand.verbindet, meldung: 'Melde an …');
 
       final cfg = await _konfigHolen();
       if (cfg == null) {
-        _setz(
-          stand: SipgateStand.fehler,
-          meldung: 'Keine Anmeldedaten — im Bildschirm ein VoIP-Telefon hinterlegen.',
+        // ⚠️ Auch das darf nicht dauerhaft still bleiben. Ist unser eigener
+        // Server beim Start des Tablets kurz nicht erreichbar UND liegt noch
+        // nichts im Zwischenspeicher, wäre das Telefon sonst bis zum nächsten
+        // Neustart tot. Und wird das VoIP-Telefon erst später auf dem Server
+        // hinterlegt, holt der nächste Anlauf es von selbst ab.
+        _fehlversuche++;
+        _wiederholungPlanen(
+          'Keine Anmeldedaten — im Bildschirm ein VoIP-Telefon hinterlegen.',
         );
         return false;
       }
@@ -312,11 +518,17 @@ class SipgateService {
       );
 
       await _helper.start(settings);
+      _uaGebaut = true;
       _log.info('sipgate: Anmeldung gestartet für ${cfg.sipId}', tag: 'SIPGATE');
       return true;
     } catch (e) {
       _log.error('sipgate: Anmeldung fehlgeschlagen: $e', tag: 'SIPGATE');
-      _setz(stand: SipgateStand.fehler, meldung: 'Anmeldung fehlgeschlagen: $e');
+      // ⚠️ Auch hier einen Anlauf einplanen. Oben ist der eingeplante Anlauf
+      // schon abbestellt worden, also wäre dies sonst die dritte Stelle, an
+      // der dieselbe Stille entsteht — diesmal durch eine Ausnahme statt durch
+      // eine Ablehnung.
+      _fehlversuche++;
+      _wiederholungPlanen('Anmeldung fehlgeschlagen: $e');
       return false;
     } finally {
       _startetGerade = false;
@@ -324,6 +536,10 @@ class SipgateService {
   }
 
   Future<void> stoppen() async {
+    // Zuerst, nicht zuletzt: was hier noch eingeplant ist, würde die gerade
+    // abgeschaltete Anmeldung wieder hochziehen.
+    _gewollt = false;
+    _wiederholungAbbrechen();
     _klingelnBeenden();
     _dauerTakt?.cancel();
     _dauerTakt = null;
@@ -815,6 +1031,7 @@ class SipgateService {
     bool? benachrichtigungenErlaubt,
     bool? geteilt,
     String? meldung,
+    DateTime? naechsterVersuch,
     SipgateGespraech? gespraech,
     bool loescheGespraech = false,
     SipgateGespraech? zweites,
@@ -834,6 +1051,10 @@ class SipgateService {
           benachrichtigungenErlaubt ?? alt.benachrichtigungenErlaubt,
       geteilt: geteilt ?? alt.geteilt,
       meldung: meldung,
+      // Wie `meldung`: NICHT `?? alt`. Ein Zustandswechsel ohne Zeitpunkt
+      // bedeutet, dass gerade keiner geplant ist — ein durchgereichter alter
+      // Wert würde in der Kopfleiste ewig „nächster Versuch" behaupten.
+      naechsterVersuch: naechsterVersuch,
       gespraech: loescheGespraech ? null : (gespraech ?? alt.gespraech),
       zweites: loescheZweites ? null : (zweites ?? alt.zweites),
       konferenz:
@@ -849,25 +1070,137 @@ class SipgateService {
     switch (state.state) {
       case RegistrationStateEnum.REGISTERED:
         _log.info('sipgate: registriert ($_sipId)', tag: 'SIPGATE');
+        _fehlversuche = 0;
+        _datenErneuert = false;
+        _anlaufHoltDaten = false;
+        _wiederholungAbbrechen();
         _setz(stand: SipgateStand.registriert, meldung: null);
         break;
       case RegistrationStateEnum.REGISTRATION_FAILED:
-        final grund = state.cause?.cause ?? state.cause?.status_code?.toString() ?? '';
-        _log.error('sipgate: Anmeldung abgelehnt ($grund)', tag: 'SIPGATE');
-        _setz(
-          stand: SipgateStand.fehler,
-          meldung: grund.isEmpty
-              ? 'sipgate hat die Anmeldung abgelehnt.'
-              : 'sipgate hat die Anmeldung abgelehnt: $grund',
-        );
+        _anmeldungAbgelehnt(state);
         break;
       case RegistrationStateEnum.UNREGISTERED:
       case RegistrationStateEnum.NONE:
       case null:
-        if (zustand.value.stand != SipgateStand.aus) {
+        // ⚠️ Nicht auf `aus` fallen, solange ein Anlauf geplant ist —
+        // die Begründung steht bei [sipgateAbmeldungUebernehmen].
+        if (sipgateAbmeldungUebernehmen(
+          anlaufGeplant: _erneutTakt != null,
+          aktuell: zustand.value.stand,
+        )) {
           _setz(stand: SipgateStand.aus, meldung: 'Abgemeldet.');
         }
         break;
+    }
+  }
+
+  /// Ein REGISTER wurde abgelehnt: einordnen, ansagen, neu einplanen.
+  void _anmeldungAbgelehnt(RegistrationState state) {
+    final code = state.cause?.status_code;
+    final grund = state.cause?.cause ?? code?.toString() ?? '';
+    final klartext =
+        grund.isEmpty ? 'sipgate hat die Anmeldung abgelehnt.' : 'sipgate hat die Anmeldung abgelehnt: $grund';
+    _log.error('sipgate: Anmeldung abgelehnt ($grund, Code $code)', tag: 'SIPGATE');
+
+    if (!_gewollt) {
+      // Abgemeldet worden, während noch ein REGISTER unterwegs war. Weder
+      // wiederholen noch rot färben: der Nutzer hat die Telefonie gerade
+      // ausgeschaltet, und ein Fehlersymbol dafür wäre schlicht falsch.
+      _log.info('sipgate: späte Ablehnung nach dem Abmelden — ignoriert', tag: 'SIPGATE');
+      return;
+    }
+
+    _fehlversuche++;
+    final folge = sipgateAnmeldeFolge(code, datenSchonErneuert: _datenErneuert);
+
+    switch (folge) {
+      case SipgateAnmeldeFolge.aufgeben:
+        _wiederholungAbbrechen();
+        _setz(
+          stand: SipgateStand.fehler,
+          meldung: '$klartext\n'
+              'Auch mit frisch geholten Zugangsdaten abgelehnt — bitte das '
+              'VoIP-Telefon im Bildschirm prüfen.',
+        );
+        break;
+
+      case SipgateAnmeldeFolge.datenErneuern:
+        _datenErneuert = true;
+        _anlaufHoltDaten = true;
+        _wiederholungPlanen(
+          klartext,
+          zusatz: 'Zugangsdaten werden neu geholt',
+        );
+        break;
+
+      case SipgateAnmeldeFolge.wiederholen:
+        _wiederholungPlanen(klartext);
+        break;
+    }
+  }
+
+  /// Plant den nächsten Anlauf und sagt im Zustand, wann er kommt.
+  ///
+  /// Die Wartezeit steht **in der Meldung**, nicht nur im Protokoll: sonst
+  /// bliebe in der Oberfläche dasselbe „nicht angemeldet" stehen wie vorher,
+  /// und niemand könnte unterscheiden, ob es gleich wieder versucht wird oder
+  /// ob endgültig Schluss ist.
+  void _wiederholungPlanen(String klartext, {String? zusatz}) {
+    final warten = sipgateWartezeit(_fehlversuche, _zufall.nextDouble());
+    _erneutTakt?.cancel();
+    _naechsterVersuch = DateTime.now().add(warten);
+    _log.warning(
+      'sipgate: Anmeldung fehlgeschlagen ($_fehlversuche. Anlauf) — '
+      'neuer Versuch in ${warten.inSeconds} s',
+      tag: 'SIPGATE',
+    );
+    _erneutTakt = Timer(warten, _wiederholungAusfuehren);
+    final wann = warten.inSeconds < 90
+        ? '${warten.inSeconds} Sekunden'
+        : '${(warten.inSeconds / 60).round()} Minuten';
+    _setz(
+      stand: SipgateStand.fehler,
+      naechsterVersuch: _naechsterVersuch,
+      meldung: '$klartext\n'
+          '${zusatz == null ? '' : '$zusatz — '}'
+          'neuer Versuch in $wann ($_fehlversuche. Anlauf).',
+    );
+  }
+
+  void _wiederholungAbbrechen() {
+    _erneutTakt?.cancel();
+    _erneutTakt = null;
+    _naechsterVersuch = null;
+  }
+
+  Future<void> _wiederholungAusfuehren() async {
+    _erneutTakt = null;
+    _naechsterVersuch = null;
+    if (!_gewollt || !plattformFaehig) return;
+    if (istRegistriert) return; // dazwischen doch noch durchgekommen
+
+    if (_anlaufHoltDaten || !_uaGebaut) {
+      _anlaufHoltDaten = false;
+      // Den ganzen Weg noch einmal: HA1 und SIP-ID stecken in den
+      // `UaSettings`, die nur `starten()` baut — und gibt es noch gar keinen
+      // UA, ist `starten()` ohnehin der einzige Weg dorthin.
+      _log.info('sipgate: melde vollständig neu an (Daten holen: $_anlaufHoltDaten, '
+          'UA vorhanden: $_uaGebaut)', tag: 'SIPGATE');
+      await starten(istWiederholung: true);
+      return;
+    }
+    // Sonst reicht ein neues REGISTER auf der stehenden Verbindung — das ist
+    // billiger als ein kompletter Neuaufbau und fasst die Berechtigungsdialoge
+    // aus `starten()` nicht an.
+    _setz(stand: SipgateStand.verbindet, meldung: 'Melde erneut an …');
+    try {
+      _helper.register();
+    } catch (e) {
+      _log.warning('sipgate: erneutes REGISTER meldete $e', tag: 'SIPGATE');
+      // Kein stiller Halt: als Fehlschlag zählen und den nächsten Anlauf
+      // planen, sonst endet die Kette hier.
+      _fehlversuche++;
+      _wiederholungPlanen('Erneute Anmeldung nicht möglich: $e');
     }
   }
 
@@ -1709,6 +2042,7 @@ class SipgateZustand {
     this.benachrichtigungenErlaubt,
     this.geteilt = false,
     this.meldung,
+    this.naechsterVersuch,
     this.gespraech,
     this.zweites,
     this.konferenz = false,
@@ -1761,6 +2095,14 @@ class SipgateZustand {
   /// (Parallelruf) — kein Fehler, aber der Bildschirm soll es sagen können.
   final bool geteilt;
   final String? meldung;
+
+  /// Wann der nächste Anmeldeversuch ansteht, oder `null`.
+  ///
+  /// ⚠️ Der Unterschied, den die Oberfläche daraus zieht, ist der wichtigste
+  /// an diesem Zustand: `fehler` **mit** Zeitpunkt heißt „arbeitet daran",
+  /// `fehler` **ohne** heißt „hier hilft nur noch ein Mensch". Beides rot zu
+  /// malen würde die Wiederholung wieder unsichtbar machen.
+  final DateTime? naechsterVersuch;
 
   /// Das erste Gesprächsbein.
   final SipgateGespraech? gespraech;
