@@ -44,7 +44,7 @@ android {
     defaultConfig {
         applicationId = "de.icd360sev.vorsitzer"
         minSdk = 24 // Required for WebRTC
-        targetSdk = 35
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
