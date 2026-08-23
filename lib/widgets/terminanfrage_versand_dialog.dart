@@ -111,6 +111,9 @@ TerminanfrageDaten terminanfrageDatenBauen({
   required User user,
   required Map<String, dynamic> arzt,
   required List<Map<String, dynamic>> termine,
+  /// Nur bei einer Heilmittelverordnung: dann ist das Rezept der Grund und
+  /// die Anlass-Listen der Arztfächer bleiben außen vor.
+  HeilmittelVerordnung? rezept,
 }) {
   final (anzahl, letzter) = terminanfrageHistorie(termine);
 
@@ -141,6 +144,7 @@ TerminanfrageDaten terminanfrageDatenBauen({
     userId: user.id,
     erfassteTermine: anzahl,
     letzterTermin: letzter,
+    rezept: rezept,
   );
 }
 
@@ -384,6 +388,9 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
 
   ArztFach get _fach => arztFachFuer(widget.basis.arztTyp);
 
+  /// Gesetzt, wenn die Anfrage zu einer Heilmittelverordnung gehört.
+  HeilmittelVerordnung? get _rezept => widget.basis.rezept;
+
   @override
   void initState() {
     super.initState();
@@ -474,6 +481,7 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
       anlaesse: _anlaesse.toList(),
       anliegen: _freitext.text,
       ueberweisungLiegtVor: _beleg,
+      rezept: b.rezept,
       begleitung: _begleitung,
       erfassteTermine: b.erfassteTermine,
       letzterTermin: b.letzterTermin,
@@ -624,14 +632,26 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _vorauswahlHinweis(),
-                    const SizedBox(height: 12),
-                    _abschnitt('Art der Anfrage'),
-                    _vorlagenBand(),
-                    const SizedBox(height: 14),
-                    _abschnitt('Grund (mehrere möglich)'),
-                    _anlassBand(),
-                    _fachHinweis(),
+                    // 🔴 Bei einer Heilmittelverordnung IST das Rezept der
+                    // Grund. Die Vorlagen („Erstvorstellung", „Check-up") und
+                    // die Anlass-Listen gehören zu den Arztfächern und ergeben
+                    // gegenüber einer Heilmittelpraxis Unsinn — sie werden
+                    // deshalb nicht bloß vorbelegt, sondern gar nicht erst
+                    // gezeigt. Was stattdessen zu sehen ist, ist das, was
+                    // wirklich in den Brief geht.
+                    if (_rezept == null) ...[
+                      _vorauswahlHinweis(),
+                      const SizedBox(height: 12),
+                      _abschnitt('Art der Anfrage'),
+                      _vorlagenBand(),
+                      const SizedBox(height: 14),
+                      _abschnitt('Grund (mehrere möglich)'),
+                      _anlassBand(),
+                      _fachHinweis(),
+                    ] else ...[
+                      _abschnitt('Grund: die ärztliche Verordnung'),
+                      _rezeptKarte(_rezept!),
+                    ],
                     const SizedBox(height: 10),
                     TextField(
                       controller: _freitext,
@@ -647,7 +667,10 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
                       style: const TextStyle(fontSize: 13),
                     ),
                     const SizedBox(height: 6),
-                    _belegZeile(),
+                    // ⚠️ „Überweisung liegt vor" gibt es beim Heilmittel nicht:
+                    // dort ist das Papier der Vordruck Muster 13, und ob er
+                    // vorliegt, sagt die Rezept-Karte bereits.
+                    if (_rezept == null) _belegZeile(),
                     _begleitungZeile(),
                     const SizedBox(height: 12),
                     _abschnitt('Wie soll es rausgehen?'),
@@ -863,6 +886,132 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
       ]),
     );
   }
+
+
+  /// Zeigt die Verordnung, aus der der Brief entsteht — nicht als Schmuck,
+  /// sondern damit vor dem Absenden sichtbar ist, WAS die Praxis erfährt.
+  ///
+  /// ⚠️ Nichts hier ist änderbar. Die Verordnung ist ein ärztliches Dokument;
+  /// wer sie im Anschreiben „korrigiert", schickt der Praxis etwas anderes,
+  /// als auf dem Papier steht, das sie später abrechnen muss. Geändert wird
+  /// im Reiter „Details", und zwar nur, wenn es dort auch falsch steht.
+  Widget _rezeptKarte(HeilmittelVerordnung v) {
+    Widget zeile(IconData i, String label, String wert) => wert.trim().isEmpty
+        ? const SizedBox.shrink()
+        : Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(i, size: 13, color: F.h(Colors.teal, 600)),
+              const SizedBox(width: 6),
+              SizedBox(
+                  width: 132,
+                  child: Text(label,
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: F.h(Colors.grey, 700)))),
+              Expanded(child: Text(wert, style: const TextStyle(fontSize: 11))),
+            ]),
+          );
+
+    final diagnosen = v.diagnosen
+        .map((e) => e.$2.isEmpty
+            ? e.$1
+            : (e.$1.isEmpty ? 'ICD-10 ${e.$2}' : '${e.$1} (ICD-10 ${e.$2})'))
+        .where((e) => e.isNotEmpty)
+        .join('; ');
+
+    final menge = <String>[
+      if (v.behandlungseinheiten.isNotEmpty)
+        '${v.behandlungseinheiten} Einheiten',
+      if (v.frequenz.isNotEmpty) v.frequenz,
+    ].join(' · ');
+
+    final indikation = <String>[
+      if (v.diagnosegruppe.isNotEmpty) v.diagnosegruppe,
+      if (v.leitsymptomatik.isNotEmpty || v.leitsymptomatikAbc.isNotEmpty)
+        '${v.leitsymptomatikAbc.isEmpty ? '' : '${v.leitsymptomatikAbc}) '}'
+            '${v.leitsymptomatik}'
+            .trim(),
+      if (v.indikation.isNotEmpty) v.indikation,
+    ].join(', ');
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: F.h(Colors.teal, 50),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: F.h(Colors.teal, 200)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.healing, size: 15, color: F.h(Colors.teal, 700)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Verordnung ${v.bereichOderStandard} (Muster 13)'
+              '${v.ausgestelltAm.isEmpty ? '' : ' vom ${v.ausgestelltAm}'}',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: F.h(Colors.teal, 800)),
+            ),
+          ),
+        ]),
+        // Die beiden Merkmale, die den Brief inhaltlich umstellen, stehen
+        // ganz oben und farbig — sie sind keine Randnotiz.
+        if (v.dringend || v.hausbesuch) ...[
+          const SizedBox(height: 6),
+          Wrap(spacing: 6, children: [
+            // ⚠️ Dasselbe DATUM wie im Brief, nicht „in 14 Tagen". Stünde hier
+            // die Frist und dort das Datum, müsste der Mensch vor dem
+            // Absenden nachrechnen, ob beides dasselbe meint.
+            if (v.dringend)
+              _merkmal(
+                  Icons.priority_high,
+                  v.beginnFrist == null
+                      ? 'Dringlicher Bedarf · Beginn in 14 Tagen'
+                      : 'Dringlich · Beginn bis ${v.beginnFrist}',
+                  Colors.red),
+            if (v.hausbesuch)
+              _merkmal(Icons.home, 'Hausbesuch verordnet', Colors.orange),
+          ]),
+        ],
+        zeile(Icons.medical_services, 'Heilmittel', v.heilmittelSatz),
+        zeile(Icons.add_circle_outline, 'Ergänzend',
+            v.ergaenzend.isEmpty
+                ? ''
+                : '${v.ergaenzend}'
+                    '${v.ergaenzendAnzahl.isEmpty ? '' : ' (${v.ergaenzendAnzahl}x)'}'),
+        zeile(Icons.repeat, 'Menge / Frequenz', menge),
+        zeile(Icons.label_important, 'Indikation', indikation),
+        zeile(Icons.coronavirus, 'Diagnose', diagnosen),
+        zeile(Icons.description, 'Rezept',
+            v.rezeptLiegtVor
+                ? 'liegt der Praxis vor'
+                : 'wird zum Termin mitgebracht'),
+        if (v.therapiebericht)
+          zeile(Icons.assignment_return, 'Therapiebericht', 'angefordert'),
+      ]),
+    );
+  }
+
+  Widget _merkmal(IconData i, String text, MaterialColor c) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: F.h(c, 100),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(i, size: 12, color: F.h(c, 800)),
+          const SizedBox(width: 4),
+          Text(text,
+              style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: F.h(c, 800))),
+        ]),
+      );
 
   Widget _vorlagenBand() => Column(
         children: TerminanfrageVorlage.values.map((v) {
