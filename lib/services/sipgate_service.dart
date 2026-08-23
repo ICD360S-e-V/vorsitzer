@@ -164,6 +164,37 @@ SipgateAnmeldeFolge sipgateAnmeldeFolge(
 /// Tabletwechsel soll kein Release brauchen.
 bool sipgateDarfAnmelden({required bool geteilt}) => !geteilt;
 
+/// Der Text am Telefonsymbol in der Kopfleiste.
+///
+/// ⚠️ HIER DARF NICHTS UEBER EIN GESPRAECH STEHEN, UND DAS IST DER ZWECK
+/// DIESER FUNKTION. Bis zum 23.08.2026 hiess es bei einer stehenden Anmeldung
+/// `Gespräch läuft — <Nummer>`, sobald [SipgateZustand.gespraech] gesetzt war.
+/// Gesetzt wird es aber schon bei `CALL_INITIATION`, also mit `klingelt`
+/// (eingehend) oder `waehlt` (abgehend) — in zwei von drei Faellen war die
+/// Aussage falsch, und bei einem abgehenden Anruf widersprach sie der
+/// schwebenden Karte, die korrekt „Wählt …" zeigt.
+///
+/// Das Gespraech gehoert der Karte ([SipgateAnrufOverlay]): sie ist die Form,
+/// die beide Systeme fuer eine laufende Taetigkeit vorsehen — Text, Farbe,
+/// Dauer, antippbar —, und sie liegt ueber demselben Bildschirm wie dieser
+/// Knopf. Zwei Aussagen ueber dieselbe Sache, von denen eine falsch ist, sind
+/// schlimmer als eine.
+///
+/// Als Funktion und nicht als `switch` im Widget, damit der Test festhalten
+/// kann, dass der Text sich NICHT aendert, wenn ein Gespraech anliegt.
+String sipgateKopfText(SipgateZustand z) => switch (z.stand) {
+      SipgateStand.registriert =>
+        'sipgate — angemeldet${z.sipId == null ? '' : ' (${z.sipId})'}',
+      SipgateStand.verbindet => 'sipgate — melde an …',
+      // Der Grund UND der naechste Anlauf, nicht bloss das Wort. `meldung`
+      // traegt beides; ohne sie stuende hier weiter „nicht angemeldet", also
+      // genau die Auskunft, die nichts sagt.
+      SipgateStand.fehler => z.meldung ?? 'sipgate — nicht angemeldet',
+      SipgateStand.aus => 'sipgate — Telefonie',
+      SipgateStand.fremdesTelefon =>
+        z.meldung ?? 'sipgate — anderes Gerät telefoniert',
+    };
+
 /// Welche der drei Aussagen ueber die Absendernummer zutrifft.
 enum SipgateAbsenderAnzeige {
   /// Wir kennen die Nummer und koennen sie hinschreiben.

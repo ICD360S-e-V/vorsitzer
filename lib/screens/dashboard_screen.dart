@@ -268,9 +268,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       ..aktualisieren()
       ..start();
 
-    // sipgate: registriert NUR, wenn der Schalter im Bildschirm an ist —
-    // Standard ist aus, wie die Automatik beim Speedtest. Eine dauerhaft
-    // offene Verbindung schaltet man selbst ein.
+    // sipgate: registriert nur, wenn der Schalter im Bildschirm an ist.
+    //
+    // ⚠️ Hier stand „Standard ist aus, wie die Automatik beim Speedtest".
+    // Das war falsch, und zwar in beiden Hälften: `autoAktiv()` gibt
+    // `?? PlatformService.isAndroid` zurück, ist auf Android also
+    // voreingestellt AN — und `SipgateService` begründet ausdrücklich, warum
+    // der Vergleich mit dem Speedtest hier nicht trägt: dort kostet die
+    // Automatik Datenvolumen und niemand braucht sie ungefragt, hier IST die
+    // Registrierung die Funktion. Ohne sie klingelt kein eingehender Anruf.
+    //
+    // Seit dem 23.08.2026 meldet sich ohnehin nur das Gerät an, dem ein
+    // eigenes VoIP-Telefon gehört — die Voreinstellung kann also kein
+    // zweites Gerät zum Mitklingeln bringen.
     //
     // ⚠️ Hier, im Haupt-Isolat. `sip_ua` scheitert in einem
     // Hintergrund-Isolat (PlatformException bei der Activity-Registrierung),
@@ -1646,7 +1656,39 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             child: ValueListenableBuilder<SipgateZustand>(
             valueListenable: SipgateService().zustand,
             builder: (ctx, z, _) {
-              final imGespraech = z.gespraech != null;
+              // ⚠️ DIESER KNOPF BERICHTET NUR DIE ANMELDUNG, NICHT DAS GESPRÄCH.
+              //
+              // Bis zum 23.08.2026 stand hier `z.gespraech != null` und daraus
+              // „Gespräch läuft — <Nummer>". Gesetzt wird `gespraech` aber
+              // schon bei `CALL_INITIATION`, also mit `stand: klingelt` (ein)
+              // beziehungsweise `waehlt` (aus). Der Knopf behauptete damit in
+              // zwei von drei Fällen etwas Falsches: es läutet erst, es ist
+              // noch niemand dran. Bei einem abgehenden Anruf standen dann
+              // zwei sich widersprechende Aussagen gleichzeitig auf dem Schirm
+              // — die schwebende Karte sagt korrekt „Wählt …".
+              //
+              // Die Antwort darauf ist nicht ein feineres Symbol, sondern gar
+              // keines. Nachgesehen: `phone_forwarded` heisst in der
+              // Material-Sprache **weitergeleiteter Anruf** und
+              // `phone_callback` die **Rückruf-Funktion** — beide hätten die
+              // falsche Aussage nur durch eine subtilere ersetzt. Und die
+              // eingeführte Form für „läuft gerade" ist auf beiden Systemen
+              // ohnehin keine Ikone, sondern eine Pille mit Text, Farbe und
+              // Dauer, auf die man tippt, um zum Gespräch zurückzukommen
+              // (iOS Dynamic Island, Android-Status-Chips).
+              //
+              // Genau die haben wir schon: [SipgateAnrufOverlay]. Sie schwebt
+              // über jedem Bildschirm, nennt Namen, Nummer und Dauer und trägt
+              // Annehmen/Ablehnen beziehungsweise Auflegen. Sichtbar ist
+              // dieser Knopf nur in der Kopfleiste des Dashboards — also
+              // genau dort, wo auch die Karte liegt. Die einzige Ausnahme ist
+              // der sipgate-Bildschirm, wo die Karte unterdrückt wird, WEIL
+              // er das Gespräch noch grösser zeigt.
+              //
+              // Der Gesprächszustand hier war damit vollständig überflüssig
+              // und obendrein falsch. Zwei widersprüchliche Aussagen auf einem
+              // Schirm sind schlimmer als eine.
+              //
               // ⚠️ Auf dem Rechner gibt es keine Registrierung, also darf der
               // Knopf auch keine anzeigen. Ein grauer „nicht angemeldet"-Zustand
               // wäre dort eine Fehlmeldung: der Rechner SOLL sich nicht anmelden.
@@ -1659,13 +1701,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               }
               return IconButton(
                 icon: Icon(
-                  z.stand == SipgateStand.fremdesTelefon
-                      ? Icons.devices_other
-                      : (z.stand == SipgateStand.registriert || imGespraech
-                          ? Icons.phone_in_talk
-                          : Icons.phone_in_talk_outlined),
+                  switch (z.stand) {
+                    SipgateStand.fremdesTelefon => Icons.devices_other,
+                    SipgateStand.registriert => Icons.phone_in_talk,
+                    _ => Icons.phone_in_talk_outlined,
+                  },
                   color: switch (z.stand) {
-                    SipgateStand.registriert => imGespraech ? Colors.lightGreenAccent : Colors.greenAccent,
+                    SipgateStand.registriert => Colors.greenAccent,
                     SipgateStand.verbindet => Colors.amber,
                     // ⚠️ Rot NUR, wenn wirklich niemand mehr etwas tut.
                     // Steht ein neuer Anlauf an, ist das derselbe Zustand wie
@@ -1681,20 +1723,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     SipgateStand.fremdesTelefon => Colors.white54,
                   },
                 ),
-                tooltip: switch (z.stand) {
-                  SipgateStand.registriert => imGespraech
-                      ? 'Gespräch läuft — ${z.gespraech!.nummer}'
-                      : 'sipgate — angemeldet${z.sipId == null ? '' : ' (${z.sipId})'}',
-                  SipgateStand.verbindet => 'sipgate — melde an …',
-                  // Der Grund UND der nächste Anlauf, nicht bloss das Wort.
-                  // `meldung` trägt beides; ohne sie stünde hier weiter
-                  // „nicht angemeldet", also genau die Auskunft, die nichts
-                  // sagt.
-                  SipgateStand.fehler => z.meldung ?? 'sipgate — nicht angemeldet',
-                  SipgateStand.aus => 'sipgate — Telefonie',
-                  SipgateStand.fremdesTelefon =>
-                    z.meldung ?? 'sipgate — anderes Gerät telefoniert',
-                },
+                tooltip: sipgateKopfText(z),
                 onPressed: _sipgateOeffnen,
               );
             },
