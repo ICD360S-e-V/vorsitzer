@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 /// Marks a mail that has been copied into one of the Korrespondenz archives.
 ///
-/// Mail addressed to elster@icd360s.de lands in Finanzamt ▸ Korrespondenz and
-/// mail to github@icd360s.de in GitHub ▸ Korrespondenz, each filed by its own
-/// cron job. Without a visible marker there is no way to tell an archived mail
+/// Mail addressed to elster@icd360s.de lands in Finanzamt ▸ Korrespondenz,
+/// mail to github@icd360s.de in GitHub ▸ Korrespondenz, mail to
+/// inwx@icd360s.de in INWX and the DMARC reports sent to dmarc@icd360s.de in
+/// DMARC ▸ Reporting — each filed by its own cron job. Without a visible marker there is no way to tell an archived mail
 /// from one the importer has not seen yet — which leads to filing the same
 /// letter twice, or worse, assuming a Bescheid was archived when it was not.
 ///
@@ -34,6 +35,7 @@ class MailKorrespondenzBadge extends StatelessWidget {
     'finanzamt': (Icons.account_balance, 'Finanzamt'),
     'github': (Icons.code, 'GitHub'),
     'inwx': (Icons.language, 'INWX'),
+    'dmarc': (Icons.verified_user_outlined, 'DMARC'),
   };
 
   static (IconData, String) _lookUp(String bereich) =>

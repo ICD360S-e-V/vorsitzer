@@ -3943,6 +3943,35 @@ class ApiService {
     }
   }
 
+  // ============= DMARC REPORTING =============
+
+  /// Die ausgewerteten DMARC-Berichte.
+  ///
+  /// Der Mail-Teil dieses Bereichs läuft über die Korrespondenz-Methoden oben
+  /// mit `modul: 'dmarc'` — hier kommt nur das dazu, was die Korrespondenz
+  /// nicht kann: der Inhalt der Berichte selbst. Die liegen als XML in einem
+  /// ZIP im Anhang; ausgepackt und ausgewertet werden sie beim Import, nicht
+  /// hier, sonst müsste das Telefon Archive entpacken.
+  ///
+  /// Eine Antwort trägt vier Blöcke: `uebersicht`, `tage`, `quellen`,
+  /// `berichte`. Vier Abfragen daraus zu machen hiesse, viermal dieselbe
+  /// Verbindung aufzumachen.
+  Future<Map<String, dynamic>> getDmarcBerichte({int tage = 30}) async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/admin/dmarc/berichte.php?tage=$tage'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 25));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'DMARC-Berichte nicht abrufbar: $e'};
+    }
+  }
+
   // ============= FINANZAMT DOKUMENTE API =============
 
   // List finanzamt documents
