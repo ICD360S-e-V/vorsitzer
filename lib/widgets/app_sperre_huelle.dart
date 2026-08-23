@@ -121,6 +121,9 @@ class _AppSperreHuelleState extends State<AppSperreHuelle>
       // im Hintergrund, lief kein Takt — die Zeit ist trotzdem vergangen.
       _sperre.pruefen();
       _sperre.taktStarten();
+      // Kommt die App über dem gesperrten Gerät nach vorn (Anruf, Tipp auf eine
+      // Benachrichtigung), sofort sperren — unabhängig von den 15 Minuten.
+      unawaited(_sperre.ueberLockschirmPruefen());
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       // Den Takt anhalten spart Strom; gemerkt wird ohnehin der Zeitpunkt.
