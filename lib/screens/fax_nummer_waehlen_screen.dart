@@ -49,6 +49,16 @@ Map<String, int> faxKategorienAus(dynamic roh) {
 ///
 /// ⚠️ Die eigene Faxnummer des Vereins ist serverseitig ausgeschlossen —
 /// sie hier anzubieten hieße, sich selbst zu faxen.
+///
+/// ⚠️ GIBT EINE **LISTE** ZURÜCK, seit dem 24.08.2026. Vorher lieferte ein
+/// Tipp genau ein Ziel und der Bildschirm schloss sich — wer denselben
+/// Widerspruch an Jobcenter, Sozialamt und Anwalt faxen wollte, musste das
+/// Verzeichnis dreimal öffnen und dreimal suchen, obwohl der Faxbildschirm
+/// mehrere Ziele längst kann (`_weitereZiele`).
+///
+/// Der schnelle Weg bleibt schnell: ein Tipp auf die Zeile gibt weiterhin
+/// sofort **eine** Nummer zurück. Das „+" daneben legt statt dessen in einen
+/// Korb, der eine Suche überdauert — und erst der Korbknopf schließt.
 class FaxNummerWaehlenScreen extends StatefulWidget {
   const FaxNummerWaehlenScreen({super.key});
 
@@ -65,6 +75,33 @@ class _FaxNummerWaehlenScreenState extends State<FaxNummerWaehlenScreen> {
   List<Map<String, dynamic>> _kontakte = const [];
   Map<String, int> _kategorien = const {};
   int _gesamt = 0;
+
+  /// Gesammelte Ziele. ⚠️ Lebt im Zustand und NICHT in der Liste: eine neue
+  /// Suche lädt `_kontakte` komplett neu, und genau darum geht es — die drei
+  /// Stellen eines Vorgangs stehen selten unter demselben Suchwort.
+  final List<FaxZiel> _korb = [];
+
+  /// Nur Ziffern, zum Vergleichen. `+49 731 1759175` und `0731 1759175`
+  /// sind dieselbe Gegenstelle; zweimal gefaxt würde sie trotzdem.
+  String _schluessel(String nummer) => nummer.replaceAll(RegExp(r'\D'), '');
+
+  bool _imKorb(String nummer) {
+    final k = _schluessel(nummer);
+    return k.isNotEmpty && _korb.any((z) => _schluessel(z.nummer) == k);
+  }
+
+  void _korbUmschalten(String nummer, String name) {
+    final k = _schluessel(nummer);
+    if (k.isEmpty) return;
+    setState(() {
+      final drin = _korb.indexWhere((z) => _schluessel(z.nummer) == k);
+      if (drin >= 0) {
+        _korb.removeAt(drin);
+      } else {
+        _korb.add(FaxZiel(nummer, name));
+      }
+    });
+  }
 
   /// ⚠️ Entprellt. Ohne das ginge je Tastendruck eine Anfrage über genau die
   /// Mobilfunkleitung, die an anderer Stelle dieses Projekts als zu langsam
@@ -155,6 +192,7 @@ class _FaxNummerWaehlenScreenState extends State<FaxNummerWaehlenScreen> {
                     suffixIcon: _suche.text.isEmpty
                         ? null
                         : IconButton(
+                            tooltip: 'Suche leeren',
                             icon: const Icon(Icons.clear),
                             onPressed: () {
                               _suche.clear();
@@ -206,18 +244,73 @@ class _FaxNummerWaehlenScreenState extends State<FaxNummerWaehlenScreen> {
                     final k = _kontakte[i];
                     final name = '${k['name'] ?? ''}';
                     final nummer = '${k['nummer'] ?? ''}';
+                    final gesammelt = _imKorb(nummer);
                     return ListTile(
                       leading: Icon(_symbol('${k['kategorie'] ?? ''}')),
                       title: Text(name),
                       subtitle: Text(nummer),
-                      trailing: k['eigen'] == true
-                          ? const Icon(Icons.star, size: 16)
-                          : null,
-                      onTap: () =>
-                          Navigator.pop(context, FaxZiel(nummer, name)),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (k['eigen'] == true)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 4),
+                            // ⚠️ Der Stern trug seine Bedeutung allein in der
+                            // Form. Ein Bildschirmleser bekam gar nichts —
+                            // und damit fehlte ausgerechnet der Hinweis, dass
+                            // diese Nummer eine eigene ist.
+                            child: Icon(Icons.star, size: 16,
+                                semanticLabel: 'Eigene Nummer des Vereins'),
+                          ),
+                        IconButton(
+                          // ⚠️ 44 dp Trefferfläche (WCAG 2.5.5) — in diesem
+                          // Verein keine Feinheit.
+                          constraints:
+                              const BoxConstraints(minWidth: 44, minHeight: 44),
+                          icon: Icon(
+                              gesammelt
+                                  ? Icons.check_circle
+                                  : Icons.add_circle_outline,
+                              size: 22),
+                          color: gesammelt ? F.h(Colors.green, 700) : null,
+                          tooltip: gesammelt
+                              ? 'Aus der Auswahl nehmen'
+                              : 'Zur Auswahl hinzufügen',
+                          onPressed: () => _korbUmschalten(nummer, name),
+                        ),
+                      ]),
+                      onTap: () => Navigator.pop(
+                          context, <FaxZiel>[FaxZiel(nummer, name)]),
                     );
                   },
                 ),
+      // ⚠️ Steht nur da, wenn etwas im Korb ist. Eine dauerhaft sichtbare
+      // Leiste mit „0 übernehmen" wäre ein Knopf, der nie etwas tut.
+      bottomNavigationBar: _korb.isEmpty
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(
+                      _korb.map((z) => z.name.isEmpty ? z.nummer : z.name)
+                          .join(', '),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.check),
+                    label: Text(_korb.length == 1
+                        ? '1 übernehmen'
+                        : '${_korb.length} übernehmen'),
+                    onPressed: () =>
+                        Navigator.pop(context, List<FaxZiel>.from(_korb)),
+                  ),
+                ]),
+              ),
+            ),
     );
   }
 
