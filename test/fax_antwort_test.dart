@@ -592,4 +592,59 @@ void main() {
       expect(echte.length, 2);
     });
   });
+
+  // =========================================================================
+  //  Wen ein Fax betrifft (23.08.2026)
+  // =========================================================================
+  group('Betroffenes Mitglied', () {
+    // Echte Antwort auf {"action":"list","betrifft_user_id":48}.
+    final zeile = jsonDecode(
+        '{"id":14,"betrifft_user_id":48,"betrifft_name":"Olha Pasichnyk",'
+        '"gesendet_von":"","user_id":0,"bezug_typ":"jc_av_schweigepflicht"}')
+        as Map<String, dynamic>;
+
+    test('Absender und Betroffener sind zwei verschiedene Felder', () {
+      // 🔴 Bis zum 23.08.2026 war es EINE Spalte, und sie bedeutete je nach
+      // Sendeweg etwas anderes: aus dem Faxbildschirm der Vorstand, aus drei
+      // Modulen das Mitglied. `list` gab sie als `gesendet_von` heraus — der
+      // Verlauf hätte „gesendet von Olha Pasichnyk" gezeigt, ein Mitglied,
+      // das gar keine Faxe senden kann.
+      expect(zeile['betrifft_name'], 'Olha Pasichnyk');
+      expect(zeile['betrifft_user_id'], 48);
+      expect(zeile.containsKey('gesendet_von'), isTrue);
+    });
+
+    test('leerer Absender heisst „nicht vermerkt", nicht „niemand"', () {
+      // Bei den zwei alten Zeilen wissen wir nicht mehr, wer getippt hat —
+      // das Mitglied stand an seiner Stelle. Ehrlicher ist leer als ein Name,
+      // der nicht stimmt.
+      expect(zeile['gesendet_von'], '');
+      expect(zeile['user_id'], 0);
+    });
+
+    test('ein Fax aus dem Faxbildschirm hat keinen Betroffenen', () {
+      // Dort gibt niemand ein Mitglied an — und das ist richtig so, keine
+      // Lücke. Der Bildschirm darf daraus nichts erfinden.
+      final ausDemBildschirm = jsonDecode(
+          '{"id":22,"betrifft_user_id":null,"betrifft_name":"",'
+          '"gesendet_von":"Ionut-Claudiu Duinea","user_id":2}')
+          as Map<String, dynamic>;
+      expect(ausDemBildschirm['betrifft_user_id'], isNull);
+      expect((ausDemBildschirm['betrifft_name'] as String).isEmpty, isTrue);
+      expect(ausDemBildschirm['gesendet_von'], 'Ionut-Claudiu Duinea');
+    });
+
+    test('der Bildschirm kann auf einen Ausschnitt zeigen', () {
+      // ⚠️ `gefiltert` entscheidet, ob Zugangskarte und Sendefeld wegfallen.
+      // Ohne diesen Zustand sähe die Mitgliedsakte aus wie der ganze Verlauf.
+      expect(const SipgateFaxScreen().gefiltert, isFalse);
+      expect(const SipgateFaxScreen(betrifftUserId: 48).gefiltert, isTrue);
+      expect(const SipgateFaxScreen(bezugTyp: 'jc_av_schweigepflicht', bezugId: 16)
+          .gefiltert, isTrue);
+      // Halbe Vorgangskennung ist kein Ausschnitt — sonst zeigte der
+      // Bildschirm alles und behauptete, es sei ein Vorgang.
+      expect(const SipgateFaxScreen(bezugTyp: 'jc_av_schweigepflicht').gefiltert, isFalse);
+      expect(const SipgateFaxScreen(bezugId: 16).gefiltert, isFalse);
+    });
+  });
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../screens/sipgate_fax_screen.dart';
 import '../services/phone_call_service.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import '../utils/sicher_clipboard.dart';
@@ -2399,7 +2400,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
   Widget _buildDokumenteTab() {
     return DefaultTabController(
-      length: 3,
+      // ⚠️ VIER, nicht drei — der Faxreiter ist am 23.08.2026 dazugekommen.
+      // Wer die Zahl hier ändert, ändert auch die Tab-Liste und die
+      // TabBarView darunter; DefaultTabController prüft das nicht und wirft
+      // erst beim Öffnen.
+      length: 4,
       child: Column(
         children: [
           // Sub-tabs
@@ -2446,6 +2451,21 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     ],
                   ),
                 ),
+                // 🔴 Bis zum 23.08.2026 war ein Fax über dieses Mitglied von
+                // hier aus nicht auffindbar. Die Faxtabelle kannte nur, WER
+                // gesendet hat — nicht, um WEN es geht; drei Module trugen
+                // sogar das Mitglied an der Stelle des Absenders ein. Erst mit
+                // der Spalte `betrifft_user_id` gibt es diesen Weg.
+                const Tab(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.print_outlined, size: 18),
+                      SizedBox(width: 6),
+                      Text('Faxe'),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -2458,6 +2478,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 _MitwirkungspflichtSubTab(
                   apiService: widget.apiService,
                   userId: _u.id,
+                ),
+                // ⚠️ `eingebettet`, sonst stünde hier eine zweite Titelleiste
+                // mitten in der Mitgliedsakte. Gefiltert wird serverseitig
+                // über `betrifft_user_id` — der Bildschirm zeigt in diesem
+                // Zustand weder Zugangskarte noch Sendefeld.
+                SipgateFaxScreen(
+                  betrifftUserId: _u.id,
+                  eingebettet: true,
                 ),
               ],
             ),
