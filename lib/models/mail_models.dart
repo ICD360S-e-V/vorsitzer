@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../utils/mail_transport.dart';
 
 /// Ein Anhang, der mit einer ausgehenden E-Mail hochgeladen wird.
 class MailOutgoingAttachment {
@@ -134,6 +135,11 @@ class MailDelivery {
   /// Zeitpunkt, an dem die Lesebestätigung zurückkam (null = noch offen).
   final String? receiptAt;
 
+  /// Ob die Zustellung verschlüsselt lief — aus `per_recipient`, schlechtester
+  /// Empfänger gewinnt. Eine andere Frage als der Zustellstatus: angenommen
+  /// heißt nicht verschlüsselt.
+  final MailTransportBefund transport;
+
   const MailDelivery({
     this.state = MailDeliveryState.unknown,
     this.smtpResponse = '',
@@ -143,6 +149,7 @@ class MailDelivery {
     this.recipients = const [],
     this.receiptRequested = false,
     this.receiptAt,
+    this.transport = const MailTransportBefund(),
   });
 
   static MailDeliveryState _parseState(String raw) {
@@ -173,6 +180,7 @@ class MailDelivery {
             .toList(growable: false),
         receiptRequested: j['receipt_requested'] == true,
         receiptAt: j['receipt_at']?.toString(),
+        transport: mailTransportAusEmpfaengern(j['per_recipient']),
       );
 
   bool get isAccepted => state == MailDeliveryState.sent;

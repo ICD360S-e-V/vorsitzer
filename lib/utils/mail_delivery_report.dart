@@ -9,6 +9,7 @@
 library;
 
 import '../models/mail_models.dart';
+import 'mail_transport.dart';
 
 /// Die Zeilen des Sendeberichts, in der Reihenfolge, in der sie erscheinen.
 ///
@@ -26,6 +27,11 @@ List<List<String>> deliveryReportRows(MailDelivery d) {
       ['Angenommen', d.deliveredAt!.trim()],
     if (d.recipients.isNotEmpty) ['Empfänger', d.recipients.join(', ')],
     if (d.relay.trim().isNotEmpty) ['Zielserver', d.relay.trim()],
+    // ⚠️ Steht bewusst DIREKT unter dem Zielserver und nicht am Ende: die
+    // Frage „ging das offen über die Leitung?" gehört zu dem Server, zu dem
+    // es ging. Und sie wird immer beantwortet, auch mit „nicht belegt" —
+    // eine fehlende Zeile läse sich wie „war schon in Ordnung".
+    ['Verschlüsselung', mailTransportText(d.transport, gesendet: true)],
     if (d.smtpResponse.trim().isNotEmpty) ['Antwort', d.smtpResponse.trim()],
     if (d.queueId.trim().isNotEmpty) ['Queue-ID', d.queueId.trim()],
     if (receipt.isNotEmpty) ['Lesebestätigung', receipt],
