@@ -11,23 +11,56 @@ import '../utils/terminanfrage_vorlagen.dart';
 import 'terminanfrage_versand_dialog.dart';
 import 'terminanfrage_zustellung.dart';
 
-/// Der Termin-Tab einer einzelnen Heilmittelverordnung: Anfrage · Bestätigt ·
-/// Absage.
+/// Anfrage · Bestätigt · Absage — für alles, wozu ein Termin bei einer
+/// auswärtigen Praxis gehört.
+///
+/// 🔴 EINE IMPLEMENTIERUNG, MEHRERE MODULE.
+/// Angefangen hat das als Reiter der Heilmittelverordnung. Als die Überweisung
+/// dasselbe brauchte, war die naheliegende Abkürzung, die Datei zu kopieren —
+/// genau der Weg, auf dem in diesem Projekt schon einmal SECHS Kopien eines
+/// Ärzte-Reiters entstanden sind, bei denen jede Textkorrektur sechsmal
+/// gemacht werden musste und niemand geprüft hat, ob sie es wurde. Stattdessen
+/// hängen die Unterschiede an [praxisPrefix], [rezept] und [onBestaetigt].
 ///
 /// WARUM EIGENE DATEI
 /// `gesundheit_tab_content.dart` hat 19.000 Zeilen. Hier liegt der Teil, der
 /// sich allein aufbauen und damit auch allein ANSEHEN lässt — das ist keine
 /// Ordnungsliebe: Layoutfehler zeigt weder `flutter analyze` noch der
 /// Testlauf, nur ein gerendertes Bild.
-class HeilmittelTerminTab extends StatefulWidget {
+class TerminAnfrageTab extends StatefulWidget {
   /// Der Arzt-Tab, in dem die Verordnung hängt (z. B. `gesundheit_hausarzt`).
   final String arztTyp;
 
-  /// Die Verordnung selbst. Wird IN PLACE geändert — der umgebende Dialog und
-  /// der Verlauf-Tab halten dieselbe Map, und `speichern` schreibt genau sie
+  /// Der Vorgang selbst — Verordnung oder Überweisung. Wird IN PLACE geändert:
+  /// der umgebende Dialog hält dieselbe Map, und `speichern` schreibt genau sie
   /// zurück. Eine Kopie hier hieße: der Termin steht auf dem Schirm und ist
   /// nach dem Schließen weg.
   final Map<String, dynamic> verordnung;
+
+  /// Vorsilbe der Praxis-Felder im Vorgang: `physio_praxis_` beim Heilmittel,
+  /// `rad_praxis_` bei der Überweisung.
+  ///
+  /// ⚠️ Von hier kommen `…name`, `…email` und `…fax`. Fehlen die letzten
+  /// beiden, geht gar nichts raus — deshalb sagt der Kopf der Seite, WAS fehlt,
+  /// statt nur den Knopf auszugrauen.
+  final String praxisPrefix;
+
+  /// Was im Kopf und im Ticket steht („Physiotherapie", „Radiologie").
+  final String kontext;
+
+  /// Die ärztliche Verordnung, wenn es eine gibt. Dann ist SIE der Grund der
+  /// Anfrage und die Anlass-Listen der Arztfächer bleiben außen vor.
+  final HeilmittelVerordnung? rezept;
+
+  /// Was beim Bestätigen zusätzlich passieren soll — modulspezifisch.
+  ///
+  /// 🔴 Das Heilmittel legt eine Sitzung im Verlauf an (sonst zählt die
+  /// Verordnung zu wenig und läuft ab, obwohl die Termine stehen); die
+  /// Überweisung schreibt Datum und Uhrzeit in ihre eigenen Felder. Wer das
+  /// hier fest verdrahtet, schreibt beim nächsten Modul in die falsche Stelle
+  /// — und es fällt nicht auf, weil nichts fehlschlägt.
+  final Future<void> Function(Map<String, dynamic> anfrage, String datum, String zeit)?
+      onBestaetigt;
 
   /// Schreibt die Verordnung zurück (`doSave(r, fromStatus: true)`).
   final VoidCallback speichern;
@@ -37,11 +70,15 @@ class HeilmittelTerminTab extends StatefulWidget {
   final TicketService ticketService;
   final TerminService terminService;
 
-  const HeilmittelTerminTab({
+  const TerminAnfrageTab({
     super.key,
     required this.arztTyp,
     required this.verordnung,
     required this.speichern,
+    this.praxisPrefix = 'physio_praxis_',
+    this.kontext = '',
+    this.rezept,
+    this.onBestaetigt,
     required this.user,
     required this.apiService,
     required this.ticketService,
@@ -49,10 +86,10 @@ class HeilmittelTerminTab extends StatefulWidget {
   });
 
   @override
-  State<HeilmittelTerminTab> createState() => _HeilmittelTerminTabState();
+  State<TerminAnfrageTab> createState() => _TerminAnfrageTabState();
 }
 
-class _HeilmittelTerminTabState extends State<HeilmittelTerminTab> {
+class _TerminAnfrageTabState extends State<TerminAnfrageTab> {
   /// Der Termin-Tab einer einzelnen Heilmittelverordnung.
   ///
   /// WARUM HIER UND NICHT IM TERMIN-TAB DES ARZTES
@@ -83,10 +120,13 @@ class _HeilmittelTerminTabState extends State<HeilmittelTerminTab> {
       if (r['termin_anfragen'] is! List) r['termin_anfragen'] = [];
       final List<dynamic> anfragen = r['termin_anfragen'] as List;
 
-      final praxisName = (r['physio_praxis_name']?.toString() ?? '').trim();
-      final praxisEmail = (r['physio_praxis_email']?.toString() ?? '').trim();
-      final praxisFax = (r['physio_praxis_fax']?.toString() ?? '').trim();
-      final bereich = (r['bereich']?.toString() ?? 'Physiotherapie').trim();
+      final p = widget.praxisPrefix;
+      final praxisName = (r['${p}name']?.toString() ?? '').trim();
+      final praxisEmail = (r['${p}email']?.toString() ?? '').trim();
+      final praxisFax = (r['${p}fax']?.toString() ?? '').trim();
+      final bereich = widget.kontext.trim().isNotEmpty
+          ? widget.kontext.trim()
+          : (r['bereich']?.toString() ?? 'Physiotherapie').trim();
 
       List<Map<String, dynamic>> mitStatus(String s) => anfragen
           .whereType<Map>()
@@ -119,7 +159,9 @@ class _HeilmittelTerminTabState extends State<HeilmittelTerminTab> {
               ]),
               const SizedBox(height: 6),
               if (praxisName.isEmpty)
-                Text('Bitte im Tab „Verlauf" die Physiotherapie-Praxis auswählen — von dort kommen Anschrift, E-Mail und Fax.',
+                Text(widget.praxisPrefix == 'physio_praxis_'
+                        ? 'Bitte im Tab „Verlauf" die Physiotherapie-Praxis auswählen — von dort kommen Anschrift, E-Mail und Fax.'
+                        : 'Bitte im Tab „Zuständige Praxis" eine Praxis auswählen — von dort kommen Anschrift, E-Mail und Fax.',
                     style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: F.h(Colors.amber, 900)))
               else
                 Wrap(spacing: 8, runSpacing: 4, children: [
@@ -158,15 +200,15 @@ class _HeilmittelTerminTabState extends State<HeilmittelTerminTab> {
         // Hausbesuch, Indikation, Diagnose.
         final basis = terminanfrageDatenBauen(
           arztTyp: type,
-          rezept: HeilmittelVerordnung.ausZeile(r),
+          rezept: widget.rezept,
           user: widget.user,
           // Der Verlauf speichert die Praxis unter eigenen Schlüsseln; hier
           // werden sie auf die Form gebracht, die der gemeinsame Dialog kennt.
           arzt: {
             'praxis_name': praxisName,
             'arzt_name': r['therapeut']?.toString() ?? '',
-            'strasse': r['physio_praxis_strasse']?.toString() ?? '',
-            'plz_ort': r['physio_praxis_plz_ort']?.toString() ?? '',
+            'strasse': r['${p}strasse']?.toString() ?? '',
+            'plz_ort': r['${p}plz_ort']?.toString() ?? '',
             'email': praxisEmail,
             'fax': praxisFax,
           },
@@ -316,48 +358,20 @@ class _HeilmittelTerminTabState extends State<HeilmittelTerminTab> {
         );
         if (ok != true) return;
 
-        if (r['sitzungen'] is! List) r['sitzungen'] = [];
-        final sitzungen = r['sitzungen'] as List;
-        final nr = sitzungen.length + 1;
-        final sitzung = <String, dynamic>{
-          'nr': '$nr',
-          'datum': dC.text,
-          'zeit': zC.text.trim(),
-          'notizen': r['therapeut']?.toString() ?? '',
-          'onorat': false,
-          'tv_created': true,
-          // Rückweg zur Anfrage: sonst lässt sich später nicht mehr sagen,
-          // welche Anfrage zu diesem Termin geführt hat.
-          'aus_anfrage': a['uid'],
-        };
-        sitzungen.add(sitzung);
-
-        try {
-          final teile = zC.text.trim().split(':');
-          final h = int.tryParse(teile.isNotEmpty ? teile[0] : '14') ?? 14;
-          final m = teile.length > 1 ? (int.tryParse(teile[1]) ?? 0) : 0;
-          final praxisOrt = [
-            r['physio_praxis_strasse']?.toString() ?? '',
-            r['physio_praxis_plz_ort']?.toString() ?? '',
-          ].where((s) => s.isNotEmpty).join(', ');
-          widget.terminService.setToken(widget.apiService.token ?? '');
-          widget.terminService.createTermin(
-            title: '$bereich Sitzung $nr${praxisName.isNotEmpty ? ' - $praxisName' : ''}',
-            category: 'sonstiges',
-            description: [
-              if ((r['therapeut']?.toString() ?? '').isNotEmpty) 'Therapeut/in: ${r['therapeut']}',
-              if (praxisOrt.isNotEmpty) 'Ort: $praxisOrt',
-              'Mitglied: ${widget.user.vorname ?? ''} ${widget.user.nachname ?? ''} (${widget.user.mitgliedernummer})',
-            ].join('\n'),
-            terminDate: DateTime.parse(dC.text).add(Duration(hours: h, minutes: m)),
-            durationMinutes: 30,
-            location: praxisOrt.isNotEmpty ? praxisOrt : praxisName,
-            participantIds: [widget.user.id],
-          ).then((res) {
-            if (res.containsKey('termin')) sitzung['termin_id'] = res['termin']['id'];
-          });
-        } catch (err) {
-          debugPrint('[Heilmittel-Termin] Terminverwaltung: $err');
+        // 🔴 Was ein bestätigter Termin AUSSERDEM auslöst, weiss nur das Modul.
+        // Das Heilmittel legt eine Sitzung im Verlauf an — ohne die zählt die
+        // Verordnung zu wenig und läuft ab, obwohl die Termine stehen. Die
+        // Überweisung schreibt Datum und Uhrzeit in ihre eigenen Felder.
+        // Beides hier fest zu verdrahten hiesse, beim nächsten Modul in die
+        // falsche Stelle zu schreiben — lautlos, weil nichts fehlschlägt.
+        String sitzungNr = '';
+        if (widget.onBestaetigt != null) {
+          try {
+            await widget.onBestaetigt!(a, dC.text, zC.text.trim());
+            sitzungNr = (a['sitzung_nr']?.toString() ?? '');
+          } catch (err) {
+            debugPrint('[Termin-Anfrage] onBestaetigt: $err');
+          }
         }
 
         _anfrageStatusSetzen(anfragen, a['uid']?.toString() ?? '', {
@@ -365,7 +379,7 @@ class _HeilmittelTerminTabState extends State<HeilmittelTerminTab> {
           'termin_datum': dC.text,
           'termin_zeit': zC.text.trim(),
           'bestaetigt_am': DateFormat('yyyy-MM-dd').format(DateTime.now()),
-          'sitzung_nr': '$nr',
+          if (sitzungNr.isNotEmpty) 'sitzung_nr': sitzungNr,
         });
         r['termin_anfragen'] = anfragen;
         persist();

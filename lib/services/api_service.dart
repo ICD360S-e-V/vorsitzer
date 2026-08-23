@@ -10590,6 +10590,76 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // ── Radiologie-Praxen ─────────────────────────────────────────────────
+  //
+  // Eigene Datenbank neben `aerzte_datenbank`: bei einer Radiologie entscheidet
+  // das, was dort keinen Platz hat, ob eine Überweisung überhaupt dorthin kann
+  // — Privat- oder Kassenpraxis, welche Geräte da sind, offenes MRT,
+  // Gewichtsgrenze. Endpunkt `api/admin/radiologie_manage.php`.
+  Future<Map<String, dynamic>> radiologiePraxen({
+    String search = '',
+    String modalitaet = '',
+    bool nurKassenpraxis = false,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/radiologie_manage.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'action': 'search',
+        'search': search,
+        'modalitaet': modalitaet,
+        'nur_kassenpraxis': nurKassenpraxis,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<Map<String, dynamic>> radiologiePraxisSpeichern(Map<String, dynamic> daten) async {
+    final body = Map<String, dynamic>.from(daten)..['action'] = 'save';
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/radiologie_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<Map<String, dynamic>> radiologiePraxisLoeschen(int id) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/radiologie_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Übernimmt Radiologie-Zeilen aus der generischen Ärzte-Datenbank.
+  /// Idempotent: dedupliziert über die Herkunfts-Id, nicht über den Namen.
+  Future<Map<String, dynamic>> radiologieImportAusAerzte() async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/radiologie_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'import_aus_aerzte'}),
+    ).timeout(const Duration(seconds: 30));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   Future<Map<String, dynamic>> searchAerzte({String search = '', String fachrichtung = ''}) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/aerzte_manage.php'),

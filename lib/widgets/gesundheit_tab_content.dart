@@ -23,6 +23,8 @@ import 'package:flutter/material.dart';
 import '../utils/terminanfrage_vorlagen.dart';
 import 'terminanfrage_versand_dialog.dart';
 import 'terminanfrage_zustellung.dart';
+import 'radiologie_praxis_tab.dart';
+import '../utils/fachrichtung_map.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'phone_link.dart';
 import '../services/phone_call_service.dart';
@@ -40,13 +42,12 @@ import 'sanitaetshaus.dart';
 import 'rettungsdienst.dart';
 import 'hilfsmittel_rezept_section.dart';
 import 'hkp_verordnung_tab.dart';
-import 'heilmittel_termin_tab.dart';
+import 'termin_anfrage_tab.dart';
 import 'mitgliederverwaltung_arzten_augenarzt.dart';
 import 'mitgliederverwaltung_arzten_hno.dart';
 import 'mitgliederverwaltung_arzten_krankenhaus.dart';
 import 'mitgliederverwaltung_arzten_md.dart';
 import 'mitgliederverwaltung_arzten_rheumatologie.dart';
-import '../widgets/responsive_layout.dart';
 import 'faltbare_kopfleiste.dart';
 import 'feld_reihe.dart';
 import '../utils/app_farben.dart';
@@ -5354,6 +5355,18 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     };
 
     void showDetailDialog(Map<String, dynamic> uData, int uIdx, StateSetter setTabState, StateSetter setLocalState) {
+      // Schreibt die Überweisung zurück, ohne den Dialog zu schliessen.
+      //
+      // ⚠️ `uData` wird IN PLACE geändert und hier nur an seinen Platz in der
+      // Liste gelegt. Eine Kopie hiesse: die neuen Reiter zeigen die Praxis und
+      // die Anfragen, und nach dem Schliessen sind sie weg.
+      void speichernU() {
+        final liste = List<dynamic>.from(ueberweisungen);
+        if (uIdx >= 0 && uIdx < liste.length) liste[uIdx] = uData;
+        data['ueberweisungen'] = liste;
+        saveAll();
+        setLocalState(() {});
+      }
       final termin = uData['termin'] is Map
           ? Map<String, dynamic>.from(uData['termin'] as Map)
           : <String, dynamic>{};
@@ -5407,7 +5420,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       showDialog(
         context: context,
         builder: (dlgCtx) => DefaultTabController(
-          length: 4,
+          length: 6,
           child: StatefulBuilder(
             builder: (dlgCtx, setDlgState) {
               final artBase2 = {
@@ -5443,12 +5456,22 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     TabBar(
                       // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
                       // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
-                      isScrollable: ResponsiveLayout.istTelefon(context),
-                      tabs: const [
-                        Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
-                        Tab(icon: Icon(Icons.calendar_today, size: 16), text: 'Termin'),
-                        Tab(icon: Icon(Icons.history, size: 16), text: 'Verlauf'),
-                        Tab(icon: Icon(Icons.description, size: 16), text: 'Bericht'),
+                      isScrollable: true,
+                      // ⚠️ Ab sechs Reitern ist es auf JEDER Breite scrollbar,
+                      // nicht erst auf dem Telefon: sechs Beschriftungen in
+                      // 480 dp wären gestaucht bis zur Unleserlichkeit.
+                      tabs: [
+                        const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+                        // Heisst nach dem Fach, an das überwiesen wurde —
+                        // „Zuständige Radiologie", „Zuständige Kardiologie".
+                        Tab(
+                          icon: const Icon(Icons.medical_information, size: 16),
+                          text: 'Zuständige ${anVal.isEmpty ? 'Praxis' : anVal}',
+                        ),
+                        const Tab(icon: Icon(Icons.event_available, size: 16), text: 'Termine'),
+                        const Tab(icon: Icon(Icons.calendar_today, size: 16), text: 'Termin'),
+                        const Tab(icon: Icon(Icons.history, size: 16), text: 'Verlauf'),
+                        const Tab(icon: Icon(Icons.description, size: 16), text: 'Bericht'),
                       ],
                       labelStyle: const TextStyle(fontSize: 12),
                       indicatorColor: Colors.indigo.shade600,
@@ -5461,7 +5484,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   height: 420,
                   child: TabBarView(
                     children: [
-                      // ── TAB 1: DETAILS ──
+                      // ── TAB 1: DETAILS ── (unverändert)
                       SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -5513,6 +5536,59 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                           detailRow(Icons.person_outline, 'Ausgestellt von:', uData['ausgestellt_von']?.toString() ?? ''),
                         ]),
                       ),
+                      // ── TAB 2: ZUSTÄNDIGE PRAXIS ──
+                      //
+                      // Die Überweisung nennt ein Fach, keine Praxis. Hier wird sie gewählt —
+                      // aus der eigenen Radiologie-Datenbank, in der auch steht, was über
+                      // eine Adresse hinaus entscheidet: Kassen- oder Privatpraxis, welche
+                      // Geräte, offenes MRT, Gewichtsgrenze.
+                      RadiologiePraxisTab(
+                        ueberweisung: uData,
+                        speichern: () { speichernU(); setDlgState(() {}); },
+                        apiService: widget.apiService,
+                      ),
+
+                      // ── TAB 3: TERMINE (Anfrage · Bestätigt · Absage) ──
+                      //
+                      // Derselbe Reiter wie bei der Heilmittelverordnung — eine
+                      // Implementierung, zwei Module. Siehe [TerminAnfrageTab].
+                      TerminAnfrageTab(
+                        arztTyp: type,
+                        verordnung: uData,
+                        speichern: () { speichernU(); setDlgState(() {}); },
+                        user: widget.user,
+                        apiService: widget.apiService,
+                        ticketService: widget.ticketService,
+                        terminService: widget.terminService,
+                        praxisPrefix: 'rad_praxis_',
+                        kontext: anVal.isEmpty ? 'Radiologie' : anVal,
+                        // ⚠️ Kein `rezept`: eine Überweisung ist kein Heilmittelrezept. Der
+                        // Brief nimmt hier die Anlässe des Fachs — anders als beim
+                        // Heilmittel, wo das Rezept selbst der Grund ist.
+                        onBestaetigt: (a, datum, zeit) async {
+                          // 🔴 Ein bestätigter Termin landet in DEN FELDERN DER ÜBERWEISUNG,
+                          // die der Reiter „Termin" schon immer führt. Eine zweite Liste
+                          // daneben hiesse: zwei Termine für einen Vorgang, und der ältere
+                          // gewinnt beim nächsten Blick.
+                          final t = uData['termin'] is Map
+                              ? Map<String, dynamic>.from(uData['termin'] as Map)
+                              : <String, dynamic>{};
+                          t['datum'] = datum;
+                          t['uhrzeit'] = zeit;
+                          t['status'] = 'bestaetigt';
+                          t['praxis_name'] = uData['rad_praxis_name'] ?? t['praxis_name'];
+                          t['praxis_adresse'] = [
+                            uData['rad_praxis_strasse'] ?? '',
+                            uData['rad_praxis_plz_ort'] ?? '',
+                          ].where((e) => e.toString().isNotEmpty).join(', ');
+                          t['praxis_telefon'] = uData['rad_praxis_telefon'] ?? t['praxis_telefon'];
+                          t['praxis_fax'] = uData['rad_praxis_fax'] ?? t['praxis_fax'];
+                          t['praxis_email'] = uData['rad_praxis_email'] ?? t['praxis_email'];
+                          uData['termin'] = t;
+                          speichernU();
+                        },
+                      ),
+
                       // ── TAB 2: TERMINPLANUNG ──
                       SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
@@ -10219,6 +10295,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     List<Map<String, dynamic>> results = [];
     bool isLoading = false;
     bool initialLoaded = false;
+    // ⚠️ Standard AN, aber abschaltbar: für neun der 24 Fachrichtungen steht
+    // noch keine einzige Praxis in der Datenbank. Ohne Ausweg stünde man dort
+    // vor einer leeren Liste, die nicht sagt, dass sie leer SEIN MUSS.
+    bool nurFach = fachrichtung.trim().isNotEmpty;
 
     showDialog(
       context: context,
@@ -10229,9 +10309,26 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               setDialogState(() => isLoading = true);
               try {
                 final isKrankenhaus = fachrichtung.contains('Krankenhaus') || fachrichtung.contains('Klinik') || fachrichtung.contains('Stationare');
+                // 🔴 `fachrichtung` WURDE HEREINGEREICHT UND NIE BENUTZT.
+                // Der Dialog nahm den Parameter entgegen, entschied damit nur
+                // "ist das ein Krankenhaus?" und suchte dann OHNE ihn. Wer aus
+                // einer Radiologie-Überweisung auf die Lupe drückte, bekam alle
+                // 38 Praxen der Datenbank aufgelistet, Zahnärzte und
+                // Physiotherapeuten inbegriffen. Der Server kann seit jeher
+                // filtern (`WHERE ... AND fachrichtung = ?`) — gefragt hat ihn
+                // nur niemand.
+                //
+                // ⚠️ Der Serverfilter ist EXAKTE GLEICHHEIT. Das Auswahlfeld der
+                // Überweisung führt Kurzformen ("HNO"), die Datenbank die
+                // amtlichen Langformen ("Hals-Nasen-Ohren-Heilkunde") — ohne
+                // [fachrichtungFuerSuche] fände die Suche dort NICHTS, und eine
+                // leere Liste sieht kaputter aus als eine zu lange.
                 final res = isKrankenhaus
                     ? await widget.apiService.searchKliniken(search: searchController.text.trim())
-                    : await widget.apiService.searchAerzte(search: searchController.text.trim());
+                    : await widget.apiService.searchAerzte(
+                        search: searchController.text.trim(),
+                        fachrichtung: nurFach ? fachrichtungFuerSuche(fachrichtung) : '',
+                      );
                 final dataKey = isKrankenhaus ? 'kliniken' : 'data';
                 if (res['success'] == true && res[dataKey] != null) {
                   var list = List<Map<String, dynamic>>.from(res[dataKey]);
@@ -11795,6 +11892,72 @@ $vollName$footer''';
         inhalt = '';
     }
     return {'betreff': betreff, 'inhalt': inhalt};
+  }
+
+
+  /// Legt den bestätigten Termin als Sitzung im Verlauf an und trägt ihn in die
+  /// Terminverwaltung ein.
+  ///
+  /// ⚠️ Lag bis zum 23.08.2026 im Reiter selbst. Als die Überweisung denselben
+  /// Reiter brauchte, musste es hierher: dort ist ein bestätigter Termin keine
+  /// Sitzung, sondern ein Feld auf der Überweisung. Siehe
+  /// [TerminAnfrageTab.onBestaetigt].
+  Future<void> _heilmittelSitzungAnlegen(
+    Map<String, dynamic> r,
+    Map<String, dynamic> a,
+    String datum,
+    String zeit,
+    String type,
+  ) async {
+    final bereich = (r['bereich']?.toString() ?? 'Physiotherapie').trim();
+    final praxisName = (r['physio_praxis_name']?.toString() ?? '').trim();
+
+    if (r['sitzungen'] is! List) r['sitzungen'] = [];
+    final sitzungen = r['sitzungen'] as List;
+    final nr = sitzungen.length + 1;
+    final sitzung = <String, dynamic>{
+      'nr': '$nr',
+      'datum': datum,
+      'zeit': zeit,
+      'notizen': r['therapeut']?.toString() ?? '',
+      'onorat': false,
+      'tv_created': true,
+      // Rückweg zur Anfrage: sonst lässt sich später nicht mehr sagen, welche
+      // Anfrage zu diesem Termin geführt hat.
+      'aus_anfrage': a['uid'],
+    };
+    sitzungen.add(sitzung);
+    // Der Reiter liest die Nummer hier wieder heraus und schreibt sie auf die
+    // Anfrage-Karte.
+    a['sitzung_nr'] = '$nr';
+
+    try {
+      final teile = zeit.split(':');
+      final h = int.tryParse(teile.isNotEmpty ? teile[0] : '14') ?? 14;
+      final m = teile.length > 1 ? (int.tryParse(teile[1]) ?? 0) : 0;
+      final praxisOrt = [
+        r['physio_praxis_strasse']?.toString() ?? '',
+        r['physio_praxis_plz_ort']?.toString() ?? '',
+      ].where((s) => s.isNotEmpty).join(', ');
+      widget.terminService.setToken(widget.apiService.token ?? '');
+      unawaited(widget.terminService.createTermin(
+        title: '$bereich Sitzung $nr${praxisName.isNotEmpty ? ' - $praxisName' : ''}',
+        category: 'sonstiges',
+        description: [
+          if ((r['therapeut']?.toString() ?? '').isNotEmpty) 'Therapeut/in: ${r['therapeut']}',
+          if (praxisOrt.isNotEmpty) 'Ort: $praxisOrt',
+          'Mitglied: ${widget.user.vorname ?? ''} ${widget.user.nachname ?? ''} (${widget.user.mitgliedernummer})',
+        ].join('\n'),
+        terminDate: DateTime.parse(datum).add(Duration(hours: h, minutes: m)),
+        durationMinutes: 30,
+        location: praxisOrt.isNotEmpty ? praxisOrt : praxisName,
+        participantIds: [widget.user.id],
+      ).then((res) {
+        if (res.containsKey('termin')) sitzung['termin_id'] = res['termin']['id'];
+      }));
+    } catch (err) {
+      debugPrint('[Heilmittel-Termin] Terminverwaltung: $err');
+    }
   }
 
   // ═══════════════════════════════════════════════════════
@@ -13395,7 +13558,7 @@ $vollName$footer''';
                       ),
 
                       // ── Termin tab (Anfrage · Bestätigt · Absage) ──
-                      HeilmittelTerminTab(
+                      TerminAnfrageTab(
                         arztTyp: type,
                         verordnung: r,
                         speichern: () => doSave(r, fromStatus: true),
@@ -13403,6 +13566,14 @@ $vollName$footer''';
                         apiService: widget.apiService,
                         ticketService: widget.ticketService,
                         terminService: widget.terminService,
+                        rezept: HeilmittelVerordnung.ausZeile(r),
+                        // 🔴 EIN BESTÄTIGTER TERMIN IST EINE SITZUNG.
+                        // Der Verlauf-Tab führt die Behandlungstermine und
+                        // zählt sie gegen die verordnete Menge. Eine zweite,
+                        // eigene Liste hiesse: der Verlauf zählt zu wenig, und
+                        // die Verordnung läuft ab, obwohl die Termine stehen.
+                        onBestaetigt: (a, datum, zeit) async =>
+                            _heilmittelSitzungAnlegen(r, a, datum, zeit, type),
                       ),
                     ])),
                   ])),
