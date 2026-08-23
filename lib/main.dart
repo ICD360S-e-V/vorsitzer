@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'screens/login_with_code_screen.dart';
 import 'services/api_service.dart';
+import 'utils/privater_temp.dart';
 import 'services/device_key_service.dart';
 import 'services/notification_service.dart';
 import 'services/logger_service.dart';
@@ -41,6 +42,11 @@ void main(List<String> args) async {
   // after runApp(), once the first frame has rendered.
   // ──────────────────────────────────────────────────────────────────
   StartupDiagnostics.init();
+
+  // Sicherheit: auf Linux Temp-Dateien in ein privates 0700-Verzeichnis
+  // umleiten (statt world-readable /tmp) und Reste der letzten Sitzung löschen.
+  // MUSS vor dem ersten getTemporaryDirectory() laufen; No-op außer Linux.
+  await privaterTempEinrichten();
 
   // Pre-empt the AltGr-phantom-Ctrl bug that drops Z/Y/X/C/V keystrokes
   // under Windows RDP. Must install before any widget receives input.

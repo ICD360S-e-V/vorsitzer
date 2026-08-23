@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
@@ -1525,7 +1526,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
       // im Speicher, muss also kurz abgelegt werden — im temporären
       // Verzeichnis der App und mit `finally` wieder weg. Es wandert ohnehin
       // gleich in die Chat-Ablage, ist also keine neue Offenlegung.
-      temp = File('${Directory.systemTemp.path}/$name');
+      temp = File('${(await getTemporaryDirectory()).path}/$name');
       await temp.writeAsBytes(pdf, flush: true);
 
       final res = await widget.apiService.uploadChatAttachments(

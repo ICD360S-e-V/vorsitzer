@@ -3833,7 +3833,7 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
 
       // Der Chat-Upload will eine Datei auf der Platte; sie wandert ohnehin
       // gleich in die Chat-Ablage und wird hier gleich wieder entfernt.
-      temp = File('${Directory.systemTemp.path}/'
+      temp = File('${(await getTemporaryDirectory()).path}/'
           'vollmacht_$id${uebersetzt ? '_$sprache' : ''}.pdf');
       await temp.writeAsBytes(r.bodyBytes, flush: true);
       final res = await widget.apiService.uploadChatAttachments(

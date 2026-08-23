@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:http/io_client.dart';
 import 'device_key_service.dart';
 import 'http_client_factory.dart';
@@ -1018,7 +1019,7 @@ class TicketService {
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        final tempDir = await Directory.systemTemp.createTemp('ticket_attachment_');
+        final tempDir = await (await getTemporaryDirectory()).createTemp('ticket_attachment_');
         final filePath = '${tempDir.path}/$originalFilename';
         final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);

@@ -97,6 +97,10 @@ dependencies:
 
   # Path provider for temp directory
   path_provider: ^2.1.0
+  # Direkt referenziert für die Temp-Umleitung auf Linux (privater_temp.dart):
+  # getTemporaryDirectory() -> privates 0700-Cache statt world-readable /tmp.
+  path_provider_linux: ^2.2.2
+  path_provider_platform_interface: ^2.1.3
 
   # Pfadarithmetik für sicherer_dateiname.dart (kanonisieren + isWithin).
   # Kam bisher nur transitiv herein; hier deklariert, damit der Import
