@@ -9,6 +9,7 @@ import '../services/ticket_service.dart';
 import '../utils/app_farben.dart';
 import '../utils/terminanfrage_vorlagen.dart';
 import 'terminanfrage_versand_dialog.dart';
+import 'terminanfrage_zustellung.dart';
 
 /// Der Termin-Tab einer einzelnen Heilmittelverordnung: Anfrage · Bestätigt ·
 /// Absage.
@@ -212,6 +213,18 @@ class _HeilmittelTerminTabState extends State<HeilmittelTerminTab> {
               'betreff': e.betreff,
               'inhalt': e.text,
               'erstellt_am': DateTime.now().millisecondsSinceEpoch,
+              // 🔴 OHNE DIESE ZWEI ZEILEN GIBT ES SPÄTER KEINEN ZUSTELLSTAND.
+              // „Gesendet" heißt nur, dass UNSER Server die Nachricht
+              // übernommen hat. Ob der ZIELSERVER sie angenommen oder mit
+              // 554 abgelehnt hat, steht im Postfix-Log — nachschlagbar
+              // ausschliesslich über die Message-ID, und die gibt es genau
+              // einmal, in der Antwort auf das Senden. Wer sie hier fallen
+              // lässt, kann den Stand nie mehr nachtragen: die Zeile behauptet
+              // dann für immer einen Versand, dessen Ausgang niemand kennt.
+              'message_id': e.messageId,
+              // Beim Fax ist die Sitzungsnummer der einzige Faden zum
+              // Sendebericht — sipgate löscht seinen Verlauf nach 30 Tagen.
+              'sitzung_id': e.sitzungId,
             });
             persist();
 
@@ -573,6 +586,17 @@ class _HeilmittelTerminTabState extends State<HeilmittelTerminTab> {
           Text('sipgate-Sitzung ${a['sitzung_id']} — an sipgate übergeben, Zustellung wird nachverfolgt',
               style: TextStyle(fontSize: 9, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 600))),
         ],
+        // Bei der E-Mail steht hier, ob der ZIELSERVER sie angenommen hat —
+        // nicht, dass wir sie abgeschickt haben. Ohne Message-ID (Fax,
+        // Altbestand) zeigt das Widget nichts, statt einen leeren Stand
+        // vorzutäuschen.
+        if (!istFax && (a['message_id']?.toString() ?? '').isNotEmpty)
+          TerminanfrageZustellung(
+            messageId: a['message_id'].toString(),
+            art: 'email',
+            richtung: 'ausgehend',
+            apiService: widget.apiService,
+          ),
         if (aktionen.isNotEmpty) ...[
           const SizedBox(height: 4),
           Row(mainAxisAlignment: MainAxisAlignment.end, children: aktionen),

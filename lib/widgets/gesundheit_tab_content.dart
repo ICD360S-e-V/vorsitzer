@@ -13313,6 +13313,21 @@ $vollName$footer''';
                                         Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                                           child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.5))),
                                       ],
+                                      if ((k['message_id']?.toString() ?? '').isNotEmpty) ...[
+                                        const SizedBox(height: 12),
+                                        TerminanfrageZustellung(
+                                          messageId: k['message_id'].toString(),
+                                          art: 'email',
+                                          richtung: 'ausgehend',
+                                          apiService: widget.apiService,
+                                        ),
+                                      ],
+                                      if ((k['sitzung_id']?.toString() ?? '').isNotEmpty) ...[
+                                        const SizedBox(height: 8),
+                                        Text('sipgate-Sitzung ${k['sitzung_id']} — an sipgate übergeben. '
+                                             'Der Sendebericht kommt von sipgate; der Verlauf dort wird nach 30 Tagen gelöscht.',
+                                            style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 600))),
+                                      ],
                                       const SizedBox(height: 16),
                                       _buildBerichtDokumente(type, 'korr_${k['erstellt_am'] ?? idx}', setKorrState),
                                     ]))),
@@ -13352,6 +13367,19 @@ $vollName$footer''';
                                       const SizedBox(height: 2),
                                       Text(k['inhalt'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)), maxLines: 2, overflow: TextOverflow.ellipsis),
                                     ],
+                                    // 🔴 „Ausgang" heisst nur, dass UNSER Server die Mail
+                                    // übernommen hat. Ob der ZIELSERVER sie angenommen oder
+                                    // mit 554 abgelehnt hat, stand bisher nirgends — man
+                                    // wartete auf eine Antwort auf eine Mail, die vielleicht
+                                    // nie ankam. Ohne Message-ID (Fax, Post, Telefon,
+                                    // Altbestand) zeigt das Widget nichts.
+                                    if ((k['message_id']?.toString() ?? '').isNotEmpty)
+                                      TerminanfrageZustellung(
+                                        messageId: k['message_id'].toString(),
+                                        art: 'email',
+                                        richtung: 'ausgehend',
+                                        apiService: widget.apiService,
+                                      ),
                                   ]),
                                 ),
                               );
