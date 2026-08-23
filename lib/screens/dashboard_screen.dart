@@ -1619,9 +1619,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               }
               return IconButton(
                 icon: Icon(
-                  z.stand == SipgateStand.registriert || imGespraech
-                      ? Icons.phone_in_talk
-                      : Icons.phone_in_talk_outlined,
+                  z.stand == SipgateStand.fremdesTelefon
+                      ? Icons.devices_other
+                      : (z.stand == SipgateStand.registriert || imGespraech
+                          ? Icons.phone_in_talk
+                          : Icons.phone_in_talk_outlined),
                   color: switch (z.stand) {
                     SipgateStand.registriert => imGespraech ? Colors.lightGreenAccent : Colors.greenAccent,
                     SipgateStand.verbindet => Colors.amber,
@@ -1634,6 +1636,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     SipgateStand.fehler =>
                       z.naechsterVersuch == null ? Colors.redAccent : Colors.amber,
                     SipgateStand.aus => null,
+                    // Nicht rot und nicht bernstein: es wird hier nichts
+                    // versucht und nichts ist entzwei.
+                    SipgateStand.fremdesTelefon => Colors.white54,
                   },
                 ),
                 tooltip: switch (z.stand) {
@@ -1647,6 +1652,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   // sagt.
                   SipgateStand.fehler => z.meldung ?? 'sipgate — nicht angemeldet',
                   SipgateStand.aus => 'sipgate — Telefonie',
+                  SipgateStand.fremdesTelefon =>
+                    z.meldung ?? 'sipgate — anderes Gerät telefoniert',
                 },
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => const SipgateScreen(),
@@ -2183,11 +2190,25 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               _menuePunktIcon('website', Icons.public, 'Website — icd360s.de'),
               _menuePunktIcon('mail', Icons.mail_outline, 'E-Mail',
                   zaehler: mailNeu, zaehlerFarbe: Colors.red),
-              // ⚠️ Fax gehört hier hinein, obwohl sipgate es NICHT tut: das
-              // Softphone bleibt der Telefonbreite fern, weil ein Gerät mit SIM
-              // keins braucht. Fax braucht dagegen kein SIP und keine SIM —
-              // es ist ein Dokumentenweg wie E-Mail und auf dem Telefon
-              // genauso nützlich wie am Rechner.
+              // ⚠️ Das Softphone gehoert seit dem 23.08.2026 HIER HINEIN, und
+              // die frueher gegenteilige Begruendung („ein Geraet mit SIM
+              // braucht kein Softphone") war zu kurz gedacht.
+              //
+              // Erstens ist die Leiste nicht nur auf Telefonen schmal: das
+              // Tablet, das die sipgate-Anmeldung traegt, faellt im Hochformat
+              // und erst recht im geteilten Bildschirm unter die 600 dp aus
+              // `ResponsiveLayout.telefonGrenze` — dann verschwand dieser
+              // Knopf ausgerechnet auf dem Geraet, das ihn braucht.
+              //
+              // Zweitens hat jedes Android-Geraet eine Antwort auf die Frage
+              // „telefoniert es hier?" verdient, auch wenn die Antwort nein
+              // lautet. Ohne Eintrag im Menue war der Zustand
+              // `fremdesTelefon` auf Telefonbreite nirgends zu sehen, und der
+              // Hinweis „im Bildschirm ein eigenes Telefon anlegen" zeigte auf
+              // einen Bildschirm, den man von dort nicht erreichen konnte.
+              _menuePunktIcon('sipgate', Icons.phone_in_talk_outlined, 'Telefonie (sipgate)'),
+              // Fax braucht weder SIP noch SIM — ein Dokumentenweg wie E-Mail,
+              // auf dem Telefon genauso nuetzlich wie am Rechner.
               _menuePunktIcon('fax', Icons.fax, 'Fax'),
               // Aus demselben Grund wie Fax: ein Dokumentenweg, der weder SIM
               // noch Bildschirmbreite braucht.
@@ -2296,6 +2317,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ),
         ));
         MailBadgeService().refreshBadge();
+      case 'sipgate':
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const SipgateScreen(),
+        ));
       case 'fax':
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => const SipgateFaxScreen(),
