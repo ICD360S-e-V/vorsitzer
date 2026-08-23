@@ -19,8 +19,12 @@
 define('API_ACCESS', true);
 require_once '../config.php';
 
-// Crypto used by arbeitsagentur_data (same key as arbeitsagentur_data_manage.php)
-define('EK', hash('sha256', 'ICD360S_BehoerdeData_2026_SecureKey!', true));
+// Crypto used by arbeitsagentur_data.
+// Der Schluessel steht mit Absicht NICHT hier: bis 23.08.2026 stand er als
+// Klartext-Passphrase in genau dieser Datei - und dieses Repo ist oeffentlich.
+// Er kommt jetzt aus behoerdeSchluessel() (api/helpers/behoerde_schluessel.php,
+// gespeist aus der PHP-FPM-Pool-Umgebung).
+define('EK', behoerdeSchluessel());
 define('EM', 'aes-256-cbc');
 function dv($e) {
     if (empty($e)) return '';
