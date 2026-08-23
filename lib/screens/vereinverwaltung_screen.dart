@@ -14,6 +14,7 @@ import 'gls_bank_screen.dart';
 import 'paypal_screen.dart';
 import 'github_screen.dart';
 import 'simplefax_screen.dart';
+import 'dmarc_screen.dart';
 import 'vesperkirche_screen.dart';
 import 'ordnungsmassnahmen_screen.dart';
 import 'vereinsinventar_screen.dart';
@@ -241,6 +242,11 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       return SimpleFaxScreen(
         onBack: () => setState(() => _vereinSubview = 'partner'),
         apiService: widget.apiService,
+      );
+    } else if (_vereinSubview == 'dmarc') {
+      return DmarcScreen(
+        apiService: widget.apiService,
+        onBack: () => setState(() => _vereinSubview = 'partner'),
       );
     } else if (_vereinSubview == 'vesperkirche') {
       return VesperkircheScreen(
@@ -492,7 +498,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
               const SizedBox(width: 16),
               Expanded(child: _buildVesperkircheCard()),
               const SizedBox(width: 16),
-              const Expanded(child: SizedBox()),
+              Expanded(child: _buildDmarcCard()),
             ],
           ),
         ],
@@ -517,6 +523,20 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       color: Colors.orange.shade700,
       subtitle: 'Online-Fax, simple-fax.de',
       onTap: () => setState(() => _vereinSubview = 'simplefax'),
+    );
+  }
+
+  /// DMARC ▸ Reporting — die Berichte, die fremde Postfächer über unsere
+  /// Domain schicken. Steht bei den Dienstleistern und nicht bei den Behörden,
+  /// weil die Melder Google, WEB.DE, Yahoo und Microsoft sind: Gegenüber, mit
+  /// denen wir zu tun haben, ohne dass wir sie beauftragt hätten.
+  Widget _buildDmarcCard() {
+    return _buildClickableCard(
+      icon: Icons.verified_user_outlined,
+      title: 'DMARC Reporting',
+      color: Colors.teal.shade700,
+      subtitle: 'E-Mails an dmarc@icd360s.de, Berichte',
+      onTap: () => setState(() => _vereinSubview = 'dmarc'),
     );
   }
 
