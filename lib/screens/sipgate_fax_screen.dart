@@ -556,6 +556,37 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
 
     final proZiel = _dokumente.length;
     final gesamt = proZiel * ziele.length;
+
+    // 🔴 WAS KOSTET DIESES ZIEL — gefragt VOR dem Senden, nicht danach.
+    //
+    // Der Server lehnt Mehrwert- und Satellitennummern von sich aus ab. Hier
+    // geht es um die Fälle dazwischen: 0180 und Ausland sind erlaubt und
+    // kosten Guthaben. Beim Nachsehen am 23.08.2026 standen dort 18,64 € —
+    // eine Zahl, bei der ein Zahlendreher zählt, und seit es mehrere
+    // Empfänger je Sendung gibt, vervielfacht er sich.
+    //
+    // ⚠️ Eine Anfrage mehr vor einem Vorgang, der sich nicht zurückholen
+    // lässt. Fällt sie aus, wird trotzdem gesendet: der Server prüft ohnehin
+    // ein zweites Mal, und ein Netzfehler darf kein Fax verhindern.
+    final warnungen = <String>[];
+    try {
+      final p = await _api.sipgateFaxAction({
+        'action': 'ziel_pruefen',
+        'nummern': [for (final z in ziele) z.nummer],
+      });
+      if (p['success'] == true) {
+        for (final z in ((p['ziele'] as List?) ?? const []).whereType<Map>()) {
+          final w = (z['warnung'] ?? '').toString();
+          if (w.isNotEmpty) warnungen.add('${z['eingabe']}: $w');
+          final g = (z['grund'] ?? '').toString();
+          if (z['erlaubt'] != true && g.isNotEmpty) warnungen.add('${z['eingabe']}: $g');
+        }
+      }
+    } catch (_) {
+      // Kein Grund, das Senden aufzuhalten — der Server prüft noch einmal.
+    }
+    if (!mounted) return;
+
     final bestaetigt = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
@@ -587,6 +618,19 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
                 'Sendebericht — ein Bericht belegt immer nur eine Gegenstelle.',
                 style: TextStyle(fontSize: 12.5, height: 1.35),
               ),
+            ],
+            if (warnungen.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              for (final w in warnungen)
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Icon(Icons.euro_symbol, size: 14, color: F.h(Colors.orange, 800)),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(w,
+                        style: TextStyle(fontSize: 12.5, height: 1.3,
+                            color: F.h(Colors.orange, 900))),
+                  ),
+                ]),
             ],
             const SizedBox(height: 8),
             const Text('Ein gesendetes Fax lässt sich nicht zurückholen.',
@@ -1139,6 +1183,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
   Future<void> _journal() async {
     var mitBerichten = true;
     var richtung = '';
+    var siegeln = false;
     final ok = await showDialog<bool>(
       context: context,
       builder: (d) => StatefulBuilder(
@@ -1175,6 +1220,25 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
                 style: TextStyle(fontSize: 12, height: 1.3),
               ),
             ),
+            // ⚠️ Das Siegel läuft NICHT sofort: der Signierschlüssel liegt
+            // auf dem Server so, dass der Webserver nicht herankommt — genau
+            // deshalb kann ein Einbruch über die Webseite keine Dokumente im
+            // Namen des Vereins siegeln. Ein Cron erledigt es innerhalb
+            // weniger Minuten; darum steht das auch im Untertitel und nicht
+            // erst hinterher in einer Fehlermeldung.
+            CheckboxListTile(
+              value: siegeln,
+              onChanged: (v) => setzen(() => siegeln = v ?? false),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('Digital siegeln'),
+              subtitle: const Text(
+                'Belegt, dass das Dokument von diesem Verein stammt und seither '
+                'unverändert ist. Dauert ein paar Minuten — es wird auf dem '
+                'Server gesiegelt, nicht hier.',
+                style: TextStyle(fontSize: 12, height: 1.3),
+              ),
+            ),
           ]),
           actions: [
             TextButton(onPressed: () => Navigator.pop(d2, false), child: const Text('Abbrechen')),
@@ -1190,11 +1254,18 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
       'action': 'journal',
       if (richtung.isNotEmpty) 'richtung': richtung,
       'mit_berichten': mitBerichten,
+      if (siegeln) 'siegel': true,
       // Berichte anhängen heißt viele Seiten zusammenfügen — das dauert.
     }, timeout: const Duration(seconds: 120));
     if (!mounted) return;
     if (r['success'] != true) {
       _melde(r['message']?.toString() ?? 'Journal nicht erstellbar', fehler: true);
+      return;
+    }
+    if (siegeln) {
+      final auftrag = (r['auftrag_id'] as num?)?.toInt() ?? 0;
+      _melde(r['message']?.toString() ?? 'Zum Siegeln vorgemerkt');
+      if (auftrag > 0) await _siegelAbholen(auftrag);
       return;
     }
     try {
@@ -1207,6 +1278,79 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     }
   }
 
+  /// Wartet auf das gesiegelte Journal und zeigt es dann.
+  ///
+  /// ⚠️ Fragt nach, statt zu blockieren: das Siegeln übernimmt der Cron, der
+  /// alle fünf Minuten läuft. Ein Fortschrittsbalken, der so lange steht, ist
+  /// eine Aufforderung, die App wegzulegen — und dann sieht man das Ergebnis
+  /// nie. Deshalb ein Dialog, den man schließen darf: das Journal bleibt
+  /// dreissig Tage abrufbar.
+  Future<void> _siegelAbholen(int auftrag) async {
+    var laeuft = true;
+    var stand = 'offen';
+    Timer? takt;
+
+    Future<void> fragen(void Function(void Function()) setzen) async {
+      final a = await _api.sipgateFaxAction(
+          {'action': 'siegel', 'was': 'holen', 'auftrag_id': auftrag});
+      if (a['success'] == true) {
+        laeuft = false;
+        takt?.cancel();
+        if (!mounted) return;
+        Navigator.of(context, rootNavigator: true).pop();
+        try {
+          await FileViewerDialog.showFromBytes(
+              context,
+              base64Decode(a['inhalt_b64'].toString()),
+              (a['dateiname'] ?? 'Faxjournal.pdf').toString());
+        } catch (e) {
+          _melde('Gesiegeltes Journal ist beschädigt angekommen: $e', fehler: true);
+        }
+        return;
+      }
+      final neu = (a['stand'] ?? 'offen').toString();
+      if (neu == 'fehler') {
+        laeuft = false;
+        takt?.cancel();
+        if (mounted) setzen(() => stand = 'fehler');
+        return;
+      }
+      if (mounted) setzen(() => stand = neu);
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (d) => StatefulBuilder(builder: (d2, setzen) {
+        takt ??= Timer.periodic(const Duration(seconds: 15), (_) {
+          if (laeuft) fragen(setzen);
+        });
+        return AlertDialog(
+          title: const Text('Journal wird gesiegelt'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (stand != 'fehler') const LinearProgressIndicator(),
+            const SizedBox(height: 12),
+            Text(
+              stand == 'fehler'
+                  ? 'Das Siegeln ist fehlgeschlagen. Das Journal lässt sich '
+                    'weiterhin ungesiegelt erstellen.'
+                  : 'Der Server siegelt im Hintergrund; das dauert bis zu fünf '
+                    'Minuten. Dieses Fenster darf geschlossen werden — das '
+                    'fertige Journal bleibt dreissig Tage abrufbar.',
+              style: const TextStyle(fontSize: 13, height: 1.35),
+            ),
+          ]),
+          actions: [
+            TextButton(
+                onPressed: () { laeuft = false; takt?.cancel(); Navigator.pop(d2); },
+                child: const Text('Schließen')),
+          ],
+        );
+      }),
+    );
+    laeuft = false;
+    takt?.cancel();
+  }
+
   Future<void> _nachsehen(Map<String, dynamic> f) async {
     final r = await _api.sipgateFaxAction({'action': 'stand', 'id': f['id']});
     _melde(r['success'] == true
@@ -1215,29 +1359,126 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     await _laden();
   }
 
-  Future<void> _loeschen(Map<String, dynamic> f) async {
+  /// Ein Fax ins Archiv legen — es wird NICHT mehr gelöscht.
+  ///
+  /// 🔴 Bis zum 23.08.2026 hieß dieser Knopf „Löschen" und tat das auch:
+  /// Zeile weg, Dokument weg, Bericht weg, Miniatur weg, endgültig. Nach 30
+  /// Tagen hat auch sipgate nichts mehr. Ein Griff, und der Nachweis war fort,
+  /// ohne dass irgendwo stand, dass es ihn je gab — bei einem Archiv, das als
+  /// Beweismittel dient, die gefährlichste Eigenschaft überhaupt.
+  ///
+  /// ⚠️ Der Grund ist Pflicht, und zwar serverseitig. Er steht danach im
+  /// Protokoll neben Namen und Zeitpunkt. Ohne ihn wäre das Protokoll eine
+  /// Liste von Vorgängen, die niemand erklären kann.
+  Future<void> _weglegen(Map<String, dynamic> f) async {
+    final grund = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Fax löschen?'),
-        // ⚠️ Der Hinweis ist keine Floskel: bei sipgate ist das Dokument nach
-        // 30 Tagen ohnehin weg, unsere Kopie ist die einzige, die bleibt.
-        content: const Text('Das Dokument wird auch von unserem Server gelöscht. '
-            'sipgate hält seinen Verlauf nur 30 Tage — danach gibt es keine zweite Kopie.'),
+        title: const Text('Ins Archiv legen?'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text(
+            'Das Fax verschwindet aus dem Verlauf, bleibt aber vollständig '
+            'erhalten — Dokument, Sendebericht und Vorschau. Es ist über den '
+            'Filter „Archiv" jederzeit wieder da.\n\n'
+            'Gelöscht wird nichts: Faxe sind Nachweise, und ein Archiv, aus '
+            'dem sich spurlos etwas entfernen lässt, taugt als Nachweis nicht.',
+            style: TextStyle(fontSize: 13, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: grund,
+            autofocus: true,
+            maxLength: 200,
+            decoration: const InputDecoration(
+              labelText: 'Grund',
+              hintText: 'z. B. Fehlversuch, Nummer war falsch',
+              // ⚠️ Kurz gehalten: neben dem Zeichenzähler bleiben auf 360 dp
+              // rund 24 Zeichen, alles darüber schneidet Flutter ab. Beim
+              // Rendern gesehen, nicht vermutet.
+              helperText: 'Kommt ins Protokoll',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
-            onPressed: () => Navigator.pop(c, true),
-            child: const Text('Löschen')),
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Ins Archiv')),
         ],
       ),
     );
+    final text = grund.text.trim();
+    grund.dispose();
     if (ok != true) return;
-    final r = await _api.sipgateFaxAction({'action': 'loeschen', 'id': f['id']});
+    final r = await _api.sipgateFaxAction(
+        {'action': 'loeschen', 'id': f['id'], 'grund': text});
     _melde(r['message']?.toString() ?? '', fehler: r['success'] != true);
-    await _laden();
+    if (r['success'] == true) await _laden();
   }
+
+  Future<void> _zurueckholen(Map<String, dynamic> f) async {
+    final r = await _api.sipgateFaxAction({'action': 'zurueckholen', 'id': f['id']});
+    _melde(r['message']?.toString() ?? '', fehler: r['success'] != true);
+    if (r['success'] == true) await _laden();
+  }
+
+  /// Wer hat wann was mit diesem Fax gemacht — und warum.
+  Future<void> _fahrtenbuch(Map<String, dynamic>? f) async {
+    final r = await _api.sipgateFaxAction({
+      'action': 'protokoll',
+      if (f != null) 'id': f['id'],
+    });
+    if (!mounted) return;
+    if (r['success'] != true) {
+      _melde(r['message']?.toString() ?? 'Protokoll nicht abrufbar', fehler: true);
+      return;
+    }
+    final eintraege = (r['eintraege'] as List?) ?? const [];
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(f == null ? 'Protokoll' : 'Protokoll zu Fax #${f['id']}'),
+        content: SizedBox(
+          width: 520,
+          child: eintraege.isEmpty
+              ? const Text('Keine Einträge.')
+              : SingleChildScrollView(
+                  child: Column(mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    for (final e in eintraege.whereType<Map>())
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('${_protokollWort(e['aktion']?.toString() ?? '')}'
+                              '${f == null ? ' · Fax #${e['fax_id']}' : ''}',
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                          Text('${e['erstellt_am'] ?? ''} · ${e['wer'] ?? ''}',
+                              style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
+                          if ('${e['grund'] ?? ''}'.isNotEmpty)
+                            Text('${e['grund']}',
+                                style: const TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic)),
+                        ]),
+                      ),
+                  ]),
+                ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Schließen'))],
+      ),
+    );
+  }
+
+  String _protokollWort(String a) => switch (a) {
+        'abgelegt'         => 'Ins Archiv gelegt',
+        'zurueckgeholt'    => 'Zurückgeholt',
+        'notiz'            => 'Notiz geändert',
+        'name'             => 'Gegenstelle umbenannt',
+        'vorgang'          => 'Vorgang gesetzt',
+        'vorgang_entfernt' => 'Vorgang entfernt',
+        _                  => a,
+      };
 
   // ---------------------------------------------------------------------------
   //  Darstellung
@@ -1282,6 +1523,11 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
             icon: const Icon(Icons.receipt_long_outlined),
             tooltip: 'Faxjournal — Nachweis zum Vorlegen',
             onPressed: _journal,
+          ),
+          IconButton(
+            icon: const Icon(Icons.history_edu_outlined),
+            tooltip: 'Protokoll — wer hat wann was geändert',
+            onPressed: () => _fahrtenbuch(null),
           ),
           IconButton(
             icon: const Icon(Icons.mark_email_read_outlined),
@@ -1699,6 +1945,9 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           _filterChip('fehler', 'Fehlgeschlagen'),
           _filterChip('zugestellt', 'Zugestellt'),
           _filterChip('ungelesen', 'Neu im Eingang'),
+          // ⚠️ Sichtbar und nicht versteckt: sonst waere das Weglegen doch
+          // wieder ein Verschwinden, nur mit mehr Schritten.
+          _filterChip('archiv', 'Archiv'),
         ]),
       ),
       const SizedBox(height: 8),
@@ -1828,6 +2077,9 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     // ist deren Entscheidung und kann sich ändern.
     final hatBericht = f['hat_bericht'] == true;
     final ungelesen = ein && f['gelesen'] != true;
+    // Weggelegt heisst nicht geloescht — die Zeile taucht nur unter dem Filter
+    // „Archiv" auf, und dort bekommt sie andere Menuepunkte.
+    final imArchiv = (f['abgelegt_am'] ?? '').toString().isNotEmpty;
     // ⚠️ Gemessene Breite, nicht Plattform: die App läuft auch auf einem
     // Android-Tablet, wo `isMobile` wahr wäre, obwohl reichlich Platz ist.
     final schmal = MediaQuery.sizeOf(context).width < 420;
@@ -2007,7 +2259,9 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               'name'     => _nameSetzen(f),
               'gelesen'  => _alsGelesen(f),
               'stand'    => _nachsehen(f),
-              'loeschen' => _loeschen(f),
+              'weglegen'    => _weglegen(f),
+              'zurueckholen'=> _zurueckholen(f),
+              'protokoll'   => _fahrtenbuch(f),
               _          => null,
             },
             itemBuilder: (c) => [
@@ -2061,8 +2315,17 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               if (!ein && (f['session_id'] != null || status == 'in_zustellung'))
                 const PopupMenuItem(value: 'stand',
                     child: ListTile(leading: Icon(Icons.refresh), title: Text('Stand nachsehen'))),
-              const PopupMenuItem(value: 'loeschen',
-                  child: ListTile(leading: Icon(Icons.delete_outline), title: Text('Löschen'))),
+              const PopupMenuItem(value: 'protokoll',
+                  child: ListTile(leading: Icon(Icons.history_edu_outlined),
+                      title: Text('Protokoll'))),
+              if (imArchiv)
+                const PopupMenuItem(value: 'zurueckholen',
+                    child: ListTile(leading: Icon(Icons.unarchive_outlined),
+                        title: Text('Zurück in den Verlauf'))),
+              if (!imArchiv)
+                const PopupMenuItem(value: 'weglegen',
+                    child: ListTile(leading: Icon(Icons.archive_outlined),
+                        title: Text('Ins Archiv legen'))),
             ],
           ),
         ]),

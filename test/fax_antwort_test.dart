@@ -369,4 +369,139 @@ void main() {
       expect(z.single.name, 'Amt');
     });
   });
+
+  // =========================================================================
+  //  Fünfte Runde (23.08.2026) — Beweiswert und Vertragstreue
+  //
+  //  Zeichenketten wörtlich vom Server, geholt nachdem die Änderungen live
+  //  waren.
+  // =========================================================================
+  group('Fünfte Runde (23.08.2026)', () {
+    test('eine weggelegte Zeile ist als solche erkennbar', () {
+      // 🔴 Beim ersten Abgleich mit der ECHTEN Antwort fiel auf, dass
+      // `abgelegt_am` gar nicht mitkam — `sipgateFaxZeile()` gab es nicht
+      // heraus. Der Filter „Archiv" hätte die Zeilen zwar angezeigt, aber das
+      // Menü hätte „Ins Archiv legen" statt „Zurückholen" geboten. Kein
+      // Absturz, nur eine Oberfläche, die das Gegenteil anbietet.
+      final archiv = jsonDecode(
+          '{"id":24,"abgelegt_am":"2026-08-23 11:43:07","hash_stand":"nachgetragen",'
+          '"gegenstelle_name":"ICD360S e.V."}') as Map<String, dynamic>;
+      expect((archiv['abgelegt_am'] ?? '').toString().isNotEmpty, isTrue);
+
+      // Und der Regelfall: der Schlüssel IST da, sein Wert ist null.
+      final normal = jsonDecode('{"id":26,"abgelegt_am":null,"hash_stand":"nachgetragen"}')
+          as Map<String, dynamic>;
+      expect(normal.containsKey('abgelegt_am'), isTrue);
+      expect((normal['abgelegt_am'] ?? '').toString().isNotEmpty, isFalse);
+    });
+
+    test('hash_stand sagt, WAS die Prüfsumme belegt', () {
+      // „nachgetragen" heißt: heute aus der abgelegten Datei gerechnet, also
+      // „seit dem Nachtragen unverändert" — nicht „seit dem Senden". Diesen
+      // Unterschied zu verwischen wäre schlimmer als gar keine Prüfsumme.
+      final z = jsonDecode('{"hash_stand":"nachgetragen"}') as Map<String, dynamic>;
+      expect(z['hash_stand'], 'nachgetragen');
+      expect(['original', 'nachgetragen'].contains(z['hash_stand']), isTrue);
+    });
+
+    test('ziel_pruefen trennt gesperrt, teuer und unauffällig', () {
+      final p = jsonDecode(
+          '{"success":true,"ziele":['
+          '{"eingabe":"073180159737","nummer":"+4973180159737","gueltig":true,'
+          '"erlaubt":true,"warnung":"","grund":""},'
+          '{"eingabe":"0900123456","nummer":"+49900123456","gueltig":true,'
+          '"erlaubt":false,"warnung":"",'
+          '"grund":"Diese Nummer liegt in einem Mehrwert- oder Satellitenbereich (+49900). '
+          'Dorthin faxt dieser Verein nicht — bitte die Nummer pruefen."},'
+          '{"eingabe":"01805123456","nummer":"+491805123456","gueltig":true,'
+          '"erlaubt":true,'
+          '"warnung":"Service-Rufnummer (0180) — die Uebertragung kostet zusaetzlich.",'
+          '"grund":""}]}') as Map<String, dynamic>;
+      final ziele = (p['ziele'] as List).cast<Map<String, dynamic>>();
+      expect(ziele[0]['erlaubt'], isTrue);
+      expect((ziele[0]['warnung'] as String).isEmpty, isTrue);
+      // 0900 wird GESPERRT, nicht gewarnt: ein Fax dorthin ist für diesen
+      // Verein unter keinen Umständen richtig, also gäbe es nichts zu
+      // bestätigen — nur eine Falle für den Tippfehler.
+      expect(ziele[1]['erlaubt'], isFalse);
+      expect(ziele[1]['grund'], contains('+49900'));
+      // 0180 ist erlaubt und kostet: Jobcenter und Krankenkassen benutzen den
+      // Bereich wirklich. Sperren hieße echte Empfänger ausschließen.
+      expect(ziele[2]['erlaubt'], isTrue);
+      expect(ziele[2]['warnung'], contains('0180'));
+    });
+
+    test('eine ungültige Nummer ist weder gültig noch erlaubt', () {
+      final z = jsonDecode(
+          '{"eingabe":"abc","gueltig":false,"erlaubt":false,"warnung":"",'
+          '"grund":"Keine vollstaendige Faxnummer"}') as Map<String, dynamic>;
+      expect(z['gueltig'], isFalse);
+      // ⚠️ `nummer` fehlt hier ganz — der Server setzt den Schlüssel nur bei
+      // einer auflösbaren Nummer. Ein `as String` darauf würfe.
+      expect(z.containsKey('nummer'), isFalse);
+    });
+
+    test('das Protokoll nennt wer, wann und warum', () {
+      final p = jsonDecode(
+          '{"success":true,"eintraege":['
+          '{"id":2,"fax_id":24,"aktion":"zurueckgeholt","wer":"Ionut-Claudiu Duinea",'
+          '"vorher":[],"grund":"","erstellt_am":"2026-08-23 11:30:25"},'
+          '{"id":1,"fax_id":24,"aktion":"abgelegt","wer":"Ionut-Claudiu Duinea",'
+          '"vorher":{"gegenstelle":"+4973180159737","name":"ICD360S e.V.",'
+          '"dateiname":"Fax an +4973180159737.pdf","status":"zugestellt",'
+          '"richtung":"aus","erstellt_am":"2026-08-22 15:21:36"},'
+          '"grund":"PROBE 23.08. — Pruefung des Archivwegs",'
+          '"erstellt_am":"2026-08-23 11:30:25"}]}') as Map<String, dynamic>;
+      final e = (p['eintraege'] as List).cast<Map<String, dynamic>>();
+      expect(e.length, 2);
+      expect(e.last['aktion'], 'abgelegt');
+      expect(e.last['grund'], contains('PROBE'));
+      expect(e.last['wer'], 'Ionut-Claudiu Duinea');
+    });
+
+    test('vorher ist mal Objekt und mal LISTE — niemals blind als Map lesen', () {
+      // ⚠️ Dieselbe PHP-Eigenheit, die 2026-08-05 den Speedtest-Bildschirm
+      // grau gemacht hat: ein leeres PHP-Array wird zu `[]`, also zu einer
+      // JSON-LISTE, nicht zu `{}`. `as Map` darauf gibt nicht null zurück,
+      // sondern wirft — im Release-Build ohne jede Meldung.
+      final p = jsonDecode(
+          '[{"aktion":"zurueckgeholt","vorher":[]},'
+          '{"aktion":"abgelegt","vorher":{"status":"zugestellt"}}]') as List;
+      expect(p[0]['vorher'], isA<List>());
+      expect(p[1]['vorher'], isA<Map>());
+    });
+
+    test('das Siegel läuft asynchron — die Antwort ist eine Auftragsnummer', () {
+      // Der Signierschlüssel liegt so, dass der Webserver nicht herankommt;
+      // gesiegelt wird im Cron. Die Antwort auf `journal` kann deshalb kein
+      // Dokument enthalten.
+      final r = jsonDecode(
+          '{"success":true,"message":"Zum Siegeln vorgemerkt. Das fertige Journal '
+          'steht in wenigen Minuten bereit.","auftrag_id":1,'
+          '"dateiname":"Faxjournal 2026-08-23.pdf","eintraege":17}')
+          as Map<String, dynamic>;
+      expect(r.containsKey('inhalt_b64'), isFalse);
+      expect((r['auftrag_id'] as num).toInt(), greaterThan(0));
+    });
+
+    test('ein noch nicht fertiges Siegel meldet seinen Stand, keinen Fehler', () {
+      final r = jsonDecode('{"success":false,"stand":"offen","message":"Noch nicht fertig"}')
+          as Map<String, dynamic>;
+      expect(r['success'], isFalse);
+      expect(r['stand'], 'offen');
+      // Der Bildschirm unterscheidet daran „warte weiter" von „gib auf".
+      expect(['offen', 'laeuft', 'fehler'].contains(r['stand']), isTrue);
+    });
+
+    test('die abgewiesenen Fälle tragen einen maschinenlesbaren Grund', () {
+      for (final (roh, erwartet) in [
+        ('{"success":false,"message":"…","grund":"gesperrtes_ziel"}', 'gesperrtes_ziel'),
+        ('{"success":false,"message":"…","grund":"unbekannter_typ"}', 'unbekannter_typ'),
+        ('{"success":false,"message":"…","grund":"begruendung_fehlt"}', 'begruendung_fehlt'),
+      ]) {
+        final r = jsonDecode(roh) as Map<String, dynamic>;
+        expect(r['grund'], erwartet);
+      }
+    });
+  });
 }
