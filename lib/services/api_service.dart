@@ -7526,6 +7526,38 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // ── Ämter-Katalog (Tabelle sozialamt_db auf dem Server) ────────────────────
+  // Ersetzt die früher im Code einbetonierte Liste. Leeres [q] liefert den
+  // ganzen Katalog (max. 200), sonst wird über Name, PLZ/Ort, Straße,
+  // Zuständigkeit und Bundesland gesucht.
+  Future<Map<String, dynamic>> searchSozialamtDatenbank([String q = '']) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/sozialamt_manage.php?action=datenbank&q=${Uri.encodeComponent(q)}'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> addSozialamtDatenbank(Map<String, dynamic> amt) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_manage.php'), headers: _headers,
+        body: jsonEncode({'action': 'db_add', ...amt})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> updateSozialamtDatenbank(int id, Map<String, dynamic> amt) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_manage.php'), headers: _headers,
+        body: jsonEncode({'action': 'db_update', 'id': id, ...amt})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Legt das Amt still (aktiv = 0). Es wird bewusst nicht gelöscht: an einem
+  /// Amt hängen Anträge und Korrespondenz, die sonst ins Leere zeigen.
+  Future<Map<String, dynamic>> deleteSozialamtDatenbank(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_manage.php'), headers: _headers,
+        body: jsonEncode({'action': 'db_delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> listSozialamtAntraege(int userId) async {
     final r = await _client.get(Uri.parse('$baseUrl/admin/sozialamt_antraege.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }

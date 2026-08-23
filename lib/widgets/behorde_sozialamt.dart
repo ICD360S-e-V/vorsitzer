@@ -47,10 +47,33 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
   bool _loaded = false;
   Set<String> _checkedDocsGlobal = {};
 
+  /// Ämter-Katalog vom Server (Tabelle `sozialamt_db`). Früher stand hier eine
+  /// `static const`-Liste im Code — jedes neue Amt hätte ein Release gebraucht.
+  List<Map<String, dynamic>> _aemter = [];
+  String? _aemterFehler;
+
   @override
   void initState() {
     super.initState();
     _loadFromDB();
+    _ladeAemter();
+  }
+
+  /// Holt den Katalog. Schlägt das fehl, bleibt die gespeicherte Auswahl
+  /// trotzdem lesbar: die Karte zeigt, was am Mitglied hinterlegt ist, nicht
+  /// was im Katalog steht.
+  Future<void> _ladeAemter([String q = '']) async {
+    if (widget.apiService == null) return;
+    final r = await widget.apiService!.searchSozialamtDatenbank(q);
+    if (!mounted) return;
+    setState(() {
+      if (r['success'] == true && r['results'] is List) {
+        _aemter = (r['results'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _aemterFehler = null;
+      } else {
+        _aemterFehler = (r['message'] ?? 'Ämter-Katalog nicht erreichbar').toString();
+      }
+    });
   }
 
   Future<void> _loadFromDB() async {
@@ -118,7 +141,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
         TabBar(
           labelColor: F.h(Colors.indigo, 700),
           unselectedLabelColor: F.h(Colors.grey, 600),
-          indicatorColor: Colors.indigo.shade700,
+          indicatorColor: F.h(Colors.indigo, 700),
           isScrollable: true,
           tabs: [
             Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_b('behoerde')['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Zuständige Behörde')])),
@@ -136,7 +159,14 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
   Widget _buildBehoerdeTab() {
     final d = _b('behoerde');
     final selected = d['name']?.toString() ?? '';
-    final sel = _sozialamtListe.where((s) => s['name'] == selected).firstOrNull;
+    // Erst das, was am Mitglied gespeichert ist, dann der Katalog als Nachschlag
+    // für Felder, die es beim Speichern noch nicht gab (Fax, E-Mail, Quelle).
+    final katalog = _aemter.where((a) => a['name'] == selected).firstOrNull;
+    String feld(String k) {
+      final v = d[k]?.toString() ?? '';
+      if (v.isNotEmpty) return v;
+      return katalog?[k]?.toString() ?? '';
+    }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -150,6 +180,15 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
             onPressed: () => _showBehoerdeSelectDialog(d),
           ),
         ]),
+        if (_aemterFehler != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Row(children: [
+              Icon(Icons.cloud_off, size: 14, color: F.h(Colors.orange, 800)),
+              const SizedBox(width: 6),
+              Expanded(child: Text('Ämter-Katalog: $_aemterFehler', style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800)))),
+            ]),
+          ),
         const SizedBox(height: 12),
         if (selected.isEmpty)
           Container(
@@ -169,58 +208,50 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
             decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.indigo, 300))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(selected, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 900))),
-              if (sel != null) ...[
-                const SizedBox(height: 6),
-                _infoRow(Icons.location_on, '${sel['adresse']}, ${sel['plz_ort']}'),
-                _infoRow(Icons.phone, sel['telefon'] ?? ''),
-                _infoRow(Icons.access_time, sel['oeffnungszeiten'] ?? ''),
-                _infoRow(Icons.info, sel['zustaendigkeit'] ?? ''),
-              ],
+              const SizedBox(height: 6),
+              _infoRow(Icons.location_on, [feld('adresse'), feld('plz_ort')].where((e) => e.isNotEmpty).join(', ')),
+              _infoRow(Icons.phone, feld('telefon')),
+              // Fax bekommt bewusst kein Telefon-Icon: `phoneAwareText` würde
+              // daraus eine Wählfläche machen, und ein angerufenes Faxgerät
+              // pfeift nur zurück.
+              _infoRow(Icons.print, feld('fax')),
+              _infoRow(Icons.mail_outline, feld('email')),
+              _infoRow(Icons.language, feld('website')),
+              _infoRow(Icons.access_time, feld('oeffnungszeiten')),
+              _infoRow(Icons.info, feld('zustaendigkeit')),
+              if (feld('fax').isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('Für dieses Amt ist keine Faxnummer hinterlegt.',
+                      style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: F.h(Colors.orange, 800))),
+                ),
+              if (katalog != null && (katalog['geprueft_am']?.toString() ?? '').isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('Katalogstand: ${_fmtIsoDate(katalog['geprueft_am'].toString())}',
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+                ),
             ]),
           ),
       ]),
     );
   }
 
-  void _showBehoerdeSelectDialog(Map<String, dynamic> d) {
-    showDialog(
+  Future<void> _showBehoerdeSelectDialog(Map<String, dynamic> d) async {
+    if (widget.apiService == null) return;
+    final gewaehlt = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: Row(children: [
-          Icon(Icons.search, color: F.h(Colors.indigo, 700)),
-          const SizedBox(width: 8),
-          const Text('Sozialamt auswählen'),
-        ]),
-        content: SizedBox(
-          width: 500, height: 400,
-          child: ListView(children: _sozialamtListe.map((s) {
-            return InkWell(
-              onTap: () {
-                setState(() { d['name'] = s['name']; d['adresse'] = s['adresse']; d['plz_ort'] = s['plz_ort']; d['telefon'] = s['telefon']; d['oeffnungszeiten'] = s['oeffnungszeiten']; });
-                _save();
-                Navigator.pop(ctx);
-              },
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 300))),
-                child: Row(children: [
-                  Icon(Icons.account_balance, size: 20, color: F.h(Colors.indigo, 600)),
-                  const SizedBox(width: 10),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(s['name']!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 900))),
-                    Text('${s['adresse']}, ${s['plz_ort']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
-                    Text(s['zustaendigkeit']!, style: TextStyle(fontSize: 10, color: Colors.indigo.shade400, fontStyle: FontStyle.italic)),
-                  ])),
-                ]),
-              ),
-            );
-          }).toList()),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
-      ),
+      builder: (ctx) => _AmtAuswahlDialog(apiService: widget.apiService!),
     );
+    if (gewaehlt == null || !mounted) return;
+    setState(() {
+      for (final k in ['name', 'adresse', 'plz_ort', 'telefon', 'fax', 'email', 'website', 'oeffnungszeiten', 'zustaendigkeit']) {
+        d[k] = gewaehlt[k]?.toString() ?? '';
+      }
+      d['amt_id'] = gewaehlt['id']?.toString() ?? '';
+    });
+    _save();
+    _ladeAemter();
   }
 
   Widget _infoRow(IconData icon, String text) {
@@ -335,11 +366,6 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
     );
   }
 
-  static const _sozialamtListe = [
-    {'name': 'Landratsamt Neu-Ulm — Soziale Leistungen', 'adresse': 'Albrecht-Berblinger-Str. 6', 'plz_ort': '89231 Neu-Ulm', 'telefon': '0731 7040-52020', 'oeffnungszeiten': 'Mo–Mi 07:30–12:30, Do 07:30–17:30, Fr 07:30–12:30', 'zustaendigkeit': 'Sozialhilfe, Grundsicherung, Blindengeld'},
-    {'name': 'LRA Neu-Ulm — Außenstelle Illertissen', 'adresse': 'Ulmer Straße 20', 'plz_ort': '89257 Illertissen', 'telefon': '07303 9006-0', 'oeffnungszeiten': 'Mo–Mi 07:30–12:30, Do 07:30–17:30, Fr 07:30–12:30', 'zustaendigkeit': 'Südlicher Landkreis'},
-    {'name': 'Stadt Ulm — Soziales', 'adresse': 'Zeitblomstraße 28', 'plz_ort': '89073 Ulm', 'telefon': '0731 161-5101', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00, Di+Do 14:00–16:00', 'zustaendigkeit': 'Sozialhilfe, Grundsicherung, Wohngeld, BuT'},
-  ];
 
 }
 
@@ -444,7 +470,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     return DefaultTabController(length: 5, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(color: Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+        decoration: BoxDecoration(color: F.h(Colors.indigo, 700), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
         child: Row(children: [
           const Icon(Icons.description, color: Colors.white, size: 22), const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -454,7 +480,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
         ]),
       ),
-      TabBar(labelColor: F.h(Colors.indigo, 700), indicatorColor: Colors.indigo.shade700, isScrollable: true, tabs: const [
+      TabBar(labelColor: F.h(Colors.indigo, 700), indicatorColor: F.h(Colors.indigo, 700), isScrollable: true, tabs: const [
         Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
         Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
         Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
@@ -536,7 +562,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
               Row(children: [
                 Checkbox(
                   value: isChecked,
-                  activeColor: Colors.green.shade700,
+                  activeColor: F.h(Colors.green, 700),
                   onChanged: (v) {
                     setState(() {
                       if (v == true) {
@@ -600,7 +626,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
                     InkWell(onTap: () async {
                       await widget.apiService.deleteAntragDoc(d['id'] as int);
                       _load();
-                    }, child: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400)),
+                    }, child: Icon(Icons.delete_outline, size: 14, color: F.h(Colors.red, 400))),
                   ]),
                 )),
             ]),
@@ -639,12 +665,12 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _verlauf.length, itemBuilder: (_, i) { final v = _verlauf[i];
           return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.indigo, 200))),
             child: Row(children: [
-              Icon(Icons.circle, size: 10, color: Colors.indigo.shade400), const SizedBox(width: 8),
+              Icon(Icons.circle, size: 10, color: F.h(Colors.indigo, 400)), const SizedBox(width: 8),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))), if ((v['status']?.toString() ?? '').isNotEmpty) ...[const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.indigo, 100), borderRadius: BorderRadius.circular(6)), child: Text(v['status'].toString(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))))]]),
                 if ((v['notiz']?.toString() ?? '').isNotEmpty) Text(v['notiz'].toString(), style: const TextStyle(fontSize: 12)),
               ])),
-              IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteAntragVerlauf(v['id'] as int); _load(); }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
+              IconButton(icon: Icon(Icons.delete_outline, size: 16, color: F.h(Colors.red, 400)), onPressed: () async { await widget.apiService.deleteAntragVerlauf(v['id'] as int); _load(); }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
             ]));
         })),
     ]);
@@ -654,9 +680,9 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
         Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
-        FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)), style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+        FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)), style: FilledButton.styleFrom(backgroundColor: F.h(Colors.green, 600), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: () => _addKorr('eingang')), const SizedBox(width: 6),
-        FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)), style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+        FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)), style: FilledButton.styleFrom(backgroundColor: F.h(Colors.blue, 600), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: () => _addKorr('ausgang')),
       ])),
       Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
@@ -668,7 +694,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
                 Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? F.h(Colors.green, 800) : F.h(Colors.blue, 800))),
                 Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ])),
-              IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteAntragKorrespondenz(k['id'] as int); _load(); }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
+              IconButton(icon: Icon(Icons.delete_outline, size: 16, color: F.h(Colors.red, 400)), onPressed: () async { await widget.apiService.deleteAntragKorrespondenz(k['id'] as int); _load(); }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
             ]));
         })),
     ]);
@@ -772,10 +798,10 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
           const SizedBox(width: 8),
           Expanded(child: Text('${ok ? 'Bewilligt' : 'Abgelehnt'}${(b['bescheid_datum']?.toString() ?? '').isNotEmpty ? ' • ${b['bescheid_datum']}' : ''}${(b['aktenzeichen']?.toString() ?? '').isNotEmpty ? ' • Az. ${b['aktenzeichen']}' : ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(headColor, 800)))),
           IconButton(icon: Icon(Icons.edit, size: 18, color: F.h(Colors.grey, 700)), tooltip: 'Bearbeiten', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _showForm(existing: b)),
-          IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: _delete),
+          IconButton(icon: Icon(Icons.delete_outline, size: 18, color: F.h(Colors.red, 400)), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: _delete),
         ]),
       ),
-      TabBar(labelColor: F.h(Colors.green, 700), unselectedLabelColor: F.h(Colors.grey, 600), indicatorColor: Colors.green.shade700, isScrollable: true, tabs: const [
+      TabBar(labelColor: F.h(Colors.green, 700), unselectedLabelColor: F.h(Colors.grey, 600), indicatorColor: F.h(Colors.green, 700), isScrollable: true, tabs: const [
         Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Bescheid'),
         Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
         Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
@@ -924,7 +950,7 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
               'existing' => 'Gespeichert · Weiterbewilligung-Ticket #$tid bereits angelegt',
               _ => 'Gespeichert',
             };
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.indigo.shade600, duration: const Duration(seconds: 4)));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: F.h(Colors.indigo, 600), duration: const Duration(seconds: 4)));
           }
           _load();
         }, child: Text(isEdit ? 'Speichern' : 'Hinzufügen')),
@@ -999,13 +1025,13 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
   Widget _buildWbaCard() {
     final t = _wbaTicket!;
     final (Color chipColor, String chipText, Color cardColor, Color cardBorder, String headline) = switch (_wbaAction) {
-      'updated'  => (Colors.orange.shade100, 'Aktualisiert',     Colors.orange.shade50, Colors.orange.shade300, 'Weiterbewilligung-Ticket aktualisiert'),
-      'existing' => (Colors.teal.shade100,   'Bereits angelegt', Colors.teal.shade50,   Colors.teal.shade300,   'Weiterbewilligung-Ticket ist gesetzt'),
-      'created'  => (Colors.green.shade100,  'Neu erstellt',     Colors.indigo.shade50, Colors.indigo.shade300, 'Weiterbewilligung-Ticket erstellt'),
-      _          => (Colors.blue.shade100,   'Aktiv',            Colors.indigo.shade50, Colors.indigo.shade300, 'Weiterbewilligung-Erinnerung geplant'),
+      'updated'  => (F.h(Colors.orange, 100), 'Aktualisiert',     F.h(Colors.orange, 50), F.h(Colors.orange, 300), 'Weiterbewilligung-Ticket aktualisiert'),
+      'existing' => (F.h(Colors.teal, 100),   'Bereits angelegt', F.h(Colors.teal, 50),   F.h(Colors.teal, 300),   'Weiterbewilligung-Ticket ist gesetzt'),
+      'created'  => (F.h(Colors.green, 100),  'Neu erstellt',     F.h(Colors.indigo, 50), F.h(Colors.indigo, 300), 'Weiterbewilligung-Ticket erstellt'),
+      _          => (F.h(Colors.blue, 100),   'Aktiv',            F.h(Colors.indigo, 50), F.h(Colors.indigo, 300), 'Weiterbewilligung-Erinnerung geplant'),
     };
-    final textColor = switch (_wbaAction) { 'updated' => Colors.orange.shade800, 'existing' => Colors.teal.shade800, _ => Colors.indigo.shade800 };
-    final iconColor = switch (_wbaAction) { 'updated' => Colors.orange.shade700, 'existing' => Colors.teal.shade700, _ => Colors.indigo.shade700 };
+    final textColor = switch (_wbaAction) { 'updated' => F.h(Colors.orange, 800), 'existing' => F.h(Colors.teal, 800), _ => F.h(Colors.indigo, 800) };
+    final iconColor = switch (_wbaAction) { 'updated' => F.h(Colors.orange, 700), 'existing' => F.h(Colors.teal, 700), _ => F.h(Colors.indigo, 700) };
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: cardBorder, width: 1.5)),
@@ -1131,7 +1157,7 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
                       }
                     }
                   }),
-                  IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
+                  IconButton(icon: Icon(Icons.delete_outline, size: 18, color: F.h(Colors.red, 400)), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
                     await widget.apiService.deleteBewilligungDoc(d['id'] as int);
                     _load();
                   }),
@@ -1243,7 +1269,7 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
       return Center(child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.warning, size: 48, color: Colors.orange.shade300),
+          Icon(Icons.warning, size: 48, color: F.h(Colors.orange, 300)),
           const SizedBox(height: 8),
           Text('Kein Bescheid-Datum vorhanden', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 600))),
           const SizedBox(height: 4),
@@ -1320,7 +1346,7 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
       if (erhaltenAm != null)
         _timelineItem(Icons.local_post_office, 'Per Post erhalten', fmt(erhaltenAm), Colors.teal, true)
       else
-        _timelineItem(Icons.local_post_office, 'Bekanntgabe (Fiktion: +3 Tage)', fmt(bekanntgabe), Colors.teal.shade300, true, subtitle: '§ 37 Abs. 2 SGB X: Gilt als am 3. Tag nach Aufgabe zur Post zugestellt'),
+        _timelineItem(Icons.local_post_office, 'Bekanntgabe (Fiktion: +3 Tage)', fmt(bekanntgabe), F.h(Colors.teal, 300), true, subtitle: '§ 37 Abs. 2 SGB X: Gilt als am 3. Tag nach Aufgabe zur Post zugestellt'),
       _timelineItem(
         fristAbgelaufen ? Icons.cancel : Icons.gavel,
         'Widerspruchsfrist endet',
@@ -1582,5 +1608,303 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
       const SizedBox(width: 8),
       Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
     ]));
+  }
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// ÄMTER-KATALOG (Tabelle sozialamt_db)
+// Auswahl mit Suche + Pflege. Der Katalog lag früher als `static const` im
+// Code; ein neues Amt kostete damit ein Release beider Apps.
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _AmtAuswahlDialog extends StatefulWidget {
+  final ApiService apiService;
+  const _AmtAuswahlDialog({required this.apiService});
+  @override
+  State<_AmtAuswahlDialog> createState() => _AmtAuswahlDialogState();
+}
+
+class _AmtAuswahlDialogState extends State<_AmtAuswahlDialog> {
+  final _suche = TextEditingController();
+  List<Map<String, dynamic>> _treffer = [];
+  bool _laedt = true;
+  String? _fehler;
+
+  @override
+  void initState() { super.initState(); _laden(); }
+  @override
+  void dispose() { _suche.dispose(); super.dispose(); }
+
+  Future<void> _laden() async {
+    setState(() { _laedt = true; _fehler = null; });
+    final r = await widget.apiService.searchSozialamtDatenbank(_suche.text.trim());
+    if (!mounted) return;
+    setState(() {
+      _laedt = false;
+      if (r['success'] == true && r['results'] is List) {
+        _treffer = (r['results'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      } else {
+        _fehler = (r['message'] ?? 'Katalog nicht erreichbar').toString();
+      }
+    });
+  }
+
+  Future<void> _bearbeiten([Map<String, dynamic>? amt]) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _AmtBearbeitenDialog(apiService: widget.apiService, amt: amt),
+    );
+    if (ok == true) _laden();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: Row(children: [
+        Icon(Icons.search, color: F.h(Colors.indigo, 700)),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Sozialamt auswählen')),
+        IconButton(
+          tooltip: 'Neues Amt anlegen',
+          icon: const Icon(Icons.add_circle_outline),
+          onPressed: () => _bearbeiten(),
+        ),
+      ]),
+      content: SizedBox(
+        width: 520, height: 460,
+        child: Column(children: [
+          TextField(
+            controller: _suche,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Name, PLZ, Ort oder Straße',
+              prefixIcon: const Icon(Icons.search, size: 18),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _laden(),
+          ),
+          const SizedBox(height: 8),
+          Expanded(child: _laedt
+              ? const Center(child: CircularProgressIndicator())
+              : _fehler != null
+                  ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.cloud_off, size: 40, color: F.h(Colors.orange, 300)),
+                      const SizedBox(height: 8),
+                      Text(_fehler!, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
+                      const SizedBox(height: 8),
+                      OutlinedButton(onPressed: _laden, child: const Text('Nochmal')),
+                    ]))
+                  : _treffer.isEmpty
+                      ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Icon(Icons.account_balance_outlined, size: 40, color: F.h(Colors.grey, 300)),
+                          const SizedBox(height: 8),
+                          Text('Kein Amt gefunden', style: TextStyle(color: F.h(Colors.grey, 600))),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: () => _bearbeiten({'name': _suche.text.trim()}),
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('Dieses Amt anlegen'),
+                          ),
+                        ]))
+                      : ListView.builder(
+                          itemCount: _treffer.length,
+                          itemBuilder: (_, i) => _zeile(_treffer[i]),
+                        )),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+      ],
+    );
+  }
+
+  Widget _zeile(Map<String, dynamic> a) {
+    final fax = (a['fax']?.toString() ?? '').trim();
+    final mail = (a['email']?.toString() ?? '').trim();
+    return InkWell(
+      onTap: () => Navigator.pop(context, a),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 300))),
+        child: Row(children: [
+          Icon(Icons.account_balance, size: 20, color: F.h(Colors.indigo, 600)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(a['name']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 900))),
+            Text('${a['adresse'] ?? ''}, ${a['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+            if ((a['zustaendigkeit']?.toString() ?? '').isNotEmpty)
+              Text(a['zustaendigkeit'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 400), fontStyle: FontStyle.italic)),
+            const SizedBox(height: 4),
+            // Fax und E-Mail als Marke: beim Auswählen soll man sofort sehen,
+            // ob man dem Amt überhaupt etwas schicken kann.
+            Wrap(spacing: 6, runSpacing: 4, children: [
+              _marke(Icons.print, fax.isEmpty ? 'kein Fax' : fax, fax.isEmpty),
+              _marke(Icons.mail_outline, mail.isEmpty ? 'keine E-Mail' : mail, mail.isEmpty),
+            ]),
+          ])),
+          IconButton(
+            tooltip: 'Bearbeiten',
+            icon: Icon(Icons.edit, size: 18, color: F.h(Colors.grey, 600)),
+            onPressed: () => _bearbeiten(a),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _marke(IconData icon, String text, bool fehlt) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: fehlt ? F.h(Colors.orange, 50) : F.h(Colors.green, 50),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: fehlt ? F.h(Colors.orange, 200) : F.h(Colors.green, 200)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 11, color: fehlt ? F.h(Colors.orange, 800) : F.h(Colors.green, 800)),
+          const SizedBox(width: 3),
+          Text(text, style: TextStyle(fontSize: 10, color: fehlt ? F.h(Colors.orange, 800) : F.h(Colors.green, 800))),
+        ]),
+      );
+}
+
+class _AmtBearbeitenDialog extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic>? amt;
+  const _AmtBearbeitenDialog({required this.apiService, this.amt});
+  @override
+  State<_AmtBearbeitenDialog> createState() => _AmtBearbeitenDialogState();
+}
+
+class _AmtBearbeitenDialogState extends State<_AmtBearbeitenDialog> {
+  static const _kategorien = ['sozialamt', 'sozialraum', 'landratsamt', 'jobcenter', 'sonstige'];
+  final _c = <String, TextEditingController>{};
+  String _kategorie = 'sozialamt';
+  bool _speichert = false;
+  String? _fehler;
+
+  int get _id => int.tryParse(widget.amt?['id']?.toString() ?? '') ?? 0;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final f in ['name', 'adresse', 'plz_ort', 'bundesland', 'telefon', 'fax', 'email', 'website', 'oeffnungszeiten', 'zustaendigkeit', 'quelle']) {
+      _c[f] = TextEditingController(text: widget.amt?[f]?.toString() ?? '');
+    }
+    final k = widget.amt?['kategorie']?.toString() ?? '';
+    if (_kategorien.contains(k)) _kategorie = k;
+  }
+
+  @override
+  void dispose() { for (final c in _c.values) { c.dispose(); } super.dispose(); }
+
+  Future<void> _speichern() async {
+    if (_c['name']!.text.trim().isEmpty) { setState(() => _fehler = 'Name ist Pflicht'); return; }
+    setState(() { _speichert = true; _fehler = null; });
+    final daten = <String, dynamic>{'kategorie': _kategorie};
+    for (final e in _c.entries) { daten[e.key] = e.value.text.trim(); }
+    final r = _id > 0
+        ? await widget.apiService.updateSozialamtDatenbank(_id, daten)
+        : await widget.apiService.addSozialamtDatenbank(daten);
+    if (!mounted) return;
+    if (r['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      // Der Grund muss auf den Schirm. Ein stilles Zurücksetzen sieht aus wie
+      // „gespeichert" und die Nummer fehlt später beim Faxen.
+      setState(() { _speichert = false; _fehler = (r['message'] ?? 'Speichern fehlgeschlagen').toString(); });
+    }
+  }
+
+  Future<void> _stilllegen() async {
+    final sicher = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Amt stilllegen?'),
+      content: const Text('Das Amt verschwindet aus der Auswahl. Gelöscht wird nichts — '
+          'bereits erfasste Anträge und Korrespondenz bleiben lesbar.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Stilllegen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (sicher != true) return;
+    final r = await widget.apiService.deleteSozialamtDatenbank(_id);
+    if (!mounted) return;
+    if (r['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      setState(() => _fehler = (r['message'] ?? 'Nicht möglich').toString());
+    }
+  }
+
+  Widget _feld(String schluessel, String label, {IconData? icon, int zeilen = 1, TextInputType? tastatur, String? hinweis}) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: TextField(
+          controller: _c[schluessel],
+          maxLines: zeilen,
+          keyboardType: tastatur,
+          decoration: InputDecoration(
+            isDense: true,
+            labelText: label,
+            helperText: hinweis,
+            helperMaxLines: 2,
+            prefixIcon: icon == null ? null : Icon(icon, size: 18),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: Text(_id > 0 ? 'Amt bearbeiten' : 'Neues Amt'),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _feld('name', 'Name des Amts *', icon: Icons.account_balance),
+            DropdownButtonFormField<String>(
+              initialValue: _kategorie,
+              decoration: InputDecoration(isDense: true, labelText: 'Art', border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
+              items: _kategorien.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(),
+              onChanged: (v) => setState(() => _kategorie = v ?? 'sozialamt'),
+            ),
+            const SizedBox(height: 10),
+            _feld('adresse', 'Straße und Hausnummer', icon: Icons.location_on),
+            _feld('plz_ort', 'PLZ und Ort', icon: Icons.markunread_mailbox),
+            _feld('bundesland', 'Bundesland', icon: Icons.map_outlined),
+            _feld('telefon', 'Telefon', icon: Icons.phone, tastatur: TextInputType.phone),
+            _feld('fax', 'Fax', icon: Icons.print, tastatur: TextInputType.phone,
+                hinweis: 'Nur eintragen, was das Amt selbst veröffentlicht — eine geratene Nummer landet bei Fremden.'),
+            _feld('email', 'E-Mail', icon: Icons.mail_outline, tastatur: TextInputType.emailAddress),
+            _feld('website', 'Website', icon: Icons.language, tastatur: TextInputType.url),
+            _feld('oeffnungszeiten', 'Öffnungszeiten', icon: Icons.access_time, zeilen: 2),
+            _feld('zustaendigkeit', 'Zuständigkeit', icon: Icons.info_outline, zeilen: 3),
+            _feld('quelle', 'Quelle (Link)', icon: Icons.link,
+                hinweis: 'Woher stammen die Angaben? Ohne Quelle kann später niemand prüfen, ob sie noch stimmen.'),
+            if (_fehler != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(_fehler!, style: const TextStyle(fontSize: 12, color: Colors.red)),
+              ),
+          ]),
+        ),
+      ),
+      actions: [
+        if (_id > 0)
+          TextButton(onPressed: _speichert ? null : _stilllegen, child: const Text('Stilllegen', style: TextStyle(color: Colors.red))),
+        TextButton(onPressed: _speichert ? null : () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        ElevatedButton(
+          onPressed: _speichert ? null : _speichern,
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+          child: _speichert
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Text('Speichern'),
+        ),
+      ],
+    );
   }
 }
