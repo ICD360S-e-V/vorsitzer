@@ -164,6 +164,65 @@ SipgateAnmeldeFolge sipgateAnmeldeFolge(
 /// Tabletwechsel soll kein Release brauchen.
 bool sipgateDarfAnmelden({required bool geteilt}) => !geteilt;
 
+/// Die Kennung, mit der sich diese App bei sipgate anmeldet.
+///
+/// ⚠️ Muss zeichengleich zu `SIPGATE_EIGENER_USER_AGENT` in
+/// `api/sipgate/sipgate_lib.php` bleiben. Weicht sie ab, haelt der Bildschirm
+/// die eigene Anmeldung fuer ein fremdes Softphone und warnt vor etwas, das in
+/// Ordnung ist. Der Server schickt seinen Wert deshalb mit, statt dass hier
+/// jemand raet — siehe [sipgateTelefonLage].
+const String sipgateEigenerUserAgent = 'ICD360S-Vorsitzer';
+
+/// Was ueber ein VoIP-Telefon gerade zu sagen ist.
+enum SipgateTelefonLage {
+  /// Angemeldet, und zwar mit unserer App. Alles in Ordnung.
+  bereit,
+
+  /// Angemeldet — aber die Anmeldung haelt ein fremdes Softphone. Unsere App
+  /// ist es nicht, ein Auftrag mit `wahlweg: sipgate` scheitert also.
+  fremdesGeraet,
+
+  /// Angemeldet, steht aber bei sipgate auf „nicht stoeren". Es klingelt
+  /// nichts.
+  ///
+  /// ⚠️ Dafuer gab es in der App bisher KEIN Zeichen. Ein eingehender Anruf
+  /// waere schlicht nie angekommen, und niemand haette gewusst warum.
+  nichtStoeren,
+
+  /// Nicht angemeldet. Ein Anruf ueber sipgate wuerde scheitern.
+  abgemeldet,
+
+  /// Wir wissen es nicht — der Zustand wurde noch nie geholt, oder sipgate war
+  /// nicht erreichbar. **Nicht** dasselbe wie „abgemeldet".
+  unbekannt,
+}
+
+/// Ordnet die drei Angaben von sipgate zu einer Aussage.
+///
+/// ⚠️ DIE REIHENFOLGE IST DIE AUSSAGE.
+/// Ist ueberhaupt nichts bekannt, wird nichts behauptet. Danach entscheidet,
+/// was den Anruf tatsaechlich verhindert: erst „gar nicht angemeldet", dann
+/// „angemeldet, aber nicht unsere App" (dann kann unser Auftrag nicht wirken),
+/// erst danach „nicht stoeren". Ein `dnd` auf einer fremden Anmeldung zu
+/// melden hiesse, den zweiten Grund zu nennen und den ersten zu verschweigen.
+SipgateTelefonLage sipgateTelefonLage({
+  required bool? online,
+  required bool? dnd,
+  required String? userAgent,
+  String eigenerUserAgent = sipgateEigenerUserAgent,
+}) {
+  if (online == null) return SipgateTelefonLage.unbekannt;
+  if (!online) return SipgateTelefonLage.abgemeldet;
+  // Leer heisst: angemeldet, aber sipgate nennt keine Kennung. Das ist kein
+  // Grund, ein fremdes Geraet zu behaupten.
+  final ua = userAgent?.trim() ?? '';
+  if (ua.isNotEmpty && ua != eigenerUserAgent) {
+    return SipgateTelefonLage.fremdesGeraet;
+  }
+  if (dnd == true) return SipgateTelefonLage.nichtStoeren;
+  return SipgateTelefonLage.bereit;
+}
+
 /// Der Text am Telefonsymbol in der Kopfleiste.
 ///
 /// ⚠️ HIER DARF NICHTS UEBER EIN GESPRAECH STEHEN, UND DAS IST DER ZWECK
