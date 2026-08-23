@@ -2161,10 +2161,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ),
         ],
       ),
-      // Mobile: Bottom navigation bar for quick access
-      bottomNavigationBar: isMobile
-          ? _buildMobileBottomNav()
-          : const LegalFooter(darkMode: true),
+      // Navigation läuft ausschließlich über die Seitenleiste (auf dem Telefon
+      // als Schublade hinter dem Hamburger). Hier unten steht nur noch der
+      // rechtliche Fuß.
+      bottomNavigationBar: const LegalFooter(darkMode: true),
     );
   }
 
@@ -2436,61 +2436,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       case 'abmelden':
         await _logout();
     }
-  }
-
-  /// Mobile bottom navigation bar
-  Widget _buildMobileBottomNav() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        BottomNavigationBar(
-          // Clamp la [0, 7] fiindcă BottomNavigationBar are 8 items dar
-          // _selectedMenuIndex poate fi până la 14 (Arbeitswochen via drawer).
-          // Index out-of-bounds triggers assertion failure în debug și
-          // undefined behavior în release Android → touch dispatch rupt.
-          currentIndex: _selectedMenuIndex.clamp(0, 7),
-          onTap: (index) => setState(() => _selectedMenuIndex = index),
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFF4a90d9),
-          unselectedItemColor: Colors.grey,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard),
-              label: 'Dashboard',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.people),
-              label: 'Benutzer',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.confirmation_number),
-              label: 'Tickets',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_month),
-              label: 'Termine',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.business),
-              label: 'Verein',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.location_city),
-              label: 'Netzwerk',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.account_balance_wallet),
-              label: 'Finanzen',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart),
-              label: 'Statistik',
-            ),
-          ],
-        ),
-        const LegalFooter(darkMode: true),
-      ],
-    );
   }
 
   Widget _buildMainContent() {
