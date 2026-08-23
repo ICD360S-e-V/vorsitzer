@@ -3355,7 +3355,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         return;
       }
       final fileName = file['file_name']?.toString() ?? 'leistungsbescheid';
-      final tmp = await File('${Directory.systemTemp.path}/$fileName').create(recursive: true);
+      final tmp = await File('${(await getTemporaryDirectory()).path}/$fileName').create(recursive: true);
       await tmp.writeAsBytes(response.bodyBytes);
       await OpenFilex.open(tmp.path);
     } catch (e) {

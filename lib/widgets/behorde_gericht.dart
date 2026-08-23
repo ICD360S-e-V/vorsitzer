@@ -4534,7 +4534,7 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       // im Speicher, muss also kurz abgelegt werden — im temporären
       // Verzeichnis der App und mit `finally` wieder weg. Es wandert ohnehin
       // gleich in die Chat-Ablage, ist also keine neue Offenlegung.
-      temp = File('${Directory.systemTemp.path}/'
+      temp = File('${(await getTemporaryDirectory()).path}/'
           'vollmacht_$id${istUebersetzt ? '_$sprache' : ''}.pdf');
       await temp.writeAsBytes(r.bodyBytes, flush: true);
       final res = await widget.apiService.uploadChatAttachments(
