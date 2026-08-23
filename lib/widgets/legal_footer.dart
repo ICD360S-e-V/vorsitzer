@@ -183,8 +183,27 @@ class _LegalFooterState extends State<LegalFooter> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final textColor = widget.darkMode ? F.h(Colors.grey, 400) : F.h(Colors.grey, 600);
 
+    // Die App zeichnet randlos (`SystemUiMode.edgeToEdge`, main.dart), das
+    // System schiebt also nichts mehr über die Navigationsleiste. Als
+    // `bottomNavigationBar` ist diese Zeile das unterste Bauteil des
+    // Bildschirms — ohne den Zuschlag lägen Version, Aktualisierungsknopf und
+    // Weblink unter den drei Systemtasten: weder lesbar noch antippbar.
+    //
+    // Der Zuschlag gehört INNEN an den eingefärbten Container: so reicht die
+    // Fläche bis zur Bildschirmkante durch und das System legt seinen Schleier
+    // auf unseren Hintergrund statt auf eine Lücke. `MailQuotaBar` erreicht
+    // dasselbe mit `SafeArea(top: false)` — hier wäre eine SafeArea nur mit
+    // ebendiesem `top: false` richtig, weil `padding.top` an dieser Stelle noch
+    // die Statusleiste meldet und oben 48 dp aufrisse.
+    //
+    // `paddingOf`, nicht `viewPaddingOf`: bei offener Tastatur hebt das
+    // Scaffold diese Leiste über die Tastatur, die Systemleiste liegt dann
+    // nicht mehr darunter. Im Login-Bildschirm steht der Fuß in einer SafeArea,
+    // die den Wert bereits verbraucht hat; beide Male kommt 0 heraus.
+    final systemleiste = MediaQuery.paddingOf(context).bottom;
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + systemleiste),
       decoration: BoxDecoration(
         color: widget.darkMode ? const Color(0xFF1a1a2e) : F.h(Colors.grey, 100),
         border: Border(
