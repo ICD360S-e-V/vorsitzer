@@ -458,7 +458,10 @@ class AaAutoLoginService {
         }
         if (!totpFilling) {
           totpFilling = true;
-          log('filling TOTP — input.id=' + (totpInput.id || '?') + ' name=' + (totpInput.name || '?') + ' code=' + TOTP);
+          // Sicherheit: den TOTP-Code NIE loggen (OWASP Logging Cheat Sheet —
+          // 2FA/Credentials gehören nicht ins Log, auch nicht gekürzt). Nur
+          // vorhanden/fehlt fürs Diagnose-Signal.
+          log('filling TOTP — input.id=' + (totpInput.id || '?') + ' name=' + (totpInput.name || '?') + ' (code ' + (TOTP ? 'vorhanden' : 'fehlt') + ')');
           // Type per character cu keydown/keyup pentru Keycloak validators
           const typeChar = (el, ch) => {
             el.focus();
