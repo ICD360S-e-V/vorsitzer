@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
-import 'package:flutter/services.dart';
+import '../utils/sicher_clipboard.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
@@ -3442,7 +3442,7 @@ class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
               icon: const Icon(Icons.copy, size: 20),
               tooltip: 'Code kopieren',
               onPressed: () {
-                Clipboard.setData(ClipboardData(text: _currentCode!));
+                SicherClipboard.kopiere(_currentCode!);
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Code kopiert'), duration: Duration(seconds: 1)));
               },
             ),

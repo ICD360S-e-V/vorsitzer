@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import '../utils/sicher_clipboard.dart';
 import 'package:otp/otp.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
@@ -1121,7 +1121,7 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
 
   void _copyCode() {
     if (_currentCode.isEmpty) return;
-    Clipboard.setData(ClipboardData(text: _currentCode));
+    SicherClipboard.kopiere(_currentCode);
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
       content: Text('Code kopiert'),
       duration: Duration(seconds: 1),
@@ -1422,7 +1422,7 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
                   icon: const Icon(Icons.content_copy, size: 18),
                   tooltip: 'Alle kopieren',
                   onPressed: () {
-                    Clipboard.setData(ClipboardData(text: _recoveryCodes));
+                    SicherClipboard.kopiere(_recoveryCodes);
                     ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
                       content: Text('In die Zwischenablage kopiert'),
                       duration: Duration(seconds: 1),

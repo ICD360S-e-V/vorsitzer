@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../services/phone_call_service.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import '../utils/sicher_clipboard.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -5628,7 +5629,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           ),
           InkWell(
             onTap: () {
-              Clipboard.setData(ClipboardData(text: hash));
+              SicherClipboard.kopiere(hash);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Vollständiger Hash kopiert'), duration: Duration(seconds: 1)),
               );
