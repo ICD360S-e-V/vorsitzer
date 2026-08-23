@@ -26,7 +26,7 @@ int? faxUngeleseneAusAntwort(Map<String, dynamic> antwort) {
 ///
 /// ⚠️ WARUM ES DAS BRAUCHT
 /// Eingehende Faxe holt ein Cron alle fünf Minuten von sipgate ab und meldet
-/// sie per ntfy. Wer die Meldung wegwischt oder das Telefon stummgeschaltet
+/// sie per ntfy (bis zum 22.08.2026 waren es zehn — siehe `taktweite`). Wer die Meldung wegwischt oder das Telefon stummgeschaltet
 /// hat, erfährt vom Fax **gar nichts** — in der App selbst gab es kein
 /// einziges Zeichen dafür. Und sipgate löscht seinen Verlauf nach 30 Tagen.
 ///
@@ -53,10 +53,26 @@ class FaxBadgeService {
   /// nginx-Log). Zehn Minuten sind sechs Anfragen in der Stunde, und die
   /// Gegenseite ist ein `COUNT(*)` auf einem Index.
   ///
-  /// ⚠️ Länger als beim Postfach (fünf Minuten), weil der abholende Cron
-  /// selbst nur alle fünf Minuten läuft — schneller zu fragen könnte gar
-  /// nichts Neues finden.
-  static const Duration taktweite = Duration(minutes: 10);
+  /// 🔴 DIESE BEGRÜNDUNG WAR FALSCH — nachgemessen am 22.08.2026.
+  ///
+  /// Hier stand: „Länger als beim Postfach (fünf Minuten), weil der abholende
+  /// Cron selbst nur alle fünf Minuten läuft — schneller zu fragen könnte gar
+  /// nichts Neues finden." Der Cron lief in Wahrheit alle **zehn**: in der
+  /// crontab stand 3,13,23,33,43,53, und auch sein eigener Kopfkommentar
+  /// nannte fälschlich fünf. Zehn Minuten Abholen plus zehn Minuten Fragen
+  /// heißt, ein eingegangenes Fax konnte **zwanzig Minuten** brauchen, bis es
+  /// in der App auftauchte — bei einer laufenden Frist die falsche Größe.
+  ///
+  /// Der Cron steht jetzt wirklich auf fünf Minuten (3,8,13,…,58), und diese
+  /// Zahl folgt ihm. Schlimmster Fall damit zehn statt zwanzig Minuten, und
+  /// Postfach und Fax fragen im selben Takt.
+  ///
+  /// ⚠️ Die Sorge dahinter bleibt richtig und ist der Grund, warum daraus
+  /// kein Dauer-Polling wird: die App hat sich schon einmal über Nacht am
+  /// Dauertakt leergezogen (5.176 Anfragen/h im nginx-Log). Zwölf Anfragen je
+  /// Stunde sind kein Dauertakt, und die Gegenseite ist ein Zählen auf einem
+  /// Index.
+  static const Duration taktweite = Duration(minutes: 5);
 
   /// Läuft, solange das Dashboard steht.
   void start() {
@@ -74,7 +90,7 @@ class FaxBadgeService {
   ///
   /// ⚠️ Eigene Aktion `ungelesen`, nicht `list`. `list` entschlüsselt vier
   /// Felder je Zeile und fragt zweimal das Dateisystem; für eine Zahl, die
-  /// sechsmal in der Stunde geholt wird, wäre das Arbeit für nichts.
+  /// zwölfmal in der Stunde geholt wird, wäre das Arbeit für nichts.
   Future<void> aktualisieren() async {
     if (_laeuft) return;
     _laeuft = true;
@@ -83,7 +99,7 @@ class FaxBadgeService {
       if (res['success'] != true) {
         // ⚠️ Kein Fehler im Log, wenn schlicht kein Fax-Zugang eingerichtet
         // ist: das ist der Normalzustand vor der Einrichtung und würde sonst
-        // sechsmal je Stunde eine Warnung schreiben.
+        // zwölfmal je Stunde eine Warnung schreiben.
         final grund = '${res['message'] ?? ''}';
         if (!grund.contains('Zugang')) {
           _log.warning('Fax-Abzeichen nicht lesbar: $grund', tag: 'FAX');

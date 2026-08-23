@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/screens/fax_nummer_waehlen_screen.dart';
+import 'package:icd360sev_vorsitzer/screens/sipgate_fax_screen.dart';
 import 'package:icd360sev_vorsitzer/services/fax_badge_service.dart';
 
 /// Gegen die ECHTE Antwort des Servers, nicht gegen eine nachgebaute.
@@ -254,6 +255,118 @@ void main() {
       expect(nachgetragen()['ocr_stand'], 'leer');
       final offen = Map<String, dynamic>.from(nachgetragen())..['ocr_stand'] = null;
       expect(offen['ocr_stand'], isNull);
+    });
+  });
+
+  // =========================================================================
+  //  Vierte Runde (22.08.2026)
+  //
+  //  Zeichenketten wörtlich vom Server geholt, nachdem die Änderungen live
+  //  waren — nicht von Hand nachgebaut.
+  // =========================================================================
+  group('Vierte Runde (22.08.2026)', () {
+    // Echte Antwort auf {"action":"list","limit":1,"richtung":"ein"},
+    // gekürzt auf die Felder dieser Runde.
+    final zeile = jsonDecode(
+        '{"id":7,"richtung":"ein","gegenstelle":"+4973180159737",'
+        '"gegenstelle_name":"ICD360S e.V.","status":"empfangen",'
+        '"hat_dokument":true,"hat_bericht":false,"bezug_text":"","notiz":"",'
+        '"ocr_auszug":"16.08.26 23:17:10 Seite 1 von 1","ocr_zeichen":31,'
+        '"ocr_stand":"erkannt","gelesen":true,"sync_offen":false,'
+        '"gruppe_von":0,"gruppe_pos":0,"wiederholung_von":null}')
+        as Map<String, dynamic>;
+
+    test('der Volltext ist NICHT mehr in der Zeile', () {
+      // 🔴 Bis zum 22.08.2026 ging `ocr_text` in jeder Zeile mit — im Schnitt
+      // 2.365 Zeichen je Fax, über 40 kB für den ganzen Bestand — und der
+      // Bildschirm hat ihn kein einziges Mal angefasst. Der Anriss ersetzt
+      // ihn; der ganze Text kommt über die eigene Aktion `volltext`.
+      expect(zeile.containsKey('ocr_text'), isFalse);
+      expect(zeile['ocr_auszug'], '16.08.26 23:17:10 Seite 1 von 1');
+      expect(zeile['ocr_zeichen'], 31);
+    });
+
+    test('ocr_zeichen entscheidet, ob der Menüpunkt erscheint', () {
+      // Ein Punkt, der verlässlich „nichts erkannt" antwortet, ist einer, den
+      // man einmal probiert und danach nie wieder.
+      expect((zeile['ocr_zeichen'] as num).toInt() > 0, isTrue);
+      final leer = jsonDecode('{"ocr_auszug":"","ocr_zeichen":0,"ocr_stand":"leer"}')
+          as Map<String, dynamic>;
+      expect((leer['ocr_zeichen'] as num).toInt() > 0, isFalse);
+    });
+
+    test('sync_offen sagt, ob der Stand schon bei sipgate steht', () {
+      expect(zeile['sync_offen'], isFalse);
+    });
+
+    test('Guthaben kommt fertig gerechnet — die Einheit war die Falle', () {
+      // 🔴 sipgate antwortet mit {"amount":186378}. Das sind NICHT 1.863,78 €,
+      // sondern 18,64 € — die Referenzanwendung von sipgate selbst teilt durch
+      // 10000. Der Server rechnet um; hier kommt nur noch der fertige Text an.
+      final status = jsonDecode(
+          '{"success":true,"eingerichtet":true,"faxline_id":"f0",'
+          '"absender":"+4973180159737","live":true,'
+          '"guthaben":18.64,"guthaben_text":"18,64 €",'
+          '"guthaben_knapp":false,"sync_offen":0}') as Map<String, dynamic>;
+      expect(status['guthaben_text'], '18,64 €');
+      expect(status['guthaben_knapp'], isFalse);
+      expect((status['guthaben'] as num) < 20, isTrue,
+          reason: 'wer den Rohwert für Cent hält, liest das Hundertfache');
+    });
+
+    test('knappes Guthaben ist eine Aussage des Servers, keine Rechnung hier', () {
+      final status =
+          jsonDecode('{"guthaben":3.5,"guthaben_text":"3,50 €","guthaben_knapp":true}')
+              as Map<String, dynamic>;
+      expect(status['guthaben_knapp'], isTrue);
+    });
+
+    test('volltext liefert Text und Zeichenzahl', () {
+      final v = jsonDecode(
+          '{"success":true,"id":22,"text":"TELEFAX an 0731 9679413",'
+          '"zeichen":23,"ocr_stand":"erkannt"}') as Map<String, dynamic>;
+      expect(v['text'], startsWith('TELEFAX'));
+      expect(v['zeichen'], 23);
+    });
+
+    test('bezug_setzen weist eine halbe Vorgangskennung ab', () {
+      // Typ ohne Kennung wäre eine Verknüpfung, die der Filter nie anfasst,
+      // in der Zeile aber aussieht wie eine, die gilt.
+      final r = jsonDecode('{"success":false,"message":"Vorgangskennung unvollstaendig"}')
+          as Map<String, dynamic>;
+      expect(r['success'], isFalse);
+    });
+  });
+
+  group('Entwurf: gemerkte Empfänger', () {
+    test('liest die gespeicherte Liste', () {
+      final z = faxZieleAusEntwurf(jsonDecode(
+          '[{"nummer":"+497311759175","name":"Jobcenter Neu-Ulm"},'
+          '{"nummer":"+4973140018200","name":""}]'));
+      expect(z.length, 2);
+      expect(z.first.nummer, '+497311759175');
+      expect(z.first.name, 'Jobcenter Neu-Ulm');
+      expect(z.last.name, '');
+    });
+
+    test('ein Entwurf aus einer älteren Fassung darf nicht werfen', () {
+      // ⚠️ Der Entwurf kommt aus dem Speicher des Geräts. Was dort liegt, hat
+      // womöglich eine Fassung geschrieben, die es so nicht mehr gibt — und
+      // ein Absturz beim Öffnen des Faxbildschirms wäre der schlechteste aller
+      // Ausgänge.
+      expect(faxZieleAusEntwurf(null), isEmpty);
+      expect(faxZieleAusEntwurf('kaputt'), isEmpty);
+      expect(faxZieleAusEntwurf(jsonDecode('{"nummer":"123"}')), isEmpty);
+      expect(faxZieleAusEntwurf(jsonDecode('[42,"x",null]')), isEmpty);
+    });
+
+    test('Einträge ohne Nummer fallen raus — gefaxt wird die Nummer', () {
+      final z = faxZieleAusEntwurf(jsonDecode(
+          '[{"name":"nur ein Name"},{"nummer":"  ","name":"leer"},'
+          '{"nummer":" +49301 ","name":" Amt "}]'));
+      expect(z.length, 1);
+      expect(z.single.nummer, '+49301');
+      expect(z.single.name, 'Amt');
     });
   });
 }

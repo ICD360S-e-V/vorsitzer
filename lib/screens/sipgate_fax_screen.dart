@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart' show FileType;
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api_service.dart';
 import '../services/fax_badge_service.dart';
@@ -12,6 +13,26 @@ import '../utils/file_picker_helper.dart';
 import '../widgets/file_viewer_dialog.dart';
 import 'fax_nummer_waehlen_screen.dart';
 import '../utils/app_farben.dart';
+
+/// Die gemerkten Empfänger aus einem gespeicherten Entwurf.
+///
+/// ⚠️ Frei stehend und nicht in der Zustandsklasse, damit sie ohne
+/// Bildschirm geprüft werden kann. Ein Entwurf kommt aus dem Speicher des
+/// Geräts, also aus einer Quelle, die eine ältere Fassung geschrieben haben
+/// kann — was nicht passt, wird übergangen statt zu werfen. Ein Absturz beim
+/// Öffnen des Faxbildschirms wegen eines alten Entwurfs wäre der schlechteste
+/// aller Ausgänge.
+List<FaxZiel> faxZieleAusEntwurf(dynamic roh) {
+  if (roh is! List) return const [];
+  final raus = <FaxZiel>[];
+  for (final e in roh) {
+    if (e is! Map) continue;
+    final nr = (e['nummer'] ?? '').toString().trim();
+    if (nr.isEmpty) continue;
+    raus.add(FaxZiel(nr, (e['name'] ?? '').toString().trim()));
+  }
+  return raus;
+}
 
 /// Ein Dokument, das mitgefaxt werden soll.
 class FaxAnhang {
@@ -85,18 +106,114 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
   final Map<int, Uint8List?> _miniaturen = {};
   final Set<int> _miniaturLaeuft = {};
 
+  /// Weitere Empfänger neben dem, der gerade im Feld steht.
+  ///
+  /// 🔴 WARUM ES DAS BRAUCHT
+  /// Dieselbe Mitteilung geht regelmäßig an mehr als eine Stelle — Jobcenter
+  /// und Familienkasse, Praxis und Krankenkasse. Bisher hieß das: alles
+  /// zweimal tippen und die Dokumente zweimal auswählen, und wer beim zweiten
+  /// Mal unterbrochen wird, hat die Hälfte verschickt und weiß es nicht.
+  ///
+  /// ⚠️ Jeder Empfänger wird ein EIGENER Vorgang, kein gemeinsamer. Der
+  /// Gruppenschlüssel fasst zusammen, was zusammen an EINEN Empfänger ging;
+  /// ein Sendebericht gilt immer nur für eine Gegenstelle. Zwei Empfänger in
+  /// einen Vorgang zu werfen hieße, im Verlauf eine Zustellung zu behaupten,
+  /// die für den anderen nie belegt wurde.
+  List<FaxZiel> _weitereZiele = [];
+
   /// Damit das Sendefeld sichtbar wird, wenn „Antworten" es füllt.
   final ScrollController _blaettern = ScrollController();
+
+  /// Schlüssel des Entwurfs.
+  ///
+  /// ⚠️ NUR TEXT, NIE DOKUMENTE. Die gewählten PDFs bleiben im Speicher —
+  /// derselbe Grund, aus dem dieser Bildschirm ein angesehenes Fax nicht in
+  /// den Temp-Ordner legt: ein Faxentwurf enthält Widersprüche und Atteste,
+  /// und was auf der Platte liegt, überlebt die Sitzung und landet in
+  /// Sicherungen. Wer die App neu startet, muss die Datei erneut wählen —
+  /// das ist der Preis, und er ist richtig herum bezahlt.
+  static const String _entwurfKey = 'fax_entwurf_v1';
+  Timer? _entwurfSpeichern;
 
   @override
   void initState() {
     super.initState();
+    _entwurfLaden();
+    for (final c in [_empfaenger, _name, _betreff, _nachricht, _aktenzeichen]) {
+      c.addListener(_entwurfAnstossen);
+    }
     _laden(live: true);
+  }
+
+  /// ⚠️ Entprellt. Ohne das schriebe jede Taste in den Speicher — bei einer
+  /// 900 Zeichen langen Nachricht neunhundert Schreibvorgänge.
+  void _entwurfAnstossen() {
+    _entwurfSpeichern?.cancel();
+    _entwurfSpeichern = Timer(const Duration(milliseconds: 600), _entwurfSichern);
+  }
+
+  Future<void> _entwurfSichern() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final leer = _empfaenger.text.trim().isEmpty &&
+          _name.text.trim().isEmpty &&
+          _betreff.text.trim().isEmpty &&
+          _nachricht.text.trim().isEmpty &&
+          _aktenzeichen.text.trim().isEmpty &&
+          _weitereZiele.isEmpty;
+      if (leer) { await p.remove(_entwurfKey); return; }
+      await p.setString(_entwurfKey, jsonEncode({
+        'empfaenger': _empfaenger.text,
+        'name': _name.text,
+        'betreff': _betreff.text,
+        'nachricht': _nachricht.text,
+        'aktenzeichen': _aktenzeichen.text,
+        'deckblatt': _deckblatt,
+        'ziele': [for (final z in _weitereZiele) {'nummer': z.nummer, 'name': z.name}],
+      }));
+    } catch (_) {
+      // Ein nicht gespeicherter Entwurf ist ein Ärgernis, kein Fehler, den
+      // man dem Menschen mitten im Tippen melden müsste.
+    }
+  }
+
+  Future<void> _entwurfLaden() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final roh = p.getString(_entwurfKey);
+      if (roh == null || roh.isEmpty) return;
+      final d = jsonDecode(roh);
+      if (d is! Map) return;
+      if (!mounted) return;
+      setState(() {
+        _empfaenger.text = (d['empfaenger'] ?? '').toString();
+        _name.text = (d['name'] ?? '').toString();
+        _betreff.text = (d['betreff'] ?? '').toString();
+        _nachricht.text = (d['nachricht'] ?? '').toString();
+        _aktenzeichen.text = (d['aktenzeichen'] ?? '').toString();
+        _deckblatt = d['deckblatt'] == true;
+        _weitereZiele = faxZieleAusEntwurf(d['ziele']);
+      });
+    } catch (_) {
+      // Ein unlesbarer Entwurf wird verworfen, nicht gemeldet.
+    }
+  }
+
+  Future<void> _entwurfVerwerfen() async {
+    _entwurfSpeichern?.cancel();
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.remove(_entwurfKey);
+    } catch (_) {}
   }
 
   @override
   void dispose() {
     _sucheEntprellen?.cancel();
+    _entwurfSpeichern?.cancel();
+    for (final c in [_empfaenger, _name, _betreff, _nachricht, _aktenzeichen]) {
+      c.removeListener(_entwurfAnstossen);
+    }
     _blaettern.dispose();
     _empfaenger.dispose();
     _name.dispose();
@@ -301,8 +418,13 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
   }
 
   /// Ein einzelnes Dokument abschicken. Gibt die Antwort zurück.
+  ///
+  /// ⚠️ Das Ziel kommt als Parameter, nicht mehr aus dem Eingabefeld. Solange
+  /// es `_empfaenger.text` las, konnte es per Bauart nur einen Empfänger
+  /// geben — und ein zweiter hätte still an den ersten gefaxt.
   Future<Map<String, dynamic>> _einesSenden(
     FaxAnhang anhang, {
+    required FaxZiel ziel,
     required bool mitDeckblatt,
     bool deckblattSeparat = false,
     String gruppe = '',
@@ -313,8 +435,8 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     return _api.sipgateFaxAction({
       'action': 'senden',
       if (trotzdem) 'trotzdem': true,
-      'empfaenger': _empfaenger.text.trim(),
-      'empfaenger_name': _name.text.trim(),
+      'empfaenger': ziel.nummer,
+      'empfaenger_name': ziel.name,
       'dateiname': anhang.name,
       'inhalt_b64': base64Encode(anhang.bytes),
       if (mitDeckblatt) ...{
@@ -334,55 +456,23 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     }, timeout: const Duration(seconds: 90));
   }
 
-  Future<void> _senden() async {
-    if (_dokumente.isEmpty) { _melde('Kein Dokument gewählt', fehler: true); return; }
-    if (_empfaenger.text.trim().isEmpty) { _melde('Keine Empfängernummer', fehler: true); return; }
-
+  /// Alle gewählten Dokumente an EIN Ziel.
+  ///
+  /// ⚠️ Eigener Gruppenschlüssel je Ziel. Der Schlüssel fasst zusammen, was
+  /// gemeinsam an eine Gegenstelle ging; ein Sendebericht gilt immer nur für
+  /// eine. Zwei Empfänger in einen Vorgang zu legen hieße, im Verlauf eine
+  /// Zustellung zu behaupten, die für den zweiten nie belegt wurde.
+  Future<({int erfolge, String meldung})> _anZielSenden(FaxZiel ziel) async {
     final mehrere = _dokumente.length > 1;
-    final bestaetigt = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text(mehrere ? '${_dokumente.length} Faxe jetzt senden?' : 'Fax jetzt senden?'),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('An: ${_empfaenger.text.trim()}'),
-          const SizedBox(height: 6),
-          for (final d in _dokumente) Text('• ${d.name}', style: const TextStyle(fontSize: 13)),
-          if (mehrere) ...[
-            const SizedBox(height: 8),
-            // Der Satz ist keine Floskel: er erklärt, warum gleich mehrere
-            // Zeilen im Verlauf erscheinen und mehrere Berichte kommen.
-            const Text(
-              'sipgate überträgt ein Dokument je Sendung. Die Dateien gehen '
-              'deshalb nacheinander als eigene Faxe — im Verlauf als ein '
-              'Vorgang zusammengefasst, jedes mit eigenem Sendebericht.',
-              style: TextStyle(fontSize: 12.5, height: 1.35),
-            ),
-          ],
-          const SizedBox(height: 8),
-          const Text('Ein gesendetes Fax lässt sich nicht zurückholen.',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Senden')),
-        ],
-      ),
-    );
-    if (bestaetigt != true) return;
-
-    setState(() => _sendet = true);
     var separat = false;
     var erfolge = 0;
-    String letzteMeldung = '';
-    // ⚠️ Der Gruppenschlüssel kommt vom SERVER, nicht von hier: er soll für
-    // alle Teile derselbe sein, und die erste Antwort liefert ihn. Selbst
-    // einen zu würfeln hieße, dem Server ein Format vorzuschreiben, das er
-    // nicht prüft.
     var gruppe = '';
+    var meldung = '';
 
     for (var i = 0; i < _dokumente.length; i++) {
       var r = await _einesSenden(
         _dokumente[i],
+        ziel: ziel,
         // ⚠️ Das Deckblatt gehört nur an das ERSTE Fax. An jedes zu hängen
         // hieße, dem Empfänger dieselbe Ankündigung viermal zu schicken.
         mitDeckblatt: _deckblatt && i == 0,
@@ -404,7 +494,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           context: context,
           builder: (c) => AlertDialog(
             title: const Text('Wurde schon zugestellt'),
-            content: Text('${r['message'] ?? ''}',
+            content: Text('An ${ziel.nummer}\n\n${r['message'] ?? ''}',
                 style: const TextStyle(fontSize: 13.5, height: 1.4)),
             actions: [
               TextButton(
@@ -416,8 +506,8 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
             ],
           ),
         );
-        if (nochmal != true) { letzteMeldung = 'Abgebrochen — war schon zugestellt'; break; }
-        r = await _einesSenden(_dokumente[i],
+        if (nochmal != true) { meldung = 'Abgebrochen — war schon zugestellt'; break; }
+        r = await _einesSenden(_dokumente[i], ziel: ziel,
             mitDeckblatt: _deckblatt && i == 0, deckblattSeparat: separat,
             gruppe: gruppe, pos: mehrere ? i + 1 : 0, von: mehrere ? _dokumente.length : 0,
             trotzdem: true);
@@ -429,21 +519,21 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
       if (r['success'] != true && '${r['grund'] ?? ''}' == 'signiert') {
         if (!mounted) break;
         final weiter = await _siegelFrage();
-        if (weiter == null) { letzteMeldung = 'Abgebrochen'; break; }
+        if (weiter == null) { meldung = 'Abgebrochen'; break; }
         if (weiter) {
           separat = true;
-          r = await _einesSenden(_dokumente[i],
+          r = await _einesSenden(_dokumente[i], ziel: ziel,
               mitDeckblatt: true, deckblattSeparat: true,
               gruppe: gruppe, pos: mehrere ? i + 1 : 0, von: mehrere ? _dokumente.length : 0);
         } else {
           setState(() => _deckblatt = false);
-          r = await _einesSenden(_dokumente[i],
+          r = await _einesSenden(_dokumente[i], ziel: ziel,
               mitDeckblatt: false,
               gruppe: gruppe, pos: mehrere ? i + 1 : 0, von: mehrere ? _dokumente.length : 0);
         }
       }
 
-      letzteMeldung = r['message']?.toString() ?? '';
+      meldung = r['message']?.toString() ?? '';
       if (r['success'] == true) {
         erfolge++;
         final g = '${r['gruppe_key'] ?? ''}';
@@ -456,15 +546,90 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
         break;
       }
     }
+    return (erfolge: erfolge, meldung: meldung);
+  }
+
+  Future<void> _senden() async {
+    if (_dokumente.isEmpty) { _melde('Kein Dokument gewählt', fehler: true); return; }
+    final ziele = _zieleJetzt();
+    if (ziele.isEmpty) { _melde('Keine Empfängernummer', fehler: true); return; }
+
+    final proZiel = _dokumente.length;
+    final gesamt = proZiel * ziele.length;
+    final bestaetigt = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(gesamt > 1 ? '$gesamt Faxe jetzt senden?' : 'Fax jetzt senden?'),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('An:', style: TextStyle(fontWeight: FontWeight.w600)),
+            for (final z in ziele)
+              Text(z.name.isEmpty ? z.nummer : '${z.name} · ${z.nummer}',
+                  style: const TextStyle(fontSize: 13)),
+            const SizedBox(height: 8),
+            const Text('Dokumente:', style: TextStyle(fontWeight: FontWeight.w600)),
+            for (final d in _dokumente) Text('• ${d.name}', style: const TextStyle(fontSize: 13)),
+            if (proZiel > 1) ...[
+              const SizedBox(height: 8),
+              // Der Satz ist keine Floskel: er erklärt, warum gleich mehrere
+              // Zeilen im Verlauf erscheinen und mehrere Berichte kommen.
+              const Text(
+                'sipgate überträgt ein Dokument je Sendung. Die Dateien gehen '
+                'deshalb nacheinander als eigene Faxe — im Verlauf als ein '
+                'Vorgang zusammengefasst, jedes mit eigenem Sendebericht.',
+                style: TextStyle(fontSize: 12.5, height: 1.35),
+              ),
+            ],
+            if (ziele.length > 1) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Jeder Empfänger wird ein eigener Vorgang mit eigenem '
+                'Sendebericht — ein Bericht belegt immer nur eine Gegenstelle.',
+                style: TextStyle(fontSize: 12.5, height: 1.35),
+              ),
+            ],
+            const SizedBox(height: 8),
+            const Text('Ein gesendetes Fax lässt sich nicht zurückholen.',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Senden')),
+        ],
+      ),
+    );
+    if (bestaetigt != true) return;
+
+    setState(() => _sendet = true);
+    var erfolge = 0;
+    var letzteMeldung = '';
+    final gescheitert = <String>[];
+
+    for (final ziel in ziele) {
+      final e = await _anZielSenden(ziel);
+      erfolge += e.erfolge;
+      if (e.meldung.isNotEmpty) letzteMeldung = e.meldung;
+      // ⚠️ Ein Empfänger, bei dem es klemmt, hält die anderen NICHT auf —
+      // anders als bei den Dokumenten eines Vorgangs. Dort hängen die Teile
+      // zusammen; hier sind es getrennte Sendungen an getrennte Stellen, und
+      // dass die Praxis besetzt ist, ist kein Grund, das Jobcenter nicht zu
+      // beliefern. Wer ausfiel, steht am Ende namentlich da.
+      if (e.erfolge < proZiel) {
+        gescheitert.add(ziel.name.isEmpty ? ziel.nummer : ziel.name);
+      }
+      if (!mounted) return;
+    }
 
     if (!mounted) return;
     setState(() => _sendet = false);
 
-    final alle = erfolge == _dokumente.length;
+    final alle = erfolge == gesamt;
     _melde(
       alle
-          ? (mehrere ? '$erfolge Faxe an sipgate übergeben' : letzteMeldung)
-          : 'Nach $erfolge von ${_dokumente.length} abgebrochen: $letzteMeldung',
+          ? (gesamt > 1 ? '$erfolge Faxe an sipgate übergeben' : letzteMeldung)
+          : '$erfolge von $gesamt gesendet. Nicht durchgekommen: '
+            '${gescheitert.join(", ")} — $letzteMeldung',
       fehler: !alle,
     );
     if (erfolge > 0) {
@@ -476,10 +641,60 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           _betreff.clear();
           _nachricht.clear();
           _aktenzeichen.clear();
+          _weitereZiele = [];
         }
       });
+      // ⚠️ Nur wenn wirklich ALLES durch ist. Ist ein Empfänger ausgefallen,
+      // bleibt der Entwurf stehen — sonst müsste man den Text für den zweiten
+      // Versuch noch einmal schreiben, und zwar genau dann, wenn es eilt.
+      if (alle) await _entwurfVerwerfen();
       await _laden();
     }
+  }
+
+  /// Die Empfänger dieser Sendung: die gemerkten plus der, der gerade im Feld
+  /// steht.
+  ///
+  /// ⚠️ Das Feld zählt MIT, ohne dass man es erst „hinzufügen" muss. Der
+  /// häufigste Fall ist ein einziger Empfänger; ihn zu einem Extraschritt zu
+  /// zwingen, damit die Liste einheitlich ist, wäre eine Regel zugunsten des
+  /// Codes.
+  ///
+  /// ⚠️ Doppelte Nummern fallen raus. Wer eine Nummer merkt und sie dann noch
+  /// einmal tippt, will nicht zweimal dasselbe Fax dorthin schicken — und der
+  /// Doppel-Schutz auf dem Server würde beim zweiten Mal nachfragen, was wie
+  /// ein Fehler aussieht.
+  List<FaxZiel> _zieleJetzt() {
+    final raus = <FaxZiel>[];
+    final gesehen = <String>{};
+    void nimm(FaxZiel z) {
+      final schluessel = z.nummer.replaceAll(RegExp(r'\D'), '');
+      if (schluessel.isEmpty || !gesehen.add(schluessel)) return;
+      raus.add(z);
+    }
+    for (final z in _weitereZiele) {
+      nimm(z);
+    }
+    final feld = _empfaenger.text.trim();
+    if (feld.isNotEmpty) nimm(FaxZiel(feld, _name.text.trim()));
+    return raus;
+  }
+
+  /// Den Empfänger aus dem Feld in die Liste übernehmen und das Feld leeren.
+  void _zielMerken() {
+    final nr = _empfaenger.text.trim();
+    if (nr.isEmpty) { _melde('Keine Nummer im Feld', fehler: true); return; }
+    final schluessel = nr.replaceAll(RegExp(r'\D'), '');
+    if (_weitereZiele.any((z) => z.nummer.replaceAll(RegExp(r'\D'), '') == schluessel)) {
+      _melde('Diese Nummer steht schon in der Liste', fehler: true);
+      return;
+    }
+    setState(() {
+      _weitereZiele = [..._weitereZiele, FaxZiel(nr, _name.text.trim())];
+      _empfaenger.clear();
+      _name.clear();
+    });
+    _entwurfAnstossen();
   }
 
   /// Was tun, wenn das Dokument digital gesiegelt ist?
@@ -542,6 +757,100 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     } catch (e) {
       _melde('Sendebericht ist beschädigt angekommen: $e', fehler: true);
     }
+  }
+
+  /// Der erkannte Text, vollständig.
+  ///
+  /// ⚠️ Wird EIGENS geholt. Bis zum 22.08.2026 ging er in jeder Listenzeile
+  /// mit — im Schnitt 2.365 Zeichen je Fax, gut 40 kB für den ganzen Bestand
+  /// — und dieser Bildschirm hat ihn kein einziges Mal angefasst. Jetzt steht
+  /// in der Zeile ein Anriss, und wer weiterlesen will, fragt danach.
+  Future<void> _volltext(Map<String, dynamic> f) async {
+    final r = await _api.sipgateFaxAction({'action': 'volltext', 'id': f['id']});
+    if (!mounted) return;
+    if (r['success'] != true) {
+      _melde(r['message']?.toString() ?? 'Text nicht abrufbar', fehler: true);
+      return;
+    }
+    final text = (r['text'] ?? '').toString();
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Erkannter Text'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: SelectableText(
+              text.isEmpty
+                  ? 'Auf diesem Fax wurde kein Text erkannt.'
+                  : text,
+              style: const TextStyle(fontSize: 13, height: 1.4),
+            ),
+          ),
+        ),
+        actions: [
+          // ⚠️ Der Hinweis gehört dazu und ist keine Bescheidenheitsfloskel:
+          // Texterkennung auf einem Fax liest aus einem 200-dpi-Schwarzweiß-
+          // bild. Wer die Zahl in einem Bescheid aus dieser Anzeige abschreibt
+          // statt aus dem Dokument, schreibt irgendwann eine falsche ab.
+          Padding(
+            padding: const EdgeInsets.only(left: 16, right: 8),
+            child: Text('Maschinell gelesen — verbindlich ist das Dokument.',
+                style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
+          ),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Schließen')),
+        ],
+      ),
+    );
+  }
+
+  /// Einen Vorgang an ein Fax hängen — nachträglich.
+  ///
+  /// 🔴 Das ging bisher gar nicht. `bezug_text` wurde ausschließlich beim
+  /// Senden geschrieben; nachgezählt am 22.08.2026 hatten 15 von 17 Faxen
+  /// keinen Vorgang, und es gab keinen Weg, einen zu setzen. Ein EINGEGANGENES
+  /// Fax konnte per Bauart nie einen haben — und ausgerechnet dort ist
+  /// „wozu gehört das?" die erste Frage.
+  Future<void> _vorgang(Map<String, dynamic> f) async {
+    final c = TextEditingController(text: (f['bezug_text'] ?? '').toString());
+    final neu = await showDialog<String>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Vorgang'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+            controller: c,
+            autofocus: true,
+            maxLength: 200,
+            decoration: const InputDecoration(
+              labelText: 'Bezeichnung',
+              hintText: 'z. B. Widerspruch Jobcenter 08/2026',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          Text(
+            'Steht in der Liste und wird bei der Suche mitgelesen. Leer lassen '
+            'entfernt den Vorgang.',
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: const Text('Abbrechen')),
+          FilledButton(
+              onPressed: () => Navigator.pop(d, c.text.trim()),
+              child: const Text('Speichern')),
+        ],
+      ),
+    );
+    c.dispose();
+    if (neu == null) return;
+    final r = await _api.sipgateFaxAction({
+      'action': 'bezug_setzen',
+      'id': f['id'],
+      'bezug_text': neu,
+    });
+    _melde(r['message']?.toString() ?? '', fehler: r['success'] != true);
+    if (r['success'] == true) await _laden();
   }
 
   /// Holt das Dokument vom Server. Gibt `null` zurück und meldet selbst,
@@ -1071,6 +1380,48 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           _zeile('Token', (_zugang['token_id'] ?? '—').toString()),
           if (_zugang['geprueft_am'] != null)
             _zeile('Zuletzt geprüft', _zugang['geprueft_am'].toString()),
+          // 🔴 DIE EINHEIT WAR DIE FALLE, NICHT DIE ZAHL.
+          //
+          // sipgate antwortet auf `GET /balance` mit `{"amount": 186378}`.
+          // Wer das für Cent hält, liest 1.863,78 € — es sind 18,64 €, ein
+          // Hundertstel davon (die Referenzanwendung von sipgate teilt durch
+          // 10000). Der Unterschied entscheidet, ob die Zahl überhaupt einen
+          // Zweck hat: bei 1.863 € schaut nie wieder jemand hin, bei 18,64 €
+          // ist „reicht das noch?" eine echte Frage. Der Server rechnet um;
+          // hier steht nur noch der fertige Text.
+          if (_zugang['guthaben_text'] != null)
+            _zeile('Guthaben', _zugang['guthaben_text'].toString()),
+          if (_zugang['guthaben_knapp'] == true)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.account_balance_wallet_outlined,
+                    size: 16, color: F.h(Colors.orange, 800)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Das Guthaben wird knapp. Ist es aufgebraucht, weist sipgate '
+                    'die Sendung ab — bei einem fristgebundenen Widerspruch am '
+                    'letzten Tag ist das der Unterschied zwischen zugegangen und '
+                    'nicht zugegangen.',
+                    style: TextStyle(fontSize: 12.5, height: 1.35,
+                        color: F.h(Colors.orange, 900)),
+                  ),
+                ),
+              ]),
+            ),
+          // Wie viele Zeilen noch darauf warten, zu sipgate gespiegelt zu
+          // werden. Ein paar sind harmlos — der Cron holt sie alle fünf
+          // Minuten. Steht die Zahl über Tage, stimmt etwas nicht.
+          if (((_zugang['sync_offen'] as num?)?.toInt() ?? 0) > 5)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                '${_zugang['sync_offen']} Einträge noch nicht zu sipgate '
+                'abgeglichen — dort stehen sie bis dahin als ungelesen.',
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
+              ),
+            ),
           if (live == false && (_zugang['live_fehler'] ?? '').toString().isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -1113,6 +1464,14 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
       ),
     );
   }
+
+  /// Wie viele Sendungen der Knopf auslöst: Dokumente mal Empfänger.
+  ///
+  /// ⚠️ Stand hier vorher nur die Zahl der Dokumente, hieße es „2 Faxe senden"
+  /// bei zwei Dokumenten an drei Stellen — und es wären sechs. Bei etwas, das
+  /// sich nicht zurückholen lässt, muss die Zahl auf dem Knopf die Zahl der
+  /// Sendungen sein.
+  int get _sendezahl => _dokumente.length * _zieleJetzt().length;
 
   Widget _zeile(String k, String v) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
@@ -1176,7 +1535,45 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               border: OutlineInputBorder(),
             ),
           ),
-          const SizedBox(height: 12),
+          // --- weitere Empfänger ------------------------------------------
+          //
+          // 🔴 Bis zum 22.08.2026 ging ein Fax an genau eine Nummer. Dieselbe
+          // Mitteilung an Jobcenter UND Familienkasse hieß: alles zweimal
+          // tippen, die Dokumente zweimal auswählen — und wer dazwischen
+          // unterbrochen wird, hat die Hälfte verschickt und weiß es nicht.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _zielMerken,
+              icon: const Icon(Icons.person_add_alt, size: 18),
+              label: const Text('Weiteren Empfänger hinzufügen'),
+            ),
+          ),
+          if (_weitereZiele.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 2,
+                children: [
+                  for (final z in _weitereZiele)
+                    InputChip(
+                      label: Text(z.name.isEmpty ? z.nummer : z.name,
+                          style: const TextStyle(fontSize: 12.5)),
+                      // Der Name allein ist zu wenig: zwei Stellen können
+                      // denselben Namen tragen, und gefaxt wird die Nummer.
+                      tooltip: z.name.isEmpty ? null : '${z.name} · ${z.nummer}',
+                      avatar: const Icon(Icons.print_outlined, size: 16),
+                      onDeleted: () {
+                        setState(() => _weitereZiele =
+                            _weitereZiele.where((x) => x != z).toList());
+                        _entwurfAnstossen();
+                      },
+                    ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 4),
           OutlinedButton.icon(
             onPressed: _dokumenteWaehlen,
             icon: const Icon(Icons.attach_file),
@@ -1254,8 +1651,8 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
                   : const Icon(Icons.send),
               label: Text(_sendet
                   ? 'Wird übertragen …'
-                  : _dokumente.length > 1
-                      ? '${_dokumente.length} Faxe senden'
+                  : _sendezahl > 1
+                      ? '$_sendezahl Faxe senden'
                       : 'Fax senden'),
             ),
           ),
@@ -1404,8 +1801,8 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     final roh = f['fax_status_type']?.toString();
     final (ikone, farbe) = _statusZeichen(status, roh);
     final ein = f['richtung'] == 'ein';
-    // ⚠️ , nicht . Die Spalte hiess bis zum
-    // 22.08.2026  und trug bei EINGEGANGENEN Faxen die Nummer des
+    // ⚠️ 'gegenstelle', nicht 'empfaenger'. Die Spalte hiess bis zum
+    // 22.08.2026 'empfaenger' und trug bei EINGEGANGENEN Faxen die Nummer des
     // ABSENDERS — ein Feld in beide Richtungen. Der Rückfall auf den alten
     // Schlüssel bleibt, solange der Server beide liefert; er verschwindet mit
     // der übernächsten Fassung.
@@ -1416,6 +1813,10 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     final fehler = (f['fehler'] ?? '').toString();
     final bezugText = (f['bezug_text'] ?? '').toString();
     final notiz = (f['notiz'] ?? '').toString();
+    // Der Anfang des erkannten Textes. Der ganze Text kommt erst auf Verlangen
+    // — siehe `_volltext`.
+    final ocrAuszug = (f['ocr_auszug'] ?? '').toString();
+    final ocrZeichen = (f['ocr_zeichen'] as num?)?.toInt() ?? 0;
     final gruppeVon = (f['gruppe_von'] as num?)?.toInt() ?? 0;
     final gruppePos = (f['gruppe_pos'] as num?)?.toInt() ?? 0;
     final wiederholung = f['wiederholung_von'];
@@ -1537,6 +1938,32 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
                 ),
               ]),
             ),
+          // 🔴 DER ERKANNTE TEXT WAR DA UND WURDE NIE GEZEIGT.
+          //
+          // Er wird seit Wochen erkannt, gespeichert und durchsucht — nur zu
+          // sehen war er nirgends. Bei einem EINGEGANGENEN Fax ist er das
+          // Einzige, was etwas über den Inhalt sagt: Rufnummer und Dateiname
+          // stammen von uns selbst, nicht vom Absender. Ohne diese zwei Zeilen
+          // musste man jedes Fax öffnen, um zu wissen, worum es geht.
+          if (ocrAuszug.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: InkWell(
+                onTap: () => _volltext(f),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Icon(Icons.text_snippet_outlined, size: 12, color: F.h(Colors.grey, 600)),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      ocrAuszug,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11.5, height: 1.3, color: F.h(Colors.grey, 700)),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
           if (fehler.isNotEmpty)
             Text(fehler, style: TextStyle(color: F.h(Colors.red, 700), fontSize: 12)),
         ]),
@@ -1575,6 +2002,8 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               'erneut'   => _erneutSenden(f),
               'antwort'  => _antworten(f),
               'notiz'    => _notiz(f),
+              'vorgang'  => _vorgang(f),
+              'volltext' => _volltext(f),
               'name'     => _nameSetzen(f),
               'gelesen'  => _alsGelesen(f),
               'stand'    => _nachsehen(f),
@@ -1604,6 +2033,20 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
                   child: ListTile(
                       leading: const Icon(Icons.sticky_note_2_outlined),
                       title: Text(notiz.isEmpty ? 'Notiz hinzufügen' : 'Notiz ändern'))),
+              PopupMenuItem(value: 'vorgang',
+                  child: ListTile(
+                      leading: const Icon(Icons.link),
+                      title: Text(bezugText.isEmpty ? 'Vorgang zuordnen' : 'Vorgang ändern'))),
+              // ⚠️ Nur, wenn wirklich Text erkannt wurde. Ein Menüpunkt, der
+              // verlässlich „nichts erkannt" antwortet, ist einer, den man
+              // einmal probiert und danach nie wieder.
+              if (ocrZeichen > 0)
+                PopupMenuItem(value: 'volltext',
+                    child: ListTile(
+                        leading: const Icon(Icons.text_snippet_outlined),
+                        title: const Text('Erkannten Text lesen'),
+                        subtitle: Text('$ocrZeichen Zeichen',
+                            style: const TextStyle(fontSize: 11)))),
               // Eine Gegenstelle, die weder sipgate noch unsere Stammdaten
               // kennen, bleibt sonst für immer eine nackte Rufnummer.
               const PopupMenuItem(value: 'name',
