@@ -17,7 +17,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "de.icd360sev.vorsitzer"
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -43,8 +43,8 @@ android {
 
     defaultConfig {
         applicationId = "de.icd360sev.vorsitzer"
-        minSdk = 24 // Required for WebRTC
-        targetSdk = 36
+        minSdk = 29 // WebRTC braucht >=24; 29 = OWASP/MobSF-Sicherheitsuntergrenze (unter Android 10 keine Patches mehr), keiner unserer aktiven Geraete ist darunter
+        targetSdk = 37
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
