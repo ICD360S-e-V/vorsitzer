@@ -5,6 +5,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 import '../widgets/korrespondenz_message_dialog.dart';
 
 /// DMARC ▸ Reporting — was andere Postfächer über unsere Domain melden.
@@ -54,6 +55,119 @@ Map<String, dynamic> dmarcMap(dynamic roh) {
   return const {}; // eine Liste (auch die leere) ist hier keine Map
 }
 
+/// Erklärt, was DMARC ist — für jemanden, der es nicht wissen muss.
+///
+/// Erreichbar über das Fragezeichen auf der Kachel und im Kopf des Schirms.
+/// ⚠️ Bewusst auf der KACHEL und nicht nur hier drin: wer nicht weiss, was
+/// DMARC ist, tippt die Kachel gar nicht erst an.
+Future<void> dmarcErklaerungZeigen(BuildContext kontext) {
+  return showDialog<void>(
+    context: kontext,
+    builder: (c) => AlertDialog(
+      title: Row(children: [
+        Icon(Icons.verified_user_outlined, size: 22, color: F.h(Colors.teal, 700)),
+        const SizedBox(width: 9),
+        const Expanded(child: Text('Was ist DMARC?', style: TextStyle(fontSize: 17))),
+      ]),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+            _Absatz(
+              'Kurz gesagt',
+              'DMARC ist eine Regel, die wir öffentlich hinterlegen und die '
+              'sagt: „Post, die behauptet, von icd360s.de zu kommen, aber '
+              'unsere Prüfungen nicht besteht, soll abgelehnt werden."\n\n'
+              'Jedes fremde Postfach, das solche Post erhält, hält sich daran '
+              'und schickt uns täglich einen Bericht darüber, was es gesehen '
+              'hat. Diese Berichte stehen hier.',
+            ),
+            _Absatz(
+              'Warum das für den Verein wichtig ist',
+              'Ohne diese Regel kann jeder eine E-Mail schreiben, in der als '
+              'Absender „vorstand@icd360s.de" steht — an unsere Mitglieder, an '
+              'ein Amt, an eine Bank. Der Empfänger sieht keinen Unterschied.\n\n'
+              'Unsere Mitglieder bekommen von uns Post über Vollmachten, '
+              'Termine bei Behörden und Gesundheitsunterlagen. Eine gefälschte '
+              'Mail unter unserem Namen träfe genau die Menschen, die uns am '
+              'meisten vertrauen. DMARC macht so eine Fälschung nicht unmöglich '
+              '— aber sie kommt beim Empfänger nicht mehr an.',
+            ),
+            _Absatz(
+              'Die zwei Prüfungen dahinter',
+              'SPF beantwortet: „Darf dieser Server überhaupt Post für '
+              'icd360s.de verschicken?" Bei uns darf das genau einer, unser '
+              'eigener Mailserver.\n\n'
+              'DKIM beantwortet: „Trägt die Nachricht unsere Unterschrift, und '
+              'ist sie unterwegs unverändert geblieben?" Unser Mailserver '
+              'unterschreibt jede ausgehende Nachricht.\n\n'
+              'DMARC verbindet beide und fügt das Entscheidende hinzu: dass '
+              'der geprüfte Name auch der Name ist, der im Absender steht. '
+              'Eine Nachricht besteht, wenn EINE der beiden Prüfungen passt — '
+              'sonst würde jede weitergeleitete Mail als Fälschung gelten.',
+            ),
+            _Absatz(
+              'Was wir eingestellt haben',
+              'Regel: reject — durchgefallene Post wird abgelehnt, nicht nur '
+              'markiert. Das gilt auch für alle Unteradressen.\n\n'
+              'Berichte gehen an dmarc@icd360s.de. Diese Adresse steht in '
+              'unserem DNS und ist der Grund, warum hier überhaupt etwas '
+              'ankommt.',
+            ),
+            _Absatz(
+              'Wie man die Zahlen liest',
+              '„Bestanden" heisst: die Post war echt von uns.\n\n'
+              '„Durchgefallen" heisst nur, dass weder SPF noch DKIM gepasst '
+              'haben — nicht automatisch, dass jemand uns fälscht. Es gibt '
+              'zwei harmlose Gründe: eine Weiterleitung, die die Nachricht '
+              'unterwegs verändert hat, oder ein eigener Versandweg, den wir '
+              'vergessen haben einzutragen (etwa ein Newsletter-Dienst).\n\n'
+              'Zu klären ist es trotzdem jedes Mal: solange etwas durchfällt, '
+              'kommt Post von uns bei Empfängern nicht an, oder jemand '
+              'verschickt tatsächlich Post unter unserem Namen. Der Blick geht '
+              'zuerst auf die absendende Adresse — ist sie unsere, fehlt ein '
+              'Eintrag; ist sie fremd, ist es eine Fälschung.',
+            ),
+            _Absatz(
+              'Was DMARC nicht tut',
+              'Es schützt nicht die Post, die AN uns geht — nur die, die '
+              'angeblich von uns kommt. Es verschlüsselt nichts, und es sagt '
+              'nichts darüber, ob der Inhalt einer Nachricht stimmt.\n\n'
+              'Und es sehen nur die Postfächer, die überhaupt Berichte '
+              'schicken. Grosse Anbieter tun das; ein kleiner Mailserver in '
+              'einer Behörde meist nicht. Die Zahlen sind deshalb ein '
+              'Ausschnitt, kein vollständiges Bild.',
+            ),
+          ]),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text('Verstanden')),
+      ],
+    ),
+  );
+}
+
+class _Absatz extends StatelessWidget {
+  final String titel;
+  final String text;
+  const _Absatz(this.titel, this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(titel,
+            style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w700, color: F.h(Colors.teal, 700))),
+        const SizedBox(height: 4),
+        Text(text, style: TextStyle(fontSize: 13, height: 1.45, color: F.textSchwach)),
+      ]),
+    );
+  }
+}
+
 class _DmarcScreenState extends State<DmarcScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
@@ -90,22 +204,27 @@ class _DmarcScreenState extends State<DmarcScreen>
             tooltip: 'Zurück zu Partner',
           ),
           const SizedBox(width: 8),
-          Icon(Icons.verified_user_outlined, size: 30, color: Colors.teal.shade700),
+          Icon(Icons.verified_user_outlined, size: 30, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('DMARC Reporting',
+              const Text('DMARC Reporting',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               Text('Berichte an dmarc@icd360s.de',
-                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  style: TextStyle(fontSize: 12, color: F.textLeise)),
             ]),
+          ),
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: 'Was ist DMARC?',
+            onPressed: () => dmarcErklaerungZeigen(context),
           ),
         ]),
       ),
       TabBar(
         controller: _tabs,
-        labelColor: Colors.teal.shade700,
-        indicatorColor: Colors.teal.shade700,
+        labelColor: F.h(Colors.teal, 700),
+        indicatorColor: F.h(Colors.teal, 700),
         tabs: const [
           Tab(icon: Icon(Icons.mail_outline, size: 18), text: 'E-Mails'),
           Tab(icon: Icon(Icons.insights_outlined, size: 18), text: 'Berichte'),
@@ -191,7 +310,7 @@ class _DmarcMailTabState extends State<_DmarcMailTab>
                   ? 'Wird geladen …'
                   : '${_eintraege.length} '
                       '${_eintraege.length == 1 ? "Nachricht" : "Nachrichten"} archiviert',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
             ),
           ),
           IconButton(
@@ -209,13 +328,13 @@ class _DmarcMailTabState extends State<_DmarcMailTab>
                     child: Padding(
                       padding: const EdgeInsets.all(32),
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300),
+                        Icon(Icons.mail_outline, size: 48, color: F.h(Colors.grey, 300)),
                         const SizedBox(height: 10),
                         Text(
                           'Noch keine Nachricht.\n'
                           'E-Mails an dmarc@icd360s.de werden automatisch übernommen.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
                         ),
                       ]),
                     ),
@@ -242,34 +361,34 @@ class _DmarcMailTabState extends State<_DmarcMailTab>
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: F.h(Colors.grey, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Wrap(spacing: 10, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
           Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.south_west, size: 15, color: Colors.indigo.shade600),
+            Icon(Icons.south_west, size: 15, color: F.h(Colors.indigo, 600)),
             const SizedBox(width: 5),
             Text('EINGANG',
                 style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
-                    color: Colors.indigo.shade700)),
+                    color: F.h(Colors.indigo, 700))),
           ]),
           Text(dmarcZeit(k['datum']?.toString() ?? ''),
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           if ((k['quelle'] ?? '').toString() == 'mail')
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
               decoration: BoxDecoration(
-                  color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+                  color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(4)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.bolt, size: 10, color: Colors.blue.shade400),
+                Icon(Icons.bolt, size: 10, color: F.h(Colors.blue, 400)),
                 const SizedBox(width: 2),
                 Text('automatisch',
-                    style: TextStyle(fontSize: 9, color: Colors.blue.shade700)),
+                    style: TextStyle(fontSize: 9, color: F.h(Colors.blue, 700))),
               ]),
             ),
         ]),
@@ -284,14 +403,14 @@ class _DmarcMailTabState extends State<_DmarcMailTab>
               Text(
                 [if (absender.isNotEmpty) absender, if (empfaenger.isNotEmpty) '→ $empfaenger']
                     .join(' '),
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ]),
           ),
           IconButton(
-            icon: Icon(Icons.delete_outline, size: 17, color: Colors.red.shade400),
+            icon: Icon(Icons.delete_outline, size: 17, color: F.h(Colors.red, 400)),
             tooltip: 'Löschen',
             visualDensity: VisualDensity.compact,
             onPressed: () => _loeschen(k),
@@ -314,13 +433,13 @@ class _DmarcMailTabState extends State<_DmarcMailTab>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: eml ? Colors.blueGrey.shade50 : Colors.grey.shade50,
+          color: eml ? F.h(Colors.blueGrey, 50) : F.h(Colors.grey, 50),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: eml ? Colors.blueGrey.shade200 : Colors.grey.shade200),
+          border: Border.all(color: eml ? F.h(Colors.blueGrey, 200) : F.h(Colors.grey, 200)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(eml ? Icons.mail_outline : Icons.folder_zip_outlined,
-              size: 15, color: eml ? Colors.blueGrey.shade600 : Colors.grey.shade600),
+              size: 15, color: eml ? F.h(Colors.blueGrey, 600) : F.h(Colors.grey, 600)),
           const SizedBox(width: 6),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 260),
@@ -525,16 +644,16 @@ class _DmarcBerichteTabState extends State<_DmarcBerichteTab>
   }
 
   Widget _abschnitt(String titel, IconData ikone) => Row(children: [
-        Icon(ikone, size: 17, color: Colors.grey.shade600),
+        Icon(ikone, size: 17, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 7),
         Text(titel,
             style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w700, color: Colors.grey.shade800)),
+                fontSize: 13, fontWeight: FontWeight.w700, color: F.h(Colors.grey, 800))),
       ]);
 
   Widget _leer(String text) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        child: Text(text, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
       );
 
   Widget _uebersichtKarte() {
@@ -555,16 +674,16 @@ class _DmarcBerichteTabState extends State<_DmarcBerichteTab>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: ton.shade50,
+        color: F.h(ton, 50),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ton.shade200),
+        border: Border.all(color: F.h(ton, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(nachrichten == 0
               ? Icons.help_outline
               : (ok ? Icons.verified_user : Icons.warning_amber_rounded),
-              size: 22, color: ton.shade700),
+              size: 22, color: F.h(ton, 700)),
           const SizedBox(width: 9),
           Expanded(
             child: Text(
@@ -574,7 +693,7 @@ class _DmarcBerichteTabState extends State<_DmarcBerichteTab>
                       ? 'Alle gemeldeten Nachrichten haben bestanden'
                       : '$durch von $nachrichten Nachrichten sind durchgefallen'),
               style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w700, color: ton.shade800),
+                  fontSize: 14, fontWeight: FontWeight.w700, color: F.h(ton, 800)),
             ),
           ),
         ]),
@@ -593,7 +712,7 @@ class _DmarcBerichteTabState extends State<_DmarcBerichteTab>
           'Durchgefallen heisst: weder SPF noch DKIM haben gepasst — entweder '
           'eine Fälschung oder ein eigener Weg, den wir vergessen haben '
           'einzutragen.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.35),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700), height: 1.35),
         ),
       ]),
     );
@@ -602,7 +721,7 @@ class _DmarcBerichteTabState extends State<_DmarcBerichteTab>
   Widget _zahl(String titel, String wert) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Text(wert, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
-        Text(titel, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+        Text(titel, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
       ]);
 
   Widget _quelleKarte(Map<String, dynamic> q) {
@@ -615,13 +734,13 @@ class _DmarcBerichteTabState extends State<_DmarcBerichteTab>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: durch > 0 ? Colors.orange.shade200 : Colors.grey.shade200),
+        border: Border.all(color: durch > 0 ? F.h(Colors.orange, 200) : F.h(Colors.grey, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(eigen ? Icons.home_outlined : Icons.public, size: 15, color: ton.shade600),
+          Icon(eigen ? Icons.home_outlined : Icons.public, size: 15, color: F.h(ton, 600)),
           const SizedBox(width: 6),
           Expanded(
             child: Text((q['source_ip'] ?? '').toString(),
@@ -642,7 +761,7 @@ class _DmarcBerichteTabState extends State<_DmarcBerichteTab>
           ].join(' · '),
           style: TextStyle(
               fontSize: 11,
-              color: durch > 0 ? Colors.orange.shade800 : Colors.grey.shade700),
+              color: durch > 0 ? F.h(Colors.orange, 800) : F.h(Colors.grey, 700)),
         ),
         if ((q['spf_domain'] ?? '').toString().isNotEmpty ||
             (q['dkim_domain'] ?? '').toString().isNotEmpty) ...[
@@ -654,7 +773,7 @@ class _DmarcBerichteTabState extends State<_DmarcBerichteTab>
                 'DKIM ${q['dkim_domain']}'
                     '${(q['dkim_selector'] ?? '').toString().isEmpty ? '' : ' (${q['dkim_selector']})'}',
             ].join(' · '),
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
           ),
         ],
       ]),
@@ -667,13 +786,13 @@ class _DmarcBerichteTabState extends State<_DmarcBerichteTab>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: F.h(Colors.grey, 200)),
       ),
       child: Row(children: [
         Icon(durch > 0 ? Icons.error_outline : Icons.check_circle_outline,
-            size: 17, color: durch > 0 ? Colors.orange.shade600 : Colors.green.shade600),
+            size: 17, color: durch > 0 ? F.h(Colors.orange, 600) : F.h(Colors.green, 600)),
         const SizedBox(width: 9),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -683,7 +802,7 @@ class _DmarcBerichteTabState extends State<_DmarcBerichteTab>
               '${dmarcZeit((b['zeit_von'] ?? '').toString())}'
               ' – ${dmarcZeit((b['zeit_bis'] ?? '').toString())}'
               ' · Regel: ${(b['policy_p'] ?? '?').toString()}',
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
             ),
           ]),
         ),

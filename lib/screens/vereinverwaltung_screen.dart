@@ -537,6 +537,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       color: Colors.teal.shade700,
       subtitle: 'E-Mails an dmarc@icd360s.de, Berichte',
       onTap: () => setState(() => _vereinSubview = 'dmarc'),
+      hilfe: () => dmarcErklaerungZeigen(context),
     );
   }
 
@@ -1370,6 +1371,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
     required VoidCallback onTap,
     String? badge,
     Color? badgeColor,
+    VoidCallback? hilfe,
   }) {
     return Card(
       elevation: 2,
@@ -1396,6 +1398,19 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
+                  if (hilfe != null)
+                    IconButton(
+                      icon: const Icon(Icons.help_outline, size: 19),
+                      color: F.h(Colors.grey, 600),
+                      tooltip: 'Was ist das?',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      // ⚠️ Der eigene Druckbereich fängt den Tipp ab, sonst
+                      // öffnete dasselbe Antippen zusätzlich die Kachel und
+                      // die Erklärung stünde hinter dem neuen Schirm.
+                      onPressed: hilfe,
+                    ),
                   Icon(Icons.arrow_forward_ios, size: 16, color: F.h(Colors.grey, 500)),
                 ],
               ),

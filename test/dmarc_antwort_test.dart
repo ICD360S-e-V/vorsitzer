@@ -114,6 +114,46 @@ void main() {
     });
   });
 
+  group('Erklärung', () {
+    testWidgets('das Fragezeichen öffnet einen Text, der die Frage beantwortet',
+        (t) async {
+      // ⚠️ Der Bereich heisst „DMARC" — ein Kürzel, das niemand kennen muss.
+      // Wer nicht weiss, was dahintersteckt, tippt die Kachel gar nicht erst
+      // an; deshalb hängt die Erklärung an der Kachel und nicht nur im Schirm.
+      await t.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (c) => ElevatedButton(
+              onPressed: () => dmarcErklaerungZeigen(c),
+              child: const Text('?'),
+            ),
+          ),
+        ),
+      ));
+      await t.tap(find.text('?'));
+      await t.pumpAndSettle();
+
+      expect(find.text('Was ist DMARC?'), findsOneWidget);
+      for (final ueberschrift in const [
+        'Kurz gesagt',
+        'Warum das für den Verein wichtig ist',
+        'Die zwei Prüfungen dahinter',
+        'Was wir eingestellt haben',
+        'Wie man die Zahlen liest',
+        'Was DMARC nicht tut',
+      ]) {
+        expect(find.text(ueberschrift), findsOneWidget, reason: ueberschrift);
+      }
+
+      // Der Abschnitt über die Grenzen darf nicht wegfallen: ein Schirm, der
+      // nur die guten Zahlen erklärt, lädt dazu ein, aus ihnen mehr zu lesen
+      // als drinsteht.
+      expect(find.textContaining('nur ein Ausschnitt'), findsNothing);
+      expect(find.textContaining('Ausschnitt, kein vollständiges Bild'),
+          findsOneWidget);
+    });
+  });
+
   group('Mail-Plakette', () {
     testWidgets('ein DMARC-Archiv wird benannt, nicht als Schlüssel gezeigt', (t) async {
       // ⚠️ Diese Kopplung fällt sonst still aus: der Server legt ab, der
