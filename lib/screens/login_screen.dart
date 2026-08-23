@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../services/secure_store.dart';
 import '../services/api_service.dart';
 import '../services/device_integrity_service.dart';
 import '../services/diagnostic_service.dart';
@@ -24,9 +24,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _apiService = ApiService();
-  final _secureStorage = const FlutterSecureStorage(
-    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
-  );
+  final _secureStorage = SecureStore();
 
   // Login form controllers (shared with LoginTab)
   final _mitgliedernummerController = TextEditingController();

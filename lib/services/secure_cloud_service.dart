@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'secure_store.dart';
 import 'package:path_provider/path_provider.dart';
 import 'api_service.dart';
 import 'cloud_crypto_service.dart';
@@ -83,9 +83,7 @@ class SecureCloudService {
   // Activity, so the process is never killed mid-capture.)
   static const Duration _resumeMaxAge = Duration(minutes: 10);
 
-  final FlutterSecureStorage _secure = const FlutterSecureStorage(
-    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
-  );
+  final SecureStore _secure = SecureStore();
 
   String get _kDek => 'cloud_resume_dek_$mitgliedernummer';
   String get _kTs => 'cloud_resume_ts_$mitgliedernummer';

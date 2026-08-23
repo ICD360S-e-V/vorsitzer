@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:cryptography/cryptography.dart' show SecretKey;
+import 'package:dbus/dbus.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -78,6 +79,64 @@ class SecureStore {
   static bool _linuxKeyringDown = false;
   static const Duration _keyringTimeout = Duration(seconds: 5);
 
+  // ── Why the timeout above cannot save us, and what does ────────────────────
+  //
+  // `flutter_secure_storage_linux` calls libsecret SYNCHRONOUSLY
+  // (`secret_service_get_sync`, `secret_password_lookupv_sync`) inside its
+  // platform-channel handler. On the Flutter Linux embedder that handler runs
+  // on the same thread that drives the Dart event loop, so the call freezes
+  // timers, rendering and every `await` in the process — `.timeout()` included,
+  // because the timer that would fire it needs exactly the blocked thread.
+  //
+  // Measured on an xrdp/XFCE session: 25.0 s per call, the D-Bus service
+  // activation timeout, because `org.freedesktop.secrets` was only
+  // *activatable* on that session bus and never actually started. Five secret
+  // reads at startup (logger, tokens, device key/id, cloud DEK) therefore cost
+  // ~115 s of frozen UI, and the window painted a stale, wrongly-sized frame
+  // when it finally came back.
+  //
+  // The guard has to run BEFORE the plugin is entered, and must itself be
+  // unable to block the platform thread — hence a pure-Dart D-Bus probe over
+  // the package's own socket. One probe per process, shared by every caller,
+  // so N concurrent readers can no longer queue N blocking calls behind each
+  // other (that overlap is why `_linuxKeyringDown` alone never caught this).
+  static const String _secretsService = 'org.freedesktop.secrets';
+  static const Duration _probeTimeout = Duration(seconds: 3);
+  static Future<bool>? _keyringProbe;
+
+  Future<bool> _keyringUsable() => _keyringProbe ??= _probeKeyring();
+
+  Future<bool> _probeKeyring() async {
+    if (!Platform.isLinux) return true;
+    DBusClient? client;
+    try {
+      // Resolves DBUS_SESSION_BUS_ADDRESS exactly like GDBus does inside
+      // libsecret, so we probe the bus the plugin would actually talk to — a
+      // split session (systemd bus vs. the session's own dbus-launch bus) is
+      // precisely the case this guard exists for.
+      client = DBusClient.session();
+      if (await client.nameHasOwner(_secretsService).timeout(_probeTimeout)) {
+        return true;
+      }
+      // Nobody owns the name. It may still be activatable and start quickly on
+      // a healthy desktop, so ask the bus to start it — but from Dart, where a
+      // bus that never answers costs us `_probeTimeout` and not the UI.
+      await client.startServiceByName(_secretsService).timeout(_probeTimeout);
+      if (await client.nameHasOwner(_secretsService).timeout(_probeTimeout)) {
+        return true;
+      }
+      _markKeyringDown('no owner for $_secretsService on the session bus');
+      return false;
+    } catch (e) {
+      _markKeyringDown('secrets service unreachable: $e');
+      return false;
+    } finally {
+      try {
+        await client?.close();
+      } catch (_) {}
+    }
+  }
+
   SecretKey? _cachedKey;
   bool _warnedFallbackOnce = false;
   bool _warnedFatalOnce = false;
@@ -91,19 +150,10 @@ class SecureStore {
       return _storage.read(key: key);
     }
 
-    // 1) Prefer the real keyring when it works — but only until it first fails,
-    //    and never let a locked keyring block startup for its full 25s timeout.
-    if (!_linuxKeyringDown) {
-      try {
-        final viaKeyring =
-            await _storage.read(key: key).timeout(_keyringTimeout);
-        if (viaKeyring != null) return viaKeyring;
-      } catch (e) {
-        _markKeyringDown(e);
-      }
-    }
-
-    // 2) Encrypted fallback file.
+    // 1) Encrypted fallback file FIRST. On Linux this file is the source of
+    //    truth — write() mirrors every secret into it — so whatever the keyring
+    //    holds is here as well. Reading it first keeps the keyring, and its
+    //    platform-thread-blocking sync calls, off the startup path completely.
     try {
       final map = await _synchronized(_readFileMap);
       final v = map[key];
@@ -113,7 +163,7 @@ class SecureStore {
           tag: 'SECSTORE');
     }
 
-    // 3) Legacy plaintext SharedPreferences left by older builds → migrate in.
+    // 2) Legacy plaintext SharedPreferences left by older builds → migrate in.
     try {
       final prefs = await SharedPreferences.getInstance();
       final legacy = prefs.getString(key);
@@ -127,6 +177,25 @@ class SecureStore {
       }
     } catch (_) {}
 
+    // 3) Only now the keyring, and only if it is actually reachable: the value
+    //    can still live there alone if a build older than this class wrote it.
+    //    A hit is mirrored into the encrypted file so no later read needs the
+    //    keyring again.
+    if (!_linuxKeyringDown && await _keyringUsable()) {
+      try {
+        final viaKeyring =
+            await _storage.read(key: key).timeout(_keyringTimeout);
+        if (viaKeyring != null) {
+          try {
+            await write(key: key, value: viaKeyring);
+          } catch (_) {}
+          return viaKeyring;
+        }
+      } catch (e) {
+        _markKeyringDown(e);
+      }
+    }
+
     return null;
   }
 
@@ -135,29 +204,32 @@ class SecureStore {
       return _storage.write(key: key, value: value);
     }
 
-    // Best-effort keyring write (kept in sync for when it later works), but the
-    // encrypted file is the source of truth on Linux so persistence never
-    // depends on the keyring being unlocked at this exact moment.
-    if (!_linuxKeyringDown) {
+    // The encrypted file is the source of truth on Linux, so it is written
+    // FIRST: read() consults it first, and a process that dies between the two
+    // writes must not leave the file behind the keyring.
+    await _synchronized(() async {
+      final map = await _readFileMap();
+      map[key] = value;
+      await _writeFileMap(map);
+    });
+
+    // Best-effort keyring mirror, kept in sync for the day it works again —
+    // and skipped entirely while no secret service answers, because that call
+    // blocks the platform thread for its full D-Bus timeout.
+    if (!_linuxKeyringDown && await _keyringUsable()) {
       try {
         await _storage.write(key: key, value: value).timeout(_keyringTimeout);
       } catch (e) {
         _markKeyringDown(e);
       }
     }
-
-    await _synchronized(() async {
-      final map = await _readFileMap();
-      map[key] = value;
-      await _writeFileMap(map);
-    });
   }
 
   Future<void> delete({required String key}) async {
     if (!Platform.isLinux) {
       return _storage.delete(key: key);
     }
-    if (!_linuxKeyringDown) {
+    if (!_linuxKeyringDown && await _keyringUsable()) {
       try {
         await _storage.delete(key: key).timeout(_keyringTimeout);
       } catch (e) {

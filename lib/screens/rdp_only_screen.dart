@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../services/secure_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/anruf_gateway_service.dart';
@@ -318,7 +318,7 @@ class _RdpOnlyScreenState extends State<RdpOnlyScreen> {
     await AppSperreService().zuruecksetzen();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('auto_login', false);
-    const secureStorage = FlutterSecureStorage();
+    final secureStorage = SecureStore();
     await secureStorage.delete(key: 'mitgliedernummer');
     await secureStorage.delete(key: 'password');
     if (!mounted) return;

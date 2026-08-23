@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'api_service.dart';
 import 'http_client_factory.dart';
+import 'secure_store.dart';
 import 'update_service.dart';
 
 /// Logger Service - captures app logs for debugging
@@ -19,9 +19,7 @@ class LoggerService {
 
   final List<LogEntry> _logs = [];
   final _controller = StreamController<List<LogEntry>>.broadcast();
-  final _secureStorage = const FlutterSecureStorage(
-    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
-  );
+  late final SecureStore _secureStorage = SecureStore();
   late final http.Client _httpClient;
 
   String? _deviceId;
@@ -67,8 +65,12 @@ class LoggerService {
     try {
       _deviceId = await _secureStorage.read(key: 'device_id');
       if (_deviceId == null) {
-        _deviceId = _generateDeviceId();
-        await _secureStorage.write(key: 'device_id', value: _deviceId);
+        // Über eine lokale Variable, weil SecureStore.write — anders als das
+        // Plugin — einen nicht-nullbaren Wert verlangt: ein `null` hieße dort
+        // löschen, nicht schreiben.
+        final neu = _generateDeviceId();
+        _deviceId = neu;
+        await _secureStorage.write(key: 'device_id', value: neu);
       }
     } catch (e) {
       _deviceId = _generateDeviceId();
