@@ -3972,6 +3972,34 @@ class ApiService {
     }
   }
 
+  // ============= TLS-RPT REPORTING =============
+
+  /// Die ausgewerteten TLS-Berichte (RFC 8460).
+  ///
+  /// ⚠️ Nicht mit [getDmarcBerichte] zu verwechseln, obwohl beide gleich
+  /// aussehen: DMARC meldet, was ANGEBLICH VON uns kam, TLS-RPT meldet, ob
+  /// fremde Server verschlüsselt ZU uns liefern konnten. Die Zahlen zählen
+  /// Sitzungen statt Nachrichten und gehören nie in dieselbe Summe.
+  ///
+  /// Der Mail-Teil läuft über die Korrespondenz-Methoden oben mit
+  /// `modul: 'tlsrpt'`. Vier Blöcke in einer Antwort: `uebersicht`, `tage`,
+  /// `fehler`, `berichte`.
+  Future<Map<String, dynamic>> getTlsrptBerichte({int tage = 30}) async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/admin/tlsrpt/berichte.php?tage=$tage'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 25));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'TLS-Berichte nicht abrufbar: $e'};
+    }
+  }
+
   // ============= FINANZAMT DOKUMENTE API =============
 
   // List finanzamt documents

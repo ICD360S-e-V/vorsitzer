@@ -15,6 +15,7 @@ import 'paypal_screen.dart';
 import 'github_screen.dart';
 import 'simplefax_screen.dart';
 import 'dmarc_screen.dart';
+import 'tlsrpt_screen.dart';
 import 'vesperkirche_screen.dart';
 import 'ordnungsmassnahmen_screen.dart';
 import 'vereinsinventar_screen.dart';
@@ -242,6 +243,11 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       return SimpleFaxScreen(
         onBack: () => setState(() => _vereinSubview = 'partner'),
         apiService: widget.apiService,
+      );
+    } else if (_vereinSubview == 'tlsrpt') {
+      return TlsrptScreen(
+        apiService: widget.apiService,
+        onBack: () => setState(() => _vereinSubview = 'partner'),
       );
     } else if (_vereinSubview == 'dmarc') {
       return DmarcScreen(
@@ -498,7 +504,24 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
               const SizedBox(width: 16),
               Expanded(child: _buildVesperkircheCard()),
               const SizedBox(width: 16),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // ⚠️ DMARC und TLS-RPT stehen bewusst nebeneinander in einer eigenen
+          // Zeile: es ist dieselbe Sorte Bericht über unsere eigene Post, nur
+          // in entgegengesetzter Richtung. Nebeneinander liest man sie als
+          // Paar; verstreut wären es zwei Rätsel.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Expanded(child: _buildDmarcCard()),
+              const SizedBox(width: 16),
+              Expanded(child: _buildTlsrptCard()),
+              const SizedBox(width: 16),
+              const Expanded(child: SizedBox()),
+              const SizedBox(width: 16),
+              const Expanded(child: SizedBox()),
             ],
           ),
         ],
@@ -530,6 +553,19 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
   /// Domain schicken. Steht bei den Dienstleistern und nicht bei den Behörden,
   /// weil die Melder Google, WEB.DE, Yahoo und Microsoft sind: Gegenüber, mit
   /// denen wir zu tun haben, ohne dass wir sie beauftragt hätten.
+  /// TLS-RPT ▸ Reporting — die Gegenrichtung zu DMARC: ob fremde Server
+  /// verschlüsselt zu uns liefern konnten.
+  Widget _buildTlsrptCard() {
+    return _buildClickableCard(
+      icon: Icons.lock_outline,
+      title: 'TLS-RPT Reporting',
+      color: F.h(Colors.indigo, 700),
+      subtitle: 'E-Mails an tls-rpt@icd360s.de, Verschlüsselung',
+      onTap: () => setState(() => _vereinSubview = 'tlsrpt'),
+      hilfe: () => tlsrptErklaerungZeigen(context),
+    );
+  }
+
   Widget _buildDmarcCard() {
     return _buildClickableCard(
       icon: Icons.verified_user_outlined,
