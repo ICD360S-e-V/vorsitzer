@@ -1299,10 +1299,10 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
         if (!mounted) return;
         Navigator.of(context, rootNavigator: true).pop();
         try {
+          final name = (a['dateiname'] ?? 'Faxjournal.pdf').toString();
           await FileViewerDialog.showFromBytes(
-              context,
-              base64Decode(a['inhalt_b64'].toString()),
-              (a['dateiname'] ?? 'Faxjournal.pdf').toString());
+              context, base64Decode(a['inhalt_b64'].toString()), name);
+          if (mounted) await _zeitstempelAnbieten(a, name);
         } catch (e) {
           _melde('Gesiegeltes Journal ist beschädigt angekommen: $e', fehler: true);
         }
@@ -1349,6 +1349,61 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     );
     laeuft = false;
     takt?.cancel();
+  }
+
+  /// Der RFC-3161-Zeitstempel zum gesiegelten Journal.
+  ///
+  /// ⚠️ EIGENE DATEI, und das ist keine Bequemlichkeit: der Stempel gilt über
+  /// das FERTIGE Dokument. Er kann per Bauart nicht darin stehen — das
+  /// Siegelblatt ist Teil dessen, worüber gestempelt wird. (Und TCPDFs
+  /// `setTimeStamp()` ist ohnehin eine leere Hülle; ein Zeitstempel, den man
+  /// zu haben glaubt und nicht hat, wäre schlimmer als keiner.)
+  ///
+  /// ⚠️ Fehlt er, wird das GESAGT und nicht verschwiegen. Das Siegel gilt
+  /// trotzdem — nur der Zeitpunkt ist dann unsere eigene Angabe.
+  Future<void> _zeitstempelAnbieten(Map<String, dynamic> a, String name) async {
+    final b64 = a['tsa_b64'];
+    if (b64 == null || b64.toString().isEmpty) {
+      _melde('Das Journal ist gesiegelt, aber ohne Zeitstempel — der '
+          'Zeitstempeldienst war nicht erreichbar. Der Lauf holt ihn nach.');
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Zeitstempel sichern'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            'Zum Journal gehört ein Zeitstempel eines unabhängigen Dienstes '
+            '(${a['tsa_quelle'] ?? 'Zeitstempeldienst'}, ${a['tsa_zeit'] ?? ''}). '
+            'Er belegt, dass die Datei zu diesem Zeitpunkt genau so vorlag.',
+            style: const TextStyle(fontSize: 13, height: 1.4),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Er liegt als eigene Datei vor (.tsr) und gehört zum Journal — '
+            'einzeln vorgelegt beweist keiner von beiden, was beide zusammen '
+            'beweisen.',
+            style: TextStyle(fontSize: 12.5, height: 1.35, color: F.h(Colors.grey, 700)),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Später')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Speichern')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final roh = base64Decode(b64.toString());
+      final tsName = '${name.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '')}.tsr';
+      final ziel = await FilePickerHelper.saveBytes(
+          bytes: Uint8List.fromList(roh), fileName: tsName);
+      _melde(ziel != null ? 'Zeitstempel gespeichert' : 'Nicht gespeichert',
+          fehler: ziel == null);
+    } catch (e) {
+      _melde('Zeitstempel liess sich nicht speichern: $e', fehler: true);
+    }
   }
 
   Future<void> _nachsehen(Map<String, dynamic> f) async {
@@ -2080,6 +2135,11 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     // Weggelegt heisst nicht geloescht — die Zeile taucht nur unter dem Filter
     // „Archiv" auf, und dort bekommt sie andere Menuepunkte.
     final imArchiv = (f['abgelegt_am'] ?? '').toString().isNotEmpty;
+    // Ob das Dokument, das rausging, ein Siegel trug. Zusammen mit der
+    // Prüfsumme ist das die Aussage „was gesendet wurde, war das gesiegelte
+    // Dokument, unverändert" — bei einer Vollmacht genau die Frage, die
+    // hinterher gestellt wird.
+    final gesiegelt = f['signiert'] == true;
     // ⚠️ Gemessene Breite, nicht Plattform: die App läuft auch auf einem
     // Android-Tablet, wo `isMobile` wahr wäre, obwohl reichlich Platz ist.
     final schmal = MediaQuery.sizeOf(context).width < 420;
@@ -2157,6 +2217,18 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           // Zu welchem Vorgang gehört das Fax? Sechs Endpunkte schreiben in
           // denselben Verlauf; ohne diese Zeile beantwortet er ein Jahr später
           // die Frage „ist die Vollmacht je rausgegangen?" nicht mehr.
+          if (gesiegelt)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(children: [
+                Icon(Icons.verified_outlined, size: 12, color: F.h(Colors.green, 700)),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text('Gesiegeltes Dokument',
+                      style: TextStyle(fontSize: 11.5, color: F.h(Colors.green, 800))),
+                ),
+              ]),
+            ),
           if (bezugText.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 2),

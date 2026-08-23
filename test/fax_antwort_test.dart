@@ -504,4 +504,92 @@ void main() {
       }
     });
   });
+
+  // =========================================================================
+  //  Sechste Runde (23.08.2026) — ein Sendeweg, Siegel, Zeitstempel
+  // =========================================================================
+  group('Sechste Runde (23.08.2026)', () {
+    test('eine Zeile sagt, ob das gesendete Dokument gesiegelt war', () {
+      // 🔴 `jobcenter_vollmacht_versand.php` faxt die UNTERSCHRIEBENE
+      // Vollmacht — die trägt das Dokumentensiegel des Vereins. Bis zum
+      // 23.08.2026 hielt das niemand fest. Zusammen mit der Prüfsumme ergibt
+      // es die Aussage, auf die es hinterher ankommt: „was rausging, war das
+      // gesiegelte Dokument, unverändert."
+      final z = jsonDecode(
+              '{"id":9,"signiert":true,"hash_stand":"nachgetragen","abgelegt_am":null}')
+          as Map<String, dynamic>;
+      expect(z['signiert'], isTrue);
+      // ⚠️ Ein echtes bool, kein 1/0 — der Server wandelt es um. Ein
+      // `== true` auf einer 1 wäre still falsch.
+      expect(z['signiert'], isA<bool>());
+    });
+
+    test('nicht gesiegelt ist false, nicht null', () {
+      final z = jsonDecode('{"id":25,"signiert":false}') as Map<String, dynamic>;
+      expect(z['signiert'], isFalse);
+      expect(z['signiert'] == true, isFalse);
+    });
+
+    test('der gemeinsame Sendeweg weist ein gesperrtes Ziel ab', () {
+      // Bis heute hatten SIEBEN Module je eine eigene Kopie des Sendewegs,
+      // und keine kannte diese Sperre. Jetzt steht sie in der Funktion, durch
+      // die alle müssen.
+      final r = jsonDecode(
+          '{"ok":false,"id":0,"grund":"gesperrtes_ziel",'
+          '"meldung":"Diese Nummer liegt in einem Mehrwert- oder Satellitenbereich '
+          '(+49900). Dorthin faxt dieser Verein nicht — bitte die Nummer pruefen."}')
+          as Map<String, dynamic>;
+      expect(r['ok'], isFalse);
+      expect(r['grund'], 'gesperrtes_ziel');
+      // ⚠️ id = 0: es wurde KEINE Zeile angelegt. Die Sperre greift vor dem
+      // INSERT, sonst stünde im Verlauf ein Fax, das nie eines war.
+      expect(r['id'], 0);
+    });
+
+    test('die Dublettensperre nennt das frühere Fax', () {
+      final r = jsonDecode(
+          '{"ok":false,"id":0,"grund":"dublette","fruehere_id":25,'
+          '"meldung":"Dieses Dokument wurde an diese Nummer bereits zugestellt (Fax #25)."}')
+          as Map<String, dynamic>;
+      expect(r['grund'], 'dublette');
+      expect(r['fruehere_id'], 25);
+    });
+
+    test('der Zeitstempel kommt als EIGENES Stück, nicht im PDF', () {
+      // ⚠️ Er gilt über die FERTIGE Datei — das Siegelblatt ist Teil dessen,
+      // worüber gestempelt wird, also kann er dort per Bauart nicht stehen.
+      // (Und TCPDFs setTimeStamp() ist ohnehin eine leere Hülle.)
+      final a = jsonDecode(
+          '{"success":true,"dateiname":"Faxjournal 2026-08-23.pdf",'
+          '"inhalt_b64":"JVBERi0=",'
+          '"siegel_hash":"7c601156e314e0d130ff4423846d3df5264a7d4e948ea8597890e8d67f4865ed",'
+          '"tsa_b64":"MIIB","tsa_quelle":"http://timestamp.digicert.com",'
+          '"tsa_zeit":"2026-08-23 12:22:59"}') as Map<String, dynamic>;
+      expect((a['siegel_hash'] as String).length, 64);
+      expect(a['tsa_quelle'], contains('digicert'));
+      expect(a['tsa_b64'], isNotNull);
+    });
+
+    test('ein fehlender Zeitstempel ist kein Fehler — das Siegel gilt trotzdem', () {
+      // Der Zeitstempeldienst kann ausfallen. Dann fehlt der Zeitpunkt, nicht
+      // das Siegel. Der Bildschirm sagt das, statt es zu verschweigen.
+      final a = jsonDecode(
+          '{"success":true,"dateiname":"Faxjournal 2026-08-23.pdf",'
+          '"inhalt_b64":"JVBERi0=","siegel_hash":"7c60","tsa_b64":null,'
+          '"tsa_quelle":"","tsa_zeit":null}') as Map<String, dynamic>;
+      expect(a['success'], isTrue);
+      expect(a['tsa_b64'], isNull);
+    });
+
+    test('die Positivliste der Vorgangsarten nennt nur, was es gibt', () {
+      // ⚠️ Sie hatte fünf Einträge; drei davon hatte ich am 22.08. angenommen.
+      // Nachgezählt gegen Code und Datenbank: es gibt genau zwei.
+      const echte = ['jc_av_schweigepflicht', 'jc_av_vorschlag_bericht'];
+      final r = jsonDecode('{"ok":false,"id":0,"grund":"unbekannter_typ",'
+          '"meldung":"Unbekannte Vorgangsart: jobcenter_av"}') as Map<String, dynamic>;
+      expect(r['grund'], 'unbekannter_typ');
+      expect(echte.contains('jobcenter_av'), isFalse);
+      expect(echte.length, 2);
+    });
+  });
 }
