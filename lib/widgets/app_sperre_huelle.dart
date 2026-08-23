@@ -394,9 +394,9 @@ class _EinrichtFlaecheState extends State<_EinrichtFlaeche> {
 
   Future<void> _setzen() async {
     final p = _a.text;
-    if (p.length < sperreMindestlaenge) {
-      setState(() => _fehler =
-          'Mindestens $sperreMindestlaenge Zeichen.');
+    final problem = sperrePasswortProblem(p);
+    if (problem != null) {
+      setState(() => _fehler = problem);
       return;
     }
     if (p != _b.text) {
@@ -453,6 +453,10 @@ class _EinrichtFlaecheState extends State<_EinrichtFlaeche> {
                     decoration: InputDecoration(
                       labelText: beschriftung,
                       labelStyle: const TextStyle(color: Colors.white70),
+                      helperText: feld == _a
+                          ? 'Mindestens $sperreMindestlaenge Zeichen'
+                          : null,
+                      helperStyle: const TextStyle(color: Colors.white54),
                       filled: true,
                       fillColor: Colors.white.withValues(alpha: .08),
                       border: OutlineInputBorder(

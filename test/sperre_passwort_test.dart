@@ -112,7 +112,32 @@ void main() {
     });
 
     test('Mindestlänge steht auf Länge statt auf Zeichenklassen', () {
-      expect(sperreMindestlaenge, greaterThanOrEqualTo(8));
+      // SP 800-63B-4 empfiehlt 15 für einen einzigen Faktor.
+      expect(sperreMindestlaenge, greaterThanOrEqualTo(15));
+    });
+  });
+
+  group('sperrePasswortProblem (Schwäche-Prüfung)', () {
+    test('zu kurz wird abgelehnt', () {
+      expect(sperrePasswortProblem('kurz-123'), isNotNull);
+      expect(sperrePasswortProblem('a' * (sperreMindestlaenge - 1)), isNotNull);
+    });
+    test('bekannt-schwache Passwörter werden abgelehnt', () {
+      expect(sperrePasswortProblem('passwortpasswort'), isNotNull);
+      expect(sperrePasswortProblem('passwort00000000'), isNotNull);
+      expect(sperrePasswortProblem('qwertzuiopqwertz'), isNotNull);
+    });
+    test('reine Zeichenfolgen werden abgelehnt', () {
+      expect(sperrePasswortProblem('123456789012345'), isNotNull);
+      expect(sperrePasswortProblem('abcdefghijklmno'), isNotNull);
+    });
+    test('zu wenig verschiedene Zeichen wird abgelehnt', () {
+      expect(sperrePasswortProblem('ababababababab ab'), isNotNull);
+      expect(sperrePasswortProblem('a' * 20), isNotNull);
+    });
+    test('eine echte lange Passphrase wird akzeptiert', () {
+      expect(sperrePasswortProblem('Korrekt-Pferd-Batterie-Klammer'), isNull);
+      expect(sperrePasswortProblem('Mein-App-Passwort-1'), isNull);
     });
   });
 }
