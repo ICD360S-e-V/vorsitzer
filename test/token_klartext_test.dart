@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/services/api_service.dart';
+import 'package:icd360sev_vorsitzer/services/secure_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Bis zum 22.08.2026 schrieb `saveTokens` die Token bei jedem Fehlschlag des
@@ -90,10 +91,27 @@ void main() {
     });
     await ApiService().loadTokens();
 
-    const sicher = FlutterSecureStorage();
-    expect(await sicher.read(key: 'access_token'), 'wander-token',
+    // Gefragt wird der SecureStore, nicht das Plugin: auf Linux ist die
+    // AES-GCM-Datei die maßgebliche Ablage, das Schlüsselbund nur noch eine
+    // Spiegelung — und eine, die uebersprungen wird, solange kein
+    // Secret-Service auf dem Sitzungsbus antwortet. Am Plugin zu messen hiesse,
+    // das Mittel zu pruefen statt den Zweck, und der Test fiele je nach
+    // Entwicklerrechner anders aus.
+    expect(await SecureStore().read(key: 'access_token'), 'wander-token',
         reason: 'verschoben, nicht nur gelesen');
-    expect(await sicher.read(key: 'refresh_token'), 'wander-refresh');
+    expect(await SecureStore().read(key: 'refresh_token'), 'wander-refresh');
+
+    if (Platform.isLinux) {
+      // Und „sicher" heisst verschluesselt: der Klartext darf in der Datei
+      // nicht wiederzufinden sein. Ohne diese Zusage waere „im SecureStore"
+      // auch dann erfuellt, wenn er die Werte offen ablegte.
+      final datei = File('${tempDir.path}/secure_fallback.enc');
+      expect(datei.existsSync(), isTrue,
+          reason: 'die verschluesselte Ablage muss angelegt worden sein');
+      final roh = String.fromCharCodes(datei.readAsBytesSync());
+      expect(roh, isNot(contains('wander-token')));
+      expect(roh, isNot(contains('wander-refresh')));
+    }
     await ApiService().clearTokens();
   });
 

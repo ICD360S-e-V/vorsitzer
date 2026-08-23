@@ -82,6 +82,14 @@ dependencies:
   # Windows: DPAPI, macOS: Keychain, Linux: libsecret, Android: Keystore, iOS: Keychain
   flutter_secure_storage: ^10.0.0
 
+  # Pure-Dart D-Bus client. Used by SecureStore to ask the session bus whether
+  # org.freedesktop.secrets actually has an owner BEFORE entering the Linux
+  # secure-storage plugin, whose libsecret calls are synchronous and freeze the
+  # Flutter platform thread for the full 25 s D-Bus activation timeout when it
+  # does not. Already present transitively (file_picker, connectivity_plus);
+  # named here because we now depend on it directly.
+  dbus: ^0.7.13
+
   # WebSocket for real-time chat
   web_socket_channel: ^3.0.1
 

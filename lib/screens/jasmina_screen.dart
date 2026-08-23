@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/phone_link.dart';
 import '../utils/clipboard_helper.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../services/secure_store.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'webview_screen.dart';
@@ -59,10 +59,10 @@ class _JasminaScreenState extends State<JasminaScreen> {
       }
     } catch (_) {}
 
-    // Migrate from old local FlutterSecureStorage if server has no data
+    // Migrate from old local secure storage if server has no data
     if (_emailController.text.isEmpty && _passwordController.text.isEmpty) {
       try {
-        const storage = FlutterSecureStorage();
+        final storage = SecureStore();
         final localUrl = await storage.read(key: 'jasmina_login_url');
         final localEmail = await storage.read(key: 'jasmina_login_email');
         final localPassword = await storage.read(key: 'jasmina_login_password');

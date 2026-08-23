@@ -168,40 +168,39 @@ void main(List<String> args) async {
   // Background service init — wrapped per service so a single hang is
   // visible in the transcript instead of swallowing everything in one
   // try/catch. None of these block runApp().
+  //
+  // ⚠️ The bodies MUST return the service's own Future. They used to call
+  // `LoggerService().init();` and drop the result, so every step logged
+  // "DONE (0ms)" for work that had only just begun and the 5s budget policed
+  // nothing. During the Linux keyring freeze the transcript therefore reported
+  // a perfectly healthy startup while the app was frozen for over a minute.
+  //
+  // They run concurrently (as they did before, by accident of not being
+  // awaited); Future.wait keeps that while still measuring each one honestly.
   // ignore: unawaited_futures
   () async {
-    await StartupDiagnostics.stepWithTimeout(
-      'LoggerService.init',
-      const Duration(seconds: 5),
-      () async {
-        LoggerService().init();
-        return null;
-      },
-    );
-    await StartupDiagnostics.stepWithTimeout(
-      'ApiService.initialize',
-      const Duration(seconds: 5),
-      () async {
-        ApiService().initialize();
-        return null;
-      },
-    );
-    await StartupDiagnostics.stepWithTimeout(
-      'NotificationService.initialize',
-      const Duration(seconds: 5),
-      () async {
-        NotificationService().initialize();
-        return null;
-      },
-    );
-    await StartupDiagnostics.stepWithTimeout(
-      'StartupService.initialize',
-      const Duration(seconds: 5),
-      () async {
-        StartupService().initialize();
-        return null;
-      },
-    );
+    await Future.wait(<Future<void>>[
+      StartupDiagnostics.stepWithTimeout(
+        'LoggerService.init',
+        const Duration(seconds: 5),
+        () => LoggerService().init(),
+      ),
+      StartupDiagnostics.stepWithTimeout(
+        'ApiService.initialize',
+        const Duration(seconds: 5),
+        () => ApiService().initialize(),
+      ),
+      StartupDiagnostics.stepWithTimeout(
+        'NotificationService.initialize',
+        const Duration(seconds: 5),
+        () => NotificationService().initialize(),
+      ),
+      StartupDiagnostics.stepWithTimeout(
+        'StartupService.initialize',
+        const Duration(seconds: 5),
+        () => StartupService().initialize(),
+      ),
+    ]);
   }();
 
   // Three seconds after runApp() — first frame is rendered, network stack
@@ -237,8 +236,13 @@ class _VorsitzerAppState extends State<VorsitzerApp> {
 
   void _initDesktopWindowListener() {
     windowManager.addListener(_DesktopWindowListener());
-    // Prevent window from closing, minimize to tray instead
-    windowManager.setPreventClose(true);
+    // Prevent closing ONLY where there is a tray icon to restore the window
+    // from. TrayService is Windows-only (no PNG icons are shipped for the
+    // other desktops), so on Linux this used to leave the X button doing
+    // nothing whatsoever: the window did not close, hideToTray() returned on
+    // its first line without hiding anything, and the single exit path in the
+    // app — the tray menu — did not exist. The process could only be killed.
+    windowManager.setPreventClose(TrayService().isSupported);
   }
 
   @override
@@ -303,6 +307,16 @@ class _VorsitzerAppState extends State<VorsitzerApp> {
 class _DesktopWindowListener extends WindowListener {
   @override
   void onWindowClose() {
+    if (!TrayService().isSupported) {
+      // No tray: X has to close. Announcing "still running in the background"
+      // here was wrong twice over — nothing had been hidden, and there was no
+      // tray icon to click. Destroy only if something is actually holding the
+      // close back, so we never fight the normal close path.
+      windowManager.isPreventClose().then((prevented) {
+        if (prevented) windowManager.destroy();
+      });
+      return;
+    }
     // Instead of closing, hide to tray
     TrayService().hideToTray().then((_) {
       // Show notification that app is still running

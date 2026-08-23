@@ -5,7 +5,7 @@ import '../services/secure_cloud_service.dart';
 import '../widgets/cloud_unlock_dialog.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../services/secure_store.dart';
 import '../services/api_service.dart';
 import '../services/app_sperre_service.dart';
 import '../services/logger_service.dart';
@@ -1395,7 +1395,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     await prefs.setBool('auto_login', false);
 
     // Clear encrypted credentials
-    const secureStorage = FlutterSecureStorage();
+    final secureStorage = SecureStore();
     await secureStorage.delete(key: 'mitgliedernummer');
     await secureStorage.delete(key: 'password');
 
