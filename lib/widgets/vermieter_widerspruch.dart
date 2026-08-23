@@ -276,6 +276,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   int? _akteId;
   String? _quelle;
 
+  /// Was der Reiter VORSCHLAGEN würde, wenn jemand einen Insolvenzgrund
+  /// ankreuzt. Getrennt von `_akteId`, weil ein Vorschlag keine Aussage
+  /// ist: `_akteId` bedeutet „dieser Widerspruch stützt sich auf dieses
+  /// Verfahren", und das darf nur ein Mensch behaupten.
+  int? _vorschlagId;
+  String? _vorschlagQuelle;
+  String? _vorschlagGrund;
+
   /// Die Dokumente des gewählten Vorgangs. Der Brief kündigt den
   /// Beschluss an — dann muss er auch mitgehen.
   ///
@@ -354,9 +362,49 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   final _versendetAm = TextEditingController();
   final _reaktionAm = TextEditingController();
 
+  /// Der Formzustand, wie er zuletzt vom Server kam oder zu ihm ging.
+  /// Solange er gleich ist, ist nichts zu speichern.
+  ///
+  /// ⚠️ Ein Vergleich, kein Haufen `onChanged`-Marker: das Formular hat
+  /// über dreissig Eingaben, und die eine, an die niemand denkt, ist
+  /// genau die, deren Verlust später niemand erklären kann.
+  String? _stand;
+  bool _warSchmutzig = false;
+
+  bool get _schmutzig => _stand != null && _stand != _formStand();
+
+  String _formStand() => [
+        _umfang, _status, _auftritt,
+        _kopieGlaeubiger, _auskunftVerlangt, _rdgNennen, _vollmachtAngezeigt,
+        _akteId, _quelle,
+        (_gruende.toList()..sort()).join('|'),
+        (_versandwege.toList()..sort()).join('|'),
+        (_anhaenge.toList()..sort()).join('|'),
+        for (final c in _alleFelder) c.text,
+      ].join('\u0001');
+
+  List<TextEditingController> get _alleFelder => [
+        _begruendungC, _einschreibenC, _reaktionC, _notizC,
+        _betreffC, _schreibenVom, _glaeubigerC, _vertragRefC,
+        _hauptC, _kostenC, _zinsenC, _gesamtC,
+        _versendetAm, _reaktionAm,
+      ];
+
+  /// Baut nur neu auf, wenn der Zustand KIPPT — nicht bei jedem
+  /// Tastendruck. Der Baum hier ist gross genug, dass das spürbar wäre.
+  void _schmutzPruefen() {
+    final jetzt = _schmutzig;
+    if (jetzt != _warSchmutzig && mounted) {
+      setState(() => _warSchmutzig = jetzt);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    for (final c in _alleFelder) {
+      c.addListener(_schmutzPruefen);
+    }
     _laden();
   }
 
@@ -484,6 +532,10 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         // leer, und ein Schreiben ohne Betreff ordnet niemand zu.
         if (_betreffC.text.trim().isEmpty) _betreffC.text = _betreffVorschlag();
         _bezugVorbelegen();
+        // Altbestand: Datensätze, in denen die Verknüpfung ohne Kreuz
+        // steht, verlieren sie hier — und beim nächsten Speichern auch
+        // in der Datenbank.
+        _insolvenzAbgleichen();
       });
       // ⚠️ Ohne diese Zeile blieb die Anlagenliste beim ÖFFNEN leer: sie
       // wurde nur beim Umschalten des Dropdowns gefüllt. Wer den
@@ -491,6 +543,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       // ging auch keines mit, obwohl der Vorgang gewählt war.
       if (_akteId != null && mounted) setState(_docsAusQuelle);
       await _schreibenDatumSuchen();
+      // ⚠️ NACH `_schreibenDatumSuchen()`: das Datum füllt sich noch
+      // nachträglich, und ein davor genommener Stand hätte den Reiter
+      // sofort als „nicht gespeichert" gemeldet, ohne dass jemand etwas
+      // getan hat. Eine Warnung, die immer leuchtet, liest niemand.
+      if (mounted) setState(() { _stand = _formStand(); _warSchmutzig = false; });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -513,8 +570,18 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       // ⚠️ Beide Spalten werden IMMER geschrieben, die nicht gemeinte auf
       // 0. Sonst bliebe beim Wechsel der Herkunft die alte Verknüpfung
       // stehen und der Vorgang hinge an zwei Akten.
-      'insolvenz_akte_id': _quelle == 'insolvenz_akte' ? (_akteId ?? 0) : 0,
-      'insolvenz_vorfall_id': _quelle == 'gericht_vorfall' ? (_akteId ?? 0) : 0,
+      //
+      // ⚠️ Und beide nur, wenn ein Insolvenzgrund ANGEKREUZT ist. Vorher
+      // wurde die Verknüpfung geschrieben, sobald das Mitglied
+      // überhaupt eine Insolvenz in der Akte hatte — der Reiter hatte
+      // den Vorgang beim Öffnen von selbst gewählt. Damit stand im
+      // Datensatz eine Verbindung zu einem Insolvenzverfahren, die
+      // niemand behauptet hatte, und der Widerspruch sah aus, als sei
+      // er darauf gestützt.
+      'insolvenz_akte_id':
+          _insolvenzAngekreuzt && _quelle == 'insolvenz_akte' ? (_akteId ?? 0) : 0,
+      'insolvenz_vorfall_id':
+          _insolvenzAngekreuzt && _quelle == 'gericht_vorfall' ? (_akteId ?? 0) : 0,
       'gruende': _gruende.toList(),
       'betreff': _betreffC.text.trim(),
       'schreiben_vom': _schreibenVom.text,
@@ -536,7 +603,12 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       content: Text(ok ? 'Gespeichert' : 'Nicht gespeichert: ${res['message'] ?? 'unbekannter Grund'}'),
       backgroundColor: ok ? Colors.green.shade600 : Colors.red,
     ));
-    if (ok) _laden();
+    if (ok) {
+      // Der gespeicherte Zustand ist ab jetzt der saubere.
+      _stand = _formStand();
+      _warSchmutzig = false;
+      _laden();
+    }
   }
 
   /// Wählt den Insolvenzvorgang und setzt den Grund, der zu seinem Stand
@@ -551,7 +623,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   /// Inkassobüro etwas zu behaupten, das aus den Daten nicht folgt.
   /// Also: Vorgang wählen, Dokumente anbieten, Grund offen lassen.
   void _akteAuswerten() {
-    if (_akten.isEmpty || _akteId != null) return;
+    if (_akten.isEmpty) return;
     Map<String, dynamic>? befreit;
     Map<String, dynamic>? laufend;
     for (final a in _akten) {
@@ -564,14 +636,47 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       }
     }
     final gewaehlt = befreit ?? laufend ?? _akten.first;
-    _akteId = int.tryParse(gewaehlt['id']?.toString() ?? '');
-    _quelle = gewaehlt['herkunft']?.toString();
-    if (befreit != null) {
-      _gruende.add('restschuldbefreiung');
-    } else if (laufend != null) {
-      _gruende.add('insolvenz_laufend');
+    _vorschlagId = int.tryParse(gewaehlt['id']?.toString() ?? '');
+    _vorschlagQuelle = gewaehlt['herkunft']?.toString();
+    _vorschlagGrund = befreit != null
+        ? 'restschuldbefreiung'
+        : laufend != null
+            ? 'insolvenz_laufend'
+            : null;
+  }
+
+  /// Ist einer der beiden Insolvenzgründe angekreuzt?
+  ///
+  /// ⚠️ Das ist der Schalter für ALLES, was mit der Insolvenz zu tun hat:
+  /// den Abschnitt, die Auswahl des Vorgangs, die Anlagen, den Absatz im
+  /// Brief und die Verknüpfung im Datensatz. Vorher hing dreierlei an
+  /// dreierlei — Band an der Akte, Abschnitt an der Akte, Absatz am Kreuz
+  /// —, und dabei kam heraus, dass der Reiter Insolvenz anzeigte und
+  /// verknüpfte, ohne dass jemand sie geltend gemacht hatte.
+  bool get _insolvenzAngekreuzt =>
+      _gruende.contains('restschuldbefreiung') ||
+      _gruende.contains('insolvenz_laufend');
+
+  /// Zieht die Akte dem Kreuz nach — in beide Richtungen.
+  ///
+  /// Angekreuzt und noch nichts gewählt: den Vorschlag übernehmen und die
+  /// Beschlüsse zum Anhängen anbieten. Kreuz weg: Vorgang, Dokumente und
+  /// Anlagen los. Sonst bliebe ein Beschluss angehakt, der beim nächsten
+  /// Fax mitgegangen wäre — ein Insolvenzbeschluss an ein Inkassobüro,
+  /// den niemand mehr geschickt haben wollte.
+  void _insolvenzAbgleichen() {
+    if (_insolvenzAngekreuzt) {
+      if (_akteId == null && _vorschlagId != null) {
+        _akteId = _vorschlagId;
+        _quelle = _vorschlagQuelle;
+        _docsAusQuelle();
+      }
+    } else {
+      _akteId = null;
+      _quelle = null;
+      _akteDocs = [];
+      _anhaenge.clear();
     }
-    _docsAusQuelle();
   }
 
   /// Übernimmt die Dokumente des gewählten Vorgangs und kreuzt an, was
@@ -1355,8 +1460,10 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           '${az.isEmpty ? '' : 'Aktenzeichen $az. '}'
           '${ende.length >= 10 ? 'Beschluss vom ${_deutschDatum(ende)}. ' : ''}'
           '§ 301 Abs. 1 InsO wirkt gegen ALLE Insolvenzgläubiger, auch gegen die, die '
-          'nie angemeldet haben. Der Grund ist unten bereits angekreuzt und die Akte '
-          'gewählt — prüfen Sie nur noch, ob die Forderung aus der Zeit VOR '
+          'nie angemeldet haben. ⚠️ Angekreuzt wird das NICHT von selbst: setzen Sie '
+          'unten unter „Gründe" das Kreuz bei der Restschuldbefreiung — dann wird der '
+          'Vorgang verknüpft, der Beschluss als Anlage angeboten und § 301 InsO steht '
+          'im Brief. Prüfen Sie dabei, ob die Forderung aus der Zeit VOR '
           'Verfahrenseröffnung stammt.');
     }
     if (laufend) {
@@ -1367,7 +1474,8 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           '${az.isEmpty ? '' : 'Aktenzeichen $az. '}'
           'Eine Restschuldbefreiung ist noch nicht vermerkt — § 301 InsO greift also '
           'noch nicht. Es gelten §§ 87, 89 InsO: die Forderung gehört zur Tabelle und an '
-          'den Verwalter, nicht an das Mitglied. Der passende Grund ist unten angekreuzt.');
+          'den Verwalter, nicht an das Mitglied. ⚠️ Kreuzen Sie den passenden Grund unten '
+          'selbst an — der Reiter tut es nicht für Sie.');
     }
     // ⚠️ Der dritte Fall, und der häufigste bei älteren Verfahren: es ist
     // eine Insolvenz vermerkt, aber der Datensatz sagt nicht, wie sie
@@ -1383,11 +1491,55 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         'Für dieses Mitglied ist eine Insolvenz vermerkt',
         '${az.isEmpty ? '' : 'Aktenzeichen $az. '}'
         '${stand.isEmpty ? '' : 'Vermerkter Stand: $stand. '}'
-        'Der Vorgang ist unten gewählt und die Beschlüsse stehen zum Anhängen bereit. '
         'Welcher Grund gilt, sagt der Datensatz nicht: bei ERTEILTER '
         'Restschuldbefreiung § 301 InsO, bei noch laufendem Verfahren §§ 87, 89 InsO. '
-        'Bitte am Beschluss ablesen und unten ankreuzen — der Reiter rät das nicht.');
+        'Bitte am Beschluss ablesen und unten unter „Gründe" ankreuzen — der Reiter rät '
+        'das nicht. Erst danach wird der Vorgang verknüpft und die Beschlüsse stehen zum '
+        'Anhängen bereit.');
   }
+
+  /// Ein Tipp statt Scrollen: kreuzt den Grund an, den der Datensatz
+  /// hergibt, und verknüpft den Vorgang gleich mit.
+  ///
+  /// ⚠️ Das ist der Ersatz für das automatische Ankreuzen, und der
+  /// Unterschied ist der ganze Punkt: hier hat ein Mensch getippt. Gibt
+  /// der Datensatz den Ausgang nicht her — der häufigste Fall bei
+  /// älteren Verfahren —, steht hier KEIN Knopf, denn dann wäre er ein
+  /// Ratschlag ins Blaue. Dann bleibt es beim Beschluss in der Hand und
+  /// dem Kreuz weiter unten.
+  Widget _grundKnopf() {
+    final g = _vorschlagGrund;
+    if (g == null || _gruende.contains(g)) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton.icon(
+          onPressed: () => setState(() {
+            _gruende.add(g);
+            _insolvenzAbgleichen();
+          }),
+          icon: const Icon(Icons.check_box_outlined, size: 16),
+          label: Text(
+              g == 'restschuldbefreiung'
+                  ? 'Restschuldbefreiung als Grund ankreuzen'
+                  : 'Laufendes Insolvenzverfahren als Grund ankreuzen',
+              style: const TextStyle(fontSize: 12)),
+        ),
+      ),
+    );
+  }
+
+  /// ⚠️ Der Speichern-Knopf steht am Ende eines Formulars, das auf dem
+  /// Telefon zwei Dutzend Bildschirmhöhen lang ist. Wer oben ein Kreuz
+  /// setzt, sieht ihn nie. Deshalb sagt es das Band da, wo man hinsieht.
+  Widget _nichtGespeichertBand() => _hinweis(
+      Colors.orange,
+      Icons.edit_note,
+      'Nicht gespeichert',
+      'Die Änderungen stehen nur auf diesem Gerät. Der Knopf „Speichern" steht ganz '
+      'unten am Ende des Formulars. Der Reiter darf gewechselt werden — beim Verlassen '
+      'des Vorfalls ist alles Ungespeicherte weg.');
 
   Widget _hinweis(MaterialColor farbe, IconData symbol, String titel, String text) => Container(
         width: double.infinity,
@@ -1505,10 +1657,12 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // ⚠️ Noch vor allem anderen: ist am Mitglied eine Insolvenz
-        // vermerkt, entscheidet das den Fall — und zwar unabhängig davon,
-        // ob jemand daran gedacht hat, den Grund anzukreuzen. Deshalb
-        // steht das Band immer da, sobald eine Akte existiert.
+        // vermerkt, entscheidet das den Fall. Das Band steht deshalb da,
+        // sobald eine Akte existiert — aber es BEHAUPTET nichts, es
+        // fordert auf, unten anzukreuzen. Alles Weitere hängt am Kreuz.
         if (_akten.isNotEmpty) _insolvenzBand(),
+        if (_akten.isNotEmpty) _grundKnopf(),
+        if (_warSchmutzig) _nichtGespeichertBand(),
         // ⚠️ Ganz oben, weil die Verwechslung den Fall kostet.
         _hinweis(Colors.blue, Icons.compare_arrows, 'Nicht der Widerspruch gegen den Mahnbescheid',
             'Dieser Widerspruch geht an das Inkassobüro: formfrei, ohne gesetzliche Frist. '
@@ -1553,6 +1707,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               } else {
                 _gruende.remove(e.key);
               }
+              // ⚠️ Der Abgleich MUSS hier stehen und nicht im Bauen:
+              // erst mit dem Kreuz wird der Vorgang verknüpft und der
+              // Beschluss zum Anhängen angeboten, und erst ohne Kreuz
+              // fällt beides wieder weg.
+              _insolvenzAbgleichen();
             }),
             title: Text(e.value, style: const TextStyle(fontSize: 12.5)),
           ),
@@ -1598,15 +1757,22 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         ),
 
-        // ⚠️ Die Bedingung war einmal enger: nur wenn ein Insolvenzgrund
-        // angekreuzt war. Damit hing der Vorgangswähler samt Anlagenliste
-        // an einer Entscheidung, die genau dann noch NICHT gefallen ist,
-        // wenn der Datensatz den Grund nicht hergibt — also bei den
-        // älteren Verfahren. Der Beschluss lag in der Akte, und es gab
-        // keinen Weg, ihn anzuhängen.
-        if (_gruende.contains('restschuldbefreiung') ||
-            _gruende.contains('insolvenz_laufend') ||
-            _akten.isNotEmpty) ...[
+        // ⚠️ Der Abschnitt hängt am KREUZ, nicht an der Akte.
+        //
+        // Er hing einmal auch daran, dass das Mitglied überhaupt eine
+        // Insolvenz hat — damit man bei älteren Verfahren, deren Ausgang
+        // der Datensatz nicht hergibt, trotzdem an den Beschluss kommt.
+        // Der Preis dafür war zu hoch: der Reiter zeigte dann von selbst
+        // einen Insolvenzabschnitt, wählte den Vorgang, hakte den
+        // Beschluss als Anlage an und schrieb die Verknüpfung in den
+        // Datensatz — alles ohne dass jemand die Insolvenz geltend
+        // gemacht hätte.
+        //
+        // Der ältere Fall geht trotzdem nicht verloren: das Band ganz
+        // oben sagt, dass eine Insolvenz vermerkt ist, und fordert auf,
+        // am Beschluss abzulesen und unten anzukreuzen. Danach steht
+        // hier alles bereit.
+        if (_insolvenzAngekreuzt) ...[
           _abschnitt(_gruende.contains('restschuldbefreiung')
               ? 'Restschuldbefreiung'
               : _gruende.contains('insolvenz_laufend')
@@ -2168,10 +2334,13 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                 ? const SizedBox(
                     width: 14, height: 14,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.save, size: 16),
-            label: const Text('Speichern'),
+                : Icon(_warSchmutzig ? Icons.save_as : Icons.save, size: 16),
+            // Der Knopf sagt selbst, ob es etwas zu tun gibt — sonst
+            // sieht „Speichern" immer gleich aus, ob nötig oder nicht.
+            label: Text(_warSchmutzig ? 'Speichern (offen)' : 'Speichern'),
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple, foregroundColor: Colors.white),
+                backgroundColor: _warSchmutzig ? Colors.orange.shade800 : Colors.purple,
+                foregroundColor: Colors.white),
           ),
           const Spacer(),
           if (_vorhanden)
