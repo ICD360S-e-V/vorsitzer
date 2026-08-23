@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/services.dart';
-
 import 'external_browser_service.dart';
 import 'api_service.dart';
+import '../utils/sicher_clipboard.dart';
 
 /// Auto-login flow pentru contul Online al membrului pe sso.arbeitsagentur.de.
 ///
@@ -35,8 +34,9 @@ class AaAutoLoginService {
     int ticks = 0;
     _clipboardRefreshTimer = Timer.periodic(const Duration(seconds: 5), (t) async {
       ticks++;
-      if (ticks > 24) { // 2 min max
-        t.cancel();
+      if (ticks > 12) { // 1 min max — kürzer, damit nicht minutenlang ein
+        t.cancel();     // gültiger 2FA-Code in der Zwischenablage liegt.
+        await SicherClipboard.leere();
         return;
       }
       try {
@@ -45,17 +45,20 @@ class AaAutoLoginService {
           final data = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : res;
           final code = (data['code'] ?? '').toString();
           if (code.isNotEmpty) {
-            await Clipboard.setData(ClipboardData(text: code));
+            // Geheim: nativ als sensibel markiert + Auto-Löschen.
+            await SicherClipboard.kopiere(code);
           }
         }
       } catch (_) {}
     });
   }
 
-  /// Oprește timer-ul de clipboard refresh (apelat la cleanup sau succes).
+  /// Oprește timer-ul de clipboard refresh (apelat la cleanup sau succes) și
+  /// golește zwischenablage — să nu rămână un cod TOTP valid după terminare.
   static void stopClipboardRefresh() {
     _clipboardRefreshTimer?.cancel();
     _clipboardRefreshTimer = null;
+    SicherClipboard.leere();
   }
 
   // Entry-point pentru flow-ul BA Online. Navigarea la web.arbeitsagentur.de/profil
@@ -113,7 +116,7 @@ class AaAutoLoginService {
     // JS focus-listener + system clipboard Ctrl+V manual.
     if (totpConfigured && totpCode.isNotEmpty) {
       try {
-        await Clipboard.setData(ClipboardData(text: totpCode));
+        await SicherClipboard.kopiere(totpCode);
         _startClipboardRefresh(apiService, userId);
       } catch (_) {
         // Clipboard nu e critic — auto-fill JS rămâne strategia principală

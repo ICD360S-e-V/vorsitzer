@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/phone_link.dart';
-import 'package:flutter/services.dart';
+import '../utils/sicher_clipboard.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:otp/otp.dart';
 import '../services/api_service.dart';
@@ -682,7 +682,7 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
                   Text('${_totpCode.substring(0, 3)} ${_totpCode.substring(3)}', style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 6, fontFamily: 'monospace', color: F.h(Colors.indigo, 800))),
                   const SizedBox(width: 16),
                   InkWell(
-                    onTap: () { Clipboard.setData(ClipboardData(text: _totpCode)); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Code kopiert'), backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 1))); },
+                    onTap: () { SicherClipboard.kopiere(_totpCode); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Code kopiert'), backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 1))); },
                     child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: F.h(Colors.indigo, 100), borderRadius: BorderRadius.circular(8)),
                       child: Icon(Icons.copy, size: 20, color: F.h(Colors.indigo, 700))),
                   ),
@@ -740,7 +740,7 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
                   filled: !_editing, fillColor: !_editing ? F.h(Colors.grey, 100) : null,
                 ))),
               if (!_editing && hasValue) IconButton(icon: const Icon(Icons.copy, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                onPressed: () { Clipboard.setData(ClipboardData(text: c.text)); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Code ${i + 1} kopiert'), backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 1))); }),
+                onPressed: () { SicherClipboard.kopiere(c.text); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Code ${i + 1} kopiert'), backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 1))); }),
             ]));
           }),
         ]),

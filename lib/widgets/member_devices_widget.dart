@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import '../utils/sicher_clipboard.dart';
 import '../services/api_service.dart';
 import 'faltbare_kopfleiste.dart';
 import '../utils/app_farben.dart';
@@ -304,7 +304,7 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
             icon: const Icon(Icons.copy, size: 16),
             label: const Text('Kopieren'),
             onPressed: () {
-              Clipboard.setData(ClipboardData(text: code));
+              SicherClipboard.kopiere(code);
               ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('In Zwischenablage kopiert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
             },
           ),

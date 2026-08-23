@@ -2,11 +2,15 @@ package de.icd360sev.vorsitzer
 
 import android.Manifest
 import android.app.ActivityManager
+import android.content.ClipData
+import android.content.ClipDescription
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PersistableBundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.telephony.TelephonyManager
@@ -23,6 +27,7 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL = "de.icd360sev.vorsitzer/device_integrity"
     private val DIALER_CHANNEL = "de.icd360sev.vorsitzer/dialer"
     private val POWER_CHANNEL = "de.icd360sev.vorsitzer/power"
+    private val CLIPBOARD_CHANNEL = "de.icd360sev.vorsitzer/clipboard"
 
     /** Nummer, die nach dem Permission-Dialog gewählt werden soll. */
     private var pendingCallNumber: String? = null
@@ -84,6 +89,42 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CLIPBOARD_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "copySensitive" -> {
+                        val text = call.argument<String>("text") ?: ""
+                        result.success(copySensitiveClipboard(text))
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /**
+     * Legt [text] als SENSIBLEN Clip in die Zwischenablage. Ab Android 13 wird
+     * EXTRA_IS_SENSITIVE gesetzt, damit Tastatur- und System-Vorschau den Wert
+     * (2FA-Code, Passwort) NICHT im Klartext anzeigen. Flutters
+     * Clipboard.setData kann dieses Flag nicht setzen — deshalb dieser Kanal.
+     */
+    private fun copySensitiveClipboard(text: String): Boolean {
+        return try {
+            val cm = getSystemService(ClipboardManager::class.java) ?: return false
+            val clip = ClipData.newPlainText("", text)
+            val extras = PersistableBundle()
+            if (Build.VERSION.SDK_INT >= 33) {
+                extras.putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+            } else {
+                @Suppress("DEPRECATION")
+                extras.putBoolean("android.content.extra.IS_SENSITIVE", true)
+            }
+            clip.description.extras = extras
+            cm.setPrimaryClip(clip)
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     // =========================================================================

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import '../utils/sicher_clipboard.dart';
 import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
@@ -234,7 +234,7 @@ class _PayPalScreenState extends State<PayPalScreen> {
             icon: Icon(Icons.copy, size: 18, color: color.shade400),
             tooltip: 'Kopieren',
             onPressed: () {
-              Clipboard.setData(ClipboardData(text: value));
+              SicherClipboard.kopiere(value);
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kopiert'), duration: Duration(seconds: 1)));
             },
           ),
@@ -265,7 +265,7 @@ class _PayPalScreenState extends State<PayPalScreen> {
           icon: Icon(Icons.copy, size: 18, color: Colors.red.shade400),
           tooltip: 'Kopieren',
           onPressed: () {
-            Clipboard.setData(ClipboardData(text: pw));
+            SicherClipboard.kopiere(pw);
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwort kopiert'), duration: Duration(seconds: 1)));
           },
         ),
