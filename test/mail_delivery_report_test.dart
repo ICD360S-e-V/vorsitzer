@@ -15,31 +15,41 @@ const _zugestellt = MailDelivery(
 
 void main() {
   group('Zeilen des Sendeberichts', () {
-    test('zugestellt: Status, Zeitpunkt, Empfänger, Relay, Antwort, Queue-ID',
-        () {
+    test('zugestellt: Status, Zeitpunkt, Empfänger, Relay, Verschlüsselung, '
+        'Antwort, Queue-ID', () {
       final rows = deliveryReportRows(_zugestellt);
 
+      // „Verschlüsselung" steht direkt beim Zielserver: die Frage, ob es offen
+      // über die Leitung ging, gehört zu dem Server, zu dem es ging.
       expect(rows.map((r) => r.first), [
         'Status',
         'Angenommen',
         'Empfänger',
         'Zielserver',
+        'Verschlüsselung',
         'Antwort',
         'Queue-ID',
       ]);
       expect(rows.first.last, contains('Zugestellt'));
       expect(rows[1].last, '26.07.2026 09:14:31');
       expect(rows[2].last, 'post@jobcenter.example, kopie@jobcenter.example');
-      expect(rows[4].last, '250 2.0.0 Ok: queued as 4X1');
+      expect(rows[5].last, '250 2.0.0 Ok: queued as 4X1');
     });
 
     /// Der gefährlichste Fall: ohne Log-Eintrag darf weder Blatt noch Karte so
     /// aussehen, als sei die Nachricht angekommen.
     test('ohne Log-Eintrag steht das ausgeschrieben da, nicht leer', () {
       final rows = deliveryReportRows(const MailDelivery());
-      expect(rows.length, 1);
-      expect(rows.single.last, 'Kein Eintrag im Sendeprotokoll gefunden');
-      expect(rows.single.last.toLowerCase(), isNot(contains('zugestellt')));
+      // Status und Verschlüsselung — beide sagen ausdrücklich, dass nichts
+      // belegt ist. ⚠️ Das ist der Grund, warum die Verschlüsselungszeile an
+      // keine Bedingung geknüpft ist: eine fehlende Zeile läse sich wie „war
+      // schon in Ordnung", und das ist genau die Aussage, die ein
+      // Sendebericht ohne Beleg nicht treffen darf.
+      expect(rows.length, 2);
+      expect(rows.first.last, 'Kein Eintrag im Sendeprotokoll gefunden');
+      expect(rows.first.last.toLowerCase(), isNot(contains('zugestellt')));
+      expect(rows[1].first, 'Verschlüsselung');
+      expect(rows[1].last, 'Verschlüsselung nicht belegt');
     });
 
     test('gescheiterte Zustellung wird als solche benannt', () {
@@ -116,8 +126,8 @@ void main() {
 
     testWidgets('Werte lassen sich markieren und kopieren', (tester) async {
       await pump(tester, _zugestellt);
-      // Jede Wertspalte ist auswählbar — sechs Zeilen, sechs Werte.
-      expect(find.byType(SelectableText), findsNWidgets(6));
+      // Jede Wertspalte ist auswählbar — sieben Zeilen, sieben Werte.
+      expect(find.byType(SelectableText), findsNWidgets(7));
     });
 
     testWidgets('ohne Log-Eintrag bleibt es bei einer ehrlichen Zeile',

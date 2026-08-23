@@ -21,6 +21,8 @@ import '../widgets/file_viewer_dialog.dart';
 import '../widgets/mail_delivery_indicator.dart';
 import '../widgets/mail_delivery_report_card.dart';
 import '../widgets/mail_echtheit_karte.dart';
+import '../widgets/mail_transport_zeile.dart';
+import '../utils/mail_transport.dart';
 import '../widgets/mail_korrespondenz_badge.dart';
 import '../widgets/mail_folder_rail.dart';
 import '../widgets/mail_html_view.dart';
@@ -2719,11 +2721,18 @@ class _MailMessageViewState extends State<MailMessageView> {
               const SizedBox(height: 10),
               // Vor „Von": ob man dem Absender glauben darf, entscheidet, wie
               // man den Rest liest.
-              if (widget.box != 'Sent' && widget.box != 'Drafts')
+              if (widget.box != 'Sent' && widget.box != 'Drafts') ...[
                 MailEchtheitKarte(
                   von: '${_msg['from'] ?? ''}',
                   authResults: '${_msg['authentication_results'] ?? ''}',
                 ),
+                // Zwei Zeilen, zwei Fragen: darüber, ob der Absender echt ist —
+                // hier, ob die Leitung zu war. Zusammengefasst wären beide
+                // falsch.
+                MailTransportZeile(
+                  befund: mailTransportLesen(_msg['transport']),
+                ),
+              ],
               _kv('Von', '${_msg['from'] ?? ''}'),
               _kv('An', '${_msg['to'] ?? ''}'),
               if ('${_msg['cc'] ?? ''}'.isNotEmpty) _kv('Cc', '${_msg['cc']}'),
