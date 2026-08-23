@@ -779,7 +779,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
         if (isEmail) {
           var before = be.value;
           var ok = setVal(be, '$email');
-          try { console.log('[ICD360S brute-email]', {name: be.name, id: be.id, ph: be.placeholder, before: before, after: be.value, setVal_ok: ok}); } catch(e) {}
+          // Sicherheit: den befüllten Wert (E-Mail = PII) NIE loggen — nur Längen
+          // fürs Diagnose-Signal „wurde befüllt?" (OWASP Logging Cheat Sheet).
+          try { console.log('[ICD360S brute-email]', {name: be.name, id: be.id, ph: be.placeholder, before_len: (before||'').length, after_len: (be.value||'').length, setVal_ok: ok}); } catch(e) {}
           if (ok) { filled++; fillLog.push('email_brute'); }
         }
       }
