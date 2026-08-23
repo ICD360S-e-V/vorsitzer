@@ -311,35 +311,50 @@ class _SipgateScreenState extends State<SipgateScreen> {
               // unterdrückter Nummer nehmen viele Ämter und Praxen gar nicht ab
               // und können auf keinen Fall zurückrufen. Wer das nicht sieht,
               // sucht den Fehler bei der Verbindung.
-              Row(
-                children: [
-                  Icon(
-                    z.absendernummer == null ? Icons.visibility_off : Icons.badge_outlined,
-                    size: 16,
-                    color: z.absendernummer == null
-                        ? F.h(Colors.orange, 700)
-                        : F.h(Colors.grey, 700),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      z.absendernummer == null
-                          ? 'Angerufene sehen: unterdrückt — viele Ämter nehmen '
-                              'dann nicht ab und können nicht zurückrufen'
-                          : 'Angerufene sehen: ${_nummerLesbar(z.absendernummer!)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: z.absendernummer == null
-                            ? F.h(Colors.orange, 900)
-                            : F.h(Colors.grey, 800),
-                        fontWeight: z.absendernummer == null
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+              //
+              // ⚠️ DREI ZUSTÄNDE, NICHT ZWEI. Vorher hiess `null` schlicht
+              // „unterdrückt" — auch dann, wenn wir aus dem Zwischenspeicher
+              // angemeldet waren und es schlicht nicht wussten. Dieser
+              // Bildschirm hat dann eine Aussage über die Aussenwirkung JEDES
+              // Anrufs getroffen, die falsch war. `notrufstandort` gleich
+              // darunter macht es seit jeher richtig vor.
+              Builder(builder: (_) {
+                final anzeige = sipgateAbsenderAnzeige(
+                  bekannt: z.absendernummerBekannt,
+                  nummer: z.absendernummer,
+                );
+                final unbekannt = anzeige == SipgateAbsenderAnzeige.unbekannt;
+                final unterdrueckt = anzeige == SipgateAbsenderAnzeige.unterdrueckt;
+                final auffaellig = anzeige != SipgateAbsenderAnzeige.nummer;
+                return Row(
+                  children: [
+                    Icon(
+                      unbekannt
+                          ? Icons.help_outline
+                          : (unterdrueckt ? Icons.visibility_off : Icons.badge_outlined),
+                      size: 16,
+                      color: auffaellig ? F.h(Colors.orange, 700) : F.h(Colors.grey, 700),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        unbekannt
+                            ? 'Angerufene sehen: unbekannt — die Angaben konnten '
+                                'beim Anmelden nicht vom Server geholt werden'
+                            : (unterdrueckt
+                                ? 'Angerufene sehen: unterdrückt — viele Ämter nehmen '
+                                    'dann nicht ab und können nicht zurückrufen'
+                                : 'Angerufene sehen: ${_nummerLesbar(z.absendernummer!)}'),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: auffaellig ? F.h(Colors.orange, 900) : F.h(Colors.grey, 800),
+                          fontWeight: auffaellig ? FontWeight.w600 : FontWeight.normal,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                );
+              }),
               const SizedBox(height: 4),
               Row(
                 children: [
@@ -495,6 +510,10 @@ class _SipgateScreenState extends State<SipgateScreen> {
               const SizedBox(height: 8),
               Text(z.meldung!, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800))),
             ],
+            // ⚠️ `z.geteilt` ist bewusst NICHT die einzige Bedingung: aus dem
+            // Zwischenspeicher heisst `false` nur „unbekannt", und dann fehlte
+            // hier stillschweigend der Hinweis, dass ein zweites Gerät
+            // mitklingelt. Kein falscher Satz wie oben, aber dieselbe Wurzel.
             if (z.geteilt) ...[
               const SizedBox(height: 8),
               _warnzeile(
