@@ -237,4 +237,29 @@ void main() {
       expect(s.istGesperrt, isTrue);
     });
   });
+
+  group('Über dem Sperrbildschirm', () {
+    test('gesperrtes Gerät + gesetztes Passwort → sperren', () async {
+      final s = AppSperreService();
+      await s.zuruecksetzen();
+      await s.passwortSetzen('ueber-lock-passwort');
+      expect(s.istGesperrt, isFalse);
+      expect(s.sollUeberLockschirmSperren(true), isTrue);
+      expect(s.sollUeberLockschirmSperren(false), isFalse,
+          reason: 'Gerät nicht gesperrt → kein Grund zu sperren');
+    });
+    test('ohne gesetztes Passwort nicht', () async {
+      final s = AppSperreService();
+      await s.zuruecksetzen();
+      expect(s.sollUeberLockschirmSperren(true), isFalse);
+    });
+    test('bereits gesperrt → nichts zu tun', () async {
+      final s = AppSperreService();
+      await s.zuruecksetzen();
+      await s.passwortSetzen('ueber-lock-passwort');
+      s.sperren();
+      expect(s.istGesperrt, isTrue);
+      expect(s.sollUeberLockschirmSperren(true), isFalse);
+    });
+  });
 }

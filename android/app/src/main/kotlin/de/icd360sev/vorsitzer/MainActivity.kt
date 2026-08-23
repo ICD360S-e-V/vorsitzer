@@ -2,6 +2,7 @@ package de.icd360sev.vorsitzer
 
 import android.Manifest
 import android.app.ActivityManager
+import android.app.KeyguardManager
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
@@ -27,6 +28,7 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL = "de.icd360sev.vorsitzer/device_integrity"
     private val DIALER_CHANNEL = "de.icd360sev.vorsitzer/dialer"
     private val POWER_CHANNEL = "de.icd360sev.vorsitzer/power"
+    private val KEYGUARD_CHANNEL = "de.icd360sev.vorsitzer/keyguard"
     private val CLIPBOARD_CHANNEL = "de.icd360sev.vorsitzer/clipboard"
 
     /** Nummer, die nach dem Permission-Dialog gewählt werden soll. */
@@ -90,6 +92,14 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, KEYGUARD_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isKeyguardLocked" -> result.success(isKeyguardLocked())
+                    else -> result.notImplemented()
+                }
+            }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CLIPBOARD_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -125,6 +135,14 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             false
         }
+    }
+
+    /** Ist der System-Sperrbildschirm gerade aktiv? Wird beim Zurückkehren in
+     *  den Vordergrund gefragt: erscheint die App über dem gesperrten Gerät,
+     *  greift die App-Sperre sofort. */
+    private fun isKeyguardLocked(): Boolean {
+        val km = getSystemService(KeyguardManager::class.java) ?: return false
+        return km.isKeyguardLocked
     }
 
     // =========================================================================

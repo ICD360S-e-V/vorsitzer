@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../utils/sperre_passwort.dart';
 import 'logger_service.dart';
@@ -167,6 +169,43 @@ class AppSperreService extends ChangeNotifier {
     if (!istEingerichtet || _gesperrt) return;
     _gesperrt = true;
     notifyListeners();
+  }
+
+  static const MethodChannel _keyguardKanal =
+      MethodChannel('de.icd360sev.vorsitzer/keyguard');
+
+  /// Beim Zurückkehren in den Vordergrund: erscheint die App ÜBER dem
+  /// System-Sperrbildschirm (Anruf-Fullscreen-Intent, Tipp auf eine
+  /// Benachrichtigung auf dem Sperrbildschirm), muss die App-Sperre SOFORT
+  /// greifen — unabhängig von den 15 Minuten. Sonst wären Mitgliedsdaten ohne
+  /// Entsperren des Geräts sichtbar (`showWhenLocked` gilt für die ganze App).
+  /// Ausnahme: ein laufendes/eingehendes Gespräch — sonst stünde die
+  /// Passwortabfrage vor dem Anrufbildschirm.
+  Future<void> ueberLockschirmPruefen() async {
+    if (!Platform.isAndroid) return;
+    if (!istEingerichtet || _gesperrt) return;
+    bool geraetGesperrt;
+    try {
+      geraetGesperrt =
+          await _keyguardKanal.invokeMethod<bool>('isKeyguardLocked') ?? false;
+    } catch (_) {
+      return; // ohne verlässliche Auskunft nicht sperren
+    }
+    if (sollUeberLockschirmSperren(geraetGesperrt)) sperren();
+  }
+
+  /// Reine Entscheidung, ohne Plattformkanal — dadurch prüfbar: sperren, wenn
+  /// das Gerät gesperrt ist, ein Passwort gesetzt ist, noch nicht gesperrt
+  /// wurde und gerade kein Gespräch läuft.
+  @visibleForTesting
+  bool sollUeberLockschirmSperren(bool geraetGesperrt) {
+    if (!geraetGesperrt || !istEingerichtet || _gesperrt) return false;
+    try {
+      if (VoiceCallService().callState != CallState.idle) return false;
+    } catch (_) {
+      // Der Anrufdienst darf die Entscheidung nicht aufhalten.
+    }
+    return true;
   }
 
   /// Schaut auf die Uhr. Wird vom Takt und beim Zurückkehren aus dem
