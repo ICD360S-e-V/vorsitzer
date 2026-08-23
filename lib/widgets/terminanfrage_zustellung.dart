@@ -28,7 +28,16 @@ import '../utils/app_farben.dart';
 /// einen leeren Status vorzutäuschen.
 class TerminanfrageZustellung extends StatefulWidget {
   /// Die Notizen des Termins — dort steht die Message-ID.
+  ///
+  /// ⚠️ Nur der Weg der ARZT-Tabs: deren Terminzeile hat feste Spalten und
+  /// kein Feld für die Id, also reist sie in den Notizen mit. Wer die Id
+  /// ohnehin einzeln vorliegen hat, gibt sie über [messageId] — dann muss
+  /// niemand eine Notiz zusammenbauen, nur damit dieses Widget sie wieder
+  /// auseinandernimmt.
   final String? notizen;
+
+  /// Die Message-ID direkt. Hat Vorrang vor [notizen].
+  final String? messageId;
 
   /// Nur bei ausgehender E-Mail sinnvoll; sonst wird nichts gezeigt.
   final String art;
@@ -38,7 +47,8 @@ class TerminanfrageZustellung extends StatefulWidget {
 
   const TerminanfrageZustellung({
     super.key,
-    required this.notizen,
+    this.notizen,
+    this.messageId,
     required this.art,
     required this.richtung,
     required this.apiService,
@@ -53,7 +63,10 @@ class _TerminanfrageZustellungState extends State<TerminanfrageZustellung> {
   MailDelivery? _stand;
   bool _laeuft = false;
 
-  String get _id => terminZustellungMessageId(widget.notizen);
+  String get _id {
+    final direkt = (widget.messageId ?? '').trim();
+    return direkt.isEmpty ? terminZustellungMessageId(widget.notizen) : direkt;
+  }
 
   bool get _zutreffend =>
       widget.art == 'email' && widget.richtung == 'ausgehend' && _id.isNotEmpty;
