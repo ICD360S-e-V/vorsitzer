@@ -34,6 +34,10 @@ class _SipgateScreenState extends State<SipgateScreen> {
   String _gesendeteToene = '';
   bool _ladeVerlauf = true;
   List<Map<String, dynamic>> _verlauf = const [];
+
+  /// Was sipgate ueber das VoIP-Telefon sagt — `null`, solange nicht geholt.
+  Map<String, dynamic>? _telefonZustand;
+  String _eigenerUa = sipgateEigenerUserAgent;
   List<Map<String, dynamic>> _geraete = const [];
   Map<String, dynamic>? _verzeichnis;
 
@@ -93,7 +97,12 @@ class _SipgateScreenState extends State<SipgateScreen> {
     await _dienst.vollbildPruefen();
     await _dienst.benachrichtigungPruefen();
     if (mounted) setState(() {});
-    await Future.wait([_verlaufLaden(), _geraeteLaden(), _verzeichnisLaden()]);
+    await Future.wait([
+      _verlaufLaden(),
+      _geraeteLaden(),
+      _verzeichnisLaden(),
+      _zustandLaden(),
+    ]);
   }
 
   Future<void> _verlaufLaden() async {
@@ -113,6 +122,131 @@ class _SipgateScreenState extends State<SipgateScreen> {
     } catch (_) {
       if (mounted) setState(() => _ladeVerlauf = false);
     }
+  }
+
+  /// Holt bei sipgate, ob das VoIP-Telefon angemeldet ist.
+  ///
+  /// ⚠️ Nicht beim Geraet selbst erfragt, sondern beim Registrar. Ein
+  /// Lebenszeichen des Tablets bewiese nur „die App laeuft", nicht „sie ist
+  /// angemeldet" — und die beiden gehen genau in dem Fall auseinander, um den
+  /// es hier geht.
+  Future<void> _zustandLaden({bool frisch = false}) async {
+    try {
+      final a = await ApiService()
+          .sipgateAction({'action': 'geraete_zustand', if (frisch) 'frisch': true});
+      if (!mounted) return;
+      final liste = a['zustand'];
+      setState(() {
+        _telefonZustand = (liste is List && liste.isNotEmpty)
+            ? Map<String, dynamic>.from(liste.first as Map)
+            : null;
+        final ua = a['eigener_user_agent'];
+        if (ua is String && ua.isNotEmpty) _eigenerUa = ua;
+      });
+    } catch (_) {
+      // Kein Zustand ist etwas anderes als „nicht angemeldet" — der letzte
+      // bekannte Stand bleibt stehen, und die Anzeige sagt „unbekannt".
+    }
+  }
+
+  /// Die Karte, die sagt, ob ueber sipgate ueberhaupt telefoniert werden kann.
+  ///
+  /// ⚠️ Steht auf BEIDEN Geraeten, und auf dem Rechner ist sie der eigentliche
+  /// Gewinn: von dort gehen die Waehlauftraege aus, und seit „nur das Geraet
+  /// mit eigenem Telefon meldet sich an" scheitert ein Auftrag mit
+  /// `wahlweg: sipgate` ehrlich, wenn das Tablet nicht angemeldet ist — nur
+  /// erfuhr man das bis jetzt erst NACH dem Klick.
+  Widget _telefonLage() {
+    final z = _telefonZustand;
+    final lage = sipgateTelefonLage(
+      online: z?['online'] as bool?,
+      dnd: z?['dnd'] as bool?,
+      userAgent: z?['user_agent'] as String?,
+      eigenerUserAgent: _eigenerUa,
+    );
+    final (farbe, symbol, titel, text) = switch (lage) {
+      SipgateTelefonLage.bereit => (
+          Colors.green,
+          Icons.cloud_done,
+          'Das Tablet ist bei sipgate angemeldet',
+          'Ein Anruf über sipgate kann zustande kommen.',
+        ),
+      SipgateTelefonLage.fremdesGeraet => (
+          Colors.orange,
+          Icons.devices_other,
+          'Angemeldet — aber nicht von dieser App',
+          'Die Anmeldung hält „${z?['user_agent'] ?? '?'}". Ein Auftrag über '
+              'sipgate würde scheitern, weil unsere App die Leitung nicht hält.',
+        ),
+      SipgateTelefonLage.nichtStoeren => (
+          Colors.orange,
+          Icons.do_not_disturb_on,
+          'Nicht stören ist eingeschaltet',
+          'Das Telefon ist angemeldet, aber bei sipgate auf „nicht stören" '
+              'gestellt — eingehende Anrufe klingeln nicht. Umzustellen im '
+              'sipgate-Konto.',
+        ),
+      SipgateTelefonLage.abgemeldet => (
+          Colors.red,
+          Icons.cloud_off,
+          'Das Tablet ist NICHT bei sipgate angemeldet',
+          'Ein Anruf über sipgate würde jetzt scheitern. Es wird nicht auf die '
+              'SIM ausgewichen — das wäre eine andere Leitung mit einer anderen '
+              'Absendernummer.',
+        ),
+      SipgateTelefonLage.unbekannt => (
+          Colors.grey,
+          Icons.help_outline,
+          'Anmeldezustand unbekannt',
+          'Der Zustand konnte nicht bei sipgate erfragt werden. Das ist etwas '
+              'anderes als „nicht angemeldet".',
+        ),
+    };
+
+    final stand = '${z?['stand_am'] ?? ''}';
+    return Card(
+      color: F.h(farbe, 50),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(symbol, size: 22, color: F.h(farbe, 700)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(titel,
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: F.h(farbe, 900))),
+                  const SizedBox(height: 4),
+                  Text(text,
+                      style:
+                          TextStyle(fontSize: 12, color: F.h(Colors.grey, 800))),
+                  if (stand.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    // Der Zeitpunkt gehoert dazu: die Auskunft ist bis zu einer
+                    // Minute alt, und ohne ihn liest man sie als „jetzt".
+                    Text('Bei sipgate erfragt: $stand',
+                        style: TextStyle(
+                            fontSize: 11, color: F.h(Colors.grey, 600))),
+                  ],
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 18),
+              tooltip: 'Jetzt neu bei sipgate erfragen',
+              visualDensity: VisualDensity.compact,
+              onPressed: () => _zustandLaden(frisch: true),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _geraeteLaden() async {
@@ -235,6 +369,8 @@ class _SipgateScreenState extends State<SipgateScreen> {
         padding: EdgeInsets.all(schmal ? 10 : 16),
         children: [
           if (!_dienst.plattformFaehig) _hinweisBedienpult() else _anmeldung(z),
+          const SizedBox(height: 12),
+          _telefonLage(),
           if (_dienst.plattformFaehig && z.gespraech != null) ...[
             const SizedBox(height: 12),
             _gespraechsfeld(z),
