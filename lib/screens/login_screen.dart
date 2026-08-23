@@ -508,7 +508,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF1a1a2e),
-      body: Center(
+      body: SafeArea(child: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(32),
           child: Container(
@@ -580,7 +580,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
-      ),
+      )),
     );
   }
 
