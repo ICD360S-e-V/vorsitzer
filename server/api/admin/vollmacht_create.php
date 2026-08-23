@@ -33,7 +33,7 @@ require_once '../config.php';
 require_once '../lib/fpdf186/fpdf.php';
 
 // Same crypto as arbeitsagentur_data_manage.php
-define('EK', hash('sha256', 'ICD360S_BehoerdeData_2026_SecureKey!', true));
+define('EK', behoerdeSchluessel());
 define('EM', 'aes-256-cbc');
 function dv($e) {
     if (empty($e)) return '';
