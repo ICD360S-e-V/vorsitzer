@@ -77,6 +77,25 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Kreuzt einen Grund an, wie ein Mensch es täte — durch Tippen.
+  ///
+  /// ⚠️ Nicht über einen Test-Haken am State: das Ankreuzen IST das, was
+  /// geprüft werden soll. Ein Haken, der `_gruende` direkt füllt, würde
+  /// den Abgleich umgehen und wäre grün, auch wenn der Kasten gar nichts
+  /// auslöst.
+  Future<void> ankreuzenTippen(WidgetTester tester, String teiltext) async {
+    // ⚠️ `widgetWithText` verlangt den GANZEN Text; die Zeile lautet
+    // „Die Forderung ist von der Restschuldbefreiung erfasst (§ 301
+    // InsO)". Also über den Nachfahren suchen.
+    final kasten = find.ancestor(
+        of: find.textContaining(teiltext), matching: find.byType(CheckboxListTile));
+    expect(kasten, findsOneWidget, reason: 'Grund „$teiltext" nicht gefunden');
+    await tester.ensureVisible(kasten);
+    await tester.pumpAndSettle();
+    await tester.tap(kasten);
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('ein Gerichtsvorfall zählt als Insolvenz — samt Beschlüssen',
       (tester) async {
     await zeigen(tester, [_weber]);
@@ -84,10 +103,36 @@ void main() {
     // der stärkste Einwand schon in der Akte liegt.
     expect(find.textContaining('ist eine Insolvenz vermerkt'), findsOneWidget);
     expect(find.textContaining('IK 13/21'), findsWidgets);
-    // Alle drei Beschlüsse stehen zum Anhängen bereit.
+
+    // ⚠️ VOR dem Kreuz steht kein Insolvenzabschnitt da. Vorher tat er
+    // das: der Reiter wählte den Vorgang von selbst, hakte die
+    // Beschlüsse als Anlage an und schrieb die Verknüpfung in den
+    // Datensatz — ohne dass jemand die Insolvenz geltend gemacht hätte.
+    for (final n in ['Beschluss_1.jpg', 'Beschluss_2.jpg', 'Beschluss_3.jpg']) {
+      expect(find.text(n), findsNothing,
+          reason: '$n darf ohne angekreuzten Grund nicht als Anlage bereitstehen');
+    }
+
+    // Erst mit dem Kreuz. Bei diesem Datensatz sagt nichts, wie das
+    // Verfahren ausging — also entscheidet der Mensch am Beschluss.
+    await ankreuzenTippen(tester, 'Restschuldbefreiung');
     for (final n in ['Beschluss_1.jpg', 'Beschluss_2.jpg', 'Beschluss_3.jpg']) {
       expect(find.text(n), findsOneWidget, reason: '$n fehlt in der Anlagenliste');
     }
+  });
+
+  testWidgets('⚠️ Kreuz weg heißt Anlage weg', (tester) async {
+    // Sonst bliebe ein Insolvenzbeschluss angehakt, den niemand mehr
+    // schicken wollte — und beim nächsten Fax an das Inkassobüro ginge
+    // er mit.
+    await zeigen(tester, [_weber]);
+    await ankreuzenTippen(tester, 'Restschuldbefreiung');
+    expect(find.text('Beschluss_1.jpg'), findsOneWidget);
+    await ankreuzenTippen(tester, 'Restschuldbefreiung');
+    expect(find.text('Beschluss_1.jpg'), findsNothing);
+    await (tester.state(find.byType(VermieterWiderspruch)) as dynamic)
+        .anhaengeFuerTest();
+    expect(geholt, isEmpty, reason: 'ohne Kreuz darf nichts mitgehen');
   });
 
   testWidgets('⚠️ der Grund wird NICHT geraten', (tester) async {
@@ -107,15 +152,35 @@ void main() {
     expect(find.textContaining('der Reiter rät das nicht'), findsOneWidget);
   });
 
-  testWidgets('eine Akte mit erteilter Restschuldbefreiung kreuzt sehr wohl an',
+  testWidgets('eine erteilte Restschuldbefreiung wird ANGEBOTEN, nicht gesetzt',
       (tester) async {
+    // ⚠️ Bis 23.08.2026 kreuzte der Reiter hier von selbst an. Bequem,
+    // aber falsch: im Datensatz stand danach eine Verknüpfung zu einem
+    // Insolvenzverfahren und im Brief der Absatz zu § 301 InsO, ohne
+    // dass ein Mensch das behauptet hätte. Jetzt liegt der Vorschlag als
+    // Knopf da — ein Tipp, und er ist gesetzt.
     await zeigen(tester, [_befreit]);
     expect(find.textContaining('Restschuldbefreiung vermerkt'), findsOneWidget);
-    final kasten = tester.widgetList<CheckboxListTile>(find.byType(CheckboxListTile));
+
+    Iterable<CheckboxListTile> insolvenzKreuze() =>
+        tester.widgetList<CheckboxListTile>(find.byType(CheckboxListTile)).where((k) {
+          final t = (k.title is Text) ? ((k.title as Text).data ?? '') : '';
+          return t.contains('Restschuldbefreiung') || t.contains('Insolvenzverfahren');
+        });
+
+    expect(insolvenzKreuze().any((k) => k.value == true), isFalse,
+        reason: 'nichts darf vorangekreuzt sein');
+
+    final knopf = find.textContaining('als Grund ankreuzen');
+    expect(knopf, findsOneWidget);
+    await tester.ensureVisible(knopf);
+    await tester.pumpAndSettle();
+    await tester.tap(knopf);
+    await tester.pumpAndSettle();
+
     expect(
-        kasten.any((k) =>
+        insolvenzKreuze().any((k) =>
             k.value == true &&
-            (k.title is Text) &&
             ((k.title as Text).data ?? '').contains('Restschuldbefreiung')),
         isTrue);
   });
@@ -129,6 +194,7 @@ void main() {
     // Beide Quellen tragen ein Dokument mit der id 26 — die Zahl allein
     // ist mehrdeutig, erst die Herkunft macht sie eindeutig.
     await zeigen(tester, [_weber]);
+    await ankreuzenTippen(tester, 'Restschuldbefreiung');
     await (tester.state(find.byType(VermieterWiderspruch)) as dynamic)
         .anhaengeFuerTest();
     expect(geholt, ['gericht_vorfall/26', 'gericht_vorfall/27', 'gericht_vorfall/28']);
@@ -139,6 +205,11 @@ void main() {
     // Gewollt: sie ist der stärkere Einwand. Dann darf aber auch nur ihr
     // Dokument mitgehen, nicht das gleichnummerige des anderen Vorgangs.
     await zeigen(tester, [_weber, _befreit]);
+    final knopf = find.textContaining('als Grund ankreuzen');
+    await tester.ensureVisible(knopf);
+    await tester.pumpAndSettle();
+    await tester.tap(knopf);
+    await tester.pumpAndSettle();
     await (tester.state(find.byType(VermieterWiderspruch)) as dynamic)
         .anhaengeFuerTest();
     expect(geholt, ['insolvenz_akte/26']);

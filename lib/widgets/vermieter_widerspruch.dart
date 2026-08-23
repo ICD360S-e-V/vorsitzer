@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/mail_models.dart';
@@ -276,6 +278,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   int? _akteId;
   String? _quelle;
 
+  /// Was der Reiter VORSCHLAGEN würde, wenn jemand einen Insolvenzgrund
+  /// ankreuzt. Getrennt von `_akteId`, weil ein Vorschlag keine Aussage
+  /// ist: `_akteId` bedeutet „dieser Widerspruch stützt sich auf dieses
+  /// Verfahren", und das darf nur ein Mensch behaupten.
+  int? _vorschlagId;
+  String? _vorschlagQuelle;
+  String? _vorschlagGrund;
+
   /// Die Dokumente des gewählten Vorgangs. Der Brief kündigt den
   /// Beschluss an — dann muss er auch mitgehen.
   ///
@@ -354,9 +364,81 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   final _versendetAm = TextEditingController();
   final _reaktionAm = TextEditingController();
 
+  /// Der Formzustand, wie er zuletzt vom Server kam oder zu ihm ging.
+  /// Solange er gleich ist, ist nichts zu speichern.
+  ///
+  /// ⚠️ Ein Vergleich, kein Haufen `onChanged`-Marker: das Formular hat
+  /// über dreissig Eingaben, und die eine, an die niemand denkt, ist
+  /// genau die, deren Verlust später niemand erklären kann.
+  String? _stand;
+  bool _warSchmutzig = false;
+
+  /// Der zuletzt GESEHENE Zustand — nicht der zuletzt gespeicherte.
+  ///
+  /// ⚠️ Der Unterschied trägt die ganze Verzögerung: geprüft wird nach
+  /// jedem Bild, und der Zeitgeber darf nur dann neu anlaufen, wenn sich
+  /// wirklich etwas bewegt hat. Liefe er bei jedem Bild neu an, käme er
+  /// bei einer Oberfläche, die aus irgendeinem Grund dauernd zeichnet,
+  /// nie ans Ende — und gespeichert würde nie.
+  String? _letzterGesehen;
+
+  Timer? _tick;
+  DateTime? _zuletztGespeichert;
+  String? _speicherFehler;
+
+  bool get _schmutzig => _stand != null && _stand != _formStand();
+
+  String _formStand() => [
+        _umfang, _status, _auftritt,
+        _kopieGlaeubiger, _auskunftVerlangt, _rdgNennen, _vollmachtAngezeigt,
+        _akteId, _quelle,
+        (_gruende.toList()..sort()).join('|'),
+        (_versandwege.toList()..sort()).join('|'),
+        (_anhaenge.toList()..sort()).join('|'),
+        for (final c in _alleFelder) c.text,
+      ].join('\u0001');
+
+  List<TextEditingController> get _alleFelder => [
+        _begruendungC, _einschreibenC, _reaktionC, _notizC,
+        _betreffC, _schreibenVom, _glaeubigerC, _vertragRefC,
+        _hauptC, _kostenC, _zinsenC, _gesamtC,
+        _versendetAm, _reaktionAm,
+      ];
+
+  /// Sieht nach, ob sich etwas bewegt hat, und plant das Speichern.
+  ///
+  /// Läuft nach jedem Bild — das ist der Preis dafür, dass KEIN Feld und
+  /// kein Kreuz vergessen werden kann. Ein Vergleich zweier Zeichenketten
+  /// kostet nichts; dreissig einzeln gepflegte Marker hätten dagegen
+  /// genau eine Lücke gehabt, und zwar die, deren Verlust später niemand
+  /// erklären kann.
+  void _schmutzPruefen() {
+    if (!mounted || !_geladen) return;
+    final stand = _formStand();
+    if (stand == _letzterGesehen) return;
+    _letzterGesehen = stand;
+
+    final jetzt = _stand != null && _stand != stand;
+    if (jetzt) _tickPlanen();
+    if (jetzt != _warSchmutzig) setState(() => _warSchmutzig = jetzt);
+  }
+
+  /// ⚠️ Eine Wartezeit, kein Speichern je Tastendruck. „48,90" sind fünf
+  /// Anschläge; ohne sie wären das fünf Anfragen, davon vier über einen
+  /// halben Betrag.
+  static const _wartezeit = Duration(milliseconds: 1200);
+
+  void _tickPlanen() {
+    _tick?.cancel();
+    _tick = Timer(_wartezeit, () => _speichern());
+  }
+
   @override
   void initState() {
     super.initState();
+    for (final c in _alleFelder) {
+      c.addListener(_schmutzPruefen);
+    }
     _laden();
   }
 
@@ -383,6 +465,18 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
 
   @override
   void dispose() {
+    _tick?.cancel();
+    // ⚠️ Der letzte Wurf, ohne `await`: der Reiter verschwindet, die
+    // Anfrage darf noch fliegen. Wer den Vorfall innerhalb der 1,2
+    // Sekunden verlässt, hätte sonst genau die letzte Eingabe verloren —
+    // und das ist der Fall, für den es das Auto-Speichern gibt.
+    //
+    // Die Nutzlast wird VOR dem Wegräumen der Controller gebaut; danach
+    // ist ihr Text nicht mehr lesbar.
+    if (_schmutzig) {
+      unawaited(
+          widget.apiService.saveVermieterWiderspruch(widget.vorfallId, _nutzlast()));
+    }
     for (final c in [
       _begruendungC, _einschreibenC, _reaktionC, _notizC, _versendetAm, _reaktionAm,
       _betreffC, _schreibenVom, _glaeubigerC, _vertragRefC,
@@ -484,6 +578,10 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         // leer, und ein Schreiben ohne Betreff ordnet niemand zu.
         if (_betreffC.text.trim().isEmpty) _betreffC.text = _betreffVorschlag();
         _bezugVorbelegen();
+        // Altbestand: Datensätze, in denen die Verknüpfung ohne Kreuz
+        // steht, verlieren sie hier — und beim nächsten Speichern auch
+        // in der Datenbank.
+        _insolvenzAbgleichen();
       });
       // ⚠️ Ohne diese Zeile blieb die Anlagenliste beim ÖFFNEN leer: sie
       // wurde nur beim Umschalten des Dropdowns gefüllt. Wer den
@@ -491,6 +589,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       // ging auch keines mit, obwohl der Vorgang gewählt war.
       if (_akteId != null && mounted) setState(_docsAusQuelle);
       await _schreibenDatumSuchen();
+      // ⚠️ NACH `_schreibenDatumSuchen()`: das Datum füllt sich noch
+      // nachträglich, und ein davor genommener Stand hätte den Reiter
+      // sofort als „nicht gespeichert" gemeldet, ohne dass jemand etwas
+      // getan hat. Eine Warnung, die immer leuchtet, liest niemand.
+      if (mounted) setState(() { _stand = _formStand(); _warSchmutzig = false; });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -500,9 +603,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     }
   }
 
-  Future<void> _speichern() async {
-    setState(() => _speichert = true);
-    final res = await widget.apiService.saveVermieterWiderspruch(widget.vorfallId, {
+  /// Was hinausgeht. Eigene Methode, weil `dispose()` sie auch braucht
+  /// und dort kein `setState` mehr erlaubt ist.
+  Map<String, dynamic> _nutzlast() => {
       'umfang': _umfang,
       'status': _status,
       'versandweg': _versandwege.toList(),
@@ -513,8 +616,18 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       // ⚠️ Beide Spalten werden IMMER geschrieben, die nicht gemeinte auf
       // 0. Sonst bliebe beim Wechsel der Herkunft die alte Verknüpfung
       // stehen und der Vorgang hinge an zwei Akten.
-      'insolvenz_akte_id': _quelle == 'insolvenz_akte' ? (_akteId ?? 0) : 0,
-      'insolvenz_vorfall_id': _quelle == 'gericht_vorfall' ? (_akteId ?? 0) : 0,
+      //
+      // ⚠️ Und beide nur, wenn ein Insolvenzgrund ANGEKREUZT ist. Vorher
+      // wurde die Verknüpfung geschrieben, sobald das Mitglied
+      // überhaupt eine Insolvenz in der Akte hatte — der Reiter hatte
+      // den Vorgang beim Öffnen von selbst gewählt. Damit stand im
+      // Datensatz eine Verbindung zu einem Insolvenzverfahren, die
+      // niemand behauptet hatte, und der Widerspruch sah aus, als sei
+      // er darauf gestützt.
+      'insolvenz_akte_id':
+          _insolvenzAngekreuzt && _quelle == 'insolvenz_akte' ? (_akteId ?? 0) : 0,
+      'insolvenz_vorfall_id':
+          _insolvenzAngekreuzt && _quelle == 'gericht_vorfall' ? (_akteId ?? 0) : 0,
       'gruende': _gruende.toList(),
       'betreff': _betreffC.text.trim(),
       'schreiben_vom': _schreibenVom.text,
@@ -528,15 +641,63 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       'einschreiben_nr': _einschreibenC.text.trim(),
       'reaktion_text': _reaktionC.text.trim(),
       'notizen': _notizC.text.trim(),
+      };
+
+  /// Legt ab, was sich geändert hat.
+  ///
+  /// ⚠️ Es gibt keinen Speichern-Knopf mehr. Er stand am Ende eines
+  /// Formulars, das auf einem 360 px breiten Telefon zehneinhalb
+  /// Bildschirmhöhen lang ist — gemessen, nicht geschätzt. Wer oben ein
+  /// Kreuz setzt oder einen Betrag einträgt, sieht ihn nie und hält ihn
+  /// für nicht vorhanden. Damit war die Eingabe verloren, ohne dass
+  /// irgendwo etwas schiefging. Dasselbe hat die Inkasso-Karte in diesem
+  /// Modul schon hinter sich: Auswählen IST dort das Speichern.
+  ///
+  /// ⚠️ Ohne Änderung passiert NICHTS. Sonst legte das blosse Öffnen des
+  /// Reiters für jeden Vorfall einen Widerspruch an, und die Frage „gibt
+  /// es hier einen Widerspruch?" hätte für immer „ja" geantwortet.
+  Future<void> _speichern() async {
+    _tick?.cancel();
+    if (!mounted || !_geladen) return;
+    final standJetzt = _formStand();
+    if (_stand == null || _stand == standJetzt) return;
+
+    setState(() {
+      _speichert = true;
+      _speicherFehler = null;
     });
+    Map<String, dynamic> res;
+    try {
+      res = await widget.apiService
+          .saveVermieterWiderspruch(widget.vorfallId, _nutzlast());
+    } catch (fehler) {
+      res = {'success': false, 'message': '$fehler'};
+    }
     if (!mounted) return;
-    setState(() => _speichert = false);
-    final ok = res['success'] == true;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Gespeichert' : 'Nicht gespeichert: ${res['message'] ?? 'unbekannter Grund'}'),
-      backgroundColor: ok ? Colors.green.shade600 : Colors.red,
-    ));
-    if (ok) _laden();
+    setState(() {
+      _speichert = false;
+      if (res['success'] != true) {
+        // ⚠️ Kein SnackBar: bei einem Netzausfall käme er alle 1,2
+        // Sekunden wieder und legte sich über das Formular. Der Zustand
+        // steht oben im Band und bleibt dort stehen, bis es klappt.
+        _speicherFehler = '${res['message'] ?? 'unbekannter Grund'}';
+        return;
+      }
+      // ⚠️ Der Server darf den Status heben: wer ein Versanddatum
+      // einträgt, hat abgeschickt, und „Entwurf" wäre dann gelogen. Ohne
+      // die Übernahme liefe der Reiter auseinander — und der Vergleich
+      // meldete für immer „nicht gespeichert".
+      final serverStatus = res['status']?.toString() ?? '';
+      if (serverStatus.isNotEmpty && serverStatus != _status) _status = serverStatus;
+      _vorhanden = true;
+      _zuletztGespeichert = DateTime.now();
+      // ⚠️ NACH der Statusübernahme neu gerechnet, nicht `standJetzt`:
+      // sonst gälte ein Zustand als sauber, den es so nie gab. Wurde
+      // während der Anfrage weitergetippt, ist er ohnehin gleich wieder
+      // schmutzig — und der nächste Tick holt es nach.
+      _stand = _formStand();
+      _warSchmutzig = _schmutzig;
+    });
   }
 
   /// Wählt den Insolvenzvorgang und setzt den Grund, der zu seinem Stand
@@ -551,7 +712,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   /// Inkassobüro etwas zu behaupten, das aus den Daten nicht folgt.
   /// Also: Vorgang wählen, Dokumente anbieten, Grund offen lassen.
   void _akteAuswerten() {
-    if (_akten.isEmpty || _akteId != null) return;
+    if (_akten.isEmpty) return;
     Map<String, dynamic>? befreit;
     Map<String, dynamic>? laufend;
     for (final a in _akten) {
@@ -564,14 +725,47 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       }
     }
     final gewaehlt = befreit ?? laufend ?? _akten.first;
-    _akteId = int.tryParse(gewaehlt['id']?.toString() ?? '');
-    _quelle = gewaehlt['herkunft']?.toString();
-    if (befreit != null) {
-      _gruende.add('restschuldbefreiung');
-    } else if (laufend != null) {
-      _gruende.add('insolvenz_laufend');
+    _vorschlagId = int.tryParse(gewaehlt['id']?.toString() ?? '');
+    _vorschlagQuelle = gewaehlt['herkunft']?.toString();
+    _vorschlagGrund = befreit != null
+        ? 'restschuldbefreiung'
+        : laufend != null
+            ? 'insolvenz_laufend'
+            : null;
+  }
+
+  /// Ist einer der beiden Insolvenzgründe angekreuzt?
+  ///
+  /// ⚠️ Das ist der Schalter für ALLES, was mit der Insolvenz zu tun hat:
+  /// den Abschnitt, die Auswahl des Vorgangs, die Anlagen, den Absatz im
+  /// Brief und die Verknüpfung im Datensatz. Vorher hing dreierlei an
+  /// dreierlei — Band an der Akte, Abschnitt an der Akte, Absatz am Kreuz
+  /// —, und dabei kam heraus, dass der Reiter Insolvenz anzeigte und
+  /// verknüpfte, ohne dass jemand sie geltend gemacht hatte.
+  bool get _insolvenzAngekreuzt =>
+      _gruende.contains('restschuldbefreiung') ||
+      _gruende.contains('insolvenz_laufend');
+
+  /// Zieht die Akte dem Kreuz nach — in beide Richtungen.
+  ///
+  /// Angekreuzt und noch nichts gewählt: den Vorschlag übernehmen und die
+  /// Beschlüsse zum Anhängen anbieten. Kreuz weg: Vorgang, Dokumente und
+  /// Anlagen los. Sonst bliebe ein Beschluss angehakt, der beim nächsten
+  /// Fax mitgegangen wäre — ein Insolvenzbeschluss an ein Inkassobüro,
+  /// den niemand mehr geschickt haben wollte.
+  void _insolvenzAbgleichen() {
+    if (_insolvenzAngekreuzt) {
+      if (_akteId == null && _vorschlagId != null) {
+        _akteId = _vorschlagId;
+        _quelle = _vorschlagQuelle;
+        _docsAusQuelle();
+      }
+    } else {
+      _akteId = null;
+      _quelle = null;
+      _akteDocs = [];
+      _anhaenge.clear();
     }
-    _docsAusQuelle();
   }
 
   /// Übernimmt die Dokumente des gewählten Vorgangs und kreuzt an, was
@@ -1355,8 +1549,10 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           '${az.isEmpty ? '' : 'Aktenzeichen $az. '}'
           '${ende.length >= 10 ? 'Beschluss vom ${_deutschDatum(ende)}. ' : ''}'
           '§ 301 Abs. 1 InsO wirkt gegen ALLE Insolvenzgläubiger, auch gegen die, die '
-          'nie angemeldet haben. Der Grund ist unten bereits angekreuzt und die Akte '
-          'gewählt — prüfen Sie nur noch, ob die Forderung aus der Zeit VOR '
+          'nie angemeldet haben. ⚠️ Angekreuzt wird das NICHT von selbst: setzen Sie '
+          'unten unter „Gründe" das Kreuz bei der Restschuldbefreiung — dann wird der '
+          'Vorgang verknüpft, der Beschluss als Anlage angeboten und § 301 InsO steht '
+          'im Brief. Prüfen Sie dabei, ob die Forderung aus der Zeit VOR '
           'Verfahrenseröffnung stammt.');
     }
     if (laufend) {
@@ -1367,7 +1563,8 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           '${az.isEmpty ? '' : 'Aktenzeichen $az. '}'
           'Eine Restschuldbefreiung ist noch nicht vermerkt — § 301 InsO greift also '
           'noch nicht. Es gelten §§ 87, 89 InsO: die Forderung gehört zur Tabelle und an '
-          'den Verwalter, nicht an das Mitglied. Der passende Grund ist unten angekreuzt.');
+          'den Verwalter, nicht an das Mitglied. ⚠️ Kreuzen Sie den passenden Grund unten '
+          'selbst an — der Reiter tut es nicht für Sie.');
     }
     // ⚠️ Der dritte Fall, und der häufigste bei älteren Verfahren: es ist
     // eine Insolvenz vermerkt, aber der Datensatz sagt nicht, wie sie
@@ -1383,11 +1580,127 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         'Für dieses Mitglied ist eine Insolvenz vermerkt',
         '${az.isEmpty ? '' : 'Aktenzeichen $az. '}'
         '${stand.isEmpty ? '' : 'Vermerkter Stand: $stand. '}'
-        'Der Vorgang ist unten gewählt und die Beschlüsse stehen zum Anhängen bereit. '
         'Welcher Grund gilt, sagt der Datensatz nicht: bei ERTEILTER '
         'Restschuldbefreiung § 301 InsO, bei noch laufendem Verfahren §§ 87, 89 InsO. '
-        'Bitte am Beschluss ablesen und unten ankreuzen — der Reiter rät das nicht.');
+        'Bitte am Beschluss ablesen und unten unter „Gründe" ankreuzen — der Reiter rät '
+        'das nicht. Erst danach wird der Vorgang verknüpft und die Beschlüsse stehen zum '
+        'Anhängen bereit.');
   }
+
+  /// Ein Tipp statt Scrollen: kreuzt den Grund an, den der Datensatz
+  /// hergibt, und verknüpft den Vorgang gleich mit.
+  ///
+  /// ⚠️ Das ist der Ersatz für das automatische Ankreuzen, und der
+  /// Unterschied ist der ganze Punkt: hier hat ein Mensch getippt. Gibt
+  /// der Datensatz den Ausgang nicht her — der häufigste Fall bei
+  /// älteren Verfahren —, steht hier KEIN Knopf, denn dann wäre er ein
+  /// Ratschlag ins Blaue. Dann bleibt es beim Beschluss in der Hand und
+  /// dem Kreuz weiter unten.
+  Widget _grundKnopf() {
+    final g = _vorschlagGrund;
+    if (g == null || _gruende.contains(g)) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton.icon(
+          onPressed: () => setState(() {
+            _gruende.add(g);
+            _insolvenzAbgleichen();
+          }),
+          icon: const Icon(Icons.check_box_outlined, size: 16),
+          label: Text(
+              g == 'restschuldbefreiung'
+                  ? 'Restschuldbefreiung als Grund ankreuzen'
+                  : 'Laufendes Insolvenzverfahren als Grund ankreuzen',
+              style: const TextStyle(fontSize: 12)),
+        ),
+      ),
+    );
+  }
+
+  /// Sagt oben, woran man ist. Ein Formular, das von selbst ablegt,
+  /// braucht das mehr als eines mit Knopf: sonst weiss niemand, ob es
+  /// schon geschehen ist.
+  ///
+  /// ⚠️ Der Fehlerfall bekommt einen Knopf, die anderen beiden nicht.
+  /// Solange es klappt, gibt es nichts zu tun; klappt es nicht, ist das
+  /// Wiederholen das Einzige, was hilft.
+  Widget _standBand() {
+    if (_speicherFehler != null) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: F.h(Colors.red, 50),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: F.h(Colors.red, 200)),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(Icons.cloud_off, size: 18, color: F.h(Colors.red, 700)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Nicht abgelegt',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: F.h(Colors.red, 900))),
+              const SizedBox(height: 3),
+              Text(
+                  'Die Änderungen stehen nur auf diesem Gerät. Grund: $_speicherFehler',
+                  style: TextStyle(
+                      fontSize: 11.5, color: F.h(Colors.red, 900), height: 1.45)),
+              const SizedBox(height: 6),
+              OutlinedButton.icon(
+                onPressed: _speichert ? null : _speichern,
+                icon: const Icon(Icons.refresh, size: 15),
+                label: const Text('Erneut versuchen', style: TextStyle(fontSize: 12)),
+              ),
+            ]),
+          ),
+        ]),
+      );
+    }
+    if (_speichert) {
+      return _zeile(Colors.blue, null, 'Wird abgelegt …');
+    }
+    if (_warSchmutzig) {
+      return _zeile(Colors.orange, Icons.more_horiz, 'Änderung gemerkt — wird gleich abgelegt');
+    }
+    if (_zuletztGespeichert != null) {
+      final z = _zuletztGespeichert!;
+      final uhr = '${z.hour.toString().padLeft(2, '0')}:'
+          '${z.minute.toString().padLeft(2, '0')}';
+      return _zeile(Colors.green, Icons.cloud_done, 'Abgelegt um $uhr Uhr');
+    }
+    return const SizedBox.shrink();
+  }
+
+  /// Eine schmale Zeile, kein Kasten: der Stand ist eine Nebenauskunft
+  /// und darf nicht aussehen wie die Hinweise, die den Fall betreffen.
+  Widget _zeile(MaterialColor farbe, IconData? symbol, String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 10, left: 2),
+        child: Row(children: [
+          if (symbol == null)
+            SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: F.h(farbe, 700)))
+          else
+            Icon(symbol, size: 15, color: F.h(farbe, 700)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: F.h(farbe, 900))),
+          ),
+        ]),
+      );
 
   Widget _hinweis(MaterialColor farbe, IconData symbol, String titel, String text) => Container(
         width: double.infinity,
@@ -1498,6 +1811,13 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
 
   @override
   Widget build(BuildContext context) {
+    // ⚠️ Kreuze, Chips und Auswahlfelder lösen KEIN Controller-Listener
+    // aus. Ohne diese Zeile bliebe ein angekreuzter Grund liegen, bis
+    // jemand zusätzlich in ein Textfeld tippt — also genau der Fall, um
+    // den es in der Meldung ging („es soll speichern, wenn ich etwas
+    // ankreuze"). Nach dem Bild, nicht darin: `setState` während des
+    // Bauens ist verboten.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _schmutzPruefen());
     if (!_geladen) return const Center(child: CircularProgressIndicator());
     if (_fehler != null) return LadeFehler(meldung: _fehler!, onErneut: _laden);
 
@@ -1505,10 +1825,12 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // ⚠️ Noch vor allem anderen: ist am Mitglied eine Insolvenz
-        // vermerkt, entscheidet das den Fall — und zwar unabhängig davon,
-        // ob jemand daran gedacht hat, den Grund anzukreuzen. Deshalb
-        // steht das Band immer da, sobald eine Akte existiert.
+        // vermerkt, entscheidet das den Fall. Das Band steht deshalb da,
+        // sobald eine Akte existiert — aber es BEHAUPTET nichts, es
+        // fordert auf, unten anzukreuzen. Alles Weitere hängt am Kreuz.
         if (_akten.isNotEmpty) _insolvenzBand(),
+        if (_akten.isNotEmpty) _grundKnopf(),
+        _standBand(),
         // ⚠️ Ganz oben, weil die Verwechslung den Fall kostet.
         _hinweis(Colors.blue, Icons.compare_arrows, 'Nicht der Widerspruch gegen den Mahnbescheid',
             'Dieser Widerspruch geht an das Inkassobüro: formfrei, ohne gesetzliche Frist. '
@@ -1553,6 +1875,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               } else {
                 _gruende.remove(e.key);
               }
+              // ⚠️ Der Abgleich MUSS hier stehen und nicht im Bauen:
+              // erst mit dem Kreuz wird der Vorgang verknüpft und der
+              // Beschluss zum Anhängen angeboten, und erst ohne Kreuz
+              // fällt beides wieder weg.
+              _insolvenzAbgleichen();
             }),
             title: Text(e.value, style: const TextStyle(fontSize: 12.5)),
           ),
@@ -1598,15 +1925,22 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         ),
 
-        // ⚠️ Die Bedingung war einmal enger: nur wenn ein Insolvenzgrund
-        // angekreuzt war. Damit hing der Vorgangswähler samt Anlagenliste
-        // an einer Entscheidung, die genau dann noch NICHT gefallen ist,
-        // wenn der Datensatz den Grund nicht hergibt — also bei den
-        // älteren Verfahren. Der Beschluss lag in der Akte, und es gab
-        // keinen Weg, ihn anzuhängen.
-        if (_gruende.contains('restschuldbefreiung') ||
-            _gruende.contains('insolvenz_laufend') ||
-            _akten.isNotEmpty) ...[
+        // ⚠️ Der Abschnitt hängt am KREUZ, nicht an der Akte.
+        //
+        // Er hing einmal auch daran, dass das Mitglied überhaupt eine
+        // Insolvenz hat — damit man bei älteren Verfahren, deren Ausgang
+        // der Datensatz nicht hergibt, trotzdem an den Beschluss kommt.
+        // Der Preis dafür war zu hoch: der Reiter zeigte dann von selbst
+        // einen Insolvenzabschnitt, wählte den Vorgang, hakte den
+        // Beschluss als Anlage an und schrieb die Verknüpfung in den
+        // Datensatz — alles ohne dass jemand die Insolvenz geltend
+        // gemacht hätte.
+        //
+        // Der ältere Fall geht trotzdem nicht verloren: das Band ganz
+        // oben sagt, dass eine Insolvenz vermerkt ist, und fordert auf,
+        // am Beschluss abzulesen und unten anzukreuzen. Danach steht
+        // hier alles bereit.
+        if (_insolvenzAngekreuzt) ...[
           _abschnitt(_gruende.contains('restschuldbefreiung')
               ? 'Restschuldbefreiung'
               : _gruende.contains('insolvenz_laufend')
@@ -2161,18 +2495,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         ),
 
         const SizedBox(height: 18),
+        // ⚠️ Hier stand der Speichern-Knopf. Er ist weg: abgelegt wird
+        // von selbst, 1,2 Sekunden nach der letzten Änderung und beim
+        // Verlassen des Reiters. Der Stand steht oben, wo man ihn sieht —
+        // hier unten kam nie jemand an.
         Row(children: [
-          ElevatedButton.icon(
-            onPressed: _speichert ? null : _speichern,
-            icon: _speichert
-                ? const SizedBox(
-                    width: 14, height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.save, size: 16),
-            label: const Text('Speichern'),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple, foregroundColor: Colors.white),
-          ),
           const Spacer(),
           if (_vorhanden)
             TextButton.icon(
@@ -2195,6 +2522,12 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                   ),
                 );
                 if (ok != true) return;
+                // ⚠️ Erst den Zeitgeber anhalten. Ein geplanter Tick
+                // würde den eben gelöschten Datensatz sofort wieder
+                // anlegen — und zwar mit dem Stand, den man loswerden
+                // wollte.
+                _tick?.cancel();
+                _stand = null;
                 await widget.apiService.deleteVermieterWiderspruch(widget.vorfallId);
                 if (!mounted) return;
                 setState(() {
