@@ -395,6 +395,29 @@ class AnrufGatewayService {
       return const _WaehlErgebnis(
           IcdAnrufErgebnis.ungueltig, 'Keine Rufnummer im Auftrag', 'keiner');
     }
+    // ⚠️ HIER WIRD NICHT ANGEMELDET.
+    //
+    // `SipgateService.anrufen()` meldet sich selbst an, wenn noch keine
+    // Anmeldung steht — im Bildschirm ist das richtig, denn dort hat jemand
+    // gerade auf „Anrufen" gedrueckt. Auf diesem Weg nicht: der Auftrag kommt
+    // vom Linux-Rechner, und welches Geraet ihn abholt, entscheidet ein
+    // Wettlauf zwischen allen, die die Warteschlange abfragen.
+    //
+    // Meldete sich das gewinnende Geraet daraufhin an, holte es sich beim
+    // Server ein VoIP-Telefon — und der Server bindet ein freies beim ersten
+    // Zugriff fest an den Anfrager. Ein Telefon, das neben dem Schreibtisch
+    // liegt, koennte so die Rolle des Tablets uebernehmen, ohne dass jemand
+    // etwas eingeschaltet haette. Wer telefoniert, wird im Bildschirm
+    // entschieden, nicht durch die Reihenfolge zweier Netzabfragen.
+    if (!SipgateService().istRegistriert) {
+      return const _WaehlErgebnis(
+        IcdAnrufErgebnis.fehler,
+        'Dieses Gerät ist nicht bei sipgate angemeldet — der Anruf wurde nicht '
+        'gewählt. Kein Ausweichen auf die SIM: das wäre eine andere Leitung mit '
+        'einer anderen Absendernummer.',
+        'sipgate',
+      );
+    }
     try {
       final meldung = await SipgateService().anrufen(
         nummer,

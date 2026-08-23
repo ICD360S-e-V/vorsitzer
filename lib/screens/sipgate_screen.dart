@@ -258,6 +258,11 @@ class _SipgateScreenState extends State<SipgateScreen> {
       SipgateStand.verbindet => (Colors.orange.shade700, Icons.cloud_sync, 'Melde an …'),
       SipgateStand.fehler => (Colors.red.shade700, Icons.cloud_off, 'Nicht angemeldet'),
       SipgateStand.aus => (Colors.grey.shade600, Icons.cloud_off, 'Aus'),
+      // Grau, nicht rot: hier ist nichts kaputt, dieses Gerät ist schlicht
+      // nicht dasjenige, das telefoniert. Ein eigenes Symbol, damit es sich
+      // von „Aus" (Schalter umgelegt) unterscheidet.
+      SipgateStand.fremdesTelefon =>
+        (Colors.blueGrey.shade600, Icons.devices_other, 'Anderes Gerät telefoniert'),
     };
 
     return Card(
