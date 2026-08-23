@@ -143,6 +143,58 @@ SipgateAnmeldeFolge sipgateAnmeldeFolge(
 /// nicht einmal rot, sondern sähe aus, als hätte jemand die Telefonie
 /// absichtlich ausgeschaltet. Das ist die schlimmere der beiden Anzeigen: rot
 /// lädt zum Nachsehen ein, „aus" nicht.
+/// Darf sich DIESES Geraet bei sipgate anmelden?
+///
+/// ⚠️ Der Server verweigert nie. `sipgateGeraetWaehlen()` in `sipgate_lib.php`
+/// sucht der Reihe nach ein Telefon fuer genau dieses Geraet, dann ein freies,
+/// und faellt zuletzt auf „irgendeines, das aktiv ist" zurueck — ausdruecklich
+/// unter dem Kommentar „Nichts frei — teilen statt verweigern". Ein
+/// `geteilt = true` in der Antwort heisst also nicht „hier ist dein Telefon",
+/// sondern „ich habe nichts Eigenes fuer dich, nimm solange das von jemand
+/// anderem".
+///
+/// Das anzunehmen war die Falle: sipgate laesst bei zwei Anmeldungen auf einer
+/// SIP-ID beide klingeln (Parallelruf), und wer zuerst abnimmt, gewinnt. Ein
+/// Anruf eines Klienten koennte in einer Hosentasche landen statt am Tablet,
+/// an dem das Bluetooth-Headset haengt — und weil `autoAktiv()` auf Android
+/// voreingestellt AN ist, brauchte es dafuer niemanden, der etwas einschaltet.
+///
+/// Entscheidung des Users (23.08.2026): nur das Geraet mit eigenem Telefon
+/// meldet sich an. Geprueft am Besitz, nicht am Geraetenamen — ein
+/// Tabletwechsel soll kein Release brauchen.
+bool sipgateDarfAnmelden({required bool geteilt}) => !geteilt;
+
+/// Welche der drei Aussagen ueber die Absendernummer zutrifft.
+enum SipgateAbsenderAnzeige {
+  /// Wir kennen die Nummer und koennen sie hinschreiben.
+  nummer,
+
+  /// Der Server hat ausdruecklich „leer" gesagt: der Angerufene sieht nichts.
+  unterdrueckt,
+
+  /// Wir wissen es nicht. **Das ist eine eigene Aussage**, keine Abart von
+  /// „unterdrueckt".
+  unbekannt,
+}
+
+/// Entscheidet, welcher Satz im Bildschirm steht.
+///
+/// ⚠️ Als Funktion und nicht als drei Bedingungen im Widget, weil genau hier
+/// die falsche Aussage entstand: `nummer == null` hiess „unterdrueckt", und
+/// „unterdrueckt" zieht im Bildschirm den Satz nach sich, dass viele Aemter
+/// dann nicht abnehmen und nicht zurueckrufen koennen. Wer das liest, waehlt
+/// anders oder sucht einen Fehler, den es nicht gibt.
+SipgateAbsenderAnzeige sipgateAbsenderAnzeige({
+  required bool bekannt,
+  required String? nummer,
+}) {
+  if (!bekannt) return SipgateAbsenderAnzeige.unbekannt;
+  final sauber = nummer?.trim() ?? '';
+  return sauber.isEmpty
+      ? SipgateAbsenderAnzeige.unterdrueckt
+      : SipgateAbsenderAnzeige.nummer;
+}
+
 bool sipgateAbmeldungUebernehmen({
   required bool anlaufGeplant,
   required SipgateStand aktuell,
@@ -186,6 +238,18 @@ class SipgateService {
   static const String _prefWahlweg = 'anruf_wahlweg_rechner';
   static const String _storeSipId = 'sipgate_sip_id';
   static const String _storeHa1 = 'sipgate_ha1';
+
+  // Die weichen Angaben werden mitgelegt, damit die Rueckfalloption nicht nur
+  // anmelden, sondern auch Auskunft geben kann.
+  //
+  // ⚠️ Der leere String ist hier ein ECHTER Wert: er heisst „unterdrueckt".
+  // Ein fehlender Schluessel heisst „nie gespeichert". Genau diese beiden
+  // auseinanderzuhalten ist der Zweck der Uebung — `read()` liefert `null` nur
+  // im zweiten Fall.
+  static const String _storeAbsender = 'sipgate_absendernummer';
+  static const String _storeGeteilt = 'sipgate_geteilt';
+  static const String _storeNotruf = 'sipgate_notrufstandort';
+  static const String _storeBezeichnung = 'sipgate_bezeichnung';
 
   /// Womit das Vereinstelefon wählen soll, wenn der Auftrag vom Rechner kommt.
   ///
@@ -452,6 +516,45 @@ class SipgateService {
         return false;
       }
 
+      // ⚠️ NUR MIT EIGENEM TELEFON ANMELDEN.
+      //
+      // Der Server verweigert nie: `sipgateGeraetWaehlen()` in
+      // `sipgate_lib.php` sucht der Reihe nach ein Telefon fuer genau dieses
+      // Geraet, dann ein freies, und faellt zuletzt auf „irgendeines, das
+      // aktiv ist" zurueck — ausdruecklich unter dem Kommentar „Nichts frei —
+      // teilen statt verweigern". Es gibt derzeit genau ein VoIP-Telefon, und
+      // das gehoert dem Tablet. Jedes andere Android-Geraet bekaeme also
+      // dessen SIP-ID mit `geteilt = true`.
+      //
+      // Was daraus folgte, ist kein Schoenheitsfehler: sipgate laesst bei zwei
+      // Anmeldungen auf einer SIP-ID beide klingeln (Parallelruf), und wer
+      // zuerst abnimmt, gewinnt. Ein Anruf eines Klienten koennte also in
+      // einer Hosentasche landen statt am Tablet, an dem das Bluetooth-Headset
+      // haengt. Und weil `autoAktiv()` auf Android voreingestellt AN ist,
+      // brauchte es dafuer niemanden, der etwas einschaltet.
+      //
+      // Entscheidung des Users (23.08.2026): **nur das Tablet telefoniert.**
+      // Geprueft wird das aber an „hat ein eigenes Telefon", nicht am
+      // Geraetenamen — sonst braeuchte ein Tabletwechsel ein Release. Zurueck
+      // gibt es den Weg ueber „Geraetezuordnung loesen" im Bildschirm.
+      if (!sipgateDarfAnmelden(geteilt: cfg.geteilt)) {
+        _log.info('sipgate: kein eigenes VoIP-Telefon (${cfg.sipId} gehoert einem '
+            'anderen Geraet) — es wird nicht angemeldet', tag: 'SIPGATE');
+        _wiederholungAbbrechen();
+        _setz(
+          stand: SipgateStand.fremdesTelefon,
+          sipId: cfg.sipId,
+          bezeichnung: cfg.bezeichnung,
+          geteilt: true,
+          meldung: 'Dieses Gerät hat kein eigenes VoIP-Telefon — ${cfg.sipId} '
+              'gehört einem anderen Gerät.\n'
+              'Telefoniert wird dort. Soll es hier laufen, im Abschnitt '
+              '„VoIP-Telefone" ein eigenes anlegen oder die Gerätezuordnung '
+              'lösen.',
+        );
+        return false;
+      }
+
       final settings = UaSettings()
         ..webSocketUrl = cfg.wssUrl
         ..uri = 'sip:${cfg.sipId}@${cfg.realm}'
@@ -511,7 +614,11 @@ class SipgateService {
         stand: SipgateStand.verbindet,
         sipId: cfg.sipId,
         bezeichnung: cfg.bezeichnung,
-        absendernummer: cfg.absendernummer?.isEmpty == true ? null : cfg.absendernummer,
+        absendernummer: cfg.absendernummer,
+        // Der Server hat gesprochen: sagt er „unterdrueckt", muss eine frueher
+        // angezeigte Nummer verschwinden.
+        loescheAbsendernummer: cfg.absendernummerBekannt && cfg.absendernummer == null,
+        absendernummerBekannt: cfg.absendernummerBekannt,
         notrufstandort: cfg.notrufstandort,
         geteilt: cfg.geteilt,
         meldung: 'Melde an …',
@@ -636,6 +743,12 @@ class SipgateService {
     // Anmeldung, die mit leeren Feldern in einen 401 läuft.
     if (sipId.isEmpty || ha1.isEmpty) return null;
     final absender = '${antwort['absendernummer'] ?? ''}'.trim();
+    // ⚠️ FEHLENDER SCHLUESSEL IST NICHT DASSELBE WIE LEERER WERT.
+    // Ein aelterer Server schickt `absendernummer` gar nicht mit — der Test
+    // „ein aelterer Server ohne absendernummer darf die Anmeldung nicht
+    // verhindern" haelt genau diesen Fall fest. Vorher wurde daraus ebenfalls
+    // `null` und damit im Bildschirm „Angerufene sehen: unterdrueckt". Leer
+    // heisst unterdrueckt, fehlend heisst unbekannt.
     return SipgateKonfig(
       sipId: sipId,
       ha1: ha1,
@@ -644,6 +757,7 @@ class SipgateService {
       bezeichnung: antwort['bezeichnung'] as String?,
       geteilt: antwort['geteilt'] == true,
       absendernummer: absender.isEmpty ? null : absender,
+      absendernummerBekannt: antwort.containsKey('absendernummer'),
       notrufstandort: '${antwort['notrufstandort'] ?? 'unbekannt'}',
     );
   }
@@ -660,6 +774,19 @@ class SipgateService {
       if (cfg != null) {
         await _store.write(key: _storeSipId, value: cfg.sipId);
         await _store.write(key: _storeHa1, value: cfg.ha1);
+        // ⚠️ NUR schreiben, wenn der Server das Feld wirklich geschickt hat.
+        // Sonst legten wir eine Unbekannte als leeren String ab — und beim
+        // naechsten Start laese der Rueckfall daraus „bekannt, unterdrueckt".
+        // Der Zwischenspeicher wuerde die Falschaussage also erst erzeugen,
+        // die er verhindern soll. Loeschen statt leer schreiben.
+        if (cfg.absendernummerBekannt) {
+          await _store.write(key: _storeAbsender, value: cfg.absendernummer ?? '');
+        } else {
+          await _store.delete(key: _storeAbsender);
+        }
+        await _store.write(key: _storeGeteilt, value: cfg.geteilt ? '1' : '0');
+        await _store.write(key: _storeNotruf, value: cfg.notrufstandort);
+        await _store.write(key: _storeBezeichnung, value: cfg.bezeichnung ?? '');
         return cfg;
       }
       _log.warning('sipgate: Server meldet „${antwort['message']}"', tag: 'SIPGATE');
@@ -674,13 +801,30 @@ class SipgateService {
     final sipId = await _store.read(key: _storeSipId);
     final ha1 = await _store.read(key: _storeHa1);
     if (sipId == null || ha1 == null || sipId.isEmpty || ha1.isEmpty) return null;
+
+    // ⚠️ Die weichen Angaben kommen mit, wenn sie je gespeichert wurden — und
+    // NUR dann gelten sie als bekannt. Vorher stand hier `bezeichnung: null,
+    // geteilt: false` und implizit `absendernummer: null`; der Bildschirm hat
+    // daraus „Angerufene sehen: unterdrueckt" gemacht, obwohl das Konto die
+    // Nummer sehr wohl mitschickt. Ein fehlender Schluessel (ganz frisches
+    // Geraet, geleerter Speicher, Aufstieg von einer aelteren App) sagt jetzt
+    // „unbekannt" statt eine Aussenwirkung zu behaupten.
+    final absender = await _store.read(key: _storeAbsender);
+    final geteilt = await _store.read(key: _storeGeteilt);
+    final notruf = await _store.read(key: _storeNotruf);
+    final bezeichnung = await _store.read(key: _storeBezeichnung);
+    final bekannt = absender != null; // Schluessel vorhanden, Wert darf leer sein
+
     return SipgateKonfig(
       sipId: sipId,
       ha1: ha1,
       realm: 'sipgate.de',
       wssUrl: 'wss://sip.sipgate.de',
-      bezeichnung: null,
-      geteilt: false,
+      bezeichnung: (bezeichnung == null || bezeichnung.isEmpty) ? null : bezeichnung,
+      geteilt: geteilt == '1',
+      absendernummer: (absender == null || absender.isEmpty) ? null : absender,
+      notrufstandort: (notruf == null || notruf.isEmpty) ? 'unbekannt' : notruf,
+      absendernummerBekannt: bekannt,
     );
   }
 
@@ -1025,6 +1169,13 @@ class SipgateService {
     String? sipId,
     String? bezeichnung,
     String? absendernummer,
+    /// ⚠️ Ohne diese Flagge kann [absendernummer] nie wieder auf „unterdrueckt"
+    /// zurueck: `_setz` fuehrt fehlende Werte mit `?? alt` fort, also haelt ein
+    /// `null` den alten Wert fest. Wer die Nummer im sipgate-Konto auf
+    /// unterdrueckt stellt, saehe hier weiter die alte Nummer — wieder als
+    /// Tatsache ausgeschrieben, wieder ueber die Aussenwirkung jedes Anrufs.
+    bool loescheAbsendernummer = false,
+    bool? absendernummerBekannt,
     String? notrufstandort,
     String? bluetoothRecht,
     bool? vollbildErlaubt,
@@ -1043,7 +1194,9 @@ class SipgateService {
       stand: stand ?? alt.stand,
       sipId: sipId ?? alt.sipId,
       bezeichnung: bezeichnung ?? alt.bezeichnung,
-      absendernummer: absendernummer ?? alt.absendernummer,
+      absendernummer:
+          loescheAbsendernummer ? null : (absendernummer ?? alt.absendernummer),
+      absendernummerBekannt: absendernummerBekannt ?? alt.absendernummerBekannt,
       notrufstandort: notrufstandort ?? alt.notrufstandort,
       bluetoothRecht: bluetoothRecht ?? alt.bluetoothRecht,
       vollbildErlaubt: vollbildErlaubt ?? alt.vollbildErlaubt,
@@ -2008,6 +2161,7 @@ class SipgateKonfig {
     required this.geteilt,
     this.absendernummer,
     this.notrufstandort = 'unbekannt',
+    this.absendernummerBekannt = true,
   });
   final String sipId;
   final String ha1;
@@ -2016,8 +2170,26 @@ class SipgateKonfig {
   final String? bezeichnung;
   final bool geteilt;
 
-  /// Was der Angerufene sieht. Leer/`null` heisst unterdrueckt.
+  /// Was der Angerufene sieht. Leer/`null` heisst unterdrueckt — **aber nur,
+  /// wenn [absendernummerBekannt] wahr ist.**
   final String? absendernummer;
+
+  /// Ob ueber [absendernummer] ueberhaupt etwas bekannt ist.
+  ///
+  /// ⚠️ `false` heisst NICHT „unterdrueckt", sondern **wir wissen es nicht**.
+  /// Der Unterschied ist kein Feinschliff: `null` wird im Bildschirm als
+  /// „Angerufene sehen: unterdrueckt" ausgeschrieben, samt der Warnung, dass
+  /// viele Aemter dann nicht abnehmen und nicht zurueckrufen koennen. Das ist
+  /// eine Aussage ueber die Aussenwirkung JEDES Anrufs — sie darf nur fallen,
+  /// wenn wir sie wirklich vom Server haben.
+  ///
+  /// Zwei Wege fuehren zu `false`, und beide kamen wirklich vor:
+  ///  * aus dem Zwischenspeicher angemeldet, weil der Server beim Start nicht
+  ///    erreichbar war (dort lagen bis jetzt nur SIP-ID und HA1)
+  ///  * eine Antwort eines aelteren Servers, die den Schluessel gar nicht
+  ///    kennt — festgehalten im Test „ein aelterer Server ohne
+  ///    absendernummer darf die Anmeldung nicht verhindern"
+  final bool absendernummerBekannt;
 
   /// `gesetzt` | `nicht_gesetzt` | `unbekannt` — nur der Zustand, nicht die
   /// Adresse. Ist er nicht `gesetzt`, waere ein Notruf ueber sipgate falsch
@@ -2025,7 +2197,20 @@ class SipgateKonfig {
   final String notrufstandort;
 }
 
-enum SipgateStand { aus, verbindet, registriert, fehler }
+enum SipgateStand {
+  aus,
+  verbindet,
+  registriert,
+  fehler,
+
+  /// Dieses Geraet hat **kein eigenes** VoIP-Telefon — der Server hat eines
+  /// angeboten, das schon einem anderen Geraet gehoert (`geteilt`).
+  ///
+  /// ⚠️ Das ist KEIN Fehler und darf nicht rot erscheinen. Es ist eine
+  /// Feststellung: hier wird nicht telefoniert, das macht das Geraet, dem das
+  /// Telefon gehoert.
+  fremdesTelefon,
+}
 
 enum SipgateGespraechStand { waehlt, klingelt, verbunden }
 
@@ -2036,6 +2221,7 @@ class SipgateZustand {
     this.sipId,
     this.bezeichnung,
     this.absendernummer,
+    this.absendernummerBekannt = true,
     this.notrufstandort = 'unbekannt',
     this.bluetoothRecht = 'unbekannt',
     this.vollbildErlaubt,
@@ -2059,6 +2245,14 @@ class SipgateZustand {
   /// gar nicht ab und koennen auf keinen Fall zurueckrufen. Wer das nicht
   /// sieht, sucht den Fehler bei der Verbindung.
   final String? absendernummer;
+
+  /// Ob ueber [absendernummer] etwas bekannt ist — siehe
+  /// [SipgateKonfig.absendernummerBekannt].
+  ///
+  /// Ist das `false`, darf die Oberflaeche **nichts behaupten**.
+  /// [notrufstandort] macht es seit jeher richtig vor: der kennt `unbekannt`
+  /// als eigenen Wert und schreibt ihn auch hin.
+  final bool absendernummerBekannt;
 
   /// `gesetzt` | `nicht_gesetzt` | `unbekannt`.
   final String notrufstandort;
