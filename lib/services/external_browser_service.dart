@@ -1,33 +1,44 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:puppeteer/puppeteer.dart' as pup;
 
 /// Drives an external Chromium process on the host via Chrome DevTools
-/// Protocol. Used on Linux (Flatpak) where the in-app webview_cef is too
-/// unstable for production. On Windows/macOS/mobile we keep the embedded
+/// Protocol. Used on Linux (native /opt/.deb build; früher auch Flatpak) where
+/// the in-app webview_cef is too unstable for production. On Windows/macOS/mobile
+/// we keep the embedded
 /// webview path in WebViewScreen.
 ///
 /// Flow:
-///   1. Locate a Chromium-family browser on the host (Chromium Flatpak,
-///      system chromium/chrome/brave, or already-running CDP instance).
-///   2. Spawn it with --remote-debugging-port=9242. Inside a Flatpak sandbox
-///      that goes through `flatpak-spawn --host` so the browser lives in the
-///      user's session; in the native /opt build we exec the binary directly
-///      (there is no flatpak-spawn outside the sandbox).
-///   3. Poll http://127.0.0.1:9242/json/version until DevTools is ready.
+///   1. Locate a Chromium-family browser on the host (system
+///      chromium/chrome/brave; unter Flatpak zusätzlich das Chromium-Flatpak).
+///   2. Spawn it with --remote-debugging-port=0 (ephemeral) und einem eigenen
+///      Profil. Der Kernel wählt einen freien Port; Chrome schreibt ihn in
+///      `<profile>/DevToolsActivePort`. Unter Flatpak geht der Start über
+///      `flatpak-spawn --host`, im nativen /opt/.deb-Build direkt.
+///   3. Read the chosen port + WS path from that DevToolsActivePort file.
 ///   4. Connect puppeteer over the WebSocket endpoint and open a new tab.
 ///   5. Inject the same auto-fill JS we used in webview_cef.
+///
+/// ⚠️ Sicherheit (Punkt 3 des Audits, 2026-08-23): KEIN fester Port und KEIN
+/// Wiederverwenden einer FREMDEN Instanz. Ein CDP-Port hat keinerlei
+/// Authentifizierung — wer sich verbindet, steuert den Browser voll (liest das
+/// BA-Passwort beim Tippen mit, stiehlt Cookies). Früher lauschte Chrome auf
+/// dem festen Port 9242 und wir übernahmen JEDEN dort laufenden CDP-Server;
+/// ein lokaler Prozess konnte vorab einen Browser auf 9242 öffnen, und der
+/// Auto-Login tippte Benutzer, Passwort und TOTP in SEINEN Browser. Jetzt:
+/// zufälliger Port, den nur unser Profil kennt, und Verbindung ausschließlich
+/// zu einer Instanz, deren WS-Pfad-GUID zu genau unserem Start passt.
+/// Bewusst KEIN --remote-allow-origins: ohne es weist Chrome jede WS-Anfrage
+/// MIT Origin-Header (also jede Webseite) von selbst ab — `=*` würde diese
+/// eingebaute Abwehr gegen bösartige Seiten AUFHEBEN.
 ///
 /// The Chromium window stays open after this call returns — the user closes
 /// it manually like any normal browser tab. We keep the Browser object alive
 /// and reuse it for follow-up calls in the same Vorsitzer session.
 class ExternalBrowserService {
-  static const int _cdpPort = 9242;
   static pup.Browser? _browser;
 
   /// Open [url] in the external Chromium and run [autoFillJs] after page load.
@@ -160,27 +171,84 @@ class ExternalBrowserService {
   static Future<void> _ensureBrowser() async {
     if (_browser != null && _browser!.isConnected) return;
 
+    // Zuerst versuchen, uns wieder mit UNSERER eigenen, noch offenen Instanz zu
+    // verbinden (App-Neustart, Browser blieb offen). Das ist sicher: die Adresse
+    // kommt aus <profile>/DevToolsActivePort — unserem Profil — und der WS-Pfad
+    // trägt eine GUID, die genau zu diesem Browserstart gehört. Ist der Browser
+    // weg, hat kein Server diese GUID → connect scheitert → wir starten neu.
+    final reuse = await _tryReuseOwnInstance();
+    if (reuse != null) {
+      _browser = reuse;
+      return;
+    }
+
     final wsEndpoint = await _spawnAndAwaitCdp();
     _browser = await pup.puppeteer.connect(browserWsEndpoint: wsEndpoint);
   }
 
-  /// Spawn a Chromium-family browser if one isn't already listening on
-  /// [_cdpPort], then return the WebSocket debugger URL.
-  static Future<String> _spawnAndAwaitCdp() async {
-    final existing = await _fetchWsEndpoint();
-    if (existing != null) {
-      debugPrint('[CDP] reusing existing browser on port $_cdpPort');
-      return existing;
+  /// Reconnect to the browser WE launched earlier in a previous app run, if it
+  /// is still open. Reads the WS URL from our own profile's DevToolsActivePort;
+  /// returns null (→ launch fresh) on any staleness. Never touches a fixed port
+  /// or the HTTP discovery endpoint.
+  static Future<pup.Browser?> _tryReuseOwnInstance() async {
+    try {
+      final ws = await _wsFromProfile();
+      if (ws == null) return null;
+      return await pup.puppeteer
+          .connect(browserWsEndpoint: ws)
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {
+      return null;
     }
+  }
 
+  /// Path to the ephemeral DevToolsActivePort file inside our isolated profile.
+  static Future<File> _devToolsPortFile() async {
+    final dataDir = await getApplicationSupportDirectory();
+    return File('${dataDir.path}/cdp-profile/DevToolsActivePort');
+  }
+
+  /// Build `ws://127.0.0.1:<port><path>` from our profile's DevToolsActivePort.
+  static Future<String?> _wsFromProfile() async =>
+      _wsFromPortFile(await _devToolsPortFile());
+
+  /// Parse a DevToolsActivePort file into a browser WS URL, or null if it is
+  /// missing/malformed. Line 1 = port, line 2 = `/devtools/browser/<guid>`.
+  static String? _wsFromPortFile(File f) {
+    try {
+      if (!f.existsSync()) return null;
+      final lines = f.readAsLinesSync();
+      if (lines.length < 2) return null;
+      final port = int.tryParse(lines[0].trim());
+      final path = lines[1].trim();
+      if (port == null || port <= 0 || !path.startsWith('/')) return null;
+      return 'ws://127.0.0.1:$port$path';
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Spawn a Chromium-family browser with an EPHEMERAL debugging port and
+  /// return the WebSocket debugger URL of the instance WE just launched.
+  static Future<String> _spawnAndAwaitCdp() async {
     final dataDir = await getApplicationSupportDirectory();
     final cdpProfile = Directory('${dataDir.path}/cdp-profile');
     if (!cdpProfile.existsSync()) {
       cdpProfile.createSync(recursive: true);
     }
 
+    // Stale DevToolsActivePort aus einem früheren Start entfernen — sonst läse
+    // _waitForDevToolsPort() im Rennen mit dem frisch startenden Chrome
+    // womöglich den ALTEN Port und wir verbänden uns mit der falschen Instanz.
+    final portFile = File('${cdpProfile.path}/DevToolsActivePort');
+    try {
+      if (portFile.existsSync()) portFile.deleteSync();
+    } catch (_) {}
+
     final commonArgs = <String>[
-      '--remote-debugging-port=$_cdpPort',
+      // 0 = der Kernel wählt einen freien Port; der Wert landet in
+      // DevToolsActivePort. Kein fester, von außen erratbarer Port mehr.
+      '--remote-debugging-port=0',
       '--remote-debugging-address=127.0.0.1',
       '--user-data-dir=${cdpProfile.path}',
       '--no-first-run',
@@ -189,8 +257,8 @@ class ExternalBrowserService {
 
     // Only launch browsers that actually exist. Probing first matters twice
     // over: a candidate that was never installed would otherwise cost a full
-    // _waitForCdpReady() timeout each, and under Flatpak `flatpak-spawn` keeps
-    // Process.start from ever throwing, so a dead command looks like a live one.
+    // _waitForDevToolsPort() timeout each, and under Flatpak `flatpak-spawn`
+    // keeps Process.start from ever throwing, so a dead command looks live.
     final attempts = await _availableBrowsers(commonArgs);
 
     if (attempts.isEmpty) {
@@ -206,9 +274,9 @@ class ExternalBrowserService {
           mode: ProcessStartMode.detached,
         );
         debugPrint('[CDP] launched: ${cmd.join(' ')}');
-        final ws = await _waitForCdpReady();
+        final ws = await _waitForDevToolsPort(portFile);
         if (ws != null) return ws;
-        debugPrint('[CDP] no DevTools after launch: ${cmd.join(' ')}');
+        debugPrint('[CDP] no DevToolsActivePort after launch: ${cmd.join(' ')}');
       } catch (e) {
         lastError = e;
         debugPrint('[CDP] launch attempt failed (${cmd.join(' ')}): $e');
@@ -218,7 +286,7 @@ class ExternalBrowserService {
 
     throw Exception(
       '${_notFoundMessage()}\n'
-      'Letzte Fehlermeldung: ${lastError ?? 'DevTools-Port $_cdpPort antwortet nicht'}',
+      'Letzte Fehlermeldung: ${lastError ?? 'DevTools-Port antwortet nicht'}',
     );
   }
 
@@ -313,7 +381,7 @@ class ExternalBrowserService {
   /// actually spawning a browser.
   @visibleForTesting
   static Future<List<List<String>>> debugDetectBrowsers() =>
-      _availableBrowsers(const ['--remote-debugging-port=$_cdpPort']);
+      _availableBrowsers(const ['--remote-debugging-port=0']);
 
   /// Install hint that matches how this build is actually packaged — telling a
   /// native Mint user to run `flatpak install` sends them down the wrong path.
@@ -325,30 +393,18 @@ class ExternalBrowserService {
           'Bitte installiere Chromium (oder Brave/Chrome), z. B.:\n'
           '  sudo apt install chromium';
 
-  /// Poll until /json/version responds or we hit the deadline.
-  static Future<String?> _waitForCdpReady() async {
+  /// Poll until Chrome has written its freshly-chosen port into
+  /// [portFile] (DevToolsActivePort), then build the WS URL from it. We never
+  /// touch the HTTP /json/version endpoint or a fixed port — the file names the
+  /// exact instance we launched (port + `/devtools/browser/<guid>`).
+  static Future<String?> _waitForDevToolsPort(File portFile) async {
     final deadline = DateTime.now().add(const Duration(seconds: 12));
     while (DateTime.now().isBefore(deadline)) {
-      final ws = await _fetchWsEndpoint();
+      final ws = _wsFromPortFile(portFile);
       if (ws != null) return ws;
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 200));
     }
     return null;
-  }
-
-  /// Returns the WebSocket debugger URL if a CDP server is up on
-  /// 127.0.0.1:[_cdpPort], otherwise null.
-  static Future<String?> _fetchWsEndpoint() async {
-    try {
-      final r = await http
-          .get(Uri.parse('http://127.0.0.1:$_cdpPort/json/version'))
-          .timeout(const Duration(seconds: 1));
-      if (r.statusCode != 200) return null;
-      final data = jsonDecode(r.body) as Map<String, dynamic>;
-      return data['webSocketDebuggerUrl'] as String?;
-    } catch (_) {
-      return null;
-    }
   }
 
   static Future<void> _resetBrowser() async {
