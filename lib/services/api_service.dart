@@ -7535,8 +7535,11 @@ class ApiService {
     final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_antraege.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
-  Future<Map<String, dynamic>> deleteSozialamtAntrag(int id) async {
-    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_antraege.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+  /// [userId] ist Pflicht: der Endpunkt löscht nur noch `WHERE id = ? AND
+  /// user_id = ?`. Vorher genügte die id, und eine falsche traf den Antrag
+  /// eines anderen Mitglieds — mit `success: true` als Antwort.
+  Future<Map<String, dynamic>> deleteSozialamtAntrag(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_antraege.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id, 'user_id': userId})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
