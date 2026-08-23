@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import '../services/termin_service.dart';
 import '../services/ticket_service.dart';
 import '../utils/app_farben.dart';
+import '../utils/terminanfrage_vorlagen.dart';
 import 'terminanfrage_versand_dialog.dart';
 
 /// Der Termin-Tab einer einzelnen Heilmittelverordnung: Anfrage · Bestätigt ·
@@ -142,8 +143,21 @@ class _HeilmittelTerminTabState extends State<HeilmittelTerminTab> {
       Future<void> neueAnfrage() async {
         if (praxisEmail.isEmpty && praxisFax.isEmpty) return;
 
+        // 🔴 Der Grund IST das Rezept.
+        //
+        // Vorher wurde hier nur `arztTyp` durchgereicht, und der gemeinsame
+        // Dialog löste damit `arztFachFuer('gesundheit_hausarzt')` auf. In der
+        // Anfrage an eine PHYSIOTHERAPIE-Praxis stand dann „zur
+        // hausärztlichen Erstvorstellung", zur Auswahl „Erkältung / Husten /
+        // Fieber" und „Blutbild / Laborkontrolle" — Dinge, die eine
+        // Heilmittelpraxis weder darf noch tut. Ein Fach für Heilmittel gibt
+        // es in `kArztFaecher` gar nicht; es war keine falsche Wahl, sondern
+        // eine fehlende. Mit `rezept` schaltet der Dialog auf die
+        // Verordnung um: Heilmittel, Menge, Frequenz, Dringlichkeit,
+        // Hausbesuch, Indikation, Diagnose.
         final basis = terminanfrageDatenBauen(
           arztTyp: type,
+          rezept: HeilmittelVerordnung.ausZeile(r),
           user: widget.user,
           // Der Verlauf speichert die Praxis unter eigenen Schlüsseln; hier
           // werden sie auf die Form gebracht, die der gemeinsame Dialog kennt.

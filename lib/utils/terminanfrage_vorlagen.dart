@@ -904,6 +904,186 @@ String vorauswahlBegruendung(int erfassteTermine, String letzterTermin) {
 
 /// Alles, was in den Brief kommt. Wird im Dialog aus User, `selected_arzt`,
 /// Krankenkasse und Vereinsdaten zusammengesetzt.
+
+/// Die ärztliche Heilmittelverordnung (Vordruck **Muster 13**), so weit die
+/// Praxis sie braucht, um Termine zu planen.
+///
+/// 🔴 BEI EINER HEILMITTELVERORDNUNG IST DAS REZEPT DER GRUND.
+/// Die Anfrage geht an eine Physiotherapie-, Ergotherapie-, Logopädie- oder
+/// Podologiepraxis, nicht an einen Arzt. Die Anlass-Listen der 21 Fächer
+/// passen dort nicht: mit `gesundheit_hausarzt` stand in der Anfrage
+/// „zur Gesundheitsuntersuchung (Check-up) … § 25 Abs. 1 SGB V" und zur
+/// Auswahl „Erkältung / Husten / Fieber" und „Blutbild / Laborkontrolle" —
+/// alles Dinge, die eine Heilmittelpraxis weder darf noch tut. Es gibt in
+/// [kArztFaecher] auch kein Fach dafür, es war also keine falsche Wahl,
+/// sondern eine fehlende.
+///
+/// Was hier steht, kommt aus der Verordnung selbst — dieselben Felder, die
+/// der Reiter „Details" zeigt.
+class HeilmittelVerordnung {
+  /// Heilmittelbereich: Physiotherapie, Ergotherapie, Logopädie, Podologie …
+  final String bereich;
+
+  /// Ausstellungsdatum, `dd.MM.yyyy`. Von ihm läuft die Frist, in der die
+  /// Behandlung beginnen muss.
+  final String ausgestelltAm;
+
+  /// Die verordneten Heilmittel mit ihrer Menge, in der Reihenfolge des
+  /// Vordrucks.
+  final List<(String, String)> heilmittel;
+
+  /// Ergänzendes Heilmittel (z. B. Wärmetherapie) mit Menge.
+  final String ergaenzend;
+  final String ergaenzendAnzahl;
+
+  /// Gesamtzahl der verordneten Behandlungseinheiten.
+  ///
+  /// ⚠️ Ohne sie plant die Praxis EINEN Termin. Verordnet ist aber eine
+  /// Serie — man bekäme einen von zwanzig und merkte es erst Wochen später.
+  final String behandlungseinheiten;
+
+  /// Behandlungsfrequenz, z. B. „2x pro Woche".
+  final String frequenz;
+
+  final String diagnosegruppe;
+  final String leitsymptomatik;
+  final String leitsymptomatikAbc;
+  final String indikation;
+
+  /// Diagnosen im Klartext samt ICD-10.
+  final List<(String, String)> diagnosen;
+
+  /// 🔴 Ärztlich als dringlich gekennzeichnet.
+  /// Dann soll die Behandlung binnen 14 Tagen ab Ausstellung beginnen. Steht
+  /// das nicht im Brief, gibt die Praxis nach ihrem normalen Vorlauf einen
+  /// Termin in drei Wochen — und die Verordnung ist verfallen, ohne dass
+  /// jemand etwas falsch gemacht hätte.
+  final bool dringend;
+
+  /// 🔴 Hausbesuch verordnet.
+  /// Dann wird NICHT um einen Platz in der Praxis gebeten, sondern darum,
+  /// dass die Praxis kommt. Das ist eine andere Bitte, kein Zusatz.
+  final bool hausbesuch;
+
+  /// Therapiebericht an die verordnende Praxis angefordert.
+  final bool therapiebericht;
+
+  /// Ob der Vordruck der Praxis bereits vorliegt. Entscheidet nur die
+  /// Formulierung — „liegt Ihnen vor" statt „wird mitgebracht".
+  final bool rezeptLiegtVor;
+
+  /// Die verordnende Praxis, damit die Heilmittelpraxis die Verordnung
+  /// zuordnen und abrechnen kann.
+  final String lanr;
+  final String bsnr;
+
+  const HeilmittelVerordnung({
+    this.bereich = '',
+    this.ausgestelltAm = '',
+    this.heilmittel = const [],
+    this.ergaenzend = '',
+    this.ergaenzendAnzahl = '',
+    this.behandlungseinheiten = '',
+    this.frequenz = '',
+    this.diagnosegruppe = '',
+    this.leitsymptomatik = '',
+    this.leitsymptomatikAbc = '',
+    this.indikation = '',
+    this.diagnosen = const [],
+    this.dringend = false,
+    this.hausbesuch = false,
+    this.therapiebericht = false,
+    this.rezeptLiegtVor = false,
+    this.lanr = '',
+    this.bsnr = '',
+  });
+
+  /// Baut die Verordnung aus der Zeile, wie sie im Heilmittel-Tab liegt.
+  ///
+  /// ⚠️ Die Felder heißen dort so, wie der Vordruck sie nennt (`hm1`,
+  /// `hm1_anzahl`, `leitsymptomatik_abc`, …). Wer sie hier umtauft, merkt es
+  /// nicht: eine unbekannte Zeichenkette ergibt einen leeren Wert, und der
+  /// Absatz fällt still aus dem Brief.
+  factory HeilmittelVerordnung.ausZeile(Map<String, dynamic> r) {
+    String f(String k) => (r[k]?.toString() ?? '').trim();
+    bool b(String k) => r[k] == true || r[k] == 'true' || r[k] == 1 || r[k] == '1';
+
+    final hm = <(String, String)>[];
+    for (final n in const ['1', '2', '3']) {
+      final name = f('hm$n');
+      if (name.isEmpty) continue;
+      hm.add((name, f('hm${n}_anzahl')));
+    }
+
+    final dg = <(String, String)>[];
+    for (final n in const ['1', '2']) {
+      final text = f('diagnose$n');
+      final icd = f('diagnose${n}_icd10');
+      if (text.isEmpty && icd.isEmpty) continue;
+      dg.add((text, icd));
+    }
+    // Ältere Zeilen haben nur die einfachen Felder.
+    if (dg.isEmpty && (f('diagnose').isNotEmpty || f('icd10').isNotEmpty)) {
+      dg.add((f('diagnose'), f('icd10')));
+    }
+
+    return HeilmittelVerordnung(
+      bereich: f('bereich'),
+      ausgestelltAm: _alsDeutsch(f('datum')),
+      heilmittel: hm,
+      ergaenzend: f('hm_ergaenzend'),
+      ergaenzendAnzahl: f('hm_erg_anzahl'),
+      behandlungseinheiten: f('behandlungseinheiten'),
+      frequenz: f('frequenz'),
+      diagnosegruppe: f('diagnosegruppe'),
+      leitsymptomatik: f('leitsymptomatik'),
+      leitsymptomatikAbc: f('leitsymptomatik_abc'),
+      indikation: f('indikation'),
+      diagnosen: dg,
+      dringend: b('dringend'),
+      hausbesuch: b('hausbesuch'),
+      therapiebericht: b('therapiebericht'),
+      rezeptLiegtVor: b('rezept_in_praxis'),
+      lanr: f('lanr'),
+      bsnr: f('bsnr'),
+    );
+  }
+
+  /// Wie das Heilmittel im Satz heißt, wenn kein Bereich gesetzt ist.
+  String get bereichOderStandard =>
+      bereich.isEmpty ? 'Physiotherapie' : bereich;
+
+  /// Spätester Behandlungsbeginn bei dringlichem Bedarf: 14 Tage nach
+  /// Ausstellung, `dd.MM.yyyy`. `null`, wenn kein oder ein unlesbares
+  /// Ausstellungsdatum vorliegt.
+  ///
+  /// ⚠️ Wird NUR bei [dringend] benutzt. Für die gewöhnliche Frist wird hier
+  /// bewusst nichts behauptet: sie steht in der Heilmittel-Richtlinie, die
+  /// Praxis kennt sie besser als wir, und eine falsch ausgerechnete Frist im
+  /// Brief macht aus einer Bitte eine Belehrung.
+  String? get beginnFrist {
+    final m = RegExp(r'^(\d{2})\.(\d{2})\.(\d{4})$').firstMatch(ausgestelltAm);
+    if (m == null) return null;
+    final d = DateTime.tryParse(
+        '${m.group(3)}-${m.group(2)}-${m.group(1)}');
+    if (d == null) return null;
+    final f = d.add(const Duration(days: 14));
+    return '${f.day.toString().padLeft(2, '0')}.'
+        '${f.month.toString().padLeft(2, '0')}.${f.year}';
+  }
+
+  /// Die verordneten Heilmittel als Aufzählung mit Menge:
+  /// „Krankengymnastik (6x), Manuelle Therapie (6x)".
+  String get heilmittelSatz => heilmittel
+      .map((e) => e.$2.isEmpty ? e.$1 : '${e.$1} (${e.$2}x)')
+      .join(', ');
+}
+
+String _alsDeutsch(String roh) {
+  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(roh);
+  return m == null ? roh : '${m.group(3)}.${m.group(2)}.${m.group(1)}';
+}
+
 class TerminanfrageDaten {
   final String arztTyp;
 
@@ -943,6 +1123,11 @@ class TerminanfrageDaten {
 
   /// Nur wenn bestätigt — siehe ⚠️ im Kopf dieser Datei.
   final bool ueberweisungLiegtVor;
+
+  /// Gesetzt, wenn die Anfrage zu einer HEILMITTELVERORDNUNG gehört. Dann ist
+  /// das Rezept der Grund, und die Anlass-Listen der Arztfächer bleiben außen
+  /// vor — siehe [HeilmittelVerordnung].
+  final HeilmittelVerordnung? rezept;
 
   /// Ob jemand vom Verein mitkommt (Übersetzung, Begleitung). Steuert die
   /// Bitte um die Terminlage — siehe [kVereinErreichbarkeit].
@@ -984,6 +1169,7 @@ class TerminanfrageDaten {
     this.anlaesse = const [],
     this.anliegen = '',
     this.ueberweisungLiegtVor = false,
+    this.rezept,
     this.begleitung = true,
     this.wunschzeitAbweichend = '',
     this.erfassteTermine = 0,
@@ -1059,11 +1245,17 @@ TerminanfrageText terminanfrageText(
   final istMd = d.arztTyp == 'gesundheit_md';
   final wir = stimme == TerminanfrageStimme.wir;
 
-  final (anlass, zusatz) = switch (vorlage) {
-    TerminanfrageVorlage.erstvorstellung => (fach.erstAnlass, ''),
-    TerminanfrageVorlage.kontrolle => (fach.kontrolleAnlass, fach.kontrolleZusatz),
-    TerminanfrageVorlage.akut => (fach.akutAnlass, ''),
-  };
+  // 🔴 Bei einer Heilmittelverordnung ist das Rezept der Grund — die Fach-
+  // Anlässe gelten nicht. Siehe [HeilmittelVerordnung].
+  final rezept = d.rezept;
+
+  final (anlass, zusatz) = rezept != null
+      ? (_heilmittelAnlass(rezept), '')
+      : switch (vorlage) {
+          TerminanfrageVorlage.erstvorstellung => (fach.erstAnlass, ''),
+          TerminanfrageVorlage.kontrolle => (fach.kontrolleAnlass, fach.kontrolleZusatz),
+          TerminanfrageVorlage.akut => (fach.akutAnlass, ''),
+        };
 
   // ⚠️ Der MD bekommt kein „bitte ich um einen Termin": seine Vorlagen sind
   // schon als Bitte formuliert („um Mitteilung eines Termins …"). Sonst
@@ -1073,11 +1265,18 @@ TerminanfrageText terminanfrageText(
   // Angabenblock nicht, für wen.
   final fuerWen = wir ? ' für unser Mitglied ${d.vollerName}' : '';
   final bitte = wir ? 'bitten wir$fuerWen' : 'bitte ich';
-  final einleitung = istMd
-      ? 'hiermit $bitte $anlass.'
-      : vorlage == TerminanfrageVorlage.akut
-          ? 'hiermit $bitte um einen kurzfristigen Termin $anlass.'
-          : 'hiermit $bitte um einen Termin $anlass.';
+  // ⚠️ Bei verordnetem HAUSBESUCH wird nicht um einen Platz IN der Praxis
+  // gebeten, sondern darum, dass die Praxis kommt. Das ist eine andere Bitte,
+  // kein Zusatzsatz weiter unten — deshalb steht sie im ersten Satz.
+  final einleitung = rezept != null
+      ? (rezept.hausbesuch
+          ? 'hiermit $bitte um Behandlungstermine als Hausbesuch $anlass.'
+          : 'hiermit $bitte um Behandlungstermine $anlass.')
+      : istMd
+          ? 'hiermit $bitte $anlass.'
+          : vorlage == TerminanfrageVorlage.akut
+              ? 'hiermit $bitte um einen kurzfristigen Termin $anlass.'
+              : 'hiermit $bitte um einen Termin $anlass.';
 
   final absaetze = <String>[einleitung];
   if (zusatz.isNotEmpty) absaetze.add(zusatz);
@@ -1087,10 +1286,17 @@ TerminanfrageText terminanfrageText(
   final herkunft = _herkunftsAbsatz(vorlage, d, istMd, wir);
   if (herkunft.isNotEmpty) absaetze.add(herkunft);
 
-  absaetze.addAll(_anlassSaetze(fach, d.anlaesse));
+  if (rezept != null) {
+    absaetze.addAll(_rezeptSaetze(rezept));
+  } else {
+    absaetze.addAll(_anlassSaetze(fach, d.anlaesse));
+  }
   if (d.anliegen.trim().isNotEmpty) absaetze.add(d.anliegen.trim());
 
-  if (d.ueberweisungLiegtVor) {
+  // ⚠️ Der Beleg-Satz gilt nur ohne Rezept: bei einer Heilmittelverordnung ist
+  // das Papier keine „Überweisung", sondern der Vordruck Muster 13 — und über
+  // den sagt [_rezeptSaetze] bereits, ob er vorliegt oder mitgebracht wird.
+  if (rezept == null && d.ueberweisungLiegtVor) {
     absaetze.add(
       'Eine ${fach.belegName} liegt vor und wird zum Termin mitgebracht.'
       '${fach.belegZusatz.isEmpty ? '' : ' ${fach.belegZusatz}'}',
@@ -1174,6 +1380,122 @@ TerminanfrageText terminanfrageText(
     absaetze: absaetze,
     angaben: angaben,
   );
+}
+
+
+/// Der Anlass bei einer Heilmittelverordnung: das Rezept selbst.
+String _heilmittelAnlass(HeilmittelVerordnung v) {
+  final datum =
+      v.ausgestelltAm.isEmpty ? '' : ' vom ${v.ausgestelltAm}';
+  return 'auf Grundlage der ärztlichen Verordnung für '
+      '${v.bereichOderStandard} (Muster 13)$datum';
+}
+
+/// Die Absätze, die aus der Verordnung selbst kommen.
+///
+/// Reihenfolge nach dem, was die Anmeldung zuerst braucht: WAS und WIE VIEL
+/// (danach richtet sich die Terminserie), dann WIE DRINGEND, dann WOFÜR
+/// (Indikation und Diagnose), dann der Papierweg.
+List<String> _rezeptSaetze(HeilmittelVerordnung v) {
+  final saetze = <String>[];
+
+  // 1) Was ist verordnet, und wie viel davon.
+  //
+  // ⚠️ Menge und Frequenz stehen zusammen in EINEM Satz: eine Praxis plant
+  // aus beidem die Serie. Getrennt gelesen wird die Frequenz gern überlesen,
+  // und dann stehen zwanzig Einheiten im Wochentakt statt zweimal wöchentlich.
+  final teile = <String>[];
+  if (v.heilmittelSatz.isNotEmpty) {
+    teile.add('Verordnet ist ${v.heilmittelSatz}');
+  }
+  if (v.ergaenzend.isNotEmpty) {
+    teile.add('ergänzend ${v.ergaenzend}'
+        '${v.ergaenzendAnzahl.isEmpty ? '' : ' (${v.ergaenzendAnzahl}x)'}');
+  }
+  if (teile.isNotEmpty) saetze.add('${teile.join(', ')}.');
+
+  final menge = <String>[];
+  if (v.behandlungseinheiten.isNotEmpty) {
+    menge.add('insgesamt ${v.behandlungseinheiten} Behandlungseinheiten');
+  }
+  if (v.frequenz.isNotEmpty) {
+    menge.add('mit einer Frequenz von ${v.frequenz}');
+  }
+  if (menge.isNotEmpty) {
+    saetze.add('Die Verordnung umfasst ${menge.join(' ')}.');
+  }
+
+  // 2) Dringlichkeit — der Grund, warum es eilt.
+  //
+  // 🔴 Ohne diesen Satz vergibt die Praxis nach ihrem normalen Vorlauf einen
+  // Termin in drei Wochen, und die Verordnung ist verfallen, ohne dass jemand
+  // etwas falsch gemacht hätte.
+  //
+  // ⚠️ Kein Paragraph zitiert: die Frist steht in der Heilmittel-Richtlinie,
+  // und die Praxis kennt sie besser als wir. Gesagt wird, was auf dem Vordruck
+  // angekreuzt ist — die Regel wendet die Praxis selbst an.
+  if (v.dringend) {
+    // ⚠️ Das DATUM, nicht die Frist. „Innerhalb von 14 Tagen nach
+    // Ausstellung" zwingt die Anmeldung zum Rechnen — und zwar an einer
+    // Stelle, an der ein Rechenfehler den Termin zu spät legt. Bei einer
+    // Verordnung vom 12.08. und einem Brief vom 23.08. sind von den 14 Tagen
+    // ohnehin nur noch drei übrig; das sieht man erst am Datum.
+    final frist = v.beginnFrist;
+    saetze.add(frist == null
+        ? 'Die Verordnung ist ärztlich als DRINGLICHER BEHANDLUNGSBEDARF '
+            'gekennzeichnet. Die Behandlung soll daher innerhalb von 14 Tagen '
+            'nach Ausstellung beginnen.'
+        : 'Die Verordnung ist ärztlich als DRINGLICHER BEHANDLUNGSBEDARF '
+            'gekennzeichnet. Die Behandlung soll daher spätestens am '
+            '$frist beginnen.');
+  }
+
+  // 3) Wofür — Indikation, Leitsymptomatik, Diagnose.
+  final indikation = <String>[];
+  if (v.diagnosegruppe.isNotEmpty) {
+    indikation.add('Diagnosegruppe ${v.diagnosegruppe}');
+  }
+  if (v.leitsymptomatik.isNotEmpty || v.leitsymptomatikAbc.isNotEmpty) {
+    final abc = v.leitsymptomatikAbc.isEmpty ? '' : '${v.leitsymptomatikAbc}) ';
+    indikation.add('Leitsymptomatik $abc${v.leitsymptomatik}'.trim());
+  }
+  if (v.indikation.isNotEmpty) indikation.add(v.indikation);
+  if (indikation.isNotEmpty) saetze.add('${indikation.join(', ')}.');
+
+  if (v.diagnosen.isNotEmpty) {
+    final d = v.diagnosen
+        .map((e) => e.$2.isEmpty
+            ? e.$1
+            : (e.$1.isEmpty ? e.$2 : '${e.$1} (ICD-10 ${e.$2})'))
+        .where((e) => e.isNotEmpty)
+        .join('; ');
+    if (d.isNotEmpty) {
+      saetze.add(v.diagnosen.length == 1
+          ? 'Ärztliche Diagnose: $d.'
+          : 'Ärztliche Diagnosen: $d.');
+    }
+  }
+
+  // 4) Der Papierweg.
+  saetze.add(v.rezeptLiegtVor
+      ? 'Die Verordnung liegt Ihnen bereits vor.'
+      : 'Die Verordnung im Original wird zum ersten Termin mitgebracht; '
+          'eine Kopie liegt diesem Schreiben bei.');
+
+  if (v.therapiebericht) {
+    saetze.add('Auf der Verordnung ist ein Therapiebericht an die '
+        'verordnende Praxis angefordert.');
+  }
+
+  final praxis = <String>[
+    if (v.bsnr.isNotEmpty) 'BSNR ${v.bsnr}',
+    if (v.lanr.isNotEmpty) 'LANR ${v.lanr}',
+  ];
+  if (praxis.isNotEmpty) {
+    saetze.add('Verordnende Praxis: ${praxis.join(', ')}.');
+  }
+
+  return saetze;
 }
 
 /// Aus den angekreuzten Gründen werden ein bis zwei Sätze: einer für die
@@ -1279,6 +1601,15 @@ String _betreff(
   final wer = d.geburtsdatum.isEmpty
       ? d.vollerName
       : '${d.vollerName}, geb. ${d.geburtsdatum}';
+  // Bei einer Heilmittelverordnung nennt der Betreff das Rezept, nicht eine
+  // Vorstellungsart — die Anmeldung sortiert danach.
+  final rz = d.rezept;
+  if (rz != null) {
+    final datum = rz.ausgestelltAm.isEmpty ? '' : ' vom ${rz.ausgestelltAm}';
+    return 'Terminanfrage ${rz.bereichOderStandard} – '
+        'Verordnung$datum: $wer';
+  }
+
   final art = istMd
       ? switch (vorlage) {
           TerminanfrageVorlage.erstvorstellung => 'Anfrage Begutachtungstermin',
