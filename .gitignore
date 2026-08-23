@@ -124,3 +124,25 @@ packages/*/pubspec.lock
 # geprüft, kein einziger `_server_*`-Pfad ist getrackt — und der Präfix meint
 # in diesem Projekt ausschließlich Serverspiegel.
 _server_*/
+
+# ─────────────────────────────────────────────────────────────────────
+# Serverseitiges PHP gehoert NICHT ins Repo — auch nicht "nur kurz".
+#
+# ⚠️ Warum das als Regel dasteht und nicht als Absprache: am 30.05.2026
+# nahmen zwei Feature-Commits (47503579b, 55f585029) sieben Dateien nach
+# `server/api/admin/` mit. Kein Muster griff — die Regel darueber meint
+# `_server_*` MIT Unterstrich, der Ordner hiess `server`. Danach lagen
+# sie drei Monate unberuehrt da, waehrend die Fassungen auf dem Server
+# weiterliefen: fuenf von sieben wichen zuletzt ab.
+#
+# Der Preis stand in zweien davon. Sie leiteten den AES-Schluessel ALLER
+# Behoerden-Daten aus einer Passphrase ab, die direkt daneben stand — in
+# einem oeffentlichen Repo, 84 Tage lang. Das kostete am 23.08.2026 eine
+# Schluesselrotation, 2847 umgeschluesselte Datenbankwerte und 733
+# Dateien. Und weil der Umschluesselungslauf `varbinary`-Spalten uebersah,
+# noch einen zweiten Durchgang mit 856 weiteren Werten am selben Tag.
+#
+# Es gibt kein PHP im Repo, das dorthin gehoert: nach dem Entfernen von
+# `server/` sind null Dateien getrackt. Wer eine lokale Arbeitskopie
+# braucht, nennt sie `_server_…` — dann greift die Regel oben von selbst.
+*.php
