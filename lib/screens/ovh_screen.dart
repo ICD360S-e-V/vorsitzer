@@ -22,6 +22,19 @@ import '../widgets/korrespondenz_message_dialog.dart';
 /// Zahlen sich summieren lassen. Hier stecken Sätze. Eine Tabelle mit „Zahlen"
 /// aus OVH-Prosa wären erfundene Daten.
 ///
+/// Zwei Tabs:
+///
+/// **Korrespondenz** ist das Archiv der Nachrichten, baugleich zu den anderen
+/// Korrespondenz-Bereichen.
+///
+/// **Online-Konto** ist heute leer und ausdrücklich als „In Zukunft verfügbar"
+/// beschriftet. ⚠️ Der Tab steht trotzdem schon da, weil er eine Frage
+/// beantwortet: ob die Vertrags- und Rechnungsdaten anderswo liegen und man
+/// sie nur nicht findet. Bei INWX gibt es dieses Fenster, hier noch nicht.
+/// ⚠️ Und er enthält **keine einzige Zahl** — ein Platzhalter mit Beträgen
+/// oder Laufzeiten sähe fertig aus, und niemand prüft eine Zahl nach, die
+/// dasteht, als käme sie vom Anbieter.
+///
 /// Was an ovh@icd360s.de eingeht, landet hier von selbst (Cron, jede Minute).
 /// Der Eintrag hängt danach nicht mehr an der Mail: Betreff, Absender und
 /// Empfänger stehen verschlüsselt in unserer eigenen Zeile, die ganze Nachricht
@@ -72,6 +85,28 @@ String ovhZeit(String roh) {
   if (t.length >= 16) return '$tag ${t.substring(11, 16)}';
   return tag;
 }
+
+/// Die Beschriftung der beiden Tabs. Als Konstante, damit ein Test sie prüfen
+/// kann, ohne sie abzuschreiben.
+const List<String> kOvhTabs = ['Korrespondenz', 'Online-Konto'];
+
+/// Was der Tab „Online-Konto" einmal zeigen soll.
+///
+/// ⚠️ **Keine Zahlen, nirgends.** Solange nichts abgerufen wird, darf hier
+/// weder ein Betrag noch eine Laufzeit noch eine Kundennummer stehen — auch
+/// nicht als Beispiel. Ein Platzhalter mit Zahlen sieht fertig aus, und
+/// niemand prüft eine Zahl nach, die dasteht, als käme sie vom Anbieter. Ein
+/// Test hält das fest.
+const List<String> kOvhKontoGeplant = [
+  'Kundennummer, Kontaktdaten und Service-PIN',
+  'Gemietete Dienste mit Laufzeit und Verlängerungsart',
+  'Rechnungen mit Download',
+  'Guthaben und Zahlungsart',
+  'Protokoll: wer wann was am Konto geändert hat',
+];
+
+/// Die Aufschrift, an der man den Tab sofort als noch nicht fertig erkennt.
+const String kOvhKontoHinweis = 'In Zukunft verfügbar';
 
 /// Erklärt, was hier liegt und was ausdrücklich nicht.
 Future<void> ovhErklaerungZeigen(BuildContext kontext) {
@@ -157,16 +192,19 @@ class _Absatz extends StatelessWidget {
   }
 }
 
-class _OvhScreenState extends State<OvhScreen> {
-  static const String _modul = 'ovh';
-
-  bool _laeuft = true;
-  List<Map<String, dynamic>> _eintraege = [];
+class _OvhScreenState extends State<OvhScreen> with SingleTickerProviderStateMixin {
+  late final TabController _tabs;
 
   @override
   void initState() {
     super.initState();
-    _laden();
+    _tabs = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
   }
 
   void _melde(String text, {bool fehler = false}) {
@@ -175,24 +213,6 @@ class _OvhScreenState extends State<OvhScreen> {
       content: Text(text),
       backgroundColor: fehler ? Colors.red.shade600 : null,
     ));
-  }
-
-  Future<void> _laden() async {
-    setState(() => _laeuft = true);
-    try {
-      final r = await widget.apiService.getVereinKorrespondenz(modul: _modul);
-      if (!mounted) return;
-      if (r['success'] == true) {
-        final d = r['data'];
-        _eintraege = ovhListe(
-            (d is Map ? d['korrespondenz'] : null) ?? r['korrespondenz']);
-      } else {
-        _melde(r['message']?.toString() ?? 'Korrespondenz nicht abrufbar', fehler: true);
-      }
-    } catch (e) {
-      if (mounted) _melde('Fehler: $e', fehler: true);
-    }
-    if (mounted) setState(() => _laeuft = false);
   }
 
   @override
@@ -213,7 +233,7 @@ class _OvhScreenState extends State<OvhScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('OVHcloud',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              Text('Rechenzentrum des Vereins · Korrespondenz',
+              Text('Rechenzentrum des Vereins',
                   style: TextStyle(fontSize: 12, color: F.textLeise)),
             ]),
           ),
@@ -224,6 +244,82 @@ class _OvhScreenState extends State<OvhScreen> {
           ),
         ]),
       ),
+      TabBar(
+        controller: _tabs,
+        labelColor: F.h(Colors.blue, 800),
+        indicatorColor: F.h(Colors.blue, 800),
+        tabs: [
+          Tab(icon: const Icon(Icons.mail_outline, size: 18), text: kOvhTabs[0]),
+          Tab(icon: const Icon(Icons.account_circle_outlined, size: 18), text: kOvhTabs[1]),
+        ],
+      ),
+      Expanded(
+        child: TabBarView(
+          controller: _tabs,
+          children: [
+            _OvhMailTab(apiService: widget.apiService, melde: _melde),
+            const _OvhKontoTab(),
+          ],
+        ),
+      ),
+    ]);
+  }
+}
+
+// ═══════════════════ Tab 1: Korrespondenz ═══════════════════
+
+/// Die Nachrichten, die an ovh@icd360s.de eingegangen sind.
+class _OvhMailTab extends StatefulWidget {
+  final ApiService apiService;
+  final void Function(String, {bool fehler}) melde;
+
+  const _OvhMailTab({required this.apiService, required this.melde});
+
+  @override
+  State<_OvhMailTab> createState() => _OvhMailTabState();
+}
+
+class _OvhMailTabState extends State<_OvhMailTab> with AutomaticKeepAliveClientMixin {
+  static const String _modul = 'ovh';
+
+  bool _laeuft = true;
+  List<Map<String, dynamic>> _eintraege = [];
+
+  /// Der Tab überlebt den Wechsel zum Nachbarn. Sonst lüde ein Blick auf das
+  /// Online-Konto und zurück die ganze Liste neu — auf genau der Leitung, die
+  /// wir anderswo als langsam beanstanden.
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _laden();
+  }
+
+  Future<void> _laden() async {
+    setState(() => _laeuft = true);
+    try {
+      final r = await widget.apiService.getVereinKorrespondenz(modul: _modul);
+      if (!mounted) return;
+      if (r['success'] == true) {
+        final d = r['data'];
+        _eintraege = ovhListe(
+            (d is Map ? d['korrespondenz'] : null) ?? r['korrespondenz']);
+      } else {
+        widget.melde(r['message']?.toString() ?? 'Korrespondenz nicht abrufbar',
+            fehler: true);
+      }
+    } catch (e) {
+      if (mounted) widget.melde('Fehler: $e', fehler: true);
+    }
+    if (mounted) setState(() => _laeuft = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
         child: Row(children: [
@@ -397,7 +493,7 @@ class _OvhScreenState extends State<OvhScreen> {
     final r = await widget.apiService.downloadVereinKorrespondenzFile(id, modul: _modul);
     if (!mounted) return;
     if (r == null) {
-      _melde('Datei konnte nicht geladen werden', fehler: true);
+      widget.melde('Datei konnte nicht geladen werden', fehler: true);
       return;
     }
     try {
@@ -408,9 +504,9 @@ class _OvhScreenState extends State<OvhScreen> {
       final datei = File('${dir.path}/$sauber');
       await datei.writeAsBytes(r.bodyBytes);
       final auf = await OpenFilex.open(datei.path);
-      if (auf.type != ResultType.done) _melde('Gespeichert unter ${datei.path}');
+      if (auf.type != ResultType.done) widget.melde('Gespeichert unter ${datei.path}');
     } catch (e) {
-      _melde('Öffnen fehlgeschlagen: $e', fehler: true);
+      widget.melde('Öffnen fehlgeschlagen: $e', fehler: true);
     }
   }
 
@@ -440,10 +536,112 @@ class _OvhScreenState extends State<OvhScreen> {
     final r = await widget.apiService.deleteVereinKorrespondenz(id, modul: _modul);
     if (!mounted) return;
     if (r['success'] == true) {
-      _melde('Eintrag gelöscht');
+      widget.melde('Eintrag gelöscht');
       _laden();
     } else {
-      _melde(r['message']?.toString() ?? 'Löschen fehlgeschlagen', fehler: true);
+      widget.melde(r['message']?.toString() ?? 'Löschen fehlgeschlagen', fehler: true);
     }
+  }
+}
+
+// ═══════════════════ Tab 2: Online-Konto ═══════════════════
+
+/// Platzhalter für das OVH-Kundenkonto — bewusst leer und ausdrücklich als
+/// „noch nicht da" beschriftet.
+///
+/// ⚠️ **Hier steht keine einzige Zahl.** Ein Platzhalter, der schon einmal
+/// Beträge, Laufzeiten oder einen Kontostand anzeigt, ist die schlechteste
+/// Sorte Fehler: er sieht fertig aus, und niemand prüft eine Zahl nach, die
+/// dasteht, als käme sie vom Anbieter. Erst wenn der Abruf wirklich läuft,
+/// kommen Werte auf den Schirm.
+///
+/// Der Tab existiert trotzdem schon, weil er sagt, was es NICHT gibt: ohne ihn
+/// bliebe die Frage offen, ob die Vertragsdaten anderswo stehen und man sie nur
+/// nicht findet. Anders als bei INWX gibt es dieses Fenster hier noch nicht.
+class _OvhKontoTab extends StatelessWidget {
+  const _OvhKontoTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.account_circle_outlined, size: 52, color: F.h(Colors.grey, 300)),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: F.h(Colors.amber, 50),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: F.h(Colors.amber, 200)),
+              ),
+              child: Text(kOvhKontoHinweis,
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
+                      color: F.h(Colors.amber, 900))),
+            ),
+            const SizedBox(height: 16),
+            const Text('Online-Konto',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            Text(
+              'Das Kundenkonto bei OVHcloud ist hier noch nicht angebunden. '
+              'Was von dort kommt, steht bis dahin ausschliesslich im Tab '
+              '„Korrespondenz" — also das, was OVH von sich aus schreibt.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, height: 1.45, color: F.textSchwach),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: F.h(Colors.grey, 50),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: F.h(Colors.grey, 200)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Vorgesehen ist',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: F.h(Colors.grey, 700))),
+                const SizedBox(height: 8),
+                for (final z in kOvhKontoGeplant)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      // Der Punkt sitzt sonst am oberen Rand der Zeile statt
+                      // auf ihrer Mitte — auf der Randung gesehen, nicht im
+                      // Code vermutet.
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Icon(Icons.circle, size: 5, color: F.h(Colors.grey, 400)),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(z,
+                            style: TextStyle(fontSize: 12.5, height: 1.35, color: F.textSchwach)),
+                      ),
+                    ]),
+                  ),
+              ]),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Dafür braucht es einen eigenen API-Schlüssel im OVH-Kundencenter. '
+              'Solange der nicht eingerichtet ist, bleibt dieser Tab leer — '
+              'geschätzte Zahlen wären hier schlimmer als gar keine.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11.5, height: 1.4, color: F.textLeise),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 }
