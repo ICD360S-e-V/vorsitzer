@@ -26,8 +26,8 @@ import 'package:icd360sev_vorsitzer/services/sipgate_service.dart';
 void main() {
   // Wörtlich vom Server, inklusive der escapten Schrägstriche in `wss:\/\/`.
   const echteAntwort =
-      '{"success":true,"eingerichtet":true,"sip_id":"4023714e0",'
-      '"ha1":"498802219a72dd2b45dc187bbbe17c2d","realm":"sipgate.de",'
+      '{"success":true,"eingerichtet":true,"sip_id":"1234567e0",'
+      '"ha1":"00112233445566778899aabbccddeeff","realm":"sipgate.de",'
       '"wss_url":"wss:\\/\\/sip.sipgate.de","bezeichnung":"Vorsitzer (e0)",'
       '"absendernummer":"073180159736","notrufstandort":"nicht_gesetzt",'
       '"plattform":"alle","geteilt":true}';
@@ -43,8 +43,8 @@ void main() {
 
       final cfg = SipgateService.konfigAusAntwort(antwort);
       expect(cfg, isNotNull);
-      expect(cfg!.sipId, '4023714e0');
-      expect(cfg.ha1, '498802219a72dd2b45dc187bbbe17c2d');
+      expect(cfg!.sipId, '1234567e0');
+      expect(cfg.ha1, '00112233445566778899aabbccddeeff');
       expect(cfg.realm, 'sipgate.de');
       expect(cfg.wssUrl, 'wss://sip.sipgate.de');
       expect(cfg.bezeichnung, 'Vorsitzer (e0)');
@@ -94,7 +94,7 @@ void main() {
       );
       expect(
         SipgateService.konfigAusAntwort(alsMap(
-            '{"success":true,"eingerichtet":true,"sip_id":"4023714e0","ha1":""}')),
+            '{"success":true,"eingerichtet":true,"sip_id":"1234567e0","ha1":""}')),
         isNull,
       );
     });
@@ -103,8 +103,8 @@ void main() {
       // Ein älterer Server ohne absendernummer/notrufstandort darf die
       // Anmeldung nicht verhindern.
       final cfg = SipgateService.konfigAusAntwort(alsMap(
-          '{"success":true,"eingerichtet":true,"sip_id":"4023714e0",'
-          '"ha1":"498802219a72dd2b45dc187bbbe17c2d"}'))!;
+          '{"success":true,"eingerichtet":true,"sip_id":"1234567e0",'
+          '"ha1":"00112233445566778899aabbccddeeff"}'))!;
       expect(cfg.realm, 'sipgate.de');
       expect(cfg.wssUrl, 'wss://sip.sipgate.de');
       expect(cfg.absendernummer, isNull);
@@ -114,8 +114,8 @@ void main() {
 
     test('leere Absendernummer heisst unterdrückt, nicht Leerstring', () {
       final cfg = SipgateService.konfigAusAntwort(alsMap(
-          '{"success":true,"eingerichtet":true,"sip_id":"4023714e0",'
-          '"ha1":"498802219a72dd2b45dc187bbbe17c2d","absendernummer":"  "}'))!;
+          '{"success":true,"eingerichtet":true,"sip_id":"1234567e0",'
+          '"ha1":"00112233445566778899aabbccddeeff","absendernummer":"  "}'))!;
       expect(cfg.absendernummer, isNull,
           reason: 'Der Bildschirm entscheidet an null, ob er die Warnung zeigt');
     });
@@ -134,14 +134,14 @@ void main() {
     // verwirrt — sonst hätte der Notbehelf einen zweiten Fehler eingebaut.
     test('die flache Form gewinnt, der Spiegel wird ignoriert', () {
       final cfg = SipgateService.konfigAusAntwort(alsMap(
-          '{"success":true,"eingerichtet":true,"sip_id":"4023714e0",'
-          '"ha1":"498802219a72dd2b45dc187bbbe17c2d","realm":"sipgate.de",'
+          '{"success":true,"eingerichtet":true,"sip_id":"1234567e0",'
+          '"ha1":"00112233445566778899aabbccddeeff","realm":"sipgate.de",'
           '"wss_url":"wss:\\/\\/sip.sipgate.de","absendernummer":"073180159736",'
-          '"data":{"eingerichtet":true,"sip_id":"4023714e0",'
-          '"ha1":"498802219a72dd2b45dc187bbbe17c2d","realm":"sipgate.de",'
+          '"data":{"eingerichtet":true,"sip_id":"1234567e0",'
+          '"ha1":"00112233445566778899aabbccddeeff","realm":"sipgate.de",'
           '"wss_url":"wss:\\/\\/sip.sipgate.de","absendernummer":"073180159736"}}'))!;
-      expect(cfg.sipId, '4023714e0');
-      expect(cfg.ha1, '498802219a72dd2b45dc187bbbe17c2d');
+      expect(cfg.sipId, '1234567e0');
+      expect(cfg.ha1, '00112233445566778899aabbccddeeff');
       expect(cfg.absendernummer, '073180159736');
     });
 
@@ -149,10 +149,10 @@ void main() {
       // Sicherheitsnetz für den Tag, an dem der Spiegel wieder entfernt wird:
       // dann steht dort im Zweifel `"data":[]` oder gar nichts.
       final cfg = SipgateService.konfigAusAntwort(alsMap(
-          '{"success":true,"eingerichtet":true,"sip_id":"4023714e0",'
-          '"ha1":"498802219a72dd2b45dc187bbbe17c2d","data":[]}'));
+          '{"success":true,"eingerichtet":true,"sip_id":"1234567e0",'
+          '"ha1":"00112233445566778899aabbccddeeff","data":[]}'));
       expect(cfg, isNotNull);
-      expect(cfg!.sipId, '4023714e0');
+      expect(cfg!.sipId, '1234567e0');
     });
   });
 

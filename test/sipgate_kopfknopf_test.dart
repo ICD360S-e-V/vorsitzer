@@ -24,11 +24,11 @@ void main() {
   group('der Text hängt NICHT am Gespräch', () {
     const ohne = SipgateZustand(
       stand: SipgateStand.registriert,
-      sipId: '4023714e0',
+      sipId: '1234567e0',
     );
 
     test('angemeldet, ohne Gespräch', () {
-      expect(sipgateKopfText(ohne), 'sipgate — angemeldet (4023714e0)');
+      expect(sipgateKopfText(ohne), 'sipgate — angemeldet (1234567e0)');
     });
 
     test('ein eingehender Anruf, der noch klingelt, ändert nichts', () {
@@ -36,7 +36,7 @@ void main() {
       // dran, und der Knopf behauptete ein laufendes Gespräch.
       final z = SipgateZustand(
         stand: SipgateStand.registriert,
-        sipId: '4023714e0',
+        sipId: '1234567e0',
         gespraech: gespraech(SipgateGespraechStand.klingelt),
       );
       expect(sipgateKopfText(z), sipgateKopfText(ohne));
@@ -49,7 +49,7 @@ void main() {
       // reden, obwohl es beim anderen noch klingelt.
       final z = SipgateZustand(
         stand: SipgateStand.registriert,
-        sipId: '4023714e0',
+        sipId: '1234567e0',
         gespraech: gespraech(SipgateGespraechStand.waehlt, ein: false),
       );
       expect(sipgateKopfText(z), sipgateKopfText(ohne));
@@ -60,7 +60,7 @@ void main() {
       // gehört: sie liegt über demselben Bildschirm und sagt mehr.
       final z = SipgateZustand(
         stand: SipgateStand.registriert,
-        sipId: '4023714e0',
+        sipId: '1234567e0',
         gespraech: gespraech(SipgateGespraechStand.verbunden),
       );
       expect(sipgateKopfText(z), sipgateKopfText(ohne));
@@ -69,7 +69,7 @@ void main() {
     test('und auch zwei Beine in Konferenz nicht', () {
       final z = SipgateZustand(
         stand: SipgateStand.registriert,
-        sipId: '4023714e0',
+        sipId: '1234567e0',
         gespraech: gespraech(SipgateGespraechStand.verbunden),
         zweites: gespraech(SipgateGespraechStand.verbunden, ein: false),
         konferenz: true,

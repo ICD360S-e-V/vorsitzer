@@ -63,7 +63,7 @@ void main() {
           'success': true,
           'eingerichtet': true,
           'sip_id': '1234567e0',
-          'ha1': '498802219a72dd2b45dc187bbbe17c2d',
+          'ha1': '00112233445566778899aabbccddeeff',
           ...?_extra[felder],
         };
 

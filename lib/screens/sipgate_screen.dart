@@ -1532,7 +1532,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
                     controller: sipId,
                     decoration: const InputDecoration(
                       labelText: 'SIP-ID',
-                      hintText: '4023714e0',
+                      hintText: '1234567e0',
                       helperText: 'Steht im sipgate-Konto beim VoIP-Telefon',
                     ),
                   ),
