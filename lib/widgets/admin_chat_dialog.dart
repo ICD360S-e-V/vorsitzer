@@ -661,6 +661,11 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
             'sender_name': message.senderName,
             'sender_role': message.senderRole,
             'is_own': isOwn,
+            // ⚠️ Ohne diese Zeile landete jede eingehende SMS im App-Chat.
+            // `chatKanalVon()` liest genau diesen Schlüssel; fehlt er, gilt die
+            // Nachricht als App-Nachricht — und der SMS-Verlauf bliebe leer,
+            // obwohl die SMS da ist.
+            'channel': message.channel,
             'created_at': message.createdAt.toIso8601String(),
           });
         });
@@ -2119,7 +2124,11 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         // IMPORTANT: Send via WebSocket to broadcast to other users
         // Our duplicate check in messageStream listener will prevent it from showing twice locally
         if (_isConnected) {
-          _chatService.sendMessage(_parseConvId(_selectedConversation!['id']), message);
+          _chatService.sendMessage(
+            _parseConvId(_selectedConversation!['id']),
+            message,
+            channel: istSms ? 'sms' : 'app',
+          );
           _log.debug('Chat: Message sent via API (id: $messageId) and broadcasted via WebSocket', tag: 'CHAT');
         }
       } else {

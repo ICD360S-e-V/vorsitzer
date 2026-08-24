@@ -403,11 +403,18 @@ class ChatService {
   }
 
   /// Send a chat message
-  void sendMessage(int conversationId, String message) {
+  /// Rundruf an die anderen Geräte derselben Unterhaltung.
+  ///
+  /// [channel] muss mitgehen: der Vorsitzer sitzt an drei Geräten gleichzeitig,
+  /// und ohne den Schlüssel sähe das zweite Gerät die soeben verschickte SMS im
+  /// App-Chat — dieselbe Nachricht, zwei verschiedene Verläufe.
+  void sendMessage(int conversationId, String message,
+      {String channel = 'app'}) {
     _send({
       'type': 'message',
       'conversation_id': conversationId,
       'message': message,
+      'channel': channel,
     });
   }
 
@@ -882,6 +889,15 @@ class ChatMessage {
   final String? sourceLanguage;
   final DateTime createdAt;
 
+  /// 'app' oder 'sms'.
+  ///
+  /// ⚠️ Ohne dieses Feld fiel jede über den WebSocket eintreffende SMS im
+  /// Verlauf in den App-Chat: der Dialog baut seine Nachrichten-Map aus diesem
+  /// Objekt, und was hier nicht ankommt, kann er nicht weiterreichen.
+  /// `sms_inbox.php` schickt den Schlüssel seit jeher mit — gelesen hat ihn nur
+  /// niemand.
+  final String channel;
+
   ChatMessage({
     required this.id,
     required this.conversationId,
@@ -893,6 +909,7 @@ class ChatMessage {
     this.translatedMessage,
     this.sourceLanguage,
     required this.createdAt,
+    this.channel = 'app',
   });
 
   String get displayMessage => translatedMessage ?? message;
@@ -909,6 +926,9 @@ class ChatMessage {
       translatedMessage: json['translated_message'] as String?,
       sourceLanguage: json['source_language'] as String?,
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+      // Unbekannt heisst App, nicht SMS: eine fälschlich als SMS einsortierte
+      // Nachricht verschwindet aus dem Verlauf, in dem sie erwartet wird.
+      channel: json['channel']?.toString() == 'sms' ? 'sms' : 'app',
     );
   }
 }

@@ -35,7 +35,15 @@
 ///   Referenz auf genau diese `Map` und schreiben optimistisch hinein. Eine
 ///   frische Map würde diese Schreibvorgänge ins Leere laufen lassen.
 /// - `addAll` überschreibt nur Felder, die der Server auch schickt. Rein lokale
-///   Felder (`is_urgent`, `channel` aus dem Sende-Pfad) bleiben erhalten.
+///   Felder (`is_urgent` aus dem Sende-Pfad) bleiben erhalten.
+///
+/// ⚠️ `channel` stand hier bis 24.08.2026 als Beispiel für ein rein lokales
+/// Feld — zu Recht, denn `messages.php` las die Spalte zwar, gab sie aber nie
+/// heraus. Genau daran hing der Fehler „meine SMS steht im App-Chat": die
+/// optimistisch eingefügte Zeile trug den Kanal, jede **neu geladene** nicht,
+/// und beim nächsten Öffnen des Dialogs sprang der ganze SMS-Verlauf in den
+/// App-Chat. Der Server liefert den Kanal jetzt mit, also gewinnt er hier —
+/// wie er es bei jedem Feld tun soll, das er kennt.
 List<Map<String, dynamic>> chatNachrichtenZusammenfuehren(
   List<Map<String, dynamic>> vorhanden,
   List<Map<String, dynamic>> vomServer,
