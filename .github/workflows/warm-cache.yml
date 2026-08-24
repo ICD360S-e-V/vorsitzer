@@ -89,12 +89,17 @@ jobs:
 
       # ⚠️ Ab hier gilt für JEDEN Schritt: Aktion, Fassung und Schlüssel
       # müssen mit den verbrauchenden Abläufen übereinstimmen, sonst wärmt
-      # dieser Lauf einen Cache vor, den niemand trifft. Beim Ändern einer
-      # Fassung hier immer pr-checks.yml und build-android.yml mitziehen.
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+      # dieser Lauf einen Cache vor, den niemand trifft.
+      #
+      # Für Flutter ist das seit dem Umzug auf die eigene Hülle von selbst
+      # erfüllt: die Fassung steht nur noch in
+      # .github/actions/flutter-setup/action.yml, und alle fünfzehn
+      # Aufrufstellen lesen sie von dort. Für setup-java und
+      # cache-apt-pkgs-action weiter unten gilt der Satz unverändert — die
+      # stehen nach wie vor an jeder Stelle einzeln.
+      - uses: ./.github/actions/flutter-setup
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
 
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
         with:

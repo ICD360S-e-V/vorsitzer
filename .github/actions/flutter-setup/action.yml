@@ -1,0 +1,73 @@
+name: Flutter einrichten
+description: >
+  subosito/flutter-action mit einem zweiten Versuch, falls der erste an einem
+  Netzfehler stirbt. Einzige Stelle, an der die Fassung der Aktion steht.
+
+# WARUM ES DIESE HÜLLE GIBT
+#
+# Am 24.08.2026 starb der Lauf „Analyse, Build & Tests" auf PR #436 nach 38
+# Sekunden mit einer einzigen Zeile:
+#
+#     ##[error]Process completed with exit code 35
+#
+# Kein Wort sonst. Der Neustart desselben Commits, ohne jede Änderung, lief
+# durch. Die Ursache steckt in setup.sh der Aktion:
+#
+#     RELEASE_MANIFEST=$(curl --silent --connect-timeout 15 --retry 5 "$MANIFEST_URL")
+#
+# unter `bash -e -o pipefail`. ⚠️ **curl-Code 35 heisst „TLS-Handschlag
+# fehlgeschlagen"**, und `--silent` sorgt dafür, dass kein Wort davon im
+# Protokoll steht. Die 89 ms Laufzeit sind der Beweis, dass es kein Zeitablauf
+# war — `--connect-timeout` steht auf 15 Sekunden. `--retry` deckt
+# Handschlagfehler ohne `--retry-all-errors` nicht ab, also gab es keinen
+# zweiten Versuch.
+#
+# ⚠️ `.github/scripts/retry-build.sh` KANN DAS NICHT AUFFANGEN. Das Skript
+# umhüllt unseren eigenen Bauschritt; hier stirbt es im Einrichtungsschritt der
+# Aktion, mehrere Schritte davor. Weitere Muster dort einzutragen ändert nichts.
+#
+# ⚠️ Der zweite Versuch verdeckt keinen echten Fehler. Eine falsche Fassung
+# oder ein Tippfehler lässt auch den zweiten Versuch scheitern, und der trägt
+# kein `continue-on-error` — der Lauf fällt dann mit der richtigen Meldung um.
+# Bezahlt wird das mit einem zweiten Abruf des Manifests, also wenigen Sekunden.
+
+inputs:
+  flutter-version:
+    description: Fassung des Flutter-SDK, wörtlich wie bisher an die Aktion gereicht.
+    required: true
+  cache:
+    description: >
+      ⚠️ Bleibt auf true. Alle fünfzehn bisherigen Aufrufstellen standen darauf,
+      und warm-cache.yml wärmt genau diesen Cache vor. Ein false hier hiesse,
+      dass ein Ablauf am vorgewärmten Cache vorbeiläuft.
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    # ⚠️ Aktion und Fassung stehen ab jetzt NUR NOCH HIER. Beide Versuche
+    # tragen denselben Pin — sonst holte der zweite ein anderes SDK als der
+    # erste, und der vorgewärmte Cache passte auf einmal nicht mehr.
+    - id: erster_versuch
+      uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+      continue-on-error: true
+      with:
+        flutter-version: ${{ inputs.flutter-version }}
+        cache: ${{ inputs.cache }}
+
+    # Kurz warten, statt sofort wieder anzuklopfen: ein Handschlag, der gerade
+    # eben scheiterte, scheitert eine Sekunde später oft noch einmal.
+    - name: Kurze Pause vor dem zweiten Versuch
+      if: steps.erster_versuch.outcome == 'failure'
+      shell: bash
+      run: |
+        echo "::warning::Flutter-Einrichtung ist gescheitert (meist ein"\
+             "TLS-Fehler beim Abruf des Release-Manifests). Zweiter Versuch in 15 s."
+        sleep 15
+
+    - if: steps.erster_versuch.outcome == 'failure'
+      uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+      with:
+        flutter-version: ${{ inputs.flutter-version }}
+        cache: ${{ inputs.cache }}
