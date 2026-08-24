@@ -74,6 +74,12 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
     final dienst = await SignaturGatewayService.laeuft();
     final lastRun = await TerminSmsGatewayService.lastRun();
     final lastResult = await TerminSmsGatewayService.lastResult();
+    // ⚠️ Die Lesediagnose lief bisher NUR auf Knopfdruck. Die Zeile stand also
+    // beim Öffnen auf „noch nicht geprüft" — ausgerechnet der Zustand, der wie
+    // „alles in Ordnung" aussieht und keinen Handlungsbedarf zeigt. Sie zählt
+    // nur Zeilen, liest kein einziges SMS-Wort und löst keinen Dialog aus,
+    // also kostet sie nichts ausser einer Abfrage.
+    final leseDiagnose = await SmsService.readDiagnose();
     final anrufAn = await AnrufGatewayService.isEnabled();
     final anrufCaps = await AnrufGatewayService.faehigkeiten();
     final fernwahlAn = await AnrufFernwahl.istAktiv();
@@ -94,6 +100,12 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
       _dienstLaeuft = dienst;
       _lastRun = lastRun;
       _lastResult = lastResult;
+      // Ein einmal belegtes „der Dialog kommt nicht" darf ein Neuladen nicht
+      // wegwischen — sonst böte die Seite wieder „Anfragen" an, und der Knopf
+      // täte erneut nichts.
+      _readDiagnose = _readDiagnose?.dialogBliebAus == true
+          ? leseDiagnose.copyWith(dialogBliebAus: true)
+          : leseDiagnose;
       _loading = false;
     });
   }
@@ -122,6 +134,13 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
       // Ohne Ausnahme schläft der Hintergrundjob auf Samsung ein — direkt
       // fragen, statt es den Nutzer später herausfinden zu lassen.
       await _requestBattery();
+    }
+    // Dasselbe für die Gegenrichtung. Wer dieses Gerät zum SMS-Gateway macht,
+    // will beides: verschicken UND die Antworten sehen. Ohne READ_SMS liefert
+    // Android null Zeilen, ohne zu scheitern — es sähe monatelang so aus, als
+    // hätte schlicht niemand geantwortet.
+    if (value && mounted && _readDiagnose?.lage == SmsReadLage.fragenMoeglich) {
+      await _requestReadPermission();
     }
   }
 
@@ -155,12 +174,25 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
     // App-Op offen ist — genau daran scheitert der Installationsweg-Fall.
     await _pruefeLesen();
     if (!mounted) return;
+    if (res == 'denied_permanently') {
+      // Jetzt ist es belegt und keine Vermutung mehr: gefragt wurde, ein
+      // Dialog kam nicht.
+      setState(() =>
+          _readDiagnose = _readDiagnose?.copyWith(dialogBliebAus: true));
+    }
     final text = switch (res) {
       'granted' => 'Berechtigung erteilt — Ergebnis der Prüfung siehe oben.',
       'denied' => 'Abgelehnt.',
-      'denied_permanently' =>
-        'Der Dialog erscheint nicht. Das deutet darauf hin, dass diese '
-            'Installation die Berechtigung gar nicht erhalten darf.',
+      // ⚠️ Hier stand „diese Installation darf die Berechtigung gar nicht
+      // erhalten" — ab Android 15 ist das schlicht falsch und schickt den
+      // Vorsitzer nach Hause, obwohl ein einziger Tipp in der App-Info reicht.
+      // Enhanced Confirmation Mode (API 35) prüft eine Allowlist aus dem
+      // Werksabbild; ein eigenes F-Droid-Repo steht dort nie darauf.
+      'denied_permanently' => (_readDiagnose?.ecmMoeglich ?? false)
+          ? 'Android zeigt keinen Dialog. Ab Android 15 muss die App-Info '
+              'einmalig freigegeben werden — siehe Hinweis unten.'
+          : 'Der Dialog erscheint nicht. Das deutet darauf hin, dass diese '
+              'Installation die Berechtigung gar nicht erhalten darf.',
       'no_activity' => 'Nur bei geöffneter App möglich.',
       'not_supported' => 'Auf diesem Gerät nicht verfügbar.',
       _ => 'Keine Antwort.',
@@ -342,6 +374,62 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
                     onPressed: _pruefeLesen,
                     child: const Text('Prüfen')),
           ),
+          if (_readDiagnose?.lage == SmsReadLage.dialogBleibtAus) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _hinweis(
+                Icons.lock_open,
+                (_readDiagnose?.ecmMoeglich ?? false)
+                    ? 'Einmalig in der App-Info freigeben'
+                    : 'Android zeigt keinen Dialog',
+                (_readDiagnose?.ecmMoeglich ?? false)
+                    ? 'Ab Android 15 prüft Android bei SMS-Berechtigungen eine '
+                        'Liste aus dem Werksabbild („Enhanced Confirmation '
+                        'Mode"). Unsere App kommt aus dem eigenen F-Droid-Repo '
+                        'und steht nicht darauf — deshalb erscheint gar kein '
+                        'Dialog.\n\n'
+                        '1. „App-Info öffnen" antippen\n'
+                        '2. oben rechts ⋮ → „Eingeschränkte Einstellungen '
+                        'zulassen"\n'
+                        '3. hierher zurück und erneut „Anfragen"\n\n'
+                        'Hilft das nicht, liegt es am Installationsweg — dann '
+                        'muss die App über einen Weg kommen, der READ_SMS '
+                        'ausdrücklich zulässt. Der SMS-VERSAND ist davon nicht '
+                        'betroffen.'
+                    : 'Diese Installation darf READ_SMS nicht erhalten. Die App '
+                        'müsste über einen Installationsweg kommen, der die '
+                        'Berechtigung ausdrücklich zulässt. Der SMS-VERSAND ist '
+                        'davon nicht betroffen und läuft weiter.',
+                Colors.deepOrange,
+              ),
+            ),
+            if (_readDiagnose?.ecmMoeglich ?? false)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: TerminSmsGatewayService.openAppSettings,
+                        icon: const Icon(Icons.open_in_new, size: 18),
+                        label: const Text('App-Info öffnen'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Nach der Freigabe muss der Dialog neu angestossen werden.
+                    // Ohne diesen Knopf käme man aus der Lage nie wieder
+                    // heraus: die Zeile oben bietet dann nur noch „Prüfen" an.
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _requestReadPermission,
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: const Text('Erneut anfragen'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
           if (_readDiagnose?.lage == SmsReadLage.vomInstallerBlockiert)
             Padding(
               padding: const EdgeInsets.only(top: 8),

@@ -67,6 +67,26 @@ enum SmsReadLage {
   /// hilft kein Antippen in den Einstellungen, nur ein anderer Installationsweg.
   vomInstallerBlockiert,
 
+  /// Gefragt wurde, aber es erschien kein Dialog.
+  ///
+  /// ⚠️ Ab **Android 15** hat das zwei mögliche Ursachen, und nur eine davon
+  /// ist aussichtslos:
+  ///
+  /// 1. **Enhanced Confirmation Mode** (neu in Android 15, API 35). Android
+  ///    prüft eine Allowlist aus dem Werksabbild
+  ///    (`/system/etc/sysconfig`); wer nicht darauf steht — und ein eigenes
+  ///    F-Droid-Repo steht nie darauf —, bekommt SMS-Berechtigungen erst nach
+  ///    einer ausdrücklichen Freigabe in der App-Info. **Das behebt der
+  ///    Nutzer selbst, mit einem Tipp.**
+  /// 2. Die fehlende Installer-Allowlist von oben.
+  ///
+  /// Beide sehen von hier aus gleich aus: `requestPermissions` antwortet
+  /// „denied", `shouldShowRequestPermissionRationale` sagt false, ein Dialog
+  /// war nie zu sehen. Deshalb wird hier **nicht** behauptet, es sei
+  /// aussichtslos — es wird der Weg genannt, der in Fall 1 hilft, und erst
+  /// wenn der nichts ändert, bleibt Fall 2 übrig.
+  dialogBleibtAus,
+
   /// Erteilt, aber die Abfrage scheitert trotzdem.
   lesefehler,
 
@@ -208,6 +228,14 @@ class SmsReadDiagnose {
   final String? fehler;
   final String? hinweis;
 
+  /// Es wurde gefragt und es kam kein Dialog.
+  ///
+  /// Steht bewusst NICHT in der nativen Diagnose: die zählt nur den Ist-Zustand
+  /// und kann nicht wissen, ob je jemand gefragt hat. Erst die Antwort
+  /// `denied_permanently` auf eine echte Anfrage macht aus „noch nicht erteilt"
+  /// die Aussage „lässt sich so nicht erteilen".
+  final bool dialogBliebAus;
+
   const SmsReadDiagnose({
     required this.permission,
     required this.appOp,
@@ -217,7 +245,24 @@ class SmsReadDiagnose {
     required this.sdkInt,
     this.fehler,
     this.hinweis,
+    this.dialogBliebAus = false,
   });
+
+  SmsReadDiagnose copyWith({bool? dialogBliebAus}) => SmsReadDiagnose(
+        permission: permission,
+        appOp: appOp,
+        cursorOk: cursorOk,
+        rowCount: rowCount,
+        hasActivity: hasActivity,
+        sdkInt: sdkInt,
+        fehler: fehler,
+        hinweis: hinweis,
+        dialogBliebAus: dialogBliebAus ?? this.dialogBliebAus,
+      );
+
+  /// Ab Android 15 greift Enhanced Confirmation Mode. Darunter gibt es nur die
+  /// Installer-Allowlist, also auch nur eine Erklärung.
+  bool get ecmMoeglich => sdkInt >= 35;
 
   const SmsReadDiagnose.nichtUnterstuetzt({this.hinweis})
       : permission = false,
@@ -226,10 +271,15 @@ class SmsReadDiagnose {
         rowCount = -1,
         hasActivity = false,
         sdkInt = 0,
-        fehler = null;
+        fehler = null,
+        dialogBliebAus = false;
 
   SmsReadLage get lage {
     if (sdkInt == 0) return SmsReadLage.nichtUnterstuetzt;
+    // Reihenfolge: erst der belegte Fehlschlag, dann die Vermutung. Wer schon
+    // gefragt hat und keinen Dialog sah, dem hilft ein zweites „Anfragen"
+    // nicht — der Knopf würde bei jedem Tipp dasselbe Nichts tun.
+    if (!permission && dialogBliebAus) return SmsReadLage.dialogBleibtAus;
     if (!permission) return SmsReadLage.fragenMoeglich;
     // Erteilt UND App-Op offen UND Abfrage lief -> es geht wirklich.
     if (cursorOk && appOp != 'ignored' && appOp != 'errored') {
@@ -248,6 +298,13 @@ class SmsReadDiagnose {
         return hinweis ?? 'Nur auf dem Vereins-Tablet (Android) möglich';
       case SmsReadLage.fragenMoeglich:
         return 'Berechtigung noch nicht erteilt — antippen zum Anfragen';
+      case SmsReadLage.dialogBleibtAus:
+        return ecmMoeglich
+            ? 'Gefragt, aber Android zeigt keinen Dialog. Ab Android 15 ist '
+                'das meist die Freigabe in der App-Info („Eingeschränkte '
+                'Einstellungen zulassen") — danach hier erneut anfragen.'
+            : 'Gefragt, aber Android zeigt keinen Dialog. Diese Installation '
+                'darf READ_SMS nicht erhalten.';
       case SmsReadLage.vomInstallerBlockiert:
         return 'Vom Installationsweg gesperrt (App-Op „$appOp"). '
             'Die Berechtigung lässt sich hier NICHT freischalten — die App '
