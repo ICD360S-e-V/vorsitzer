@@ -4,8 +4,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/screens/inwx_screen.dart';
 
-/// Echte Antworten von api/vereinverwaltung/inwx_manage.php, aufgezeichnet
-/// am 08.08.2026 gegen das laufende INWX-Konto (Kundennummer 235519).
+/// Antworten von api/vereinverwaltung/inwx_manage.php, aufgezeichnet am
+/// 08.08.2026 gegen das laufende INWX-Konto — die FORM ist echt, die WERTE
+/// sind ersetzt.
+///
+/// 🔴 Die Werte sind bewusst erfunden, und das muss so bleiben. Bis zum
+/// 24.08.2026 stand hier die echte Aufzeichnung, und dieses Repo ist
+/// öffentlich: damit lagen 16 Tage lang die Service-PIN des Registrar-Kontos
+/// (sie legitimiert am Telefon bei INWX), Kunden- und Kontonummer, Name und
+/// Privatanschrift des Inhabers sowie die Login-IPs auf GitHub — neben dem
+/// Feld `zwei_fa: false`, das gleich mitteilte, dass keine zweite Hürde
+/// wartet. An dieser Domain hängen Web, Mail, WebSocket und die Auslieferung
+/// beider Apps.
+///
+/// ⚠️ Wer diese Datei neu aufzeichnet, zeichnet damit auch wieder echte
+/// Kontodaten auf. Nach jedem Neuaufnehmen sind mindestens zu ersetzen:
+/// `service_pin`, `kundennummer`, `konto_id`, `username`/`api.user`,
+/// `inhaber`, `anschrift`, `letzte_ip` und die IPs in `aktivitaeten`,
+/// Rechnungs- und Kontakt-Nummern. Die DNS-Einträge dürfen echt bleiben —
+/// die stehen ohnehin für jeden im öffentlichen DNS.
 ///
 /// ⚠️ Der Sinn ist NICHT, die Zahlen zu prüfen, sondern die FORM. PHP kennt
 /// nur einen Array-Typ: `['a'=>1]` kodiert `json_encode` als Objekt, `[]`
@@ -16,11 +33,11 @@ import 'package:icd360sev_vorsitzer/screens/inwx_screen.dart';
 /// davon die echte Serverantwort anfasst.
 
 const String _getAll = r'''
-{"success":true,"data":{"api.doku_url":"https://account.inwx.de/de/help/apidoc","api.endpoint":"https://api.domrobot.com/jsonrpc/","api.user":"icd360sev","firma.akkreditierung":"ICANN, DENIC, EURid, SWITCH, ES-NIC","firma.billing_email":"billing@inwx.com","firma.branche":"Domain-Registrar / DNS / Hosting","firma.datenschutz":"IITR Datenschutz GmbH, Marienplatz 2, 80331 Muenchen — email@iitr.de","firma.firma_name":"INWX GmbH","firma.geschaeftsfuehrer":"Mario Peschel","firma.hauptzentrale_email":"info@inwx.com","firma.hauptzentrale_fax":"+49 30 983 212 90","firma.hauptzentrale_land":"Deutschland","firma.hauptzentrale_ort":"Berlin","firma.hauptzentrale_plz":"10969","firma.hauptzentrale_strasse":"Prinzessinnenstr. 30","firma.hauptzentrale_telefon":"+49 30 983 21 20","firma.impressum_url":"https://www.inwx.de/de/aboutus/imprint","firma.quelle":"Impressum inwx.de, abgerufen 08.08.2026","firma.rechtsform":"GmbH","firma.registergericht":"Amtsgericht Berlin-Charlottenburg","firma.registernummer":"HRB 237141 B","firma.support_email":"support@inwx.com","firma.support_telefon":"+49 30 983 21 21 21","firma.ust_id":"DE814537105","firma.website":"https://www.inwx.de","zugang.url":"https://www.inwx.de/de/customer/signin","api.pass_gesetzt":"1","api.totp_gesetzt":""},"leistungen":[{"id":1,"kategorie":"domain","bezeichnung":"Domain icd360s.de","objekt":"icd360s.de","status":"aktiv","kosten":"","intervall":"jaehrlich","beginn_datum":"2025-08-14","ablauf_datum":"2026-08-14","tage_bis_ablauf":6,"auto_renew":true,"notiz":"Aus INWX-Konto übernommen.\nNameserver: ns.inwx.de, ns2.inwx.de, ns3.inwx.eu\nTransfer-Lock: ja","quelle":"api"}]}
+{"success":true,"data":{"api.doku_url":"https://account.inwx.de/de/help/apidoc","api.endpoint":"https://api.domrobot.com/jsonrpc/","api.user":"kunde-muster","firma.akkreditierung":"ICANN, DENIC, EURid, SWITCH, ES-NIC","firma.billing_email":"billing@inwx.com","firma.branche":"Domain-Registrar / DNS / Hosting","firma.datenschutz":"IITR Datenschutz GmbH, Marienplatz 2, 80331 Muenchen — email@iitr.de","firma.firma_name":"INWX GmbH","firma.geschaeftsfuehrer":"Mario Peschel","firma.hauptzentrale_email":"info@inwx.com","firma.hauptzentrale_fax":"+49 30 983 212 90","firma.hauptzentrale_land":"Deutschland","firma.hauptzentrale_ort":"Berlin","firma.hauptzentrale_plz":"10969","firma.hauptzentrale_strasse":"Prinzessinnenstr. 30","firma.hauptzentrale_telefon":"+49 30 983 21 20","firma.impressum_url":"https://www.inwx.de/de/aboutus/imprint","firma.quelle":"Impressum inwx.de, abgerufen 08.08.2026","firma.rechtsform":"GmbH","firma.registergericht":"Amtsgericht Berlin-Charlottenburg","firma.registernummer":"HRB 237141 B","firma.support_email":"support@inwx.com","firma.support_telefon":"+49 30 983 21 21 21","firma.ust_id":"DE814537105","firma.website":"https://www.inwx.de","zugang.url":"https://www.inwx.de/de/customer/signin","api.pass_gesetzt":"1","api.totp_gesetzt":""},"leistungen":[{"id":1,"kategorie":"domain","bezeichnung":"Domain icd360s.de","objekt":"icd360s.de","status":"aktiv","kosten":"","intervall":"jaehrlich","beginn_datum":"2025-08-14","ablauf_datum":"2026-08-14","tage_bis_ablauf":6,"auto_renew":true,"notiz":"Aus INWX-Konto übernommen.\nNameserver: ns.inwx.de, ns2.inwx.de, ns3.inwx.eu\nTransfer-Lock: ja","quelle":"api"}]}
 ''';
 
 const String _apiStatus = r'''
-{"success":true,"verbunden":true,"konto":{"username":"icd360sev","kundennummer":"235519","org":"ICD360S e.V","email":"inwx@icd360s.de","zahlungsart":"Prepaid","waehrung":"EUR","zwei_fa":false,"renewal_mode":"AUTORENEW","letzter_login":"2026-08-08"},"guthaben":{"total":5.97,"available":0,"locked":0,"credit_limit":0,"waehrung":"EUR"}}
+{"success":true,"verbunden":true,"konto":{"username":"kunde-muster","kundennummer":"100000","org":"ICD360S e.V","email":"inwx@icd360s.de","zahlungsart":"Prepaid","waehrung":"EUR","zwei_fa":false,"renewal_mode":"AUTORENEW","letzter_login":"2026-08-08"},"guthaben":{"total":5.97,"available":0,"locked":0,"credit_limit":0,"waehrung":"EUR"}}
 ''';
 
 const String _apiDomains = r'''
@@ -34,7 +51,7 @@ const String _getAllLeer = r'''
 
 /// Echte Antwort von `api_konto`, gekürzt auf die ersten Protokolleinträge.
 const String _apiKonto = r'''
-{"success":true,"verbunden":true,"konto":{"username":"icd360sev","kundennummer":"235519","konto_id":"312509","org":"ICD360S e.V","inhaber":"Ionut-Claudiu Duinea","anschrift":"Elsa-Brandstrom-str. 13, 89231 Neu-Ulm, DE","telefon":"+49.111111111111","fax":"","website":"https://icd360s.de","email":"inwx@icd360s.de","email_rechnung":"inwx@icd360s.de","zahlungsart":"Prepaid","waehrung":"EUR","ust_satz":"19.00","zwei_fa":false,"renewal_mode":"AUTORENEW","rechnung_pdf":true,"sammelrechnung":false,"reseller":"no","kunde_seit":"2025-08-14","letzter_login":"2026-08-08 11:39","logins":336,"letzte_ip":"2a0a:c980:4:24::","service_pin":"868868"},"guthaben":{"total":5.97,"available":0,"locked":0,"credit_limit":0,"waehrung":"EUR"},"rechnungen":[{"nummer":"2025073725","datum":"2025-08-31","brutto":5.97,"netto":5.02,"art":"Invoice","hat_xml":true}],"rechnungen_anzahl":1,"bewegungen":[{"zeitpunkt":"2025-08-31 02:00","betrag":-5.97,"art":"Invoice","details":"2025073725","erstattbar":false},{"zeitpunkt":"2025-08-14 22:26","betrag":5.97,"art":"Payment","details":"Credit card","erstattbar":true}],"bewegungen_anzahl":2,"bewegungen_seit":"2025-08-14","aktivitaeten":[{"zeitpunkt":"2025-10-24 22:11","domain":"icd360s.de","vorgang":"UPDATE NOTIFY","preis":0,"rechnung":"","wer":"System / Registry","ip":"","text":"DNSSEC update successful","log_id":"48922235"},{"zeitpunkt":"2025-10-24 22:05","domain":"icd360s.de","vorgang":"DNSSEC DEACTIVATION REQUESTED","preis":0,"rechnung":"","wer":"icd360sev","ip":"2a0a:c980:4:18::","text":"","log_id":"48922217"}],"aktivitaeten_anzahl":19,"aktivitaeten_summe":5.97}
+{"success":true,"verbunden":true,"konto":{"username":"kunde-muster","kundennummer":"100000","konto_id":"200000","org":"ICD360S e.V","inhaber":"Max Mustermann","anschrift":"Musterstr. 1, 12345 Musterstadt, DE","telefon":"+49.111111111111","fax":"","website":"https://icd360s.de","email":"inwx@icd360s.de","email_rechnung":"inwx@icd360s.de","zahlungsart":"Prepaid","waehrung":"EUR","ust_satz":"19.00","zwei_fa":false,"renewal_mode":"AUTORENEW","rechnung_pdf":true,"sammelrechnung":false,"reseller":"no","kunde_seit":"2025-08-14","letzter_login":"2026-08-08 11:39","logins":336,"letzte_ip":"2001:db8::1","service_pin":"000000"},"guthaben":{"total":5.97,"available":0,"locked":0,"credit_limit":0,"waehrung":"EUR"},"rechnungen":[{"nummer":"2020000001","datum":"2025-08-31","brutto":5.97,"netto":5.02,"art":"Invoice","hat_xml":true}],"rechnungen_anzahl":1,"bewegungen":[{"zeitpunkt":"2025-08-31 02:00","betrag":-5.97,"art":"Invoice","details":"2020000001","erstattbar":false},{"zeitpunkt":"2025-08-14 22:26","betrag":5.97,"art":"Payment","details":"Credit card","erstattbar":true}],"bewegungen_anzahl":2,"bewegungen_seit":"2025-08-14","aktivitaeten":[{"zeitpunkt":"2025-10-24 22:11","domain":"icd360s.de","vorgang":"UPDATE NOTIFY","preis":0,"rechnung":"","wer":"System / Registry","ip":"","text":"DNSSEC update successful","log_id":"48922235"},{"zeitpunkt":"2025-10-24 22:05","domain":"icd360s.de","vorgang":"DNSSEC DEACTIVATION REQUESTED","preis":0,"rechnung":"","wer":"kunde-muster","ip":"2001:db8::2","text":"","log_id":"48922217"}],"aktivitaeten_anzahl":19,"aktivitaeten_summe":5.97}
 ''';
 
 /// Nicht verbunden: hier ist `fehler` eine ZEICHENKETTE.
@@ -45,17 +62,17 @@ const String _apiKontoOffline = r'''
 /// Echte `api_dns`-Antwort, auf 5 der 38 Einträge gekürzt (je einer pro
 /// geprüfter Eigenschaft), Schlüsselmaterial gekürzt.
 const String _apiDns = r'''
-{"success":true,"verbunden":true,"zonen":["icd360s.de"],"zone":{"domain":"icd360s.de","ro_id":"1307445","typ":"MASTER","anzahl":38,"records":[{"id":"2203163207","name":"icd360s.de","typ":"A","inhalt":"51.195.4.85","ttl":300,"prio":0},{"id":"2227312181","name":"icd360s.de","typ":"AAAA","inhalt":"2001:41d0:700:3ff0::1","ttl":300,"prio":0},{"id":"2108639387","name":"icd360s.de","typ":"CAA","inhalt":"0 issue \"letsencrypt.org\"","ttl":300,"prio":0},{"id":"2109129724","name":"icd360s.de","typ":"MX","inhalt":"mail.icd360s.de","ttl":300,"prio":10},{"id":"2111981415","name":"icd360s.de","typ":"TXT","inhalt":"v=spf1 ip4:135.125.128.33 -all","ttl":3600,"prio":0}],"dnssec_aktiv":[{"key_tag":"5756","algorithmus":"13","flags":"257","angelegt":"2025-10-24 20:05:18"}],"dnssec_abgeloest":4,"hinweise":[{"stufe":"info","text":"Übrig gebliebener ACME-Nachweis: _acme-challenge.mail.icd360s.de — wird nur während der Zertifikatsausstellung gebraucht."}]}}
+{"success":true,"verbunden":true,"zonen":["icd360s.de"],"zone":{"domain":"icd360s.de","ro_id":"1000000","typ":"MASTER","anzahl":38,"records":[{"id":"2203163207","name":"icd360s.de","typ":"A","inhalt":"51.195.4.85","ttl":300,"prio":0},{"id":"2227312181","name":"icd360s.de","typ":"AAAA","inhalt":"2001:41d0:700:3ff0::1","ttl":300,"prio":0},{"id":"2108639387","name":"icd360s.de","typ":"CAA","inhalt":"0 issue \"letsencrypt.org\"","ttl":300,"prio":0},{"id":"2109129724","name":"icd360s.de","typ":"MX","inhalt":"mail.icd360s.de","ttl":300,"prio":10},{"id":"2111981415","name":"icd360s.de","typ":"TXT","inhalt":"v=spf1 ip4:135.125.128.33 -all","ttl":3600,"prio":0}],"dnssec_aktiv":[{"key_tag":"5756","algorithmus":"13","flags":"257","angelegt":"2025-10-24 20:05:18"}],"dnssec_abgeloest":4,"hinweise":[{"stufe":"info","text":"Übrig gebliebener ACME-Nachweis: _acme-challenge.mail.icd360s.de — wird nur während der Zertifikatsausstellung gebraucht."}]}}
 ''';
 
 /// Der Preis- und Kontaktteil von `api_konto`, echt.
 const String _apiKontoPreise = r'''
-{"success":true,"verbunden":true,"guthaben":{"total":5.97,"available":0,"locked":0,"credit_limit":0,"waehrung":"EUR"},"tlds":["de"],"preise":[{"tld":"de","waehrung":"EUR","verlaengerung":4.6529,"verlaengerung_brutto":5.54,"ust_satz":19,"neuanlage":5.9738,"transfer":4.6529,"wiederherstellung":28.4529,"zeitraum":"1"}],"preisaenderungen":[],"kontakte":[{"id":"893573","typ":"ORG","name":"Ionut-Claudiu Duinea","org":"ICD360S e.V i.G","anschrift":"Elsa-Brandstrom-str. 13, 89231 Neu-Ulm, DE","telefon":"+49.111111111111","email":"verein@i3c6d0s.com","verwendet":1,"nur_lesen":false,"geprueft":"CONFIRMED","kontakt_geprueft":"NOT-VERIFIED"},{"id":"1","typ":"ROLE","name":"Hostmaster Of The Day","org":"INWX GmbH","anschrift":"Prinzessinnenstr. 30, 10969 Berlin, DE","telefon":"+49.309832120","email":"hostmaster@inwx.de","verwendet":0,"nur_lesen":true,"geprueft":"NONE","kontakt_geprueft":"NOT-VERIFIED"}],"nic_handles":[{"handle":"DENIC-330-HANDLE-893573","domain":"icd360s.de","status":"OK"}],"meldungen_offen":0,"neuigkeiten":[{"id":"3752","datum":"2026-08-04","titel":"Preisanpassung","text":"Aufgrund gestiegener Kosten im Einkauf und unserer bereits sehr günstigen Preise, müssen wir die Gebühren für einige Domainendungen leider anpassen."}]}
+{"success":true,"verbunden":true,"guthaben":{"total":5.97,"available":0,"locked":0,"credit_limit":0,"waehrung":"EUR"},"tlds":["de"],"preise":[{"tld":"de","waehrung":"EUR","verlaengerung":4.6529,"verlaengerung_brutto":5.54,"ust_satz":19,"neuanlage":5.9738,"transfer":4.6529,"wiederherstellung":28.4529,"zeitraum":"1"}],"preisaenderungen":[],"kontakte":[{"id":"100001","typ":"ORG","name":"Max Mustermann","org":"ICD360S e.V i.G","anschrift":"Musterstr. 1, 12345 Musterstadt, DE","telefon":"+49.111111111111","email":"verein@muster.invalid","verwendet":1,"nur_lesen":false,"geprueft":"CONFIRMED","kontakt_geprueft":"NOT-VERIFIED"},{"id":"1","typ":"ROLE","name":"Hostmaster Of The Day","org":"INWX GmbH","anschrift":"Prinzessinnenstr. 30, 10969 Berlin, DE","telefon":"+49.309832120","email":"hostmaster@inwx.de","verwendet":0,"nur_lesen":true,"geprueft":"NONE","kontakt_geprueft":"NOT-VERIFIED"}],"nic_handles":[{"handle":"DENIC-330-HANDLE-100001","domain":"icd360s.de","status":"OK"}],"meldungen_offen":0,"neuigkeiten":[{"id":"3752","datum":"2026-08-04","titel":"Preisanpassung","text":"Aufgrund gestiegener Kosten im Einkauf und unserer bereits sehr günstigen Preise, müssen wir die Gebühren für einige Domainendungen leider anpassen."}]}
 ''';
 
 /// Verbunden, aber eine Teilabfrage ging schief: hier ist `fehler` eine LISTE.
 const String _apiKontoTeilfehler = r'''
-{"success":true,"verbunden":true,"konto":{"username":"icd360sev","waehrung":"EUR"},"rechnungen":[],"rechnungen_anzahl":0,"fehler":["accounting.log: Authorization error","domain.log: Parameter value syntax error"]}
+{"success":true,"verbunden":true,"konto":{"username":"kunde-muster","waehrung":"EUR"},"rechnungen":[],"rechnungen_anzahl":0,"fehler":["accounting.log: Authorization error","domain.log: Parameter value syntax error"]}
 ''';
 
 void main() {
@@ -93,7 +110,7 @@ void main() {
     test('Konto und Guthaben werden gelesen', () {
       final r = jsonDecode(_apiStatus) as Map<String, dynamic>;
       final k = inwxAlsMap(r['konto'])!;
-      expect(k['kundennummer'], '235519');
+      expect(k['kundennummer'], '100000');
       expect(k['zahlungsart'], 'Prepaid');
 
       final g = inwxAlsMap(r['guthaben'])!;
@@ -206,13 +223,13 @@ void main() {
         {'zeitpunkt': '2026-08-11 10:15', 'domain': 'icd360s.de',
          'vorgang': 'RENEWAL REQUESTED', 'preis': 0, 'rechnung': ''},
         {'zeitpunkt': '2025-08-14 22:27', 'domain': 'icd360s.de',
-         'vorgang': 'CREATE SUCCESSFUL', 'preis': 5.02, 'rechnung': '2025073725'},
+         'vorgang': 'CREATE SUCCESSFUL', 'preis': 5.02, 'rechnung': '2020000001'},
       ]);
       expect(offen, hasLength(1));
       expect(offen.first['vorgang'], 'RENEWAL SUCCESSFUL');
       // ⚠️ Der Preis im Protokoll ist BRUTTO. Belegt an der Registrierung:
       // dort steht 5,02 nicht — dort steht 5,97, und 5,97 ist der
-      // `afterTax`-Wert der Rechnung 2025073725 (netto 5,02). Die
+      // `afterTax`-Wert der Rechnung 2020000001 (netto 5,02). Die
       // Proformarechnung für August 2026 weist die 4,65 ebenfalls als
       // „Gesamt-Brutto" aus. Wer sie für netto hält, rechnet 19 % drauf und
       // behauptet eine Forderung, die es nicht gibt.
@@ -236,7 +253,7 @@ void main() {
       final r = jsonDecode(_apiKonto) as Map<String, dynamic>;
 
       final k = inwxAlsMap(r['konto'])!;
-      expect(k['kundennummer'], '235519');
+      expect(k['kundennummer'], '100000');
       expect(k['zahlungsart'], 'Prepaid');
       expect(k['logins'], 336);
 
@@ -269,7 +286,7 @@ void main() {
       expect(akt, hasLength(2));
       expect(r['aktivitaeten_anzahl'], 19); // gezeigt wird nur ein Ausschnitt
       expect(akt.first['wer'], 'System / Registry');
-      expect(akt[1]['wer'], 'icd360sev');
+      expect(akt[1]['wer'], 'kunde-muster');
       expect(akt[1]['ip'], isNotEmpty);
     });
 
