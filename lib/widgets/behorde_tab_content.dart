@@ -188,6 +188,18 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
   }
 
   /// Load all behoerde data for completion % calculation
+  // ⚠️ Drei Zustaende, die bis 24.08.2026 alle drei als leeres Objekt
+  // endeten: "nichts erfasst", "Server kam nicht an die Daten" und "Netz
+  // weg". Aus dem letzten wurde beim naechsten Speichern eine geleerte
+  // Akte, weil der Server den Blob als Ganzes ueberschreibt.
+  //
+  // Ein Eintrag hier bedeutet: fuer diesen Typ ist der Ladevorgang
+  // FEHLGESCHLAGEN. Solange er steht, wird nichts gespeichert.
+  final Map<String, String> _behoerdeLadefehler = {};
+
+  /// Fassungskennung aus dem letzten Laden, geht beim Speichern zurueck.
+  final Map<String, String> _behoerdeVersion = {};
+
   Future<void> _loadAllBehoerdeSummary() async {
     for (final type in _allTypes) {
       if (!_behoerdeData.containsKey(type) && _behoerdeLoading[type] != true) {
@@ -196,17 +208,25 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           final result = await widget.apiService.getBehoerdeData(widget.user.id, type);
           if (mounted) {
             setState(() {
-              _behoerdeData[type] = (result['data'] != null)
-                  ? Map<String, dynamic>.from(result['data'])
-                  : {};
               _behoerdeLoading[type] = false;
+              if (result['success'] == false) {
+                _behoerdeLadefehler[type] = (result['message'] ?? 'Laden fehlgeschlagen').toString();
+              } else {
+                _behoerdeLadefehler.remove(type);
+                _behoerdeVersion[type] = (result['version'] ?? '').toString();
+                _behoerdeData[type] = (result['data'] != null)
+                    ? Map<String, dynamic>.from(result['data'])
+                    : {};
+              }
             });
           }
         } catch (e) {
           if (mounted) {
             setState(() {
               _behoerdeLoading[type] = false;
-              _behoerdeData[type] = {};
+              // ⚠️ NICHT auf {} setzen: sonst gilt der Typ als geladen und
+              // leer, und der naechste Speichervorgang macht das endgueltig.
+              _behoerdeLadefehler[type] = 'Netzwerkfehler: $e';
             });
           }
         }
@@ -244,41 +264,109 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
       final result = await widget.apiService.getBehoerdeData(widget.user.id, type);
       if (mounted) {
         setState(() {
-          _behoerdeData[type] = (result['data'] != null)
-              ? Map<String, dynamic>.from(result['data'])
-              : {};
           _behoerdeLoading[type] = false;
+          if (result['success'] == false) {
+            _behoerdeLadefehler[type] = (result['message'] ?? 'Laden fehlgeschlagen').toString();
+          } else {
+            _behoerdeLadefehler.remove(type);
+            _behoerdeVersion[type] = (result['version'] ?? '').toString();
+            _behoerdeData[type] = (result['data'] != null)
+                ? Map<String, dynamic>.from(result['data'])
+                : {};
+          }
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _behoerdeLoading[type] = false;
-          _behoerdeData[type] = {};
+          _behoerdeLadefehler[type] = 'Netzwerkfehler: $e';
         });
       }
     }
   }
 
+  /// Erneuter Versuch nach einem fehlgeschlagenen Ladevorgang.
+  Future<void> _behoerdeNeuLaden(String type) async {
+    _behoerdeLadefehler.remove(type);
+    _behoerdeData.remove(type);
+    await _loadBehoerdeData(type);
+  }
+
   /// Auto-save a single field (e.g. antraege, meldungen) by merging with existing cached data
   Future<void> _autoSaveField(String type, String field, dynamic value) async {
+    // ⚠️ Nichts speichern, was nie geladen wurde. Sonst wird aus einem
+    // Netzfehler beim Oeffnen plus einer einzigen Eingabe eine Akte, die
+    // nur noch aus diesem einen Feld besteht.
+    if (_behoerdeLadefehler.containsKey(type)) {
+      _zeigeSperre(type);
+      return;
+    }
     final existing = Map<String, dynamic>.from(_behoerdeData[type] ?? {});
     existing[field] = value;
     _behoerdeData[type] = existing;
     try {
-      await widget.apiService.saveBehoerdeData(widget.user.id, type, existing);
-    } catch (_) {
-      // Silent fail for auto-save — data persists in local cache until manual save
+      final r = await widget.apiService.saveBehoerdeData(
+          widget.user.id, type, existing, version: _behoerdeVersion[type]);
+      if (r['success'] == true) {
+        _behoerdeVersion[type] = (r['version'] ?? '').toString();
+      } else if (r['httpStatus'] == 409) {
+        await _behoerdeKonflikt(type);
+      } else if (mounted) {
+        // ⚠️ Frueher wurde hier stillschweigend geschluckt, mit dem
+        // Kommentar, die Daten laegen ja im lokalen Zwischenspeicher. Der
+        // Zwischenspeicher ist aber genau der Stand, der nicht ankam.
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Nicht gespeichert: ${r['message'] ?? 'unbekannter Fehler'}'),
+          backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Nicht gespeichert: $e'), backgroundColor: Colors.red));
+      }
     }
   }
 
+  void _zeigeSperre(String type) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Nicht gespeichert — die Daten konnten nicht geladen werden '
+          '(${_behoerdeLadefehler[type]}). Sonst wuerde der vorhandene Stand ueberschrieben.'),
+      backgroundColor: Colors.red,
+      duration: const Duration(seconds: 6),
+      action: SnackBarAction(label: 'Neu laden', textColor: Colors.white,
+          onPressed: () => _behoerdeNeuLaden(type)),
+    ));
+  }
+
+  /// Ein anderes Geraet (oder ein anderer Reiter) war schneller.
+  Future<void> _behoerdeKonflikt(String type) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Die Daten wurden zwischenzeitlich anderswo geaendert. '
+          'Der Stand wird neu geladen — bitte die Eingabe wiederholen.'),
+      backgroundColor: Colors.orange, duration: Duration(seconds: 6)));
+    await _behoerdeNeuLaden(type);
+  }
+
   Future<void> _saveBehoerdeData(String type, Map<String, dynamic> data) async {
+    if (_behoerdeLadefehler.containsKey(type)) { _zeigeSperre(type); return; }
     setState(() => _behoerdeSaving[type] = true);
     try {
-      final result = await widget.apiService.saveBehoerdeData(widget.user.id, type, data);
+      final result = await widget.apiService.saveBehoerdeData(
+          widget.user.id, type, data, version: _behoerdeVersion[type]);
       if (mounted) {
+        if (result['httpStatus'] == 409) {
+          setState(() => _behoerdeSaving[type] = false);
+          await _behoerdeKonflikt(type);
+          return;
+        }
         if (result['success'] == true) {
-          setState(() => _behoerdeData[type] = data);
+          setState(() {
+            _behoerdeData[type] = data;
+            _behoerdeVersion[type] = (result['version'] ?? '').toString();
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Daten gespeichert'), backgroundColor: Colors.green),
           );

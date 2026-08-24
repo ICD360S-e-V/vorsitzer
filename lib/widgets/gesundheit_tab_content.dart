@@ -267,6 +267,12 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   final Map<String, Map<String, dynamic>> _gesundheitData = {};
   final Map<String, bool> _gesundheitLoading = {};
   final Map<String, bool> _gesundheitSaving = {};
+
+  // Siehe behorde_tab_content.dart: ein fehlgeschlagener Ladevorgang darf
+  // nicht als leerer Datensatz enden, sonst schreibt der naechste
+  // Speichervorgang die Leere fest. Betrifft hier die 21 Aerzte-Reiter.
+  final Map<String, String> _gesundheitLadefehler = {};
+  final Map<String, String> _gesundheitVersion = {};
   // Multi-doctor: selected instance per base type, count per base type
   final Map<String, int> _multiArztSelected = {};
   final Map<String, int> _multiArztCount = {};
@@ -281,22 +287,51 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     try {
       final result = await widget.apiService.getGesundheitData(widget.user.id, type);
       if (mounted) {
+        var geladen = false;
         setState(() {
-          _gesundheitData[type] = (result['data'] != null)
-              ? Map<String, dynamic>.from(result['data'])
-              : {};
           _gesundheitLoading[type] = false;
+          if (result['success'] == false) {
+            _gesundheitLadefehler[type] = (result['message'] ?? 'Laden fehlgeschlagen').toString();
+          } else {
+            _gesundheitLadefehler.remove(type);
+            _gesundheitVersion[type] = (result['version'] ?? '').toString();
+            _gesundheitData[type] = (result['data'] != null)
+                ? Map<String, dynamic>.from(result['data'])
+                : {};
+            geladen = true;
+          }
         });
-        _syncVorsorgeTickets(type);
+        // ⚠️ Nur bei erfolgreichem Laden: sonst wuerde der Abgleich auf
+        // einem leeren Datensatz laufen und Vorsorge-Tickets anlegen, die
+        // es laengst gibt.
+        if (geladen) _syncVorsorgeTickets(type);
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _gesundheitLoading[type] = false;
-          _gesundheitData[type] = {};
+          _gesundheitLadefehler[type] = 'Netzwerkfehler: $e';
         });
       }
     }
+  }
+
+  Future<void> _gesundheitNeuLaden(String type) async {
+    _gesundheitLadefehler.remove(type);
+    _gesundheitData.remove(type);
+    await _loadGesundheitData(type);
+  }
+
+  void _zeigeGesundheitSperre(String type) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Nicht gespeichert — die Daten konnten nicht geladen werden '
+          '(${_gesundheitLadefehler[type]}). Sonst wuerde der vorhandene Stand ueberschrieben.'),
+      backgroundColor: Colors.red,
+      duration: const Duration(seconds: 6),
+      action: SnackBarAction(label: 'Neu laden', textColor: Colors.white,
+          onPressed: () => _gesundheitNeuLaden(type)),
+    ));
   }
 
   /// Fires the member-scoped Vorsorge reminders after a doctor blob finished
@@ -348,12 +383,26 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       .toList();
 
   Future<void> _saveGesundheitData(String type, Map<String, dynamic> data) async {
+    if (_gesundheitLadefehler.containsKey(type)) { _zeigeGesundheitSperre(type); return; }
     setState(() => _gesundheitSaving[type] = true);
     try {
-      final result = await widget.apiService.saveGesundheitData(widget.user.id, type, data);
+      final result = await widget.apiService.saveGesundheitData(
+          widget.user.id, type, data, version: _gesundheitVersion[type]);
       if (mounted) {
+        if (result['httpStatus'] == 409) {
+          setState(() => _gesundheitSaving[type] = false);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Die Daten wurden zwischenzeitlich anderswo geaendert. '
+                'Der Stand wird neu geladen — bitte die Eingabe wiederholen.'),
+            backgroundColor: Colors.orange, duration: Duration(seconds: 6)));
+          await _gesundheitNeuLaden(type);
+          return;
+        }
         if (result['success'] == true) {
-          setState(() => _gesundheitData[type] = data);
+          setState(() {
+            _gesundheitData[type] = data;
+            _gesundheitVersion[type] = (result['version'] ?? '').toString();
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Daten gespeichert'), backgroundColor: Colors.green),
           );
