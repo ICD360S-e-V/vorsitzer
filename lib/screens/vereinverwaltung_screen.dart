@@ -15,6 +15,7 @@ import 'paypal_screen.dart';
 import 'github_screen.dart';
 import 'simplefax_screen.dart';
 import 'dmarc_screen.dart';
+import 'ovh_screen.dart';
 import 'tlsrpt_screen.dart';
 import 'vesperkirche_screen.dart';
 import 'ordnungsmassnahmen_screen.dart';
@@ -243,6 +244,11 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       return SimpleFaxScreen(
         onBack: () => setState(() => _vereinSubview = 'partner'),
         apiService: widget.apiService,
+      );
+    } else if (_vereinSubview == 'ovh') {
+      return OvhScreen(
+        apiService: widget.apiService,
+        onBack: () => setState(() => _vereinSubview = 'partner'),
       );
     } else if (_vereinSubview == 'tlsrpt') {
       return TlsrptScreen(
@@ -508,10 +514,12 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          // ⚠️ DMARC und TLS-RPT stehen bewusst nebeneinander in einer eigenen
-          // Zeile: es ist dieselbe Sorte Bericht über unsere eigene Post, nur
-          // in entgegengesetzter Richtung. Nebeneinander liest man sie als
-          // Paar; verstreut wären es zwei Rätsel.
+          // ⚠️ DMARC und TLS-RPT stehen bewusst nebeneinander: es ist dieselbe
+          // Sorte Bericht über unsere eigene Post, nur in entgegengesetzter
+          // Richtung. Nebeneinander liest man sie als Paar; verstreut wären es
+          // zwei Rätsel. OVH schliesst die Zeile ab — auch das ist Post über
+          // die eigene Infrastruktur und nicht über ein Mitglied, nur eben
+          // Prosa statt Messwerte.
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -519,7 +527,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
               const SizedBox(width: 16),
               Expanded(child: _buildTlsrptCard()),
               const SizedBox(width: 16),
-              const Expanded(child: SizedBox()),
+              Expanded(child: _buildOvhCard()),
               const SizedBox(width: 16),
               const Expanded(child: SizedBox()),
             ],
@@ -563,6 +571,21 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       subtitle: 'E-Mails an tls-rpt@icd360s.de, Verschlüsselung',
       onTap: () => setState(() => _vereinSubview = 'tlsrpt'),
       hilfe: () => tlsrptErklaerungZeigen(context),
+    );
+  }
+
+  /// OVHcloud — das Rechenzentrum, in dem der Server des Vereins steht.
+  /// Rechnungen, Kündigungen, Wartung und DDoS-Meldungen; anders als bei DMARC
+  /// und TLS-RPT gibt es dazu keine Auswertung, weil in einer OVH-Mail Sätze
+  /// stehen und keine Messwerte.
+  Widget _buildOvhCard() {
+    return _buildClickableCard(
+      icon: Icons.dns_outlined,
+      title: 'OVHcloud',
+      color: F.h(Colors.blue, 800),
+      subtitle: 'E-Mails an ovh@icd360s.de, Rechenzentrum',
+      onTap: () => setState(() => _vereinSubview = 'ovh'),
+      hilfe: () => ovhErklaerungZeigen(context),
     );
   }
 
