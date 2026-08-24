@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 
 /// Marks a mail that has been copied into one of the Korrespondenz archives.
 ///
-/// Mail addressed to elster@icd360s.de lands in Finanzamt ▸ Korrespondenz,
-/// mail to github@icd360s.de in GitHub ▸ Korrespondenz, mail to
-/// inwx@icd360s.de in INWX and the DMARC reports sent to dmarc@icd360s.de in
-/// DMARC ▸ Reporting — each filed by its own cron job. Without a visible marker there is no way to tell an archived mail
-/// from one the importer has not seen yet — which leads to filing the same
-/// letter twice, or worse, assuming a Bescheid was archived when it was not.
+/// Each archive has its own address and its own cron job: elster@ lands in
+/// Finanzamt ▸ Korrespondenz, github@ in GitHub ▸ Korrespondenz, inwx@ in INWX,
+/// dmarc@ in DMARC ▸ Reporting, tls-rpt@ in TLS-RPT ▸ Reporting and ovh@ in
+/// OVH ▸ Korrespondenz. Without a visible marker there is no way to tell an
+/// archived mail from one the importer has not seen yet — which leads to filing
+/// the same letter twice, or worse, assuming a Bescheid was archived when it
+/// was not.
 ///
 /// The original always stays in the mailbox; this only says a copy exists.
 class MailKorrespondenzBadge extends StatelessWidget {
@@ -37,6 +38,7 @@ class MailKorrespondenzBadge extends StatelessWidget {
     'inwx': (Icons.language, 'INWX'),
     'dmarc': (Icons.verified_user_outlined, 'DMARC'),
     'tlsrpt': (Icons.lock_outline, 'TLS-RPT'),
+    'ovh': (Icons.dns_outlined, 'OVHcloud'),
   };
 
   static (IconData, String) _lookUp(String bereich) =>
