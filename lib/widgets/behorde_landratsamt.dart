@@ -663,6 +663,7 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
     final sachC = TextEditingController(text: existing?['sachbearbeiter']?.toString() ?? '');
     final telC = TextEditingController(text: existing?['sachbearbeiter_tel']?.toString() ?? '');
     final emailC = TextEditingController(text: existing?['sachbearbeiter_email']?.toString() ?? '');
+    final faxC = TextEditingController(text: existing?['sachbearbeiter_fax']?.toString() ?? '');
     final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
     int? linkedGerichtId = int.tryParse(existing?['gericht_vorfall_id']?.toString() ?? '');
     bool submitting = false;
@@ -697,6 +698,16 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
             const SizedBox(width: 8),
             Expanded(child: TextField(controller: emailC, decoration: InputDecoration(labelText: 'E-Mail', prefixIcon: const Icon(Icons.email, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
           ]),
+          const SizedBox(height: 8),
+          // Fax steht bewusst in einer eigenen Zeile: Behörden nennen meist
+          // eine zentrale Faxnummer, die nicht zur Durchwahl der
+          // Sachbearbeitung gehört — sie neben das Telefon zu setzen würde
+          // beide als ein Paar lesen lassen.
+          TextField(
+            controller: faxC,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(labelText: 'Fax', prefixIcon: const Icon(Icons.print, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          ),
           const SizedBox(height: 8),
           TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
           const SizedBox(height: 12),
@@ -742,6 +753,7 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
                 'aktenzeichen': aktenC.text.trim(),
                 'sachbearbeiter': sachC.text.trim(),
                 'sachbearbeiter_tel': telC.text.trim(),
+                'sachbearbeiter_fax': faxC.text.trim(),
                 'sachbearbeiter_email': emailC.text.trim(),
                 'notiz': notizC.text.trim(),
                 'gericht_vorfall_id': linkedGerichtId,
@@ -904,6 +916,7 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
         _kv(Icons.person, 'Sachbearbeiter/in', widget.vorfall['sachbearbeiter']),
         _kv(Icons.phone, 'Telefon', widget.vorfall['sachbearbeiter_tel']),
         _kv(Icons.email, 'E-Mail', widget.vorfall['sachbearbeiter_email']),
+        _kv(Icons.print, 'Fax', widget.vorfall['sachbearbeiter_fax']),
         const Divider(height: 20),
         _kv(Icons.note, 'Notiz', widget.vorfall['notiz']),
         if (widget.gerichtLink != null) ...[
