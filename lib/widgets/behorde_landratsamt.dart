@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import '../services/api_service.dart';
+import '../utils/landratsamt_antraege.dart';
+import 'landratsamt_art_auswahl.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/app_farben.dart';
 
@@ -512,40 +514,19 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
 // VORFALL — separate state, eigene DB-Tabelle
 // ============================================================
 
-// Vorfall-Arten die ein Landratsamt federführend oder als Anlaufstelle
-// bearbeitet. Praxisstruktur (bayerisches / BW-LRA):
-//   • Betreuungsbehörde (§§ 5-11 BtOG)
-//   • Schuldner-/Insolvenzberatung (§ 305 InsO Vorbereitung) — Anerkennung
-//     als "geeignete Stelle" ist landesrechtlich geregelt; nicht jedes LRA
-//     hat eine eigene anerkannte Stelle, viele delegieren an Caritas/
-//     Diakonie/AWO. Deshalb neutrale Formulierung im Dropdown.
-//   • Sozialhilfe im engeren Sinn (SGB XII / P-Konto).
-// Reihenfolge § 305 InsO: Erstberatung → Gläubigerübersicht →
-// Schuldenbereinigungsplan → außergerichtlicher Einigungsversuch →
-// Bescheinigung → Insolvenzgericht.
-const _landratsamtVorfallArten = [
-  // === Betreuungsbehörde ===
-  'Verfahrensbetreuung (Anordnung Betreuungsgericht)',
-  'Betreuungsanregung',
-  'Sozialbericht / Stellungnahme an Gericht',
-  'Hausbesuch / Ermittlung',
-  'Beratung Betroffene/r',
-  'Beratung Angehörige',
-  'Begleitung Anhörung Betreuungsgericht',
-  'Vorsorgevollmacht / Betreuungsverfügung — Beglaubigung (§ 7 BtOG)',
-  // === Schuldner-/Insolvenzberatung (§ 305 InsO Vorbereitung) ===
-  'Schuldner-/Insolvenzberatung — Erstberatung',
-  'Schuldnerberatung — Gläubigerübersicht / Forderungsaufstellung',
-  'Schuldnerberatung — Schuldenbereinigungsplan erstellen',
-  'Schuldnerberatung — Außergerichtlicher Einigungsversuch (§ 305 InsO)',
-  'Insolvenzantrag — Bescheinigung § 305 Abs. 1 Nr. 1 InsO ausgestellt',
-  'Insolvenzantrag — Antrag an Insolvenzgericht eingereicht',
-  'P-Konto-Bescheinigung ausgestellt',
-  // === Sozialhilfe (SGB XII) ===
-  'Grundsicherung im Alter / bei Erwerbsminderung (SGB XII Kap. 4)',
-  'Hilfe zum Lebensunterhalt (SGB XII Kap. 3)',
-  'Sonstiges',
-];
+// Die Vorfall-Arten stehen in lib/utils/landratsamt_antraege.dart.
+//
+// ⚠️ Früher war das hier eine flache Liste mit 18 Einträgen, die nur die
+// Betreuungsbehörde, die Schuldnerberatung und zwei Sozialhilfe-Leistungen
+// kannte — alles andere landete unter „Sonstiges". Ein Landratsamt ist aber
+// eine Behörde mit Doppelnatur (Art. 37 LKrO in Bayern, § 15 LVG in
+// Baden-Württemberg) und macht vom Führerschein über die Bauaufsicht bis zum
+// Waffenrecht sehr viel mehr. Ausserdem geht die Zuständigkeit je Bundesland
+// auseinander, und beide Länder stehen in unserer Ämterliste.
+//
+// Deshalb: eigener Katalog mit Fachbereichen, Rechtsgrundlagen und
+// Zuständigkeitswarnungen — und statt eines Dropdowns ein Suchdialog, weil
+// 187 Einträge in kein Dropdown passen.
 
 class _LandratsamtVorfallTab extends StatefulWidget {
   final ApiService apiService;
@@ -674,12 +655,9 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Text(id != null ? 'Vorfall bearbeiten' : 'Neuer Vorfall', style: TextStyle(color: F.h(Colors.brown, 700))),
         content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            initialValue: _landratsamtVorfallArten.contains(artC.text) ? artC.text : null,
-            decoration: InputDecoration(labelText: 'Art *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-            items: _landratsamtVorfallArten.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 13)))).toList(),
-            onChanged: (v) => setD(() => artC.text = v ?? ''),
+          LandratsamtArtAuswahl(
+            wert: artC.text,
+            onGewaehlt: (v) => setD(() => artC.text = v),
           ),
           const SizedBox(height: 8),
           TextField(controller: datumC, readOnly: true,
@@ -744,7 +722,12 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
           TextButton(onPressed: submitting ? null : () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
           FilledButton(
             onPressed: submitting ? null : () async {
-              if (artC.text.trim().isEmpty || datumC.text.trim().isEmpty) return;
+              if (artC.text.trim().isEmpty || datumC.text.trim().isEmpty) {
+                ScaffoldMessenger.of(ctx2).showSnackBar(const SnackBar(
+                  content: Text('Bitte Art und Datum ausfüllen — beide sind Pflicht.'),
+                ));
+                return;
+              }
               setD(() => submitting = true);
               await widget.apiService.saveLandratsamtVorfall(widget.userId, {
                 if (id != null) 'id': id,
@@ -815,6 +798,11 @@ class _LandratsamtVorfallDetailView extends StatefulWidget {
 }
 
 class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetailView> {
+  /// Katalogeintrag zur gespeicherten Art — `null` bei Werten aus einer
+  /// älteren Fassung oder bei freiem Text.
+  LandratsamtAntrag? get _katalog =>
+      landratsamtAntragFinden(widget.vorfall['art']?.toString());
+
   List<Map<String, dynamic>> _korr = [];
   List<Map<String, dynamic>> _termine = [];
   Map<String, dynamic> _amt = {};
@@ -910,6 +898,13 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _kv(Icons.label, 'Art', widget.vorfall['art']),
+        if (_katalog?.recht != null)
+          _kv(Icons.balance, 'Rechtsgrundlage', _katalog!.recht),
+        if (_katalog?.hinweis != null) ...[
+          const SizedBox(height: 4),
+          ZustaendigkeitsHinweis(text: _katalog!.hinweis!, streng: _katalog!.streng),
+          const SizedBox(height: 4),
+        ],
         _kv(Icons.calendar_today, 'Datum', widget.vorfall['datum']),
         _kv(Icons.tag, 'Aktenzeichen', widget.vorfall['aktenzeichen']),
         const Divider(height: 20),
