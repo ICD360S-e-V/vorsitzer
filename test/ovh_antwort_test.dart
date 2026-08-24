@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/screens/ovh_screen.dart';
+import 'package:icd360sev_vorsitzer/services/api_service.dart';
 import 'package:icd360sev_vorsitzer/widgets/mail_korrespondenz_badge.dart';
 
 /// Echte Antwort von api/admin/ovh/korrespondenz.php, aufgezeichnet am
@@ -101,6 +102,46 @@ void main() {
       // Ohne den zweiten hielte man das Archiv für vollständig.
       expect(find.textContaining('Zahlen daraus zu bilden'), findsOneWidget);
       expect(find.textContaining('icd@icd360s.de'), findsOneWidget);
+    });
+  });
+
+  group('Zwei Tabs', () {
+    test('Korrespondenz steht vorn, Online-Konto daneben', () {
+      expect(kOvhTabs, ['Korrespondenz', 'Online-Konto']);
+    });
+
+    testWidgets('beide Tabs werden angeschrieben', (t) async {
+      // ⚠️ KEIN pumpAndSettle: der Korrespondenz-Tab zeigt beim Start einen
+      // CircularProgressIndicator, und der läuft endlos. pumpAndSettle würde
+      // hier nicht scheitern, sondern hängen — bis der Test nach zehn Minuten
+      // abgeschossen wird und niemand weiss, warum.
+      await t.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: OvhScreen(apiService: ApiService(), onBack: () {}),
+        ),
+      ));
+      await t.pump();
+
+      for (final name in kOvhTabs) {
+        expect(find.text(name), findsOneWidget, reason: name);
+      }
+    });
+  });
+
+  group('Platzhalter Online-Konto', () {
+    // ⚠️ Der eigentliche Punkt dieses Bereichs: solange nichts abgerufen wird,
+    // darf dort keine Zahl stehen. Ein Platzhalter mit einem Betrag oder einer
+    // Laufzeit sieht fertig aus, und niemand prüft eine Zahl nach, die
+    // dasteht, als käme sie vom Anbieter.
+    test('trägt keine einzige Ziffer', () {
+      for (final z in [...kOvhKontoGeplant, kOvhKontoHinweis]) {
+        expect(RegExp(r'[0-9]').hasMatch(z), isFalse, reason: z);
+      }
+    });
+
+    test('ist als noch nicht fertig beschriftet', () {
+      expect(kOvhKontoHinweis, contains('Zukunft'));
+      expect(kOvhKontoGeplant, isNotEmpty);
     });
   });
 
