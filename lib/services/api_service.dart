@@ -9423,16 +9423,27 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> saveBehoerdeData(int userId, String behoerdeType, Map<String, dynamic> data) async {
+  /// [version] ist die Fassungskennung aus dem letzten Laden. Der Server
+  /// lehnt mit HTTP 409 ab, wenn sich der Datensatz zwischenzeitlich
+  /// geaendert hat, statt ihn blind zu ueberschreiben. Fehlt sie, schreibt
+  /// der Server wie frueher - dann greift der Schutz nicht.
+  Future<Map<String, dynamic>> saveBehoerdeData(int userId, String behoerdeType, Map<String, dynamic> data, {String? version}) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/behoerde_save.php'),
       headers: _headers,
-      body: jsonEncode({'user_id': userId, 'behoerde_type': behoerdeType, 'data': data}),
+      body: jsonEncode({
+        'user_id': userId,
+        'behoerde_type': behoerdeType,
+        'data': data,
+        if (version != null) 'version': version,
+      }),
     ).timeout(const Duration(seconds: 15));
     try {
-      return jsonDecode(response.body);
+      final m = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      m['httpStatus'] = response.statusCode;
+      return m;
     } on FormatException {
-      return {'success': false, 'message': 'Invalid server response'};
+      return {'success': false, 'message': 'Invalid server response', 'httpStatus': response.statusCode};
     }
   }
 
@@ -10395,16 +10406,24 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> saveGesundheitData(int userId, String gesundheitType, Map<String, dynamic> data) async {
+  /// Siehe [saveBehoerdeData] zur Fassungskennung.
+  Future<Map<String, dynamic>> saveGesundheitData(int userId, String gesundheitType, Map<String, dynamic> data, {String? version}) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/gesundheit_save.php'),
       headers: _headers,
-      body: jsonEncode({'user_id': userId, 'gesundheit_type': gesundheitType, 'data': data}),
+      body: jsonEncode({
+        'user_id': userId,
+        'gesundheit_type': gesundheitType,
+        'data': data,
+        if (version != null) 'version': version,
+      }),
     ).timeout(const Duration(seconds: 15));
     try {
-      return jsonDecode(response.body);
+      final m = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      m['httpStatus'] = response.statusCode;
+      return m;
     } on FormatException {
-      return {'success': false, 'message': 'Invalid server response'};
+      return {'success': false, 'message': 'Invalid server response', 'httpStatus': response.statusCode};
     }
   }
 
