@@ -497,10 +497,20 @@ class TerminSmsGatewayService {
   /// Wie oft der Posteingang durchsucht wird.
   ///
   /// Der Gateway-Takt liegt bei 20 Sekunden, weil eine TAN fünf Minuten gilt.
-  /// Für eine Antwort des Mitglieds ist das unnötig scharf: sie wartet auch
-  /// zwei Minuten, und jeder Durchgang kostet eine Abfrage an den Server plus
-  /// eine an den Posteingang.
-  static const _eingangTakt = Duration(minutes: 2);
+  /// Hier reicht ein gröberer Takt, denn jeder Durchgang kostet eine Abfrage
+  /// an den Server plus eine an den Posteingang.
+  ///
+  /// ⚠️ Eine Minute, nicht zwei (Entscheidung des Users, 24.08.2026). Die
+  /// vorherige Fassung begründete zwei Minuten damit, dass eine Antwort „auch
+  /// zwei Minuten wartet". Das stimmt für eine Terminbestätigung und nicht für
+  /// den Fall, um den es hier wirklich geht: der Vorsitzer schreibt einem
+  /// Mitglied und sitzt vor dem Verlauf, während das Mitglied zurückschreibt.
+  /// Zwei Minuten Stille fühlen sich dort wie ein Defekt an — und genau so
+  /// wurde es auch gemeldet.
+  ///
+  /// Kosten: 1.440 statt 720 Abfragen am Tag auf dem einen Gerät mit der SIM.
+  /// Der Vordergrund-Takt allein erzeugt bereits ein Vielfaches davon.
+  static const _eingangTakt = Duration(minutes: 1);
   static const _kEingangZuletztKey = 'sms_eingang_zuletzt';
 
   /// Holt die SMS, die Mitglieder an diese SIM geschickt haben.
