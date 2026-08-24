@@ -326,7 +326,8 @@ class TerminSmsGatewayService {
       skipped += termine.skipped;
     }
 
-    return _restAbarbeiten(api, sent: sent, failed: failed, skipped: skipped);
+    return _restAbarbeiten(api,
+        sent: sent, failed: failed, skipped: skipped, background: background);
   }
 
   /// Die Terminerinnerungen eines Durchlaufs.
@@ -429,6 +430,9 @@ class TerminSmsGatewayService {
     required int sent,
     required int failed,
     required int skipped,
+    // Wird nur für den Posteingang gebraucht: nur im Vordergrund darf nach der
+    // Leseberechtigung gefragt werden, im Hintergrundjob gibt es keine Activity.
+    bool background = false,
   }) async {
     // Medikamenten-Erinnerungen laufen über dieselbe SIM, aber eine eigene
     // Warteschlange. Sie kommen NACH den Terminen dran: ein verpasster Termin
@@ -458,7 +462,7 @@ class TerminSmsGatewayService {
     // Gegenrichtung: was das Mitglied per SMS geantwortet hat, in den Verlauf
     // holen. Ganz zum Schluss und mit eigenem Takt — hier wartet niemand auf
     // eine Frist, und es ist der einzige Schritt, der nichts verschickt.
-    final eingang = await _eingehendeSmsHolen(api);
+    final eingang = await _eingehendeSmsHolen(api, background: background);
 
     final result = SmsGatewayRun(sent: sent, failed: failed, skipped: skipped);
     final sp = await SharedPreferences.getInstance();
@@ -506,7 +510,16 @@ class TerminSmsGatewayService {
   /// gar nicht erlaubt ist. Genau diese Verwechslung ist der teuerste Fehler
   /// des ganzen Wegs: bei `MODE_IGNORED` liefert Android null Zeilen, ohne zu
   /// scheitern.
-  static Future<String> _eingehendeSmsHolen(ApiService api) async {
+  /// Höchstens einmal je App-Start fragen.
+  ///
+  /// Der Vordergrund-Takt liegt bei 20 Sekunden. Ohne diese Sperre stünde alle
+  /// 20 Sekunden ein Systemdialog auf dem Schirm — und ein Dialog, den man
+  /// dauernd wegwischt, wird irgendwann auch dann weggewischt, wenn man ihn
+  /// eigentlich bestätigen wollte.
+  static bool _leseRechtSchonGefragt = false;
+
+  static Future<String> _eingehendeSmsHolen(ApiService api,
+      {bool background = false}) async {
     final sp = await SharedPreferences.getInstance();
     final zuletzt = DateTime.tryParse(sp.getString(_kEingangZuletztKey) ?? '');
     if (zuletzt != null &&
@@ -530,6 +543,25 @@ class TerminSmsGatewayService {
           ((daten['mitglieder'] as List?) ?? const []).cast<Map<String, dynamic>>();
       if (mitglieder.isEmpty) return '';
 
+      // ⚠️ Hier wird gefragt, nicht nur festgestellt. Vorher hing das Lesen
+      // daran, dass jemand von sich aus in die SMS-Einstellungen ging und den
+      // Knopf „Anfragen" fand — bis dahin kam KEINE einzige Antwort eines
+      // Mitglieds im Verlauf an, und zwar lautlos: Android liefert ohne
+      // READ_SMS null Zeilen, ohne zu scheitern. Das sieht von aussen aus wie
+      // „es hat niemand geschrieben".
+      //
+      // Nur im Vordergrund: im Hintergrundjob gibt es keine Activity, der
+      // Dialog käme gar nicht — und wenn doch, stünde er ungefragt vor jemandem,
+      // der die App gerade nicht offen hat.
+      if (!background && !_leseRechtSchonGefragt) {
+        final diag = await SmsService.readDiagnose();
+        if (diag.lage == SmsReadLage.fragenMoeglich && diag.hasActivity) {
+          _leseRechtSchonGefragt = true;
+          final antwort = await SmsService.requestReadPermission();
+          _log.info('READ_SMS im Vordergrund angefragt: $antwort', tag: 'SMS_GW');
+        }
+      }
+
       final seitMs = (daten['seit_ms'] as num?)?.toInt() ?? 0;
       final verlauf = await SmsService.readConversations(
         mitglieder.map((m) => m['nummer'].toString()).toList(),
@@ -540,7 +572,17 @@ class TerminSmsGatewayService {
         // Das ist der Fall, den niemand raten können soll.
         _log.warning('SMS-Eingang nicht lesbar: ${verlauf.lage.name}'
             '${verlauf.fehler != null ? ' (${verlauf.fehler})' : ''}', tag: 'SMS_GW');
-        return 'Eingang gesperrt: ${verlauf.lage.name}';
+        // ⚠️ Klartext, nicht `lage.name`. Diese Zeile steht als einzige
+        // Rückmeldung in den SMS-Einstellungen; „keineBerechtigung" sagt einem
+        // Vorsitzer nicht, was zu tun ist, und genau das ist hier die Frage.
+        return 'Eingang gesperrt: ${switch (verlauf.lage) {
+          SmsLeseLage.keineBerechtigung =>
+            'Leseberechtigung fehlt — unten bei „SMS-Verlauf lesen" freigeben',
+          SmsLeseLage.vomInstallerBlockiert =>
+            'Installationsweg erlaubt kein Lesen — siehe unten',
+          SmsLeseLage.nichtUnterstuetzt => 'auf diesem Gerät nicht möglich',
+          _ => verlauf.lage.name,
+        }}';
       }
       if (verlauf.nachrichten.isEmpty) {
         // ⚠️ Hier NICHT schweigen. „Es kam nichts an" und „es kam etwas an,
