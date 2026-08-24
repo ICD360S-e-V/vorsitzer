@@ -1606,9 +1606,13 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                           }
                         },
                       ),
-                      if (behoerdeType == 'rentenversicherung') ...[
+                      // Der Zeitraum hängt an der Antragsart, nicht nur an der
+                      // Behörde: auf eine Rentenauskunft folgt kein Bescheid und
+                      // damit auch kein Bewilligungszeitraum. Siehe
+                      // _zeitraumBezeichnung() weiter unten in dieser Datei.
+                      if (behoerdeType == 'rentenversicherung' && _zeitraumBezeichnung(art).zeigen) ...[
                         const SizedBox(height: 16),
-                        Text('Bewilligungszeitraum (Rente)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
+                        Text(_zeitraumBezeichnung(art).titel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                         const SizedBox(height: 4),
                         Row(children: [
                           Expanded(child: TextField(
@@ -1638,6 +1642,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                             },
                           )),
                         ]),
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 2),
+                          child: Text(_zeitraumBezeichnung(art).hinweis, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), height: 1.3)),
+                        ),
                       ],
                       const SizedBox(height: 16),
                       Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
@@ -1679,6 +1688,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       'einreichungsweg': einreichungsweg,
                       'datum': datumController.text.trim(),
                       'notiz': notizController.text.trim(),
+                      // Bewusst unabhängig von _zeitraumBezeichnung(art).zeigen:
+                      // die Regler halten den bereits gespeicherten Wert, auch
+                      // wenn das Feld für die gewählte Art ausgeblendet ist.
+                      // Nur schreiben, wenn sichtbar, würde einen vorhandenen
+                      // Zeitraum beim nächsten Speichern still löschen.
                       if (behoerdeType == 'rentenversicherung') 'zeitraum_von': zeitraumVonController.text.trim(),
                       if (behoerdeType == 'rentenversicherung') 'zeitraum_bis': zeitraumBisController.text.trim(),
                     };
@@ -5789,6 +5803,85 @@ class _AntragUploadProgressDialogState extends State<_AntragUploadProgressDialog
         hinweis: 'Jährliche Bescheide (Rentenanpassungsmitteilung + Anhänge). Mehrere Dateien pro Jahr möglich.',
         sinnbild: Icons.assignment_turned_in,
       );
+  }
+}
+
+/// Ob zu dieser Antragsart überhaupt ein Zeitraum bewilligt wird — und wie er
+/// heißen muss.
+///
+/// Das Feld war für die laufende Rente gebaut, wurde aber für **alle** 23
+/// Antragsarten der Rentenversicherung eingeblendet. Für die Hälfte davon gibt
+/// es gar keinen Bewilligungszeitraum, weil gar nichts für einen Zeitraum
+/// bewilligt wird:
+///
+/// * **Rentenauskunft** (§ 109 SGB VI) ist eine unverbindliche Auskunft und
+///   **kein Verwaltungsakt** (BSG, 30.08.2001 – B 4 RA 114/00 R). Ohne
+///   Bewilligung kein Bewilligungszeitraum. Das war der gemeldete Fall.
+/// * **Kontenklärung** endet im Feststellungsbescheid nach § 149 Abs. 5
+///   SGB VI — er stellt Daten fest, er bewilligt keine Leistung.
+/// * **Beitragserstattung** (§ 210 SGB VI) ist eine einmalige Auszahlung; sie
+///   löst das Versicherungsverhältnis auf, statt für eine Zeit zu laufen.
+/// * **Rentensplitting** (§§ 120a ff. SGB VI) ist eine einmalige Umwertung von
+///   Entgeltpunkten, keine wiederkehrende Leistung.
+/// * **Überprüfung (§ 44 SGB X), Widerspruch und Klage** sind Verfahren über
+///   einen anderen Bescheid. Ein Zeitraum gehört dort zur zugrunde liegenden
+///   Rente, nicht zum Rechtsbehelf.
+///
+/// Dieselbe Unterscheidung trifft schon _bescheidBezeichnung() direkt darunter
+/// für die Aufschrift des Bescheid-Reiters — dort war sie nur nie bis zum
+/// Zeitraum-Feld durchgezogen worden.
+///
+/// ⚠️ Die Liste der Arten **mit** Zeitraum deckt sich nicht zufällig mit
+/// `\$renteArten` in `api/admin/wba_answers.php` (Frage 20): dort ist
+/// `zeitraum_bis` der einzige Leser des Feldes. Wird hier eine Art ergänzt,
+/// die dort fehlt, wird der Zeitraum erfasst und nie ausgewertet. Umgekehrt
+/// zusätzlich sind hier nur Reha/Teilhabe und der KV-Zuschuss — Leistungen,
+/// die tatsächlich für einen Zeitraum bewilligt werden, für Frage 20 aber
+/// bewusst nicht als laufende Sozialleistung zählen.
+({bool zeigen, String titel, String hinweis}) _zeitraumBezeichnung(String art) {
+  switch (art) {
+    // Renten wegen Erwerbsminderung: der Hauptfall des Zeitraums überhaupt.
+    // § 102 Abs. 2 SGB VI — höchstens drei Jahre, wiederholbar bis neun.
+    case 'emr_voll':
+    case 'emr_teil':
+      return (
+        zeigen: true,
+        titel: 'Rentenbezug (befristet)',
+        hinweis: 'Befristung nach § 102 Abs. 2 SGB VI — längstens drei Jahre, wiederholbar. Leeres „Bis" = unbefristete Dauerrente.',
+      );
+    // Alters- und Hinterbliebenenrenten: laufend, meist unbefristet. Die
+    // kleine Witwenrente ist die Ausnahme (24 Monate, § 46 Abs. 1 SGB VI),
+    // die Waisenrente endet mit Alter bzw. Ausbildungsende.
+    case 'altersrente':
+    case 'altersrente_langjaehrig':
+    case 'altersrente_besonders_langjaehrig':
+    case 'altersrente_schwerbehindert':
+    case 'erziehungsrente':
+    case 'witwen_gross':
+    case 'witwen_klein':
+    case 'halbwaisen':
+    case 'vollwaisen':
+      return (
+        zeigen: true,
+        titel: 'Rentenbezug',
+        hinweis: '„Von" ist der Rentenbeginn. Leeres „Bis" = laufend.',
+      );
+    // Reha, Teilhabe und der KV-Zuschuss werden wirklich für einen Zeitraum
+    // bewilligt — die Maßnahmedauer bzw. die Bezugsdauer des Übergangsgeldes.
+    case 'reha':
+    case 'lta':
+    case 'uebergangsgeld':
+    case 'reha_nachsorge':
+    case 'zuschuss_kv':
+      return (
+        zeigen: true,
+        titel: 'Bewilligungszeitraum',
+        hinweis: 'Dauer der bewilligten Leistung. Leeres „Bis" = laufend.',
+      );
+    // rentenauskunft, kontenklaerung, beitragserstattung, rentensplitting,
+    // ueberpruefung, widerspruch, klage — siehe Begründung oben.
+    default:
+      return (zeigen: false, titel: '', hinweis: '');
   }
 }
 
