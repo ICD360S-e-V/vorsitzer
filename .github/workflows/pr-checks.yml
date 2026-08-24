@@ -36,7 +36,7 @@ jobs:
 
       - uses: ./.github/actions/flutter-setup
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version: '0.0.0-gibt-es-nicht'
 
       # Dieselbe Liste wie im Linux-Job in build.yml. Sie wird hier gebraucht,
       # weil weiter unten wirklich für Linux gebaut wird — siehe die Begründung
