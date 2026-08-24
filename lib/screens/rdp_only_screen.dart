@@ -48,6 +48,9 @@ class RdpOnlyScreen extends StatefulWidget {
 }
 
 class _RdpOnlyScreenState extends State<RdpOnlyScreen> {
+  /// Dauerdienste, die sich beim Aufbau des Kiosks NICHT abschalten liessen.
+  /// Leer ist der Normalfall; alles andere gehört auf den Schirm.
+  List<String> _rollenFehler = const [];
   final RdpService _svc = RdpService();
   final ApiService _api = ApiService();
 
@@ -145,29 +148,93 @@ class _RdpOnlyScreenState extends State<RdpOnlyScreen> {
   /// Kiosk in den Einstellungen ab.
   ///
   /// Wirkt nur auf DIESES Gerät: die Schalter liegen lokal.
+  /// ⚠️ VIER EINZELNE Versuche, nicht ein gemeinsamer `try`.
+  ///
+  /// Vorher stand alles in einem Block. Wirft der ERSTE Schalter — und
+  /// `AnrufGatewayService.setEnabled(false)` greift über einen MethodChannel
+  /// nach einem Vordergrunddienst, kann also sehr wohl werfen —, dann laufen
+  /// die drei danach **gar nicht mehr**, und die einzige Spur ist ein
+  /// `debugPrint`, den in einem Release-Build niemand sieht.
+  ///
+  /// Genau so sah es am 24.08.2026 aus: das Pixel stand im Kiosk und fragte
+  /// trotzdem 48-mal je Stunde `chat/sms_inbox.php` ab — es liest damit den
+  /// PRIVATEN Posteingang eines Telefons ohne Vereins-SIM und schreibt dessen
+  /// Nachrichten in die Akten von Mitgliedern. Am 13.08. waren das 5 Zeilen.
+  ///
+  /// Ein Schalter, der sich nicht umlegen lässt, darf die anderen drei nicht
+  /// mitreissen. Und gemeldet wird es, nicht nur gedruckt.
   Future<void> _rollenStillegen() async {
-    try {
-      if (await AnrufGatewayService.isEnabled()) {
-        // Stoppt den Vordergrundtakt und — wenn auch das SMS-Gateway aus ist —
-        // den Wachdienst samt Dauerbenachrichtigung.
-        await AnrufGatewayService.setEnabled(false);
+    var gescheitert = <String>[];
+
+    Future<void> stillegen(String name, Future<bool> Function() istAn,
+        Future<void> Function() aus) async {
+      try {
+        if (await istAn()) await aus();
+      } catch (e) {
+        gescheitert.add(name);
+        debugPrint('[RDP-ONLY] $name liess sich nicht abschalten: $e');
       }
-      if (await TerminSmsGatewayService.isEnabled()) {
-        await TerminSmsGatewayService.setEnabled(false);
-      }
-      if (await SpeedtestService.autoAktiv()) {
-        await SpeedtestService.setzeAuto(false);
-      }
-      // Gürtel und Hosenträger: nach einem Force Stop oder einem Neustart kann
-      // der Dienst laufen, ohne dass ein Schalter davon weiß.
-      if (await SignaturGatewayService.laeuft()) {
-        await SignaturGatewayService.stoppen();
-      }
-    } catch (e) {
-      // Ein Gerät, dessen Dienste sich gerade nicht abschalten lassen, soll
-      // trotzdem auf den Rechner schalten können.
-      debugPrint('[RDP-ONLY] Stilllegen fehlgeschlagen: $e');
     }
+
+    // Stoppt den Vordergrundtakt und — wenn auch das SMS-Gateway aus ist —
+    // den Wachdienst samt Dauerbenachrichtigung.
+    await stillegen('Fernwahl', AnrufGatewayService.isEnabled,
+        () => AnrufGatewayService.setEnabled(false));
+    await stillegen('SMS-Gateway', TerminSmsGatewayService.isEnabled,
+        () => TerminSmsGatewayService.setEnabled(false));
+    await stillegen('Speedtest', SpeedtestService.autoAktiv,
+        () => SpeedtestService.setzeAuto(false));
+    // Gürtel und Hosenträger: nach einem Force Stop oder einem Neustart kann
+    // der Dienst laufen, ohne dass ein Schalter davon weiß.
+    await stillegen('Wachdienst', SignaturGatewayService.laeuft,
+        () => SignaturGatewayService.stoppen());
+
+    // ⚠️ Sichtbar machen. Ein Kiosk, dessen Dauerdienste weiterlaufen, sieht
+    // von aussen exakt aus wie einer, bei dem alles geklappt hat — der
+    // Bildschirm zeigt in beiden Fällen nur den Remote Desktop. Der Hinweis
+    // steht deshalb auf dem Schirm, mit dem Weg zur Handarbeit: langes Tippen
+    // auf den Namen öffnet die Einstellungen.
+    if (gescheitert.isNotEmpty && mounted) {
+      setState(() => _rollenFehler = gescheitert);
+    }
+  }
+
+  /// Steht nur, wenn wirklich etwas hängen geblieben ist.
+  ///
+  /// ⚠️ Ohne diesen Kasten ist ein halb stillgelegter Kiosk von einem ganz
+  /// stillgelegten nicht zu unterscheiden: der Bildschirm zeigt in beiden
+  /// Fällen nur den Remote Desktop, während im Hintergrund weiter abgefragt
+  /// wird — beim SMS-Gateway auf einem Gerät ohne Vereins-SIM heisst das, dass
+  /// fremde Nachrichten in Mitgliederakten wandern.
+  Widget _rollenWarnung() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber, color: Colors.orange, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Läuft weiter: ${_rollenFehler.join(', ')}.\n'
+              'Dieses Gerät fragt im Hintergrund weiter ab. Lange auf den '
+              'Namen tippen und dort von Hand abschalten.',
+              style: TextStyle(
+                color: Colors.orange.shade100,
+                fontSize: 12.5,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _laden0() async {
@@ -360,6 +427,10 @@ class _RdpOnlyScreenState extends State<RdpOnlyScreen> {
                     : '${widget.userName} · ${widget.currentMitgliedernummer}',
                 style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 12),
               ),
+              if (_rollenFehler.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _rollenWarnung(),
+              ],
               const SizedBox(height: 40),
               Expanded(child: Center(child: _mitte())),
               const Spacer(),
