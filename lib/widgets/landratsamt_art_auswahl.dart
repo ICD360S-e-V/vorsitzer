@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../utils/app_farben.dart';
 import '../utils/landratsamt_antraege.dart';
 
 /// Auswahlfläche für die Vorfall-Art.
@@ -37,14 +38,14 @@ class LandratsamtArtAuswahl extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text(
               leer ? 'Antrag oder Vorgang wählen …' : wert,
-              style: TextStyle(fontSize: 13, color: leer ? Colors.grey.shade500 : null),
+              style: TextStyle(fontSize: 13, color: leer ? F.h(Colors.grey, 500) : null),
             ),
             if (eintrag != null)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   eintrag.recht == null ? eintrag.gruppe : '${eintrag.gruppe} · ${eintrag.recht}',
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
                 ),
               ),
             // Ein Wert aus einer älteren Fassung, den der Katalog nicht mehr
@@ -54,7 +55,7 @@ class LandratsamtArtAuswahl extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text('Freier Text — nicht aus dem Katalog',
-                    style: TextStyle(fontSize: 10, color: Colors.orange.shade800)),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 800))),
               ),
           ]),
         ),
@@ -83,9 +84,9 @@ class ZustaendigkeitsHinweis extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final grund = streng ? Colors.red.shade50 : Colors.amber.shade50;
-    final rand = streng ? Colors.red.shade300 : Colors.amber.shade400;
-    final schrift = streng ? Colors.red.shade900 : Colors.amber.shade900;
+    final grund = streng ? F.h(Colors.red, 50) : F.h(Colors.amber, 50);
+    final rand = streng ? F.h(Colors.red, 300) : F.h(Colors.amber, 400);
+    final schrift = streng ? F.h(Colors.red, 900) : F.h(Colors.amber, 900);
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -137,7 +138,7 @@ class LandratsamtArtSuchDialogState extends State<LandratsamtArtSuchDialog> {
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: Row(children: [
-        Icon(Icons.assignment, color: Colors.brown.shade700, size: 20),
+        Icon(Icons.assignment, color: F.h(Colors.brown, 700), size: 20),
         const SizedBox(width: 8),
         const Expanded(child: Text('Antrag oder Vorgang wählen', style: TextStyle(fontSize: 16))),
       ]),
@@ -167,12 +168,12 @@ class LandratsamtArtSuchDialogState extends State<LandratsamtArtSuchDialog> {
           Expanded(
             child: treffer.isEmpty
                 ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.search_off, size: 40, color: Colors.grey.shade300),
+                    Icon(Icons.search_off, size: 40, color: F.h(Colors.grey, 300)),
                     const SizedBox(height: 8),
-                    Text('Nichts gefunden', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                    Text('Nichts gefunden', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13)),
                     const SizedBox(height: 4),
                     Text('„Sonstiges" steht ganz unten in der Liste.',
-                        style: TextStyle(color: Colors.grey.shade400, fontSize: 11)),
+                        style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 11)),
                   ]))
                 : ListView.builder(
                     itemCount: gruppen.length,
@@ -187,7 +188,7 @@ class LandratsamtArtSuchDialogState extends State<LandratsamtArtSuchDialog> {
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 0.6,
-                                  color: Colors.brown.shade400)),
+                                  color: F.h(Colors.brown, 400))),
                         ),
                         ...eintraege.map((a) => InkWell(
                               onTap: () => Navigator.pop(context, a.titel),
@@ -197,9 +198,9 @@ class LandratsamtArtSuchDialogState extends State<LandratsamtArtSuchDialog> {
                                 margin: const EdgeInsets.only(bottom: 4),
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: F.flaeche,
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.grey.shade300),
+                                  border: Border.all(color: F.h(Colors.grey, 300)),
                                 ),
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Text(a.titel, style: const TextStyle(fontSize: 13)),
@@ -207,7 +208,7 @@ class LandratsamtArtSuchDialogState extends State<LandratsamtArtSuchDialog> {
                                     Padding(
                                       padding: const EdgeInsets.only(top: 2),
                                       child: Text(a.recht!,
-                                          style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                          style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                                     ),
                                   if (a.hinweis != null)
                                     Padding(
@@ -219,16 +220,16 @@ class LandratsamtArtSuchDialogState extends State<LandratsamtArtSuchDialog> {
                                                 : Icons.info_outline,
                                             size: 12,
                                             color: a.streng
-                                                ? Colors.red.shade900
-                                                : Colors.amber.shade900),
+                                                ? F.h(Colors.red, 900)
+                                                : F.h(Colors.amber, 900)),
                                         const SizedBox(width: 4),
                                         Expanded(
                                           child: Text(a.hinweis!,
                                               style: TextStyle(
                                                   fontSize: 10,
                                                   color: a.streng
-                                                      ? Colors.red.shade900
-                                                      : Colors.amber.shade900,
+                                                      ? F.h(Colors.red, 900)
+                                                      : F.h(Colors.amber, 900),
                                                   fontWeight: a.streng
                                                       ? FontWeight.w600
                                                       : FontWeight.normal)),
@@ -247,7 +248,7 @@ class LandratsamtArtSuchDialogState extends State<LandratsamtArtSuchDialog> {
             child: Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text('${treffer.length} von ${kLandratsamtAntraege.length} Vorgängen',
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
             ),
           ),
         ]),
