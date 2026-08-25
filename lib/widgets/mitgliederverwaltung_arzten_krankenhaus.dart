@@ -6266,6 +6266,284 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
     }
   }
 
+  // ═══ Anhänge der Termin-Korrespondenz ═══════════════════════════════════
+  //
+  // Die Dateien hängen an der einzelnen Korrespondenz-ZEILE, nicht am Termin —
+  // ein Befund gehört zu dem einen Brief, nicht zum ganzen Aufenthalt.
+  //
+  // ⚠️ Voraussetzung dafür ist eine id, die ein erneutes Speichern überlebt.
+  //    Bis 25.08.2026 war das nicht so: der Server löschte beim Speichern alle
+  //    Zeilen des Termins und legte sie neu an, jede bekam also eine neue id.
+  //    Deshalb konnte hier grundsätzlich nichts hängen. Wer daran etwas ändert,
+  //    ändert es in aa_replaceKorr auf dem Server mit.
+  //
+  // ⚠️ Die Dateien liegen verschlüsselt IN der Datenbank, nicht unter uploads/.
+  //    Wer sie im Dateibaum sucht, findet nichts — das ist so gewollt.
+
+  static const List<String> _kTerminAnhangTypen = ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'];
+
+  /// Speichert die Korrespondenz-Liste eines Termins und holt sie sofort zurück.
+  ///
+  /// ⚠️ Das Zurückholen ist kein Beiwerk: die id einer neu angelegten Zeile
+  /// kennt nur der Server, und ohne sie hat ein Anhang nichts, woran er hängen
+  /// könnte. Zugeordnet wird über die REIHENFOLGE — der Server ordnet nach
+  /// sort_index, also nach genau der Folge, in der wir die Liste geschickt haben.
+  Future<bool> _terminKorrSpeichern(
+      String type, Map<String, dynamic> termin, List<Map<String, dynamic>> korrespondenz) async {
+    List<Map<String, dynamic>> nurFelder() => korrespondenz.map((e) {
+          final c = Map<String, dynamic>.from(e);
+          c.remove('_editing');
+          c.remove('_pending');
+          c.remove('anhaenge');
+          return c;
+        }).toList();
+
+    final res = await widget.apiService.saveKrankenhausTermin({
+      'action': 'update',
+      'user_id': widget.user.id,
+      'arzt_type': type,
+      'termin_id': termin['id'],
+      'korrespondenz': nurFelder(),
+    });
+    if (res['success'] != true) return false;
+    termin['korrespondenz'] = nurFelder();
+
+    final liste = await widget.apiService.getKrankenhausTermine(widget.user.id, type);
+    if (liste['success'] != true) return true; // gespeichert ist es dennoch
+    final termine = List<Map<String, dynamic>>.from(liste['termine'] ?? []);
+    Map<String, dynamic>? frisch;
+    for (final x in termine) {
+      if (x['id'].toString() == termin['id'].toString()) frisch = x;
+    }
+    if (frisch == null) return true;
+
+    final neu = List<Map<String, dynamic>>.from(frisch['korrespondenz'] ?? []);
+    for (var i = 0; i < neu.length && i < korrespondenz.length; i++) {
+      // ⚠️ An Ort und Stelle ersetzen, nicht die Map austauschen: die
+      //    Bearbeiten-Karte hält eine Referenz auf genau diese Map. Eine
+      //    frische Map ließe jeden Schreibvorgang dort ins Leere laufen —
+      //    dieselbe Lehre wie beim Zusammenführen der Chat-Nachrichten.
+      final wartend = korrespondenz[i]['_pending'];
+      korrespondenz[i]
+        ..clear()
+        ..addAll(neu[i]);
+      if (wartend != null) korrespondenz[i]['_pending'] = wartend;
+    }
+    while (korrespondenz.length > neu.length) {
+      korrespondenz.removeLast();
+    }
+    termin['korrespondenz'] = nurFelder();
+    if (mounted) {
+      setState(() => _arztTermine[type] = termine);
+    } else {
+      _arztTermine[type] = termine;
+    }
+    return true;
+  }
+
+  /// Lädt die wartenden Dateien einer Korrespondenz-Zeile hoch.
+  /// Ergebnis: (geglückt, fehlgeschlagen).
+  Future<List<int>> _terminKorrAnhaengeHochladen(Map<String, dynamic> k) async {
+    final wartend = List<Map<String, dynamic>>.from(k['_pending'] ?? const []);
+    if (wartend.isEmpty) return [0, 0];
+    final korrId = int.tryParse('${k['id']}') ?? 0;
+    // Ohne id gibt es keinen Anker — dann lieber die Dateien behalten und
+    // melden, statt sie stillschweigend zu verlieren.
+    if (korrId <= 0) return [0, wartend.length];
+
+    var ok = 0, fehl = 0;
+    final rest = <Map<String, dynamic>>[];
+    for (final eintrag in wartend) {
+      final f = eintrag['datei'] as PlatformFile?;
+      if (f == null || f.bytes == null) { fehl++; continue; }
+      final r = await widget.apiService.uploadKrankenhausTerminKorrAnhang(
+        korrId: korrId,
+        bytes: f.bytes!,
+        filename: f.name,
+        quelle: (eintrag['quelle'] ?? 'geraet').toString(),
+      );
+      if (r['success'] == true) {
+        ok++;
+      } else {
+        fehl++;
+        rest.add(eintrag); // nicht wegwerfen, was nicht angekommen ist
+      }
+    }
+    if (rest.isEmpty) {
+      k.remove('_pending');
+    } else {
+      k['_pending'] = rest;
+    }
+    return [ok, fehl];
+  }
+
+  /// Frische Anhang-Liste EINER Zeile holen (nach Hochladen oder Löschen).
+  Future<void> _terminKorrAnhaengeNachladen(Map<String, dynamic> k) async {
+    final korrId = int.tryParse('${k['id']}') ?? 0;
+    if (korrId <= 0) return;
+    final r = await widget.apiService
+        .krankenhausTerminKorrAnhangAction({'action': 'list', 'korr_id': korrId});
+    if (r['success'] == true) k['anhaenge'] = List<Map<String, dynamic>>.from(r['anhaenge'] ?? []);
+  }
+
+  Future<void> _terminKorrAnhangOeffnen(Map<String, dynamic> a) async {
+    final id = int.tryParse('${a['id']}') ?? 0;
+    final name = (a['dateiname'] ?? 'Anhang').toString();
+    if (id <= 0) return;
+    final res = await widget.apiService.downloadKrankenhausTerminKorrAnhang(id);
+    if (!mounted) return;
+    if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+      FileViewerDialog.showFromBytes(context, res.bodyBytes, name);
+    } else {
+      // ⚠️ Grund nennen. Ein stummes Nichts ist von „danebengetippt" nicht zu
+      //    unterscheiden — dieselbe Lehre wie bei den Chat-Reaktionen.
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Anhang lässt sich nicht öffnen (HTTP ${res.statusCode})'),
+        backgroundColor: Colors.red));
+    }
+  }
+
+  String _terminAnhangGroesse(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '${(bytes / 1048576).toStringAsFixed(1)} MB';
+  }
+
+  IconData _terminAnhangSinnbild(String mime, String name) {
+    if (mime == 'application/pdf' || name.toLowerCase().endsWith('.pdf')) return Icons.picture_as_pdf;
+    if (mime.startsWith('image/') ||
+        RegExp(r'\.(jpg|jpeg|png|heic|heif)$', caseSensitive: false).hasMatch(name)) {
+      return Icons.image;
+    }
+    return Icons.insert_drive_file;
+  }
+
+  /// Dateien wählen — vom Gerät oder aus dem Cloud — und als wartend vormerken.
+  ///
+  /// [ausCloud] gesetzt = die Auswahl kam schon aus dem Cloud, der Geräte-Dialog
+  /// entfällt; alles danach bleibt gleich.
+  Future<void> _terminKorrDateienWaehlen(
+      Map<String, dynamic> k, StateSetter neuZeichnen, {FilePickerResult? ausCloud}) async {
+    final gewaehlt = ausCloud ??
+        await FilePicker.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: _kTerminAnhangTypen,
+          withData: true,
+          allowMultiple: true,
+        );
+    if (gewaehlt == null || gewaehlt.files.isEmpty) return;
+    final wartend = List<Map<String, dynamic>>.from(k['_pending'] ?? const []);
+    for (final f in gewaehlt.files) {
+      if (f.bytes == null) continue;
+      wartend.add({'datei': f, 'quelle': ausCloud != null ? 'cloud' : 'geraet'});
+    }
+    k['_pending'] = wartend;
+    neuZeichnen(() {});
+  }
+
+  /// Anhang-Bereich in der Bearbeiten-Karte einer Termin-Korrespondenz.
+  Widget _terminKorrAnhangBereich(Map<String, dynamic> k, StateSetter neuZeichnen) {
+    final vorhanden = List<Map<String, dynamic>>.from(k['anhaenge'] ?? const []);
+    final wartend = List<Map<String, dynamic>>.from(k['_pending'] ?? const []);
+    final gespeichert = (int.tryParse('${k['id']}') ?? 0) > 0;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.attach_file, size: 14, color: F.h(Colors.indigo, 400)),
+        const SizedBox(width: 4),
+        Text('Anhänge (${vorhanden.length + wartend.length})',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.textSchwach)),
+      ]),
+      const SizedBox(height: 6),
+      ...vorhanden.map((a) => Padding(
+            padding: const EdgeInsets.only(bottom: 3),
+            child: Row(children: [
+              Icon(_terminAnhangSinnbild((a['mime_type'] ?? '').toString(), (a['dateiname'] ?? '').toString()),
+                  size: 14, color: F.h(Colors.indigo, 400)),
+              const SizedBox(width: 4),
+              Expanded(
+                child: InkWell(
+                  onTap: () => _terminKorrAnhangOeffnen(a),
+                  child: Text('${a['dateiname'] ?? 'Anhang'}  ·  ${_terminAnhangGroesse((a['file_size'] ?? 0) as int)}',
+                      style: TextStyle(
+                          fontSize: 11, color: F.h(Colors.indigo, 700), decoration: TextDecoration.underline),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 14),
+                color: F.h(Colors.red, 300),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                tooltip: 'Anhang löschen',
+                onPressed: () async {
+                  final r = await widget.apiService.krankenhausTerminKorrAnhangAction(
+                      {'action': 'delete', 'anhang_id': a['id']});
+                  if (r['success'] == true) {
+                    await _terminKorrAnhaengeNachladen(k);
+                    neuZeichnen(() {});
+                  } else if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(r['message']?.toString() ?? 'Löschen fehlgeschlagen'),
+                        backgroundColor: Colors.red));
+                  }
+                },
+              ),
+            ]),
+          )),
+      ...wartend.asMap().entries.map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 3),
+            child: Row(children: [
+              Icon(Icons.schedule, size: 14, color: F.textLeise),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text('${(e.value['datei'] as PlatformFile).name}  ·  wird beim Speichern hochgeladen',
+                    style: TextStyle(fontSize: 11, color: F.textSchwach),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+              IconButton(
+                icon: const Icon(Icons.clear, size: 14),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                onPressed: () {
+                  final rest = List<Map<String, dynamic>>.from(k['_pending'] ?? const [])..removeAt(e.key);
+                  if (rest.isEmpty) { k.remove('_pending'); } else { k['_pending'] = rest; }
+                  neuZeichnen(() {});
+                },
+              ),
+            ]),
+          )),
+      const SizedBox(height: 4),
+      Row(children: [
+        // Aus dem Cloud: derselbe Knopf wie in der Arzt-Korrespondenz. Welcher
+        // der beiden Speicher sich öffnet (50 GB verschlüsselt oder 1 GB des
+        // Mitglieds), entscheidet CloudPickerHelper selbst.
+        CloudPickButton(
+          memberId: widget.user.id,
+          apiService: widget.apiService,
+          allowedExtensions: _kTerminAnhangTypen,
+          kompakt: true,
+          onPicked: (r) => _terminKorrDateienWaehlen(k, neuZeichnen, ausCloud: r),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: OutlinedButton.icon(
+            onPressed: () => _terminKorrDateienWaehlen(k, neuZeichnen),
+            icon: const Icon(Icons.upload_file, size: 14),
+            label: const Text('Datei(en) hinzufügen',
+                style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
+          ),
+        ),
+      ]),
+      if (!gespeichert)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text('Die Dateien werden hochgeladen, sobald die Korrespondenz gespeichert ist.',
+              style: TextStyle(fontSize: 10, color: F.textSchwach)),
+        ),
+    ]);
+  }
+
   Widget _buildArztTermineTab(String type, String arztTitle, {Map<String, dynamic>? data, VoidCallback? saveAll, StateSetter? setLocalState}) {
     if (!_arztTermine.containsKey(type) && _arztTermineLoading[type] != true) {
       _loadArztTermine(type);
@@ -6681,6 +6959,8 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                                                     TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true)),
                                                     const SizedBox(height: 8),
                                                     TextField(controller: inhaltC, decoration: const InputDecoration(labelText: 'Inhalt / Zusammenfassung', isDense: true), maxLines: 3),
+                                                    const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Divider(height: 1)),
+                                                    _terminKorrAnhangBereich(k, setEditState),
                                                     const SizedBox(height: 10),
                                                     Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                                                       TextButton(
@@ -6702,19 +6982,29 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                                                           k['betreff'] = betreffC.text;
                                                           k['inhalt'] = inhaltC.text;
                                                           k.remove('_editing');
-                                                          // Save to server
-                                                          termin['korrespondenz'] = korrespondenz.map((e) {
-                                                            final copy = Map<String, dynamic>.from(e);
-                                                            copy.remove('_editing');
-                                                            return copy;
-                                                          }).toList();
-                                                          await widget.apiService.saveKrankenhausTermin({
-                                                            'action': 'update',
-                                                            'user_id': widget.user.id,
-                                                            'arzt_type': type,
-                                                            'termin_id': termin['id'],
-                                                            'korrespondenz': termin['korrespondenz'],
-                                                          });
+                                                          // Erst speichern — dabei bekommt die Zeile ihre id
+                                                          // zurück; erst danach haben die Anhänge einen Anker.
+                                                          final gespeichert = await _terminKorrSpeichern(type, termin, korrespondenz);
+                                                          if (!gespeichert) {
+                                                            if (context.mounted) {
+                                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                                                content: Text('Korrespondenz konnte nicht gespeichert werden'),
+                                                                backgroundColor: Colors.red));
+                                                            }
+                                                            setDState(() {});
+                                                            return;
+                                                          }
+                                                          final bilanz = await _terminKorrAnhaengeHochladen(korrespondenz[idx]);
+                                                          if (bilanz[0] > 0 || bilanz[1] > 0) {
+                                                            await _terminKorrAnhaengeNachladen(korrespondenz[idx]);
+                                                            if (context.mounted) {
+                                                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                                                content: Text(bilanz[1] == 0
+                                                                    ? '${bilanz[0]} Anhang/Anhänge hochgeladen'
+                                                                    : '${bilanz[0]} hochgeladen, ${bilanz[1]} fehlgeschlagen'),
+                                                                backgroundColor: bilanz[1] > 0 ? Colors.orange : Colors.green));
+                                                            }
+                                                          }
                                                           setDState(() {});
                                                         },
                                                         style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
@@ -6771,6 +7061,25 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                                                             child: SelectableText(k['inhalt'], style: const TextStyle(fontSize: 13)),
                                                           ),
                                                         ],
+                                                        if (List<Map<String, dynamic>>.from(k['anhaenge'] ?? const []).isNotEmpty) ...[
+                                                          const Divider(),
+                                                          Text('Anhänge', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                                          const SizedBox(height: 4),
+                                                          for (final a in List<Map<String, dynamic>>.from(k['anhaenge']))
+                                                            ListTile(
+                                                              dense: true,
+                                                              contentPadding: EdgeInsets.zero,
+                                                              visualDensity: VisualDensity.compact,
+                                                              leading: Icon(_terminAnhangSinnbild((a['mime_type'] ?? '').toString(), (a['dateiname'] ?? '').toString()), size: 18, color: F.h(Colors.indigo, 400)),
+                                                              title: Text((a['dateiname'] ?? 'Anhang').toString(), style: const TextStyle(fontSize: 12)),
+                                                              subtitle: Text(
+                                                                '${_terminAnhangGroesse((a['file_size'] ?? 0) as int)}'
+                                                                '${a['quelle'] == 'cloud' ? '  ·  aus dem Cloud' : ''}',
+                                                                style: TextStyle(fontSize: 10, color: F.textSchwach)),
+                                                              trailing: const Icon(Icons.open_in_new, size: 16),
+                                                              onTap: () => _terminKorrAnhangOeffnen(a),
+                                                            ),
+                                                        ],
                                                       ],
                                                     ),
                                                   ),
@@ -6798,6 +7107,22 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                                               children: [
                                                 if (k['betreff']?.isNotEmpty == true) Text(k['betreff'], style: const TextStyle(fontSize: 13)),
                                                 if (k['inhalt']?.isNotEmpty == true) Text(k['inhalt'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                                if (List<Map<String, dynamic>>.from(k['anhaenge'] ?? const []).isNotEmpty)
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(top: 4),
+                                                    child: Wrap(spacing: 4, runSpacing: 2, children: [
+                                                      for (final a in List<Map<String, dynamic>>.from(k['anhaenge']))
+                                                        ActionChip(
+                                                          avatar: Icon(_terminAnhangSinnbild((a['mime_type'] ?? '').toString(), (a['dateiname'] ?? '').toString()), size: 13),
+                                                          label: Text((a['dateiname'] ?? 'Anhang').toString(), style: const TextStyle(fontSize: 10)),
+                                                          visualDensity: VisualDensity.compact,
+                                                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                                                          backgroundColor: F.h(Colors.indigo, 50),
+                                                          onPressed: () => _terminKorrAnhangOeffnen(a),
+                                                        ),
+                                                    ]),
+                                                  ),
                                               ],
                                             ),
                                             trailing: Row(
@@ -6810,19 +7135,28 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                                                 IconButton(
                                                   icon: Icon(Icons.delete, size: 16, color: Colors.red.shade400),
                                                   onPressed: () async {
+                                                    // ⚠️ Mit der Zeile verschwinden auch ihre Anhänge —
+                                                    //    darauf weist der Text hin, wenn welche dranhängen.
+                                                    final anzahl = List<Map<String, dynamic>>.from(k['anhaenge'] ?? const []).length;
+                                                    if (anzahl > 0) {
+                                                      final sicher = await showDialog<bool>(
+                                                        context: context,
+                                                        builder: (dCtx) => AlertDialog(
+                                                          title: const Text('Korrespondenz löschen?', style: TextStyle(fontSize: 16)),
+                                                          content: Text('Dazu gehören $anzahl Anhang/Anhänge. Sie werden mit gelöscht.'),
+                                                          actions: [
+                                                            TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Abbrechen')),
+                                                            TextButton(
+                                                              onPressed: () => Navigator.pop(dCtx, true),
+                                                              style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                                              child: const Text('Löschen')),
+                                                          ],
+                                                        ),
+                                                      );
+                                                      if (sicher != true) return;
+                                                    }
                                                     korrespondenz.removeAt(idx);
-                                                    termin['korrespondenz'] = korrespondenz.map((e) {
-                                                      final copy = Map<String, dynamic>.from(e);
-                                                      copy.remove('_editing');
-                                                      return copy;
-                                                    }).toList();
-                                                    await widget.apiService.saveKrankenhausTermin({
-                                                      'action': 'update',
-                                                      'user_id': widget.user.id,
-                                                      'arzt_type': type,
-                                                      'termin_id': termin['id'],
-                                                      'korrespondenz': termin['korrespondenz'],
-                                                    });
+                                                    await _terminKorrSpeichern(type, termin, korrespondenz);
                                                     setDState(() {});
                                                   },
                                                 ),
