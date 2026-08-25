@@ -12,6 +12,20 @@ class DiagnosticService {
   static const String _diagnosticUrl = 'https://icd360sev.icd360s.de/api/diagnostic/log.php';
   static const Duration _interval = Duration(seconds: 120);
 
+  /// Derselbe Schluessel, den startup_diagnostics.dart schon benutzt: zur
+  /// Bauzeit per --dart-define aus dem GitHub-Secret
+  /// VORSITZER_STARTUP_DIAG_KEY. Leer bei `flutter run` — dann geht die
+  /// Meldung wie bisher ohne Kopfzeile hinaus.
+  ///
+  /// Hintergrund: der Endpunkt hatte bis 25.08.2026 GAR KEINE Pruefung.
+  /// Jeder im Netz konnte Zeilen unter beliebiger Mitgliedsnummer
+  /// schreiben. Der Server nimmt schluessellose Meldungen vorerst weiter
+  /// an und protokolliert sie — erst wenn dort keine mehr auftauchen,
+  /// wird auf 401 umgestellt. Ohne diese Staffelung waere die Diagnose
+  /// aller Geraete sofort tot gewesen.
+  static const String _diagKey =
+      String.fromEnvironment('STARTUP_DIAG_KEY', defaultValue: '');
+
   Timer? _timer;
   String? _currentUser;
   String? _currentRole;
@@ -136,7 +150,10 @@ class DiagnosticService {
 
       final response = await _client.post(
         Uri.parse(_diagnosticUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (_diagKey.isNotEmpty) 'X-Diag-Key': _diagKey,
+        },
         body: jsonEncode(diagnostics),
       ).timeout(const Duration(seconds: 5));
 
