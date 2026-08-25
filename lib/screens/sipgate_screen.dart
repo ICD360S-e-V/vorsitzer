@@ -6,6 +6,7 @@ import '../services/anruf_badge_service.dart';
 import '../services/sipgate_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/sipgate_anruf_overlay.dart';
+import '../widgets/sekunden_takt.dart';
 import '../widgets/sipgate_waehltastatur.dart';
 import 'sipgate_kontakte_screen.dart';
 import '../utils/app_farben.dart';
@@ -884,19 +885,25 @@ class _SipgateScreenState extends State<SipgateScreen> {
             children: [
               Text(g.anzeige,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              Text(
-                [
-                  if (g.gehalten) 'In der Warteschleife',
-                  if (klingelt) 'Eingehender Anruf',
-                  if (verbunden && !g.gehalten)
-                    'Verbunden · ${SipgateService.dauerUhr(g.dauerSekunden)}',
-                  if (g.stand == SipgateGespraechStand.waehlt) 'Wählt',
-                  // Nur wenn der Name wirklich ein Name ist — sonst stünde
-                  // die Nummer zweimal da, einmal getrennt und einmal nicht.
-                  if (g.anzeige != SipgateService.anruferAnzeige(g.nummer))
-                    SipgateService.anruferAnzeige(g.nummer),
-                ].join(' · '),
-                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800)),
+              // ⚠️ Nur diese Zeile tickt. Der Name darüber, die Knöpfe und
+              // die Steuerung darunter ändern sich nur bei einem Ereignis —
+              // sie im Sekundentakt mitzubauen wäre Arbeit für nichts.
+              SekundenTakt(
+                aktiv: verbunden && !g.gehalten,
+                bauen: (_) => Text(
+                  [
+                    if (g.gehalten) 'In der Warteschleife',
+                    if (klingelt) 'Eingehender Anruf',
+                    if (verbunden && !g.gehalten)
+                      'Verbunden · ${SipgateService.dauerUhr(g.dauerSekunden)}',
+                    if (g.stand == SipgateGespraechStand.waehlt) 'Wählt',
+                    // Nur wenn der Name wirklich ein Name ist — sonst stünde
+                    // die Nummer zweimal da, einmal getrennt und einmal nicht.
+                    if (g.anzeige != SipgateService.anruferAnzeige(g.nummer))
+                      SipgateService.anruferAnzeige(g.nummer),
+                  ].join(' · '),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800)),
+                ),
               ),
             ],
           ),
