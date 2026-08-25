@@ -29,6 +29,7 @@ import '../services/phone_call_service.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import '../utils/arzt_instanz.dart';
 import '../utils/arzt_quelle.dart';
 import '../services/ticket_service.dart';
 import '../services/termin_service.dart';
@@ -220,10 +221,7 @@ class _MitgliederverwaltungArztenRheumatologieState extends State<Mitgliederverw
 
   // ── Rheumatologie: instance <-> type mapping (multi-Arzt: _2, _3 …) ──
   static const String _rheumaBaseType = 'gesundheit_rheumatologie';
-  int _rheumaInstanceFromType(String type) {
-    final m = RegExp(r'_([2-9])$').firstMatch(type);
-    return m != null ? int.parse(m.group(1)!) : 1;
-  }
+  int _rheumaInstanceFromType(String type) => arztInstanzAusType(type);
   String _rheumaTypeForInstance(int instance) =>
       instance <= 1 ? _rheumaBaseType : '${_rheumaBaseType}_$instance';
 
