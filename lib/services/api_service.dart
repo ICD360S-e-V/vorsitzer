@@ -14563,6 +14563,37 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
+  /// Liest die zu einer Blutanalyse hochgeladenen Befunde und schlägt Werte vor.
+  ///
+  /// ⚠️ Langer Zeitrahmen mit Absicht: bei einem Scan laufen zwei
+  /// Tesseract-Durchgänge über bis zu zwölf Seiten. Ein PDF mit Textebene ist
+  /// in unter einer Sekunde zurück, ein mehrseitiger Scan braucht Minuten.
+  ///
+  /// ⚠️ Der Endpunkt schreibt nichts. Was übernommen wird, entscheidet der
+  /// Dialog und speichert über den gewohnten Weg.
+  Future<Map<String, dynamic>> gesundheitBlutOcr({
+    required int userId,
+    required String gesundheitType,
+    required String analyseId,
+    int? docId,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/gesundheit_blut_ocr.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'user_id': userId,
+        'gesundheit_type': gesundheitType,
+        'analyse_id': analyseId,
+        if (docId != null) 'doc_id': docId,
+      }),
+    ).timeout(const Duration(seconds: 180));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   Future<Map<String, dynamic>> getHnoTermine(int userId, String arztType) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/hno_termine_list.php'),
