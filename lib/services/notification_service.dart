@@ -71,6 +71,15 @@ class NotificationService {
   /// getrennt von ÖPNV-Meldungen stummschalten, was er sonst nicht könnte.
   static const String channelIdAnruf = 'sipgate_anruf';
 
+  /// Kanal für den Blitz — die Nachricht, die sich als Vollbild-Schirm mitten
+  /// auf das Tablet legt.
+  ///
+  /// ⚠️ Eigener Kanal, nicht der Anruf-Kanal: sonst könnte man Anrufe nicht
+  /// stumm schalten, ohne die Nachrichten mit stumm zu schalten. Und
+  /// `Importance.max`, weil ein Vollbild-Intent bei niedrigerer Stufe
+  /// wortlos zu einem gewöhnlichen Streifen wird.
+  static const String channelIdBlitz = 'blitz_nachricht';
+
   /// Kennungen der beiden Knöpfe in der Anruf-Benachrichtigung. Kommen als
   /// `response.actionId` zurück und werden auf [onNotificationClicked] als
   /// `sipgate-aktion:<id>` weitergereicht.
@@ -197,6 +206,13 @@ class NotificationService {
     ));
 
     await impl.createNotificationChannel(const AndroidNotificationChannel(
+      channelIdBlitz,
+      'Blitz-Nachrichten',
+      description: 'Legt eine eingehende Nachricht sofort auf den Bildschirm.',
+      importance: Importance.max,
+    ));
+
+    await impl.createNotificationChannel(const AndroidNotificationChannel(
       channelIdOpnvStoerung,
       'Verkehrsstörungen',
       description: 'Aktive HIM-Störungsmeldungen in deiner Region.',
@@ -308,6 +324,11 @@ class NotificationService {
       case 'chat':
         _log.info('Navigare la conversație: $data', tag: 'NOTIF');
         break;
+      case 'blitz':
+        // Nutzlast: 'blitz:<conversationId>:<kanal>'. Das Dashboard hört auf
+        // [onNotificationClicked] und öffnet den Vollbild-Schirm.
+        _log.info('Blitz angetippt: conv=$data', tag: 'NOTIF');
+        break;
       case 'call':
         _log.info('Navigare la apel: $data', tag: 'NOTIF');
         break;
@@ -375,6 +396,11 @@ class NotificationService {
       case channelIdAnruf:
         chName = 'Eingehende Anrufe';
         chDesc = 'Klingelt und zeigt, wer über sipgate anruft.';
+        imp = Importance.max;
+        break;
+      case channelIdBlitz:
+        chName = 'Blitz-Nachrichten';
+        chDesc = 'Legt eine eingehende Nachricht sofort auf den Bildschirm.';
         imp = Importance.max;
         break;
       default:
@@ -548,6 +574,37 @@ class NotificationService {
       _log.debug('Benachrichtigung übersprungen - Chat-Dialog ist geöffnet',
           tag: 'NOTIF');
     }
+  }
+
+  /// Der Blitz auf Android: Vollbild-Schirm mit der Nachricht und einem
+  /// Antwortfeld, über jeder anderen App und auch über dem Sperrbildschirm.
+  ///
+  /// ⚠️ Ob daraus wirklich ein Vollbild wird, entscheidet Android, nicht wir.
+  /// `USE_FULL_SCREEN_INTENT` ist bei einer Installation ausserhalb des Play
+  /// Store standardmässig erteilt (AOSP: „For all apps being installed on
+  /// Android 14, the permission is enabled by default" — es ist der Play
+  /// Store, der sie Nicht-Telefonie-Apps wieder entzieht). Der Benutzer kann
+  /// sie in den Einstellungen abschalten; dann zeigt Android stillschweigend
+  /// einen gewöhnlichen Streifen. Das ist kein Fehlerfall, sondern der
+  /// eingebaute Rückfall — deshalb wird hier auch nichts geprüft und nichts
+  /// erzwungen.
+  Future<void> showBlitzVollbild({
+    required String senderName,
+    required String message,
+    required int conversationId,
+    String kanal = 'app',
+  }) async {
+    final kurz = message.length > 120 ? '${message.substring(0, 117)}...' : message;
+    await show(
+      title: senderName,
+      body: kurz.isNotEmpty ? kurz : 'Neue Nachricht',
+      // ⚠️ Der Kanal MUSS mit — ohne `Importance.max` wird der Vollbild-Intent
+      // von Android auf einen Streifen zurückgestuft, ohne jede Meldung.
+      androidChannelId: channelIdBlitz,
+      fullScreenIntent: true,
+      payload: 'blitz:$conversationId:$kanal',
+    );
+    _log.info('Blitz-Vollbild: $senderName (conv=$conversationId)', tag: 'NOTIF');
   }
 
   /// Show an incoming call notification

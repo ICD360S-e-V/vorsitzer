@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'screens/login_with_code_screen.dart';
+import 'screens/blitz_fenster_app.dart';
+import 'models/blitz_nachricht.dart';
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'services/api_service.dart';
 import 'utils/privater_temp.dart';
 import 'services/device_key_service.dart';
@@ -28,8 +31,49 @@ import 'widgets/app_sperre_huelle.dart';
 // Windows-only package
 import 'package:windows_single_instance/windows_single_instance.dart';
 
+/// Gibt das Fensterargument zurück, wenn dieses Isolate ein Blitz-Fenster
+/// bedient — sonst `null`.
+///
+/// ⚠️ Fehler werden geschluckt und als „kein Blitz-Fenster" gewertet. Das ist
+/// Absicht: schlägt die Erkennung fehl, muss die App normal starten. Ein
+/// Hauptfenster, das wegen einer Kanalstörung nie hochkommt, wäre der weitaus
+/// schlimmere Fehler als ein Blitz, der einmal ausbleibt.
+Future<String?> _blitzFensterArgument() async {
+  try {
+    final controller = await WindowController.fromCurrentEngine();
+    final arg = controller.arguments;
+    if (arg.startsWith('$kBlitzFensterArgument:')) return arg;
+  } catch (_) {
+    // Plugin noch nicht bereit oder gar nicht vorhanden → Hauptfenster.
+  }
+  return null;
+}
+
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ══════════════════════════════════════════════════════════════════
+  // BLITZ-FENSTER? Dann hier abbiegen — und zwar VOR allem anderen.
+  //
+  // Jedes Fenster von desktop_multi_window bekommt eine eigene Engine und
+  // damit ein eigenes Isolate, in dem `main()` ein zweites Mal läuft. Der
+  // ganze Rumpf darunter darf dort NICHT laufen: StartupDiagnostics würde
+  // in dieselbe Protokolldatei schreiben, das Tray-Symbol entstünde
+  // doppelt, media_kit würde ein zweites Mal initialisiert, und der
+  // Fensterverwalter bekäme die Optionen des Hauptfensters auf die kleine
+  // Karte gelegt.
+  //
+  // Nur Linux: dort ist der Rückruf zur Plugin-Registrierung im Runner
+  // gesetzt (linux/runner/my_application.cc). Unter Windows und macOS
+  // entsteht gar kein Blitz-Fenster, also gibt es auch nichts zu erkennen.
+  if (Platform.isLinux) {
+    final blitzArgument = await _blitzFensterArgument();
+    if (blitzArgument != null) {
+      await blitzFensterStarten(blitzArgument);
+      return;
+    }
+  }
+
   // Android 15 (targetSdk 35) zeichnet randlos (edge-to-edge). Bewusst
   // aktiviert, Systemleisten transparent: AppBar-Bildschirme versorgen ihre
   // Insets selbst (Scaffold/AppBar), die wenigen ohne AppBar sind in SafeArea
@@ -290,15 +334,10 @@ class _VorsitzerAppState extends State<VorsitzerApp> {
         return AppSperreHuelle(child: child ?? const SizedBox.shrink());
       },
       home: const LoginWithCodeScreen(),
-      // TEMPORARY DIAGNOSTIC — elimin GlobalChatOverlay complet ca să
-      // izolez cauza freeze Android. Dacă butoanele Arbeitswochen merg
-      // fără el, e confirmat că overlay blochează. Restore după fix real.
-      // builder: (context, child) {
-      //   return Stack(children: [
-      //     child ?? const SizedBox.shrink(),
-      //     const Positioned.fill(child: GlobalChatOverlay()),
-      //   ]);
-      // },
+      // Hier stand bis 26.08.2026 ein auskommentierter GlobalChatOverlay
+      // („TEMPORARY DIAGNOSTIC", 11.07.2026) — sechs Wochen lang war die
+      // Funktion damit tot. Ersetzt durch den Blitz, siehe
+      // [BlitzNachrichtService]. Die Blasen sind entfallen.
     );
   }
 }

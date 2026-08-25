@@ -7,6 +7,8 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
+#include "desktop_multi_window/desktop_multi_window_plugin.h"
+
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
@@ -74,6 +76,19 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+
+  // Jedes Blitz-Fenster bekommt eine EIGENE Flutter-Engine. Plugins gelten
+  // immer nur für die Engine, in der sie registriert wurden — ohne diesen
+  // Rückruf hätte das zweite Fenster kein window_manager, könnte sich also
+  // weder mittig setzen noch über andere Fenster legen, und zwar lautlos:
+  // der Aufruf liefe einfach ins Leere.
+  //
+  // window_manager 0.5.1 löst sein Fenster über
+  // `fl_plugin_registrar_get_view(registrar)` auf, also pro Engine. Deshalb
+  // trifft es hier wirklich das Blitz-Fenster und nicht das Hauptfenster —
+  // der im README des Pakets empfohlene Fork ist unter Linux nicht nötig.
+  desktop_multi_window_plugin_set_window_created_callback(
+      [](FlPluginRegistry* registry) { fl_register_plugins(registry); });
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
