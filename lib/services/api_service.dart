@@ -8780,6 +8780,98 @@ class ApiService {
   Future<Map<String, dynamic>> jcVollmachtVersandListe(int vollmachtId) =>
       _jcVollmacht({'action': 'versand_list', 'vollmacht_id': vollmachtId});
 
+  // ── Landratsamt-Vollmacht: dieselben Wege, eigener Endpunkt ────────────
+  //
+  // ⚠️ Ein eigener Endpunkt und nicht ein Modul-Parameter am Jobcenter-Pfad.
+  // Der Server verlangt es so (Kopf von jobcenter_vollmacht_versand.php:
+  // „wer eine andere Behoerde anschliesst, legt daneben eine eigene Datei an")
+  // — und mit gutem Grund: Anschrift, Anrede und die Tabelle, in die die
+  // Korrespondenzzeile geht, sind je Behörde andere. Jeder Endpunkt bedient
+  // NUR seine eigene und weist eine fremde Vollmacht ab; ein Blatt kann also
+  // nicht mit der falschen Anschrift hinausgehen.
+  //
+  // ⚠️ Die Landratsamt-Vollmacht hängt an EINEM Vorfall. Das steht nicht in
+  // diesen Aufrufen, sondern in der Vollmacht selbst — der Server liest den
+  // Vorfall aus `member_vollmachten.vorfall_id` und schickt die
+  // Korrespondenzzeile dorthin.
+  Future<Map<String, dynamic>> _lraVollmacht(Map<String, dynamic> body,
+      {Duration timeout = const Duration(seconds: 30)}) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/landratsamt_vollmacht_versand.php'),
+        headers: _headers, body: jsonEncode(body)).timeout(timeout);
+      final d = jsonDecode(r.body);
+      return d is Map<String, dynamic> ? d : {'success': false};
+    } on FormatException {
+      return {'success': false, 'message': 'Unerwartete Antwort vom Server'};
+    } catch (e) {
+      return {'success': false, 'message': 'Server nicht erreichbar: $e'};
+    }
+  }
+
+  /// Anschreiben, beide Ziele und der Unterschriftsstand.
+  ///
+  /// ⚠️ `empfaenger` und `fax` kommen bevorzugt aus dem VORFALL, nicht aus den
+  /// Amtsdaten: ein Landratsamt hat ein Dutzend Ämter unter einem Dach, und
+  /// die Nummer der Führerscheinstelle ist eine andere als die der Zentrale.
+  /// `sachbearbeiter` sagt, ob es so war — damit der Schirm die Herkunft
+  /// nennen kann, statt eine plausible falsche Nummer anzubieten.
+  Future<Map<String, dynamic>> landratsamtVollmachtVorlagen(int vollmachtId) =>
+      _lraVollmacht({'action': 'vorlagen', 'vollmacht_id': vollmachtId});
+
+  Future<Map<String, dynamic>> landratsamtVollmachtMailSenden({
+    required int vollmachtId,
+    String empfaenger = '',
+    String vorlage = 'einreichen',
+    String betreff = '',
+    String text = '',
+    String cc = '',
+  }) =>
+      _lraVollmacht({
+        'action': 'mail_senden', 'vollmacht_id': vollmachtId, 'vorlage': vorlage,
+        if (empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+        if (betreff.isNotEmpty) 'betreff': betreff,
+        if (text.isNotEmpty) 'text': text,
+        if (cc.isNotEmpty) 'cc': cc,
+      }, timeout: const Duration(seconds: 60));
+
+  Future<Map<String, dynamic>> landratsamtVollmachtFaxSenden({
+    required int vollmachtId,
+    String empfaenger = '',
+  }) =>
+      _lraVollmacht({
+        'action': 'fax_senden', 'vollmacht_id': vollmachtId,
+        if (empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+      }, timeout: const Duration(seconds: 60));
+
+  /// Ein SMS-Link an das Mitglied — `lesen` oder `signieren`.
+  Future<Map<String, dynamic>> landratsamtVollmachtLinkSenden({
+    required int vollmachtId,
+    required String zweck,
+  }) =>
+      _lraVollmacht({'action': 'link_senden', 'vollmacht_id': vollmachtId, 'zweck': zweck});
+
+  /// Eine von Hand gegangene Sendung eintragen — vor allem der Chat.
+  ///
+  /// ⚠️ Erst aufrufen, NACHDEM der Server den Empfang bestätigt hat.
+  Future<Map<String, dynamic>> landratsamtVollmachtVersandEintragen({
+    required int vollmachtId,
+    required String empfaenger,
+    required String weg,
+    String fassung = 'original',
+    String sprache = 'de',
+    String notiz = '',
+  }) =>
+      _lraVollmacht({
+        'action': 'versand_eintragen', 'vollmacht_id': vollmachtId,
+        'empfaenger': empfaenger, 'weg': weg, 'fassung': fassung, 'sprache': sprache,
+        if (notiz.isNotEmpty) 'notiz': notiz,
+      });
+
+  /// Jede Sendung, plus die SMS-Links mit dem, was das Mitglied getan hat.
+  Future<Map<String, dynamic>> landratsamtVollmachtVersandListe(int vollmachtId) =>
+      _lraVollmacht({'action': 'versand_list', 'vollmacht_id': vollmachtId});
+
   /// Inhalt einer Korrespondenzzeile: der gesendete Text und der Verweis auf
   /// den Anhang.
   ///

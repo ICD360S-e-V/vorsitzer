@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../utils/landratsamt_antraege.dart';
 import 'landratsamt_art_auswahl.dart';
 import 'korrespondenz_attachments_widget.dart';
+import 'landratsamt_vollmacht_tab.dart';
 import '../utils/app_farben.dart';
 
 class BehordeLandratsamtContent extends StatefulWidget {
@@ -16,6 +17,11 @@ class BehordeLandratsamtContent extends StatefulWidget {
   final void Function(String type) loadData;
   final void Function(String type, Map<String, dynamic> data) saveData;
 
+  /// Nur für die Vollmacht im Vorfall: wer anfordert und wer sie lesen soll.
+  /// Optional, damit bestehende Aufrufe unverändert weiterlaufen.
+  final String adminMitgliedernummer;
+  final String memberMitgliedernummer;
+
   const BehordeLandratsamtContent({
     super.key,
     required this.apiService,
@@ -25,6 +31,8 @@ class BehordeLandratsamtContent extends StatefulWidget {
     required this.isSaving,
     required this.loadData,
     required this.saveData,
+    this.adminMitgliedernummer = '',
+    this.memberMitgliedernummer = '',
   });
 
   @override
@@ -105,7 +113,9 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
         Expanded(
           child: TabBarView(children: [
             _buildAmtTab(),
-            _LandratsamtVorfallTab(apiService: widget.apiService, userId: widget.userId),
+            _LandratsamtVorfallTab(apiService: widget.apiService, userId: widget.userId,
+                adminMitgliedernummer: widget.adminMitgliedernummer,
+                memberMitgliedernummer: widget.memberMitgliedernummer),
             _KfzTab(apiService: widget.apiService, userId: widget.userId),
             _buildFuehrerscheinTab(),
             _buildBauTab(),
@@ -531,7 +541,10 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
 class _LandratsamtVorfallTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
-  const _LandratsamtVorfallTab({required this.apiService, required this.userId});
+  final String adminMitgliedernummer;
+  final String memberMitgliedernummer;
+  const _LandratsamtVorfallTab({required this.apiService, required this.userId,
+      this.adminMitgliedernummer = '', this.memberMitgliedernummer = ''});
 
   @override
   State<_LandratsamtVorfallTab> createState() => _LandratsamtVorfallTabState();
@@ -771,6 +784,8 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
             vorfallId: vid,
             vorfall: v,
             gerichtLink: gLink,
+            adminMitgliedernummer: widget.adminMitgliedernummer,
+            memberMitgliedernummer: widget.memberMitgliedernummer,
             onEdit: () { Navigator.pop(ctx); _openDialog(existing: v); },
             onClose: () => Navigator.pop(ctx),
           ),
@@ -788,9 +803,12 @@ class _LandratsamtVorfallDetailView extends StatefulWidget {
   final Map<String, dynamic>? gerichtLink;
   final VoidCallback onEdit;
   final VoidCallback onClose;
+  final String adminMitgliedernummer;
+  final String memberMitgliedernummer;
   const _LandratsamtVorfallDetailView({
     required this.apiService, required this.userId, required this.vorfallId, required this.vorfall,
     required this.gerichtLink, required this.onEdit, required this.onClose,
+    this.adminMitgliedernummer = '', this.memberMitgliedernummer = '',
   });
 
   @override
@@ -849,7 +867,7 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Column(children: [
         Container(
           padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
@@ -874,6 +892,7 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
             const Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.folder_open, size: 14), SizedBox(width: 4), Text('Dokumente')])),
             Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.mail_outline, size: 14), const SizedBox(width: 4), Text('Korrespondenz (${_korr.length})')])),
             Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.event, size: 14), const SizedBox(width: 4), Text('Termin (${_termine.length})')])),
+            const Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.assignment_ind, size: 14), SizedBox(width: 4), Text('Vollmacht')])),
           ],
         ),
         Expanded(child: TabBarView(children: [
@@ -888,6 +907,23 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
           ),
           _buildKorrTab(),
           _buildTerminTab(),
+          // ⚠️ Die Vollmacht gehört IN den Vorfall, nicht neben ihn: sie gilt
+          // für genau dieses Verfahren (§ 14 Abs. 1 Satz 2 VwVfG). Welche
+          // Rechtsgrundlage das ist — SGB X oder VwVfG, Sozial- oder
+          // Verwaltungsgericht — entscheidet allein der Server anhand der Art
+          // des Vorfalls.
+          LandratsamtVollmachtTab(
+            apiService: widget.apiService,
+            userId: widget.userId,
+            vorfallId: widget.vorfallId,
+            vorfallBezeichnung: [
+              (widget.vorfall['art'] ?? '').toString(),
+              if ((widget.vorfall['aktenzeichen'] ?? '').toString().isNotEmpty)
+                'Az. ${widget.vorfall['aktenzeichen']}',
+            ].where((e) => e.isNotEmpty).join(' · '),
+            adminMitgliedernummer: widget.adminMitgliedernummer,
+            memberMitgliedernummer: widget.memberMitgliedernummer,
+          ),
         ])),
       ]),
     );
