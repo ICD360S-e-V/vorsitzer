@@ -390,7 +390,25 @@ class SipgateService {
   /// als das Bein, an das die Steuercodes gehen.
   String _aktiv = 'A';
 
-  Timer? _dauerTakt;
+  // ⚠️ HIER STAND EIN SEKUNDENTAKT, UND ER WAR EIN FEHLER.
+  //
+  // Ein `Timer.periodic` schob jede Sekunde einen kompletten neuen Zustand in
+  // [zustand], damit die Gesprächsdauer weiterläuft. Zwei Folgen:
+  //
+  //  1. Jeder Zuhörer wurde im Sekundentakt neu gebaut — auch die Kopfleiste
+  //     des Dashboards, die von der Dauer kein Wort zeigt.
+  //
+  //  2. Schwerer: [_setz] führt `meldung` und `naechsterVersuch` bewusst NICHT
+  //     fort, und der Takt rief es ohne beide. Scheiterte die Anmeldung
+  //     während eines Gesprächs, waren Grund und geplanter Anlauf nach
+  //     höchstens einer Sekunde gelöscht — die Kopfleiste sprang von
+  //     Bernstein („arbeitet daran") auf Rot („hier hilft nur ein Mensch"),
+  //     obwohl die Wiederholung lief. Die Unterscheidung, für die beide Farben
+  //     eingeführt wurden, hob sich damit selbst auf.
+  //
+  // Die Dauer rechnet [SipgateGespraech.dauerSekunden] ohnehin selbst aus
+  // `verbundenSeit`. Es muss also nur jemand neu bauen — und das tut jetzt
+  // `SekundenTakt` genau dort, wo die Zahl steht.
   int? _anrufIdA; // Zeilen in sipgate_anrufe, werden fortgeschrieben
   int? _anrufIdB;
   String? _sipId;
@@ -738,8 +756,6 @@ class SipgateService {
     _gewollt = false;
     _wiederholungAbbrechen();
     _klingelnBeenden();
-    _dauerTakt?.cancel();
-    _dauerTakt = null;
     _rufA = null;
     _rufB = null;
     _aktiv = 'A';
@@ -1547,7 +1563,6 @@ class SipgateService {
               verbundenSeit: DateTime.now(),
             ),
           );
-          _dauerTaktStarten();
           _anrufProtokoll(anrufId: _protokollId(seite), status: 'verbunden');
         }
         break;
@@ -1614,8 +1629,6 @@ class SipgateService {
         final restA = zustand.value.gespraech;
         final restB = zustand.value.zweites;
         if (restA == null && restB == null) {
-          _dauerTakt?.cancel();
-          _dauerTakt = null;
           _aktiv = 'A';
         } else {
           _aktiv = restA != null ? 'A' : 'B';
@@ -1639,18 +1652,6 @@ class SipgateService {
   }
 
   /// Lässt die Dauer im Bildschirm weiterlaufen — für BEIDE Beine.
-  void _dauerTaktStarten() {
-    if (_dauerTakt != null) return;
-    _dauerTakt = Timer.periodic(const Duration(seconds: 1), (_) {
-      final z = zustand.value;
-      if (z.gespraech == null && z.zweites == null) return;
-      // Nur anstoßen; die Dauer rechnet [SipgateGespraech.dauerSekunden] selbst.
-      _setz(
-        gespraech: z.gespraech?.kopie(),
-        zweites: z.zweites?.kopie(),
-      );
-    });
-  }
 
   /// Fragt beim Plugin nach, ob der Vollbild-Anrufbildschirm erlaubt ist.
   ///

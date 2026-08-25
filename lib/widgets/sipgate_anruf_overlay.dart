@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../screens/sipgate_screen.dart';
 import '../services/notification_service.dart';
 import '../services/sipgate_service.dart';
+import 'sekunden_takt.dart';
 
 /// Schwebende Gesprächskarte, sichtbar über jedem Bildschirm.
 ///
@@ -138,7 +139,7 @@ class _Karte extends StatelessWidget {
       return _rahmen(
         context, groesse, const Color(0xFF5E35B1), Icons.groups,
         titel: 'Konferenz: ${z.beine.map((b) => b.anzeige).join(' + ')}',
-        zeile: SipgateService.dauerUhr(g.dauerSekunden),
+        zeile: () => SipgateService.dauerUhr(g.dauerSekunden),
         knoepfe: [
           _rundKnopf(
             g.stumm ? Icons.mic_off : Icons.mic,
@@ -153,21 +154,24 @@ class _Karte extends StatelessWidget {
       );
     }
 
+    // ⚠️ `zeile` ist ein Rückruf, kein String. Bei „verbunden" steht dort die
+    // Uhr, und die muss im Takt NEU ausgerechnet werden — ein hier fertig
+    // gebauter String wäre eine Sekunde später derselbe und die Uhr stünde.
     final (farbe, symbol, zeile) = switch (g.stand) {
       SipgateGespraechStand.verbunden => (
           const Color(0xFF2E7D32),
           Icons.phone_in_talk,
-          SipgateService.dauerUhr(g.dauerSekunden),
+          () => SipgateService.dauerUhr(g.dauerSekunden),
         ),
       SipgateGespraechStand.klingelt => (
           const Color(0xFF1565C0),
           Icons.phone_callback,
-          'Eingehender Anruf',
+          () => 'Eingehender Anruf',
         ),
       SipgateGespraechStand.waehlt => (
           const Color(0xFF00695C),
           Icons.phone_forwarded,
-          'Wählt …',
+          () => 'Wählt …',
         ),
     };
 
@@ -211,7 +215,13 @@ class _Karte extends StatelessWidget {
                           fontSize: 15,
                         ),
                       ),
-                      Text(
+                      // ⚠️ Nur DIESE Zeile tickt, nicht die Karte darum: Name,
+                      // Farbe und Knöpfe ändern sich nur bei einem Ereignis.
+                      SekundenTakt(
+                        // Beim Klingeln und beim Wählen steht hier ein fester
+                        // Satz — da gibt es nichts zu ticken.
+                        aktiv: verbunden,
+                        bauen: (_) => Text(
                         // Bei „verbunden" steht oben der Name und hier die Uhr;
                         // die Nummer daneben, weil ein Name allein nicht sagt,
                         // welche der drei Nummern eines Amtes man erreicht hat.
@@ -225,9 +235,9 @@ class _Karte extends StatelessWidget {
                               : '';
                           final nr = SipgateService.anruferAnzeige(g.nummer);
                           if (verbunden && g.anzeige != nr) {
-                            return '$zeile · $nr$anderes';
+                            return '${zeile()} · $nr$anderes';
                           }
-                          return '$zeile$anderes';
+                          return '${zeile()}$anderes';
                         }(),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -239,6 +249,7 @@ class _Karte extends StatelessWidget {
                               ? const [FontFeature.tabularFigures()]
                               : null,
                         ),
+                      ),
                       ),
                     ],
                   ),
@@ -277,7 +288,10 @@ class _Karte extends StatelessWidget {
     Color farbe,
     IconData symbol, {
     required String titel,
-    required String zeile,
+    /// ⚠️ Ein Rückruf, kein String: die Uhr muss jede Sekunde NEU
+    /// ausgerechnet werden. Ein hereingereichter String wäre für die ganze
+    /// Lebensdauer der Karte derselbe, und die Uhr stünde still.
+    required String Function() zeile,
     required List<Widget> knoepfe,
   }) =>
       GestureDetector(
@@ -310,14 +324,19 @@ class _Karte extends StatelessWidget {
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15)),
-                        Text(zeile,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.92),
-                              fontSize: 13,
-                              fontFeatures: const [FontFeature.tabularFigures()],
-                            )),
+                        SekundenTakt(
+                          aktiv: true,
+                          bauen: (_) => Text(zeile(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.92),
+                                fontSize: 13,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures()
+                                ],
+                              )),
+                        ),
                       ],
                     ),
                   ),
