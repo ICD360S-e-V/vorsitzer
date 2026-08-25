@@ -1501,15 +1501,20 @@ class _CameraCaptureScreenState extends State<_CameraCaptureScreen>
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => cams.first,
       );
-      // ⚠️ `max`, nicht `veryHigh`. Gemessen an einem echten Laborbefund, der
-      // mit diesem Scanner aufgenommen wurde: das entzerrte Bild kam mit
-      // 780 x 1010 Pixeln auf dem Server an. Für ein A4-Blatt sind das rund
-      // 95 dpi — Tesseract braucht 300, und darunter fällt es sichtbar ab.
-      // Von den 24 Werten des Blattes waren nur 8 überhaupt lesbar, und
-      // Zeilen wie "Cholesterin" kamen als "Cnolesierin" zurück.
-      // `veryHigh` ist 1080p; wenn die Seite die Hälfte des Bildes füllt,
-      // bleibt genau die gemessene Auflösung übrig. `max` nimmt, was der
-      // Sensor hergibt.
+      // ⚠️ `max`, nicht `veryHigh` — aber nicht, damit die Datei groß wird.
+      // Die endgültige Größe legt `kScanLangeSeitePx` beim Entzerren fest
+      // (1754 px auf der langen Kante = rund 150 dpi auf A4). Was die Kamera
+      // liefert, ist RESERVE FÜR DIE BILDAUSSCHNITT-WAHL.
+      //
+      // Gemessen an einem echten Laborbefund aus diesem Scanner: das entzerrte
+      // Bild kam mit 780 x 1010 Pixeln an, also ~95 dpi, und von 24 Werten
+      // waren nur 8 lesbar — "Cholesterin" kam als "Cnolesierin" zurück.
+      // `veryHigh` ist 1080p: füllt die Seite ein Drittel des Bildes, bleiben
+      // davon ~640 px übrig, also ~55 dpi. Dort verliert die Erkennung nicht
+      // nur Werte, sie ERFINDET welche (bei 73 dpi gemessen: drei falsche,
+      // darunter Cholesterin 39 statt 201). Mit `max` bleibt auch bei
+      // großzügiger Rahmung genug übrig, um auf 150 dpi herunterzukommen —
+      // statt von unten hineinzukriechen.
       //
       // ⚠️ Die Kette fällt zurück, statt aufzugeben: `max` ist nicht auf
       // jedem Gerät zusammen mit dem Analyse-Stream der Live-Erkennung
