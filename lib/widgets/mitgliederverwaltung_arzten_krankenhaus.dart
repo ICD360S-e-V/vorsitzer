@@ -31,6 +31,7 @@ import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../utils/arzt_instanz.dart';
 import '../utils/arzt_quelle.dart';
+import '../utils/krankenhaus_gruppen.dart';
 import '../services/ticket_service.dart';
 import '../services/termin_service.dart';
 import '../services/vorsorge_auto_ticket.dart';
@@ -218,6 +219,9 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
   // Multi-doctor: selected instance per base type, count per base type
   final Map<String, int> _multiArztSelected = {};
   final Map<String, int> _multiArztCount = {};
+  /// Aufgeschlagenes Haus je Basistyp — Index in die Gruppenliste.
+  /// Nur Anzeigezustand: die Zuordnung selbst steckt in `selected_arzt`.
+  final Map<String, int> _hausAuswahl = {};
 
   // ── Krankenhaus: instance <-> type mapping (multi-Arzt: _2, _3 …) ──
   static const String _augenBaseType = 'gesundheit_krankenhaus';
@@ -328,6 +332,37 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
   }
 
 
+  /// Legt eine weitere Instanz an — ein Haus oder eine Abteilung darin.
+  ///
+  /// Beide Knöpfe der zweistufigen Leiste laufen hier durch; der Unterschied
+  /// ist allein [vorbelegteSuche]: aus einem aufgeschlagenen Haus heraus steht
+  /// dessen Name schon im Suchfeld, damit die Trefferliste die Abteilungen
+  /// dieses Hauses zeigt statt aller Kliniken.
+  void _neueInstanzAnlegen(String baseType, String fachrichtung, int count,
+      {String? vorbelegteSuche}) {
+    final newCount = count + 1;
+    final newType = arztTypeFuerInstanz(baseType, newCount);
+    _showArztSucheDialog(context, fachrichtung, (arzt) {
+      final baseData = Map<String, dynamic>.from(_gesundheitData[baseType] ?? {});
+      baseData['instance_count'] = newCount;
+      _gesundheitData[baseType] = baseData;
+      _augenSave(baseType, baseData);
+      final newData = <String, dynamic>{
+        'arzt_id': arzt['id']?.toString(),
+        'selected_arzt': Map<String, dynamic>.from(arzt as Map),
+      };
+      _gesundheitData[newType] = newData;
+      _augenSave(newType, newData);
+      if (mounted) {
+        setState(() {
+          _multiArztCount[baseType] = newCount;
+          _multiArztSelected[baseType] = newCount - 1;
+          _gesundheitLoading[newType] = false;
+        });
+      }
+    }, vorbelegteSuche: vorbelegteSuche);
+  }
+
   Widget _buildArztContent(String baseType, String arztTitle, String fachrichtung) {
     // Multi-doctor: load instance_count from base data and auto-load sub-types
     if (!_multiArztCount.containsKey(baseType) && _gesundheitData.containsKey(baseType)) {
@@ -356,6 +391,22 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
     if (!_gesundheitData.containsKey(type) && _gesundheitLoading[type] != true) {
       _loadGesundheitData(type);
     }
+
+    // Häuser und Abteilungen werden aus `selected_arzt` abgeleitet, nicht
+    // getrennt gespeichert — siehe lib/utils/krankenhaus_gruppen.dart.
+    final gruppen = krankenhausGruppieren([
+      for (int i = 0; i < count; i++)
+        _gesundheitData[i == 0 ? baseType : '${baseType}_${i + 1}'],
+    ]);
+    // Das aufgeschlagene Haus richtet sich nach der gewählten Abteilung; so
+    // bleiben beide Leisten auch nach Anlegen oder Löschen beieinander.
+    final hausIdx = gruppen.isEmpty
+        ? 0
+        : gruppeVonInstanz(gruppen, _multiArztSelected[baseType] ?? 0);
+    _hausAuswahl[baseType] = hausIdx;
+    final aktuellesHaus = gruppen.isEmpty ? kOhneHaus : gruppen[hausIdx].haus;
+    final sichtbareInstanzen =
+        gruppen.isEmpty ? <int>[0] : gruppen[hausIdx].instanzen;
     if (_gesundheitLoading[type] == true) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -443,7 +494,99 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
           length: isZahnarzt ? 19 : 18,
           child: Column(
             children: [
-              // Multi-doctor tab bar (always visible, with + button to add more)
+              // Erste Ebene: die Häuser. Ein Mitglied kann in mehreren
+              // Krankenhäusern behandelt werden; die Abteilungen darunter
+              // gehören immer zu genau einem davon.
+              if (gruppen.length > 1 || aktuellesHaus != kOhneHaus)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: F.h(Colors.indigo, 50),
+                    border: Border(bottom: BorderSide(color: F.h(Colors.indigo, 200))),
+                  ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(children: [
+                      for (int g = 0; g < gruppen.length; g++) ...[
+                        () {
+                          final sel = g == hausIdx;
+                          final anzahl = gruppen[g].instanzen.length;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: InkWell(
+                              // Beim Haus-Wechsel auf dessen ERSTE Abteilung
+                              // springen — sonst zeigte die untere Leiste ein
+                              // Haus und der Inhalt darunter ein anderes.
+                              onTap: () => setState(() =>
+                                  _multiArztSelected[baseType] = gruppen[g].instanzen.first),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: sel ? F.h(Colors.indigo, 600) : F.flaeche,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: sel ? F.h(Colors.indigo, 600) : F.h(Colors.indigo, 200)),
+                                ),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Icon(Icons.apartment,
+                                      size: 14,
+                                      color: sel ? Colors.white : F.h(Colors.indigo, 700)),
+                                  const SizedBox(width: 6),
+                                  Text(gruppen[g].haus,
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: sel ? FontWeight.bold : FontWeight.normal,
+                                          color: sel ? Colors.white : F.h(Colors.indigo, 700))),
+                                  if (anzahl > 1) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: sel ? Colors.white24 : F.h(Colors.indigo, 100),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text('$anzahl',
+                                          style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: sel ? Colors.white : F.h(Colors.indigo, 800))),
+                                    ),
+                                  ],
+                                ]),
+                              ),
+                            ),
+                          );
+                        }(),
+                      ],
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: InkWell(
+                          onTap: () => _neueInstanzAnlegen(baseType, fachrichtung, count),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: F.h(Colors.indigo, 100),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: F.h(Colors.indigo, 300)),
+                            ),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(Icons.add, size: 15, color: F.h(Colors.indigo, 700)),
+                              const SizedBox(width: 4),
+                              Text(arztTitle,
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: F.h(Colors.indigo, 700))),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              // Zweite Ebene: die Abteilungen des aufgeschlagenen Hauses.
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -453,12 +596,11 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(children: [
-                    for (int i = 0; i < count; i++) ...[
+                    for (final i in sichtbareInstanzen) ...[
                       () {
                         final iType = i == 0 ? baseType : '${baseType}_${i + 1}';
-                        final iData = _gesundheitData[iType] ?? {};
-                        final iArzt = (iData['selected_arzt'] is Map) ? iData['selected_arzt'] as Map : {};
-                        final iName = iArzt['praxis_name']?.toString() ?? iArzt['arzt_name']?.toString() ?? '$arztTitle ${i + 1}';
+                        // Der Hausname steht über der Leiste; hier zählt die Abteilung.
+                        final iName = abteilungsName(_gesundheitData[iType], nummer: i + 1);
                         final isSel = (_multiArztSelected[baseType] ?? 0) == i;
                         return Padding(
                           padding: const EdgeInsets.only(right: 4),
@@ -556,29 +698,8 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                     Padding(
                       padding: const EdgeInsets.only(left: 4),
                       child: InkWell(
-                        onTap: () {
-                          final newCount = count + 1;
-                          final newType = '${baseType}_$newCount';
-                          _showArztSucheDialog(context, fachrichtung, (arzt) {
-                            final baseData = Map<String, dynamic>.from(_gesundheitData[baseType] ?? {});
-                            baseData['instance_count'] = newCount;
-                            _gesundheitData[baseType] = baseData;
-                            _augenSave(baseType, baseData);
-                            final newData = <String, dynamic>{
-                              'arzt_id': arzt['id']?.toString(),
-                              'selected_arzt': Map<String, dynamic>.from(arzt as Map),
-                            };
-                            _gesundheitData[newType] = newData;
-                            _augenSave(newType, newData);
-                            if (mounted) {
-                              setState(() {
-                                _multiArztCount[baseType] = newCount;
-                                _multiArztSelected[baseType] = newCount - 1;
-                                _gesundheitLoading[newType] = false;
-                              });
-                            }
-                          });
-                        },
+                        onTap: () => _neueInstanzAnlegen(baseType, fachrichtung, count,
+                            vorbelegteSuche: aktuellesHaus == kOhneHaus ? null : aktuellesHaus),
                         borderRadius: BorderRadius.circular(8),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -593,7 +714,9 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                               Icon(Icons.add, size: 16, color: F.h(Colors.teal, 700)),
                               const SizedBox(width: 4),
                               Text(
-                                'Weiterer $arztTitle',
+                                aktuellesHaus == kOhneHaus
+                                    ? 'Weiterer $arztTitle'
+                                    : 'Abteilung hinzufügen',
                                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.teal, 700)),
                               ),
                             ],
@@ -10072,8 +10195,9 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
     );
   }
 
-  void _showArztSucheDialog(BuildContext context, String fachrichtung, Function(Map<String, dynamic>) onSelect) {
-    final searchController = TextEditingController();
+  void _showArztSucheDialog(BuildContext context, String fachrichtung, Function(Map<String, dynamic>) onSelect,
+      {String? vorbelegteSuche}) {
+    final searchController = TextEditingController(text: vorbelegteSuche ?? '');
     List<Map<String, dynamic>> results = [];
     bool isLoading = false;
     bool initialLoaded = false;
