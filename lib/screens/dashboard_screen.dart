@@ -46,6 +46,9 @@ import '../widgets/weather_widget.dart';
 import '../services/weather_auto_broadcast_service.dart';
 import '../widgets/sturmwarnung_broadcast_dialog.dart';
 import '../services/global_chat_service.dart';
+import '../services/blitz_nachricht_service.dart';
+import '../services/blitz_fenster_steuerung.dart';
+import 'blitz_vollbild_screen.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/incoming_call_dialog.dart';
 import '../widgets/responsive_layout.dart';
@@ -238,13 +241,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     // Warnung anzeigen, solange die Testphase des Kontos noch läuft.
     _loadTrialStatus();
 
-    // Activate the global Messenger-style chat overlay (bubbles + mini
-    // panels visible across every page). Provides mitgliedernummer for the
-    // overlay so mini panels can send/receive without dashboard context.
-    GlobalChatService()
-      ..currentMitgliedernummer = widget.currentMitgliedernummer
-      ..enabled = true
-      ..start();
+    // Mitgliedernummer bekanntgeben — 25 Stellen lesen sie von dort.
+    GlobalChatService().currentMitgliedernummer = widget.currentMitgliedernummer;
+
+    // Der Blitz: eine eingehende Nachricht legt sich von selbst mitten auf
+    // den Bildschirm, mit Antwortfeld. Ausgelöst wird er in [ChatService];
+    // hier wird nur scharf gemacht und gesagt, wohin „im Chat öffnen" führt.
+    unawaited(BlitzNachrichtService.instanz.starten());
+    BlitzFensterSteuerung.instanz.onImChatOeffnen = (convId) {
+      if (!mounted || _isAdminChatOpen) return;
+      _showAdminChatDialogInternal(null, initialConversationId: convId);
+    };
 
     _currentEmail = widget.currentEmail;
     // Badge only — one request; the actual feed polling runs server-side.
@@ -555,6 +562,30 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
       if (type == 'chat' && !_isAdminChatOpen) {
         _showAdminChatDialog();
+      } else if (type == 'blitz') {
+        // 'blitz:<conversationId>:<kanal>' — der Vollbild-Schirm des Tablets.
+        // Der Text steht nicht in der Nutzlast, sondern im Arbeitsspeicher:
+        // eine Benachrichtigung kann nur entstehen, während der Chat-Dienst
+        // läuft, also lebt der Prozess noch.
+        final blitzId = int.tryParse(data);
+        final gemerkt = blitzId == null
+            ? null
+            : BlitzNachrichtService.instanz.letzteFuer(blitzId);
+        if (gemerkt != null && mounted) {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => BlitzVollbildScreen(
+              nachricht: gemerkt,
+              onImChatOeffnen: (id) {
+                if (!mounted || _isAdminChatOpen) return;
+                _showAdminChatDialogInternal(null, initialConversationId: id);
+              },
+            ),
+          ));
+        } else if (blitzId != null && !_isAdminChatOpen) {
+          // Text nicht mehr da (schon gelesen) — dann wenigstens die
+          // Unterhaltung öffnen statt gar nichts zu tun.
+          _showAdminChatDialogInternal(null, initialConversationId: blitzId);
+        }
       } else if (type == 'termin') {
         // Reminder termin → deschide ÖPNV cu deep-link (Verein → termin loc,
         // ArrivalTime = terminDate). Route se caută auto-la open.
@@ -662,14 +693,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 );
 
                 _chatBubbles[id] = ChatBubbleEntry(
-                  conversationId: id,
-                  senderName: memberName,
-                  unreadCount: unreadCount,
-                  lastMessagePreview: msgPreview,
-                );
-                // Mirror into the global Messenger-style overlay so the
-                // bubble appears on every page, not just dashboard.
-                GlobalChatService().upsertBubble(
                   conversationId: id,
                   senderName: memberName,
                   unreadCount: unreadCount,
@@ -2151,11 +2174,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         ],
                       ),
                 ),
-                // NOTE 2026-06-25: Local ChatBubbleOverlay + ChatBubblePopup au fost
-                // mutate la nivel global (MaterialApp.builder → GlobalChatOverlay),
-                // ca să apară pe orice pagină nu doar pe Dashboard. State sync:
-                // GlobalChatService.start() ascultă messageStream singur; dashboard-ul
-                // doar populeaza bubble-urile de start în _joinBackgroundConversations.
+                // Die Blasen-Oberfläche ist am 26.08.2026 entfallen; an ihrer
+                // Stelle steht der Blitz ([BlitzNachrichtService]).
               ],
             ),
           ),

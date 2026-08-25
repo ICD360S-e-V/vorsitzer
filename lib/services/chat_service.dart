@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 import 'notification_service.dart';
+import 'blitz_nachricht_service.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
 import 'api_service.dart';
@@ -709,11 +710,25 @@ class ChatService {
             final notifSender = isAnonymous
                 ? 'Anonim · ${chatMsg.senderName}'
                 : chatMsg.senderName;
-            NotificationService().showChatMessage(
-              senderName: notifSender,
-              message: chatMsg.message,
+            // Der Blitz entscheidet, WIE die Nachricht auffällt: Karte
+            // mitten auf dem Bildschirm, Vollbild-Schirm auf dem Tablet —
+            // oder, wenn beides nicht geht, genau die Benachrichtigung, die
+            // hier vorher stand. Bewusst an dieser Stelle und nicht als
+            // zweiter Abonnent von [messageStream]: die beiden Filter
+            // darüber (eigene Nachricht, stummgeschaltete Unterhaltung)
+            // gelten damit unverändert weiter, statt anderswo nachgebaut zu
+            // werden und irgendwann auseinanderzulaufen.
+            //
+            // `displayMessage` statt `message`: steht eine Übersetzung
+            // bereit, gehört sie auf die Karte — sie ist zum Lesen und
+            // sofortigen Beantworten da.
+            unawaited(BlitzNachrichtService.instanz.melden(
               conversationId: chatMsg.conversationId,
-            );
+              absender: notifSender,
+              text: chatMsg.displayMessage,
+              kanal: chatMsg.channel,
+              zeit: chatMsg.createdAt,
+            ));
           } else if (isMuted && !isOwnMessage) {
             _log.debug('SKIPPED notification - conversation muted (from: ${chatMsg.senderName})', tag: 'NOTIF');
           } else {

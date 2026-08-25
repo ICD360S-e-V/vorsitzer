@@ -57,13 +57,13 @@ import 'package:icd360sev_vorsitzer/widgets/chat_bubble_popup.dart';
 import 'package:icd360sev_vorsitzer/widgets/chat_header.dart';
 import 'package:icd360sev_vorsitzer/widgets/chat_image_attachment.dart';
 import 'package:icd360sev_vorsitzer/widgets/chat_input_area.dart';
-import 'package:icd360sev_vorsitzer/widgets/chat_mini_panel.dart';
+import 'package:icd360sev_vorsitzer/models/blitz_nachricht.dart';
+import 'package:icd360sev_vorsitzer/widgets/blitz_karte.dart';
 import 'package:icd360sev_vorsitzer/widgets/conversation_list_item.dart';
 import 'package:icd360sev_vorsitzer/widgets/debug_console.dart';
 import 'package:icd360sev_vorsitzer/widgets/diagnostic_consent_dialog.dart';
 import 'package:icd360sev_vorsitzer/widgets/eastern.dart';
 import 'package:icd360sev_vorsitzer/widgets/file_viewer_dialog.dart';
-import 'package:icd360sev_vorsitzer/widgets/global_chat_overlay.dart';
 import 'package:icd360sev_vorsitzer/widgets/incoming_call_dialog.dart';
 import 'package:icd360sev_vorsitzer/widgets/legal_footer.dart';
 import 'package:icd360sev_vorsitzer/widgets/live_chat_dialog.dart';
@@ -218,13 +218,19 @@ void main() {
     'TypingIndicator': () => TypingIndicator(userName: _langerText),
     'ChatImageAttachment': () => ChatImageAttachment(attachment: <String, dynamic>{}, mitgliedernummer: _langerText),
     'ClosedConversationIndicator': () => ClosedConversationIndicator(),
-    'ChatMiniPanel': () => ChatMiniPanel(conversationId: 1, senderName: _langerText, currentMitgliedernummer: _langerText, onMinimize: () {}, onClose: () {}),
+    'BlitzKarte': () => BlitzKarte(
+        nachricht: BlitzNachricht(
+            conversationId: 1,
+            absender: _langerText,
+            zeilen: [_langerText],
+            zeit: DateTime(2026, 8, 26)),
+        onSenden: (_) async => null,
+        onSchliessen: () {}),
     'ConversationListItem': () => ConversationListItem(conversation: <String, dynamic>{}, isSelected: false, hasActiveCall: false, isOnline: false, onTap: () {}),
     'DebugConsole': () => DebugConsole(),
     'DiagnosticConsentDialog': () => DiagnosticConsentDialog(),
     'SeasonalBackground': () => SeasonalBackground(child: const SizedBox.shrink()),
     'FileViewerDialog': () => FileViewerDialog(fileName: _langerText),
-    'GlobalChatOverlay': () => GlobalChatOverlay(),
     'IncomingCallDialog': () => IncomingCallDialog(callerName: _langerText, onAccept: () {}, onReject: () {}),
     'CallingOverlay': () => CallingOverlay(targetName: _langerText, onCancel: () {}),
     'VideoCallScreen': () => VideoCallScreen(remoteName: _langerText, onEndCall: () {}),

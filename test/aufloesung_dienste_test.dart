@@ -158,7 +158,8 @@ import 'package:icd360sev_vorsitzer/widgets/chat_bubble_popup.dart';
 import 'package:icd360sev_vorsitzer/widgets/chat_header.dart';
 import 'package:icd360sev_vorsitzer/widgets/chat_image_attachment.dart';
 import 'package:icd360sev_vorsitzer/widgets/chat_input_area.dart';
-import 'package:icd360sev_vorsitzer/widgets/chat_mini_panel.dart';
+import 'package:icd360sev_vorsitzer/models/blitz_nachricht.dart';
+import 'package:icd360sev_vorsitzer/widgets/blitz_karte.dart';
 import 'package:icd360sev_vorsitzer/widgets/conversation_list_item.dart';
 import 'package:icd360sev_vorsitzer/widgets/dashboard_sidebar.dart';
 import 'package:icd360sev_vorsitzer/widgets/dashboard_stats.dart';
@@ -168,7 +169,6 @@ import 'package:icd360sev_vorsitzer/widgets/eastern.dart';
 import 'package:icd360sev_vorsitzer/widgets/faltbare_kopfleiste.dart';
 import 'package:icd360sev_vorsitzer/widgets/feld_reihe.dart';
 import 'package:icd360sev_vorsitzer/widgets/file_viewer_dialog.dart';
-import 'package:icd360sev_vorsitzer/widgets/global_chat_overlay.dart';
 import 'package:icd360sev_vorsitzer/widgets/incoming_call_dialog.dart';
 import 'package:icd360sev_vorsitzer/widgets/legal_footer.dart';
 import 'package:icd360sev_vorsitzer/widgets/live_chat_dialog.dart';
@@ -484,7 +484,14 @@ void main() {
     'TypingIndicator': () => TypingIndicator(userName: _langerText),
     'ChatImageAttachment': () => ChatImageAttachment(attachment: _zeile, mitgliedernummer: _langerText),
     'ClosedConversationIndicator': () => ClosedConversationIndicator(),
-    'ChatMiniPanel': () => ChatMiniPanel(conversationId: 13, senderName: _langerText, currentMitgliedernummer: _langerText, onMinimize: () {}, onClose: () {}),
+    'BlitzKarte': () => BlitzKarte(
+        nachricht: BlitzNachricht(
+            conversationId: 1,
+            absender: _langerText,
+            zeilen: [_langerText],
+            zeit: DateTime(2026, 8, 26)),
+        onSenden: (_) async => null,
+        onSchliessen: () {}),
     'ConversationListItem': () => ConversationListItem(conversation: _zeile, isSelected: false, hasActiveCall: false, isOnline: false, onTap: () {}),
     'SidebarMenuItem': () => SidebarMenuItem(index: 13, selectedIndex: 13, icon: Icons.info_outline, title: _langerText, onTap: () {}),
     'StatCard': () => StatCard(title: _langerText, value: _langerText, icon: Icons.info_outline, color: Colors.blue),
@@ -494,7 +501,6 @@ void main() {
     'FaltbareKopfleiste': () => FaltbareKopfleiste(links: <Widget>[], aktionen: <Widget>[]),
     'FeldReihe': () => FeldReihe(felder: <Widget>[]),
     'FileViewerDialog': () => FileViewerDialog(fileName: _langerText),
-    'GlobalChatOverlay': () => GlobalChatOverlay(),
     'IncomingCallDialog': () => IncomingCallDialog(callerName: _langerText, onAccept: () {}, onReject: () {}),
     'InCallOverlay': () => InCallOverlay(remoteName: _langerText, callDuration: Duration.zero, isMuted: false, isSpeakerOn: false, onToggleMute: () {}, onToggleSpeaker: () {}, onEndCall: () {}),
     'CallingOverlay': () => CallingOverlay(targetName: _langerText, onCancel: () {}),
