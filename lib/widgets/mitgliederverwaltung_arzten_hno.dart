@@ -3319,7 +3319,22 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
         ),
       );
 
-      await Printing.layoutPdf(onLayout: (format) => pdf.save(), name: 'Blutanalyse_$datum.pdf');
+      // ⚠️ Im EIGENEN Betrachter öffnen, nicht über Printing.layoutPdf.
+      // Das rief die Druck-/Teilen-Oberfläche des Systems auf — auf dem
+      // Rechner also einen Speichern-Dialog. Wer auf „PDF" tippt, will das
+      // Blatt ansehen, nicht eine Datei ablegen und sie dann suchen.
+      //
+      // Verloren geht dabei nichts: FileViewerDialog bringt Drucken UND
+      // Speichern mit, beides einen Knopf entfernt.
+      final bytes = await pdf.save();
+      if (!mounted) return;
+      final gezeigt = await FileViewerDialog.showFromBytes(
+          context, bytes, 'Blutanalyse_$datum.pdf');
+      if (!gezeigt && mounted) {
+        // Sollte nicht vorkommen — .pdf kennt der Betrachter. Falls doch,
+        // lieber der alte Weg als gar nichts.
+        await Printing.layoutPdf(onLayout: (_) async => bytes, name: 'Blutanalyse_$datum.pdf');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
