@@ -29,6 +29,8 @@ import '../services/phone_call_service.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import '../utils/arzt_instanz.dart';
+import '../utils/arzt_quelle.dart';
 import '../services/ticket_service.dart';
 import '../services/termin_service.dart';
 import '../services/vorsorge_auto_ticket.dart';
@@ -219,10 +221,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
 
   // ── HNO-Arzt: instance <-> type mapping (multi-Arzt: _2, _3 …) ──
   static const String _augenBaseType = 'gesundheit_hno';
-  int _augenInstanceFromType(String type) {
-    final m = RegExp(r'_([2-9])$').firstMatch(type);
-    return m != null ? int.parse(m.group(1)!) : 1;
-  }
+  int _augenInstanceFromType(String type) => arztInstanzAusType(type);
   String _augenTypeForInstance(int instance) =>
       instance <= 1 ? _augenBaseType : '${_augenBaseType}_$instance';
 
@@ -440,13 +439,22 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
       final refreshKey = '${type}_arzt_refreshed';
       if (data[refreshKey] != true) {
         data[refreshKey] = true;
-        widget.apiService.searchHnoDatenbank(search: selectedArzt['arzt_name']?.toString() ?? selectedArzt['praxis_name']?.toString() ?? '').then((result) {
-          final aerzte = result['aerzte'] as List? ?? [];
+        // ⚠️ NUR die Herkunftstabelle fragen: die id-Folgen sind je Tabelle
+        // eigenständig, ein Treffer in der falschen Tabelle wäre eine fremde
+        // Praxis mit derselben id. Siehe lib/utils/arzt_quelle.dart.
+        final ausKlinik = istKlinikEintrag(selectedArzt);
+        final suchbegriff = selectedArzt['arzt_name']?.toString() ?? selectedArzt['praxis_name']?.toString() ?? '';
+        (ausKlinik
+                ? widget.apiService.searchKliniken(search: suchbegriff)
+                : widget.apiService.searchHnoDatenbank(search: suchbegriff))
+            .then((result) {
+          final aerzte = (ausKlinik ? result['kliniken'] : result['aerzte']) as List? ?? [];
           for (final a in aerzte) {
             if (a['id'].toString() == arztId) {
               if (mounted) {
                 setState(() {
-                  selectedArzt = Map<String, dynamic>.from(a as Map);
+                  final roh = Map<String, dynamic>.from(a as Map);
+                  selectedArzt = ausKlinik ? klinikAlsArzt(roh) : roh;
                   data['selected_arzt'] = selectedArzt;
                   _gesundheitData[type] = data;
                 });
@@ -10512,12 +10520,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                 if (res['success'] == true && res[dataKey] != null) {
                   var list = List<Map<String, dynamic>>.from(res[dataKey]);
                   if (isKrankenhaus) {
-                    list = list.map((k) => {
-                      ...k,
-                      'arzt_name': k['name'] ?? '',
-                      'praxis_name': k['krankenhaus'] ?? k['name'] ?? '',
-                      'online_termin_url': k['online_termin_url'] ?? '',
-                    }).toList();
+                    list = list.map(klinikAlsArzt).toList();
                   }
                   setDialogState(() { results = list; isLoading = false; });
                 } else {

@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../utils/arzt_instanz.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -62,11 +63,9 @@ bool zeigeCloudKnopf({
 
 /// Welche Arzt-Instanz in `type` steckt — `gesundheit_hno_2` → `2`, sonst `1`.
 ///
-/// Dieselbe Regel wie `_augenInstanceFromType` in den Arzt-Tabs; hier eigens,
-/// weil die Schlüssel-Funktionen unten prüfbar bleiben sollen und die Tabs
-/// diese Methode je einzeln (und privat) mitbringen.
-String _instanzAusType(String type) =>
-    RegExp(r'_([2-9])$').firstMatch(type)?.group(1) ?? '1';
+/// Dieselbe Regel wie in den Arzt-Tabs — beide gehen durch
+/// `arztInstanzAusType` in lib/utils/arzt_instanz.dart.
+String _instanzAusType(String type) => arztInstanzZeichen(type);
 
 /// Anhang-`modul` für die Vorsorge-Historie der fünf Arzt-Tabs.
 ///
