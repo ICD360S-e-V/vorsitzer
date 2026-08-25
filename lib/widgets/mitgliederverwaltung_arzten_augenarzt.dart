@@ -251,6 +251,10 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
   final Map<String, Map<String, dynamic>> _gesundheitData = {};
   final Map<String, bool> _gesundheitLoading = {};
   final Map<String, bool> _gesundheitSaving = {};
+
+  // Haelt fest, dass ein Ladevorgang FEHLGESCHLAGEN ist - anders als
+  // "geladen und leer". Solange ein Eintrag steht, wird nicht gespeichert.
+  final Map<String, String> _gesundheitLadefehler = {};
   // Multi-doctor: selected instance per base type, count per base type
   final Map<String, int> _multiArztSelected = {};
   final Map<String, int> _multiArztCount = {};
@@ -302,10 +306,33 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
       if (mounted) {
         setState(() {
           _gesundheitLoading[type] = false;
-          _gesundheitData[type] = {};
+          // ⚠️ NICHT auf {} setzen. Der Reiter gilt sonst als geladen und
+          // leer, und der naechste Speichervorgang schreibt das fest -
+          // hier sogar schlimmer als beim Blob: _augenSave() LOESCHT die
+          // Instanz, wenn die Map leer ist.
+          _gesundheitLadefehler[type] = 'Netzwerkfehler: $e';
         });
       }
     }
+  }
+
+  /// Erneuter Versuch nach einem fehlgeschlagenen Ladevorgang.
+  Future<void> _gesundheitNeuLaden(String type) async {
+    _gesundheitLadefehler.remove(type);
+    _gesundheitData.remove(type);
+    await _loadGesundheitData(type);
+  }
+
+  void _zeigeLadefehler(String type) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Nicht gespeichert - die Daten konnten nicht geladen werden '
+          '(${_gesundheitLadefehler[type]}). Sonst wuerde der vorhandene Stand ueberschrieben.'),
+      backgroundColor: Colors.red,
+      duration: const Duration(seconds: 6),
+      action: SnackBarAction(label: 'Neu laden', textColor: Colors.white,
+          onPressed: () => _gesundheitNeuLaden(type)),
+    ));
   }
 
   /// Fires the member-scoped Vorsorge reminders after a doctor blob finished
@@ -357,6 +384,8 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
       .toList();
 
   Future<void> _saveGesundheitData(String type, Map<String, dynamic> data) async {
+    // Nichts speichern, was nie geladen wurde - siehe _loadGesundheitData.
+    if (_gesundheitLadefehler.containsKey(type)) { _zeigeLadefehler(type); return; }
     setState(() => _gesundheitSaving[type] = true);
     try {
       final result = await _augenSave(type, data);
