@@ -11,17 +11,22 @@ import '../widgets/blitz_karte.dart';
 /// Breite der Karte am Rechner. Bewusst schmal: sie legt sich über das, woran
 /// gerade gearbeitet wird, und soll dort nichts verdecken, was man noch
 /// braucht.
-const double kBlitzBreite = 460;
+///
+/// 26.08.2026 von 460 auf 380 verkleinert — im Betrieb war die Karte „ein
+/// bisschen gross" (Rückmeldung des Vorsitzenden, nachdem sie das erste Mal
+/// wirklich auf dem Schreibtisch stand). Eine Meldung, die man wegklicken
+/// will, darf weniger Platz einnehmen als das, woran man arbeitet.
+const double kBlitzBreite = 380;
 
 /// Höhe beim Aufblenden, bevor der erste Rahmen gemessen ist. Danach richtet
 /// sich das Fenster nach dem Inhalt ([_BlitzFensterAppState._hoeheAnpassen]).
-const double kBlitzStartHoehe = 170;
+const double kBlitzStartHoehe = 130;
 
 /// Grenzen für die inhaltsabhängige Höhe. Nach oben gedeckelt, damit ein
 /// Schwall von fünf Zeilen die Karte nicht über den halben Bildschirm zieht —
 /// darüber scrollt der Text innerhalb der Karte.
-const double kBlitzMinHoehe = 130;
-const double kBlitzMaxHoehe = 420;
+const double kBlitzMinHoehe = 96;
+const double kBlitzMaxHoehe = 340;
 
 const Size kBlitzFensterGroesse = Size(kBlitzBreite, kBlitzStartHoehe);
 
