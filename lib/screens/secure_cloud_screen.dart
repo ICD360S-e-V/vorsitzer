@@ -1501,12 +1501,29 @@ class _CameraCaptureScreenState extends State<_CameraCaptureScreen>
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => cams.first,
       );
-      // Prefer a legible resolution for documents; fall back if unsupported.
+      // ⚠️ `max`, nicht `veryHigh`. Gemessen an einem echten Laborbefund, der
+      // mit diesem Scanner aufgenommen wurde: das entzerrte Bild kam mit
+      // 780 x 1010 Pixeln auf dem Server an. Für ein A4-Blatt sind das rund
+      // 95 dpi — Tesseract braucht 300, und darunter fällt es sichtbar ab.
+      // Von den 24 Werten des Blattes waren nur 8 überhaupt lesbar, und
+      // Zeilen wie "Cholesterin" kamen als "Cnolesierin" zurück.
+      // `veryHigh` ist 1080p; wenn die Seite die Hälfte des Bildes füllt,
+      // bleibt genau die gemessene Auflösung übrig. `max` nimmt, was der
+      // Sensor hergibt.
+      //
+      // ⚠️ Die Kette fällt zurück, statt aufzugeben: `max` ist nicht auf
+      // jedem Gerät zusammen mit dem Analyse-Stream der Live-Erkennung
+      // möglich. Schlägt sie fehl, gilt wieder das bisherige Verhalten —
+      // schlechtere Auflösung ist besser als keine Kamera.
       CameraController ctrl;
       try {
-        ctrl = await _make(back, ResolutionPreset.veryHigh);
+        ctrl = await _make(back, ResolutionPreset.max);
       } on CameraException {
-        ctrl = await _make(back, ResolutionPreset.high);
+        try {
+          ctrl = await _make(back, ResolutionPreset.veryHigh);
+        } on CameraException {
+          ctrl = await _make(back, ResolutionPreset.high);
+        }
       }
       if (!mounted || gen != _generation) {
         await ctrl.dispose();

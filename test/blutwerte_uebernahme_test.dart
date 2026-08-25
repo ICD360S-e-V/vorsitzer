@@ -12,6 +12,7 @@ Map<String, dynamic> _v(
   bool umgerechnet = false,
   String? geleseneEinheit,
   bool qualitativ = false,
+  bool unscharf = false,
   String zeile = 'Parameter   1,0   mg/dl   0,5 - 2,0',
 }) =>
     {
@@ -25,6 +26,7 @@ Map<String, dynamic> _v(
       'umgerechnet': umgerechnet,
       'gelesene_einheit': geleseneEinheit,
       'bestaetigt': bestaetigt,
+      'unscharf': unscharf,
       'qualitativ': qualitativ,
     };
 
@@ -133,6 +135,27 @@ void main() {
     test('fremde Einträge in der Liste werden übersprungen', () {
       final l = blutVorschlaegeAufbereiten(['unsinn', 42, _v('crp', wert: '2.8')], {});
       expect(l, hasLength(1));
+    });
+
+    // ⚠️ Der Server gleicht verlesene Parameternamen tolerant ab — ohne das
+    // war ein echter Scan nicht lesbar. Aber „ähnlich" ist kein Grund, eine
+    // Zahl vorzuhaken: gemessen kam "Calcium (Serum)" als "Galdum (Berum)"
+    // zurück und lag näher an Kalium als an Calcium.
+    test('ein nur ähnlich erkannter Name wird NICHT vorangehakt', () {
+      final l = blutVorschlaegeAufbereiten(
+          [_v('crp', wert: '2.8', unscharf: true)], {});
+      expect(l.first.unscharf, isTrue);
+      expect(l.first.gewaehlt, isFalse,
+          reason: 'unscharfer Name darf nie ohne Ansehen übernommen werden');
+      expect(l.first.uebernehmbar, isTrue,
+          reason: 'anhaken darf man ihn trotzdem — nur nicht von allein');
+    });
+
+    test('ohne das Feld gilt der Name als zeichengleich', () {
+      final roh = _v('crp', wert: '2.8')..remove('unscharf');
+      final l = blutVorschlaegeAufbereiten([roh], {});
+      expect(l.first.unscharf, isFalse);
+      expect(l.first.gewaehlt, isTrue);
     });
   });
 }

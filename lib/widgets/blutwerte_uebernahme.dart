@@ -19,6 +19,14 @@ class BlutVorschlag {
   final bool umgerechnet;
   final String? geleseneEinheit;
   final bool bestaetigt;
+
+  /// Der PARAMETERNAME wurde nur ähnlich erkannt, nicht zeichengleich.
+  ///
+  /// ⚠️ Solche Vorschläge werden nie vorangehakt. Der Server gleicht
+  /// verlesene Namen tolerant ab — anders wäre ein Scan gar nicht lesbar —,
+  /// aber „ähnlich" heißt bei Laborwerten: der Mensch sieht die Quellzeile an,
+  /// bevor die Zahl im Feld steht.
+  final bool unscharf;
   final bool qualitativ;
   final String bisher;
 
@@ -34,6 +42,7 @@ class BlutVorschlag {
     required this.umgerechnet,
     required this.geleseneEinheit,
     required this.bestaetigt,
+    this.unscharf = false,
     required this.qualitativ,
     required this.bisher,
     required this.gewaehlt,
@@ -82,16 +91,19 @@ List<BlutVorschlag> blutVorschlaegeAufbereiten(
       umgerechnet: eintrag['umgerechnet'] == true,
       geleseneEinheit: eintrag['gelesene_einheit']?.toString(),
       bestaetigt: bestaetigt,
+      unscharf: eintrag['unscharf'] == true,
       qualitativ: eintrag['qualitativ'] == true,
       bisher: bisher,
       gewaehlt: false,
     );
 
     // Vorangehakt wird nur, was nichts zu prüfen hinterlässt: ein Wert, den
-    // beide Lesungen tragen, ohne Warnung, in ein leeres Feld.
+    // mehrere Lesungen tragen, dessen Name zeichengleich dastand, ohne
+    // Warnung, in ein leeres Feld.
     v.gewaehlt = v.uebernehmbar &&
         v.warnung == null &&
         bestaetigt &&
+        !v.unscharf &&
         bisher.isEmpty;
 
     liste.add(v);
@@ -397,6 +409,9 @@ class _VorschlagDialogState extends State<_VorschlagDialog> {
                     ),
                   ],
                 ),
+                if (v.unscharf)
+                  Text('Name nur ähnlich erkannt — bitte die Quellzeile prüfen',
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 800))),
                 if (v.umgerechnet && v.geleseneEinheit != null)
                   Text('umgerechnet aus ${v.geleseneEinheit}',
                       style: TextStyle(fontSize: 10, color: F.textSchwach)),
