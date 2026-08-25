@@ -42,6 +42,7 @@ import 'feld_reihe.dart';
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
 import 'blutwerte_uebernahme.dart';
+import '../utils/blut_parameter_liste.dart';
 
 class MitgliederverwaltungArztenAugenarzt extends StatefulWidget {
   final User user;
@@ -194,57 +195,13 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
     return g != 'W';
   }
 
-  List<Map<String, dynamic>> get _blutParameter {
-    final m = _isMaennlich;
-    return [
-      // ── Blutbild (DGKL-Standard) ──
-      {'key': 'erythrozyten', 'label': 'Erythrozyten', 'unit': 'Mio/µl', 'min': m ? 4.3 : 3.8, 'max': m ? 5.9 : 5.2, 'gruppe': 'Blutbild'},
-      {'key': 'leukozyten', 'label': 'Leukozyten', 'unit': 'Tsd/µl', 'min': 4.0, 'max': 10.0, 'gruppe': 'Blutbild'},
-      {'key': 'thrombozyten', 'label': 'Thrombozyten', 'unit': 'Tsd/µl', 'min': 150.0, 'max': 400.0, 'gruppe': 'Blutbild'},
-      {'key': 'haemoglobin', 'label': 'Hämoglobin', 'unit': 'g/dl', 'min': m ? 13.5 : 12.0, 'max': m ? 17.5 : 16.0, 'gruppe': 'Blutbild'},
-      {'key': 'haematokrit', 'label': 'Hämatokrit', 'unit': '%', 'min': m ? 40.0 : 35.0, 'max': m ? 52.0 : 47.0, 'gruppe': 'Blutbild'},
-      {'key': 'mcv', 'label': 'MCV', 'unit': 'fl', 'min': 80.0, 'max': 100.0, 'gruppe': 'Blutbild'},
-      {'key': 'mch', 'label': 'MCH', 'unit': 'pg', 'min': 27.0, 'max': 33.0, 'gruppe': 'Blutbild'},
-      {'key': 'mchc', 'label': 'MCHC', 'unit': 'g/dl', 'min': 32.0, 'max': 36.0, 'gruppe': 'Blutbild'},
-      // ── Leberwerte ──
-      {'key': 'got', 'label': 'GOT (AST)', 'unit': 'U/l', 'min': 0.0, 'max': m ? 50.0 : 35.0, 'gruppe': 'Leberwerte'},
-      {'key': 'gpt', 'label': 'GPT (ALT)', 'unit': 'U/l', 'min': 0.0, 'max': m ? 50.0 : 35.0, 'gruppe': 'Leberwerte'},
-      {'key': 'g_gt', 'label': 'Gamma-GT', 'unit': 'U/l', 'min': 0.0, 'max': m ? 60.0 : 40.0, 'gruppe': 'Leberwerte'},
-      {'key': 'alk_phosphatase', 'label': 'Alkalische Phosphatase', 'unit': 'U/l', 'min': 40.0, 'max': 130.0, 'gruppe': 'Leberwerte'},
-      {'key': 'bilirubin_gesamt', 'label': 'Bilirubin gesamt', 'unit': 'mg/dl', 'min': 0.0, 'max': 1.2, 'gruppe': 'Leberwerte'},
-      {'key': 'bilirubin_direkt', 'label': 'Bilirubin direkt', 'unit': 'mg/dl', 'min': 0.0, 'max': 0.3, 'gruppe': 'Leberwerte'},
-      {'key': 'bilirubin_indirekt', 'label': 'Bilirubin indirekt', 'unit': 'mg/dl', 'min': 0.0, 'max': 0.8, 'gruppe': 'Leberwerte'},
-      // ── Nierenwerte ──
-      {'key': 'creatinin', 'label': 'Creatinin (Serum)', 'unit': 'mg/dl', 'min': m ? 0.7 : 0.5, 'max': m ? 1.2 : 0.9, 'gruppe': 'Nierenwerte'},
-      {'key': 'ckd_epi', 'label': 'CKD-EPI Kreatinin (eGFR)', 'unit': 'ml/min', 'min': 90.0, 'max': 999.0, 'gruppe': 'Nierenwerte'},
-      {'key': 'harnsaeure', 'label': 'Harnsäure (Serum)', 'unit': 'mg/dl', 'min': m ? 3.4 : 2.4, 'max': m ? 7.0 : 5.7, 'gruppe': 'Nierenwerte'},
-      // ── Fettstoffwechsel ──
-      {'key': 'cholesterin', 'label': 'Cholesterin gesamt', 'unit': 'mg/dl', 'min': 0.0, 'max': 200.0, 'gruppe': 'Fettstoffwechsel'},
-      {'key': 'ldl_cholesterin', 'label': 'LDL-Cholesterin', 'unit': 'mg/dl', 'min': 0.0, 'max': 130.0, 'gruppe': 'Fettstoffwechsel'},
-      // ── Blutzucker ──
-      {'key': 'glucose_nuechtern', 'label': 'Glucose nüchtern', 'unit': 'mg/dl', 'min': 70.0, 'max': 100.0, 'gruppe': 'Blutzucker'},
-      // ── Entzündung ──
-      {'key': 'crp', 'label': 'C-reaktives Protein (CRP)', 'unit': 'mg/l', 'min': 0.0, 'max': 5.0, 'gruppe': 'Entzündung'},
-      // ── Elektrolyte ──
-      {'key': 'natrium', 'label': 'Natrium', 'unit': 'mmol/l', 'min': 136.0, 'max': 145.0, 'gruppe': 'Elektrolyte'},
-      {'key': 'kalium', 'label': 'Kalium', 'unit': 'mmol/l', 'min': 3.5, 'max': 5.0, 'gruppe': 'Elektrolyte'},
-      {'key': 'calcium', 'label': 'Calcium (Serum)', 'unit': 'mmol/l', 'min': 2.2, 'max': 2.65, 'gruppe': 'Elektrolyte'},
-      // ── Eisenstoffwechsel ──
-      {'key': 'ferritin', 'label': 'Ferritin', 'unit': 'ng/ml', 'min': m ? 30.0 : 15.0, 'max': m ? 400.0 : 150.0, 'gruppe': 'Eisenstoffwechsel'},
-      // ── Vitamine ──
-      {'key': 'vitamin_b12', 'label': 'Vitamin B12', 'unit': 'pg/ml', 'min': 200.0, 'max': 900.0, 'gruppe': 'Vitamine'},
-      {'key': 'folsaeure', 'label': 'Folsäure', 'unit': 'ng/ml', 'min': 3.0, 'max': 17.0, 'gruppe': 'Vitamine'},
-      {'key': 'vitamin_d3', 'label': 'Vitamin D3 (25-OH)', 'unit': 'ng/ml', 'min': 30.0, 'max': 100.0, 'gruppe': 'Vitamine'},
-      // ── Hepatitis / Infektionen (qualitativ: negativ/positiv) ──
-      {'key': 'hepatitis_a_igg', 'label': 'Hepatitis A IgG (Anti-HAV IgG)', 'unit': 'S/CO', 'min': 1.0, 'max': 999.0, 'gruppe': 'Infektionen'},
-      {'key': 'hepatitis_a_igm', 'label': 'Hepatitis A IgM (Anti-HAV IgM)', 'unit': 'S/CO', 'min': 0.0, 'max': 0.99, 'gruppe': 'Infektionen'},
-      {'key': 'hepatitis_b_c_igg', 'label': 'Hepatitis B c IgG (Anti-HBc)', 'unit': 'S/CO', 'min': 0.0, 'max': 0.99, 'gruppe': 'Infektionen'},
-      {'key': 'hepatitis_b_s_ak', 'label': 'Hepatitis B s Antikörper (Anti-HBs)', 'unit': 'mIU/ml', 'min': 20.0, 'max': 999.0, 'gruppe': 'Infektionen'},
-      {'key': 'hepatitis_b_s_ag', 'label': 'Hepatitis B s Antigen (HBsAg)', 'unit': 'S/CO', 'min': 0.0, 'max': 0.99, 'gruppe': 'Infektionen'},
-      {'key': 'hepatitis_c_ig', 'label': 'Hepatitis C Virus Ig (Anti-HCV)', 'unit': 'S/CO', 'min': 0.0, 'max': 0.99, 'gruppe': 'Infektionen'},
-      {'key': 'hiv_screening', 'label': 'HIV 1/2 AK Screening', 'unit': 'S/CO', 'min': 0.0, 'max': 0.99, 'gruppe': 'Infektionen'},
-    ];
-  }
+  // ⚠️ Die Liste steht seit 25.08.2026 EINMAL in
+  // lib/utils/blut_parameter_liste.dart und nicht mehr sechsmal hier.
+  // Mit 36 Eintraegen liessen sich sechs Kopien noch pflegen, mit 170
+  // nicht mehr — und eine Kopie, die einen Parameter nicht kennt,
+  // verliert dessen Wert beim Speichern still.
+  List<Map<String, dynamic>> get _blutParameter =>
+      blutParameterListe(_isMaennlich);
 
   // ============= GESUNDHEIT DATA (separate from Behörde) =============
 
