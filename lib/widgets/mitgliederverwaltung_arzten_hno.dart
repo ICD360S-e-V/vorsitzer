@@ -41,6 +41,7 @@ import 'faltbare_kopfleiste.dart';
 import 'feld_reihe.dart';
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
+import 'blutwerte_uebernahme.dart';
 
 class MitgliederverwaltungArztenHno extends StatefulWidget {
   final User user;
@@ -2058,7 +2059,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     // Content
                     Expanded(
                       child: currentTab == 0
-                          ? _buildWerteEingabeTab(controllers, qualitativWerte, dokumentName, dokumentPath, setD, (name, path) {
+                          ? _buildWerteEingabeTab(type, analyseId, controllers, qualitativWerte, dokumentName, dokumentPath, setD, (name, path) {
                               setD(() { dokumentName = name; dokumentPath = path; });
                               doSave(setD);
                             }, () => doSave(setD))
@@ -2141,6 +2142,8 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
 
   // ── Tab 1: Werte eingeben ──
   Widget _buildWerteEingabeTab(
+    String type,
+    String analyseId,
     Map<String, TextEditingController> controllers,
     Map<String, String> qualitativWerte,
     String dokumentName,
@@ -2151,6 +2154,27 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
   ) {
     String? lastGruppe;
     final rows = <Widget>[];
+
+    // Werte aus dem hochgeladenen Befund lesen. Die Logik steht EINMAL in
+    // blutwerte_uebernahme.dart — dieser Dialog liegt in sechs fast gleichen
+    // Kopien, und eine Regel, die man sechsmal pflegen muss, driftet.
+    rows.add(BlutwerteUebernahmeKnopf(
+      apiService: widget.apiService,
+      userId: widget.user.id,
+      gesundheitType: type,
+      analyseId: analyseId,
+      aktuelleWerte: () => {
+        for (final e in controllers.entries) e.key: e.value.text,
+        ...qualitativWerte,
+      },
+      onUebernehmen: (numerisch, qualitativ) {
+        setD(() {
+          numerisch.forEach((k, v) => controllers[k]?.text = v);
+          qualitativWerte.addAll(qualitativ);
+        });
+        onAutoSave();
+      },
+    ));
 
     // Dokument upload section
     rows.add(Container(
