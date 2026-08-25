@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 import 'notification_service.dart';
@@ -174,8 +175,17 @@ class ChatService {
   ChatService._internal();
 
   /// Connect to WebSocket server and authenticate
-  Future<bool> connect(String mitgliedernummer, {String? userName}) async {
+  ///
+  /// [erneuterVersuch] setzt allein die Wiederverbindung. Ein Aufruf von
+  /// aussen — Anmeldung, geoeffneter Chat-Dialog — heisst „jemand will JETZT
+  /// verbunden sein" und stellt den Zaehler zurueck. Ohne das bliebe er nach
+  /// zehn misslungenen Versuchen bei zehn stehen: `_shouldReconnect` wird hier
+  /// zwar wieder wahr, aber die naechste Stoerung gaebe sofort wieder auf, und
+  /// der Chat bliebe bis zum Neustart der Anwendung offline.
+  Future<bool> connect(String mitgliedernummer,
+      {String? userName, bool erneuterVersuch = false}) async {
     _log.info('WebSocket connect($mitgliedernummer) called', tag: 'WS');
+    if (!erneuterVersuch) _reconnectAttempts = 0;
 
     // Store credentials for auto-reconnect
     _storedMitgliedernummer = mitgliedernummer;
@@ -194,7 +204,7 @@ class ChatService {
     }
 
     try {
-      _log.info('Connecting to $wsUrl...', tag: 'WS');
+      _log.info('Connecting to ${testWsUrl ?? wsUrl}...', tag: 'WS');
 
       // Dieselben Vertrauensanker wie bei den REST-Aufrufen.
       //
@@ -232,7 +242,7 @@ class ChatService {
       _wsClient = HttpClientFactory.createPinnedWebSocketClient();
       // ignore: close_sinks - managed by IOWebSocketChannel
       final webSocket = await WebSocket.connect(
-        wsUrl,
+        testWsUrl ?? wsUrl,
         customClient: _wsClient,
       );
       // Keepalive: ping every 20s. The signaling channel goes completely idle
@@ -296,15 +306,70 @@ class ChatService {
         },
       );
       _log.info('Connect result: $result', tag: 'WS');
+      // ⚠️ `false` heisst hier: der Draht steht, die Anmeldung darauf nicht —
+      // `auth_error` oder die zehn Sekunden Wartezeit. Beides liess bisher
+      // einen offenen, unangemeldeten Socket zurueck und stiess NICHTS an:
+      // `onDone` und `onError` schweigen, weil niemand die Verbindung geschlossen
+      // hat. Der Kopf des Chats blieb dann auf „Offline" stehen, bis jemand den
+      // Dialog neu oeffnete — und mit ihm verschwanden Anruf- und Videoknopf,
+      // die an derselben Fahne haengen.
+      if (!result) {
+        _verbindungAufraeumen();
+        _scheduleReconnect();
+      }
       return result;
     } catch (e) {
       _log.error('Connect failed: $e', tag: 'WS');
       _errorController.add('Failed to connect: $e');
+      // ⚠️ Derselbe blinde Fleck eine Stufe frueher: kommt der Aufstieg gar
+      // nicht zustande, gab es bis heute keinen zweiten Versuch. Genau so lag
+      // der Live-Chat vom 22.08. bis 25.08.2026 — jeder Versuch nach 15 s tot,
+      // und danach wartete niemand mehr auf etwas.
+      _verbindungAufraeumen();
+      _scheduleReconnect();
       return false;
     }
   }
 
+  /// Raeumt einen misslungenen Versuch weg, ohne die Wiederverbindung abzusagen.
+  ///
+  /// ⚠️ Erst das Abbestellen, dann das Schliessen. Andersherum liefe `onDone`
+  /// noch durch und stiesse eine zweite Wiederverbindung an — der Zaehler
+  /// verbraeuchte zwei seiner zehn Versuche fuer eine einzige Stoerung.
+  ///
+  /// Das ist nicht [disconnect]: dort will der Mensch weg und `_shouldReconnect`
+  /// faellt. Hier will er gerade verbunden sein, es ging nur nicht.
+  void _verbindungAufraeumen() {
+    _subscription?.cancel();
+    _subscription = null;
+    _channel?.sink.close();
+    _channel = null;
+    _isConnected = false;
+  }
+
   /// Disconnect from WebSocket server
+  /// Nur fuer Tests: die Adresse, gegen die der Handschlag laeuft.
+  ///
+  /// ⚠️ Existiert, damit sich der Weg nach einem misslungenen Versuch
+  /// ueberhaupt pruefen laesst. Gegen [wsUrl] ginge das nur ueber das Netz und
+  /// gegen den Produktivserver — ein Test, der ohne Leitung rot wird, sagt am
+  /// Ende gar nichts. Dieselbe Tuer wie `ApiService.testClient`.
+  @visibleForTesting
+  static String? testWsUrl;
+
+  /// Nur fuer Tests: wartet gerade ein Wiederverbindungsversuch?
+  @visibleForTesting
+  bool get wiederverbindungWartet => _reconnectTimer?.isActive ?? false;
+
+  /// Nur fuer Tests: wie viele Versuche der Zaehler bereits verbucht hat.
+  @visibleForTesting
+  int get versucheBisher => _reconnectAttempts;
+
+  /// Der naechste Anlauf soll sich zuerst ein frisches Token holen.
+  ///
+  /// Wird allein von `auth_error` gesetzt und beim Verbrauch wieder geloescht.
+  bool _tokenErneuern = false;
+
   /// Der Client des laufenden Handshakes.
   ///
   /// ⚠️ Wird NICHT gleich nach dem Verbinden geschlossen: den Aufstieg auf
@@ -333,6 +398,15 @@ class ChatService {
   void _scheduleReconnect() {
     if (!_shouldReconnect) {
       _log.info('Auto-reconnect disabled, skipping', tag: 'WS-RECONNECT');
+      return;
+    }
+
+    // ⚠️ Ein gerissener Socket meldet sich ZWEIMAL: erst `onError`, dann
+    // `onDone`. Ohne diese Sperre kostet eine einzige Stoerung zwei der zehn
+    // Versuche, und der zweite Anlauf verschoebe ausserdem den ersten nach
+    // hinten. Wartet schon einer, ist alles Noetige getan.
+    if (_reconnectTimer?.isActive ?? false) {
+      _log.debug('Reconnect already pending, skipping', tag: 'WS-RECONNECT');
       return;
     }
 
@@ -368,13 +442,19 @@ class ChatService {
     _log.info('Attempting reconnect (attempt $_reconnectAttempts)...', tag: 'WS-RECONNECT');
 
     // Clean up old connection
-    _subscription?.cancel();
-    _channel?.sink.close();
-    _channel = null;
-    _isConnected = false;
+    _verbindungAufraeumen();
+
+    // Nur nach einer abgelehnten Anmeldung, nicht bei jedem Netzhaenger: ein
+    // Abruf ueber dieselbe gestoerte Leitung kostet sonst bloss Zeit.
+    if (_tokenErneuern) {
+      _tokenErneuern = false;
+      final frisch = await ApiService().ensureFreshToken();
+      _log.info('Token vor Wiederverbindung erneuert: $frisch', tag: 'WS-RECONNECT');
+    }
 
     // Attempt to reconnect
-    final success = await connect(_storedMitgliedernummer!, userName: _storedUserName);
+    final success = await connect(_storedMitgliedernummer!,
+        userName: _storedUserName, erneuterVersuch: true);
 
     if (success) {
       _log.info('Reconnection successful!', tag: 'WS-RECONNECT');
@@ -588,6 +668,12 @@ class ChatService {
 
         case 'auth_error':
           _isConnected = false;
+          // Der Server nimmt seit dem 22.07.2026 nur ein gueltiges
+          // Zugangs-Token an, und das laeuft nach einer Stunde ab. Die
+          // haeufigste Ablehnung ist also schlicht ein zu altes Token — mit
+          // demselben noch zehnmal anzuklopfen kann nur wieder scheitern.
+          // Deshalb wird vor dem naechsten Anlauf eines geholt.
+          _tokenErneuern = true;
           _errorController.add(json['error'] ?? 'Authentication failed');
           authCompleter?.complete(false);
           break;
