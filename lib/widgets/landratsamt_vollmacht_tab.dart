@@ -243,13 +243,15 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
     if (r['success'] == true) await _laden0();
   }
 
-  Future<void> _pdfOeffnen(Map<String, dynamic> vm) async {
+  Future<void> _pdfOeffnen(Map<String, dynamic> vm, {bool uebersetzung = false}) async {
     final id = vm['id'] as int;
-    final r = await widget.apiService.downloadVollmachtPdf(id);
+    final r = await widget.apiService
+        .downloadVollmachtPdf(id, type: uebersetzung ? 'translation' : 'pdf');
     if (!mounted) return;
     if (r.statusCode == 200 && r.bodyBytes.isNotEmpty) {
-      FileViewerDialog.showFromBytes(
-          context, r.bodyBytes, (vm['pdf_filename'] ?? 'vollmacht_$id.pdf').toString());
+      FileViewerDialog.showFromBytes(context, r.bodyBytes,
+          ((uebersetzung ? vm['pdf_translation_filename'] : vm['pdf_filename'])
+              ?? 'vollmacht_$id.pdf').toString());
     } else {
       _sagen('Fehler (${r.statusCode})', Colors.red);
     }
@@ -552,13 +554,22 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
             ),
           ]),
           const Divider(height: 16),
-          Row(children: [
+          Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
             OutlinedButton.icon(
               icon: const Icon(Icons.open_in_new, size: 14),
-              label: const Text('Öffnen', style: TextStyle(fontSize: 11)),
+              label: const Text('Öffnen (DE)', style: TextStyle(fontSize: 11)),
               onPressed: () => _pdfOeffnen(vm),
             ),
-            const Spacer(),
+            // Das Leseexemplar in der Sprache des Mitglieds — es entsteht nur,
+            // wenn dessen Sprache eine der sechs übersetzten ist.
+            if ((vm['pdf_translation_filename'] ?? '').toString().isNotEmpty)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.translate, size: 14),
+                label: Text(
+                  'Leseexemplar (${(vm['translation_language'] ?? '').toString().toUpperCase()})',
+                  style: const TextStyle(fontSize: 11)),
+                onPressed: () => _pdfOeffnen(vm, uebersetzung: true),
+              ),
             if (status != 'revoked')
               TextButton.icon(
                 icon: const Icon(Icons.block, size: 14, color: Colors.red),
@@ -686,12 +697,13 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
 
   /// Das Blatt in das Postfach DES MITGLIEDS.
   ///
-  /// ⚠️ Es geht die DEUTSCHE Fassung, und der Dialog sagt das. Für die
-  /// Landratsamt-Vollmacht gibt es (noch) kein Leseexemplar in der Sprache des
-  /// Mitglieds: die vorhandenen Übersetzungsbausteine tragen die Sätze des
-  /// SGB II und III und würden hier ein Blatt erzeugen, das vom Jobcenter
-  /// spricht, während das Original von § 14 VwVfG spricht. Ein falsches
-  /// Leseexemplar ist schlimmer als keines.
+  /// ⚠️ Es geht das LESEEXEMPLAR in der Sprache des Mitglieds, wenn es eines
+  /// gibt — es ist sein Recht zu wissen, was er unterschreibt. Unterschrieben
+  /// und beim Landratsamt eingereicht wird weiter allein die deutsche Fassung;
+  /// das steht auch auf jeder Seite des Leseexemplars.
+  ///
+  /// ⚠️ Ohne den Typ `translation` ginge stillschweigend das deutsche Blatt
+  /// hinaus, während der Dialog eine Übersetzung angekündigt hat.
   Future<void> _inDenChat(Map<String, dynamic> vm) async {
     final id = vm['id'] as int;
     final nummer = widget.memberMitgliedernummer.trim();
@@ -699,12 +711,20 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
       _sagen('Empfänger nicht ermittelbar', Colors.red);
       return;
     }
+    final sprache = (vm['translation_language'] ?? '').toString().trim();
+    final uebersetzt = sprache.isNotEmpty
+        && (vm['pdf_translation_filename'] ?? '').toString().trim().isNotEmpty;
     final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
       title: const Text('In den Chat senden?'),
       content: Text(
-        'Die deutsche Fassung geht an $nummer.\n\n'
-        'Ein Leseexemplar in der Sprache des Mitglieds gibt es für diese '
-        'Vollmacht nicht. Der Verein erläutert den Inhalt mündlich.',
+        uebersetzt
+            ? 'Das Leseexemplar (${sprache.toUpperCase()}) geht an $nummer.\n\n'
+              'Unterschrieben und beim Landratsamt eingereicht wird weiter '
+              'allein die deutsche Fassung — das steht auch auf jeder Seite '
+              'des Leseexemplars.'
+            : 'Die deutsche Fassung geht an $nummer.\n\n'
+              'Ein Leseexemplar in der Sprache des Mitglieds gibt es für diese '
+              'Vollmacht nicht. Der Verein erläutert den Inhalt mündlich.',
         style: const TextStyle(fontSize: 13)),
       actions: [
         TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
@@ -718,7 +738,8 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
     File? temp;
     setState(() => _beschaeftigt = id);
     try {
-      final r = await widget.apiService.downloadVollmachtPdf(id);
+      final r = await widget.apiService
+          .downloadVollmachtPdf(id, type: uebersetzt ? 'translation' : 'pdf');
       if (!mounted) return;
       if (r.statusCode != 200 || r.bodyBytes.isEmpty) {
         _sagen('Fehler (${r.statusCode})', Colors.red); return;
@@ -729,11 +750,15 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
           ?? int.tryParse('${(g['data'] as Map?)?['conversation_id'] ?? ''}') ?? 0;
       if (cid <= 0) { _sagen('Kein Gespräch mit $nummer gefunden', Colors.red); return; }
 
-      temp = File('${(await getTemporaryDirectory()).path}/vollmacht_$id.pdf');
+      temp = File('${(await getTemporaryDirectory()).path}/'
+          'vollmacht_$id${uebersetzt ? '_$sprache' : ''}.pdf');
       await temp.writeAsBytes(r.bodyBytes, flush: true);
       final res = await widget.apiService.uploadChatAttachments(
         conversationId: cid, mitgliedernummer: widget.adminMitgliedernummer,
-        files: [temp], message: 'Vollmacht — Landratsamt');
+        files: [temp],
+        message: uebersetzt
+            ? 'Vollmacht (Leseexemplar) — Landratsamt'
+            : 'Vollmacht — Landratsamt');
       if (!mounted) return;
       final erfolg = res['success'] == true;
       // ⚠️ Erst NACH bestätigtem Empfang protokollieren. Eine Zeile, die eine
@@ -741,7 +766,9 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
       // jemand verlässt.
       if (erfolg) {
         await widget.apiService.landratsamtVollmachtVersandEintragen(
-          vollmachtId: id, empfaenger: nummer, weg: 'chat');
+          vollmachtId: id, empfaenger: nummer, weg: 'chat',
+          fassung: uebersetzt ? 'uebersetzung' : 'original',
+          sprache: uebersetzt ? sprache : 'de');
       }
       if (!mounted) return;
       _sagen(erfolg ? 'An $nummer gesendet' : 'Konnte nicht gesendet werden',
