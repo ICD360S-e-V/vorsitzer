@@ -121,7 +121,17 @@ class _DocumentCropScreenState extends State<DocumentCropScreen> {
     final bytes = _img;
     if (bytes == null) return;
     if (!crop) {
-      Navigator.of(context).pop(bytes); // upload the upright photo as-is
+      // ⚠️ Auch ohne Zuschnitt begrenzen. Sonst landet hier die volle
+      // Sensorauflösung — bei ResolutionPreset.max zweistellige Megapixel —
+      // im verschlüsselten Speicher und später in der Texterkennung, wo sie
+      // gemessen SCHLECHTER liest als 150 dpi.
+      setState(() {
+        _busy = true;
+        _status = 'Verkleinern …';
+      });
+      final klein = await DocumentScanner.begrenzen(bytes);
+      if (!mounted) return;
+      Navigator.of(context).pop(klein);
       return;
     }
     setState(() {
