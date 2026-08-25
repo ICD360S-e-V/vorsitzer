@@ -15102,6 +15102,53 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
+  // ── Anhänge der Termin-Korrespondenz (Krankenhaus) ─────────────────────
+  //
+  // Die Dateien liegen verschlüsselt IN der Datenbank, nicht unter uploads/.
+  // Für den Aufrufer ändert das nichts; es steht hier, damit niemand sie
+  // später „aufräumt", weil er sie im Dateibaum nicht findet.
+
+  /// Hängt eine Datei an eine Korrespondenz-Zeile eines Termins.
+  ///
+  /// [korrId] ist die id aus `termin['korrespondenz'][i]['id']` — die gibt es
+  /// erst, nachdem die Zeile gespeichert wurde.
+  /// [quelle] hält fest, ob die Datei vom Gerät oder aus dem Cloud kam.
+  Future<Map<String, dynamic>> uploadKrankenhausTerminKorrAnhang({
+    required int korrId,
+    required Uint8List bytes,
+    required String filename,
+    String quelle = 'geraet',
+  }) async {
+    final req = http.MultipartRequest(
+        'POST', Uri.parse('$baseUrl/admin/krankenhaus_termin_korr_anhang_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['korr_id'] = korrId.toString();
+    req.fields['quelle'] = quelle;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    // 90 s statt der üblichen 20: bis zu 25 MB über genau die Mobilfunkstrecke,
+    // die wir an anderer Stelle als langsam beanstanden.
+    final stream = await req.send().timeout(const Duration(seconds: 90));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<http.Response> downloadKrankenhausTerminKorrAnhang(int anhangId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/krankenhaus_termin_korr_anhang.php?anhang_id=$anhangId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 90));
+  }
+
+  /// Aktionen `list` (korr_id) und `delete` (anhang_id).
+  Future<Map<String, dynamic>> krankenhausTerminKorrAnhangAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/krankenhaus_termin_korr_anhang_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
   Future<Map<String, dynamic>> getKrankenhausMedikamente(int userId, String arztType) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/krankenhaus_medikamente_list.php'),
