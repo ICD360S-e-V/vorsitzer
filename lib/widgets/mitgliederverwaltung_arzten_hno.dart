@@ -43,6 +43,7 @@ import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
 import 'blutwerte_uebernahme.dart';
 import '../utils/blut_parameter_liste.dart';
+import 'blutwerte_suche.dart';
 
 class MitgliederverwaltungArztenHno extends StatefulWidget {
   final User user;
@@ -1764,6 +1765,10 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     final terminUhrzeitController = TextEditingController(text: h['termin_uhrzeit']?.toString() ?? '');
     final terminNotizController = TextEditingController(text: h['termin_notiz']?.toString() ?? '');
     bool terminTicketErstellt = h['termin_ticket_erstellt'] == true;
+    // ⚠️ Im Dialog-Zustand, nicht im Aufbau der Liste: sonst verlöre das
+    // Suchfeld bei jedem Tastendruck seinen Inhalt.
+    final blutSucheC = TextEditingController();
+    String blutSuche = '';
     List<Map<String, dynamic>> uploadedDocs = [];
     bool docsLoading = true;
 
@@ -2045,7 +2050,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     // Content
                     Expanded(
                       child: currentTab == 0
-                          ? _buildWerteEingabeTab(type, analyseId, controllers, qualitativWerte, dokumentName, dokumentPath, setD, (name, path) {
+                          ? _buildWerteEingabeTab(type, analyseId, controllers, blutSucheC, blutSuche, (s) => setD(() => blutSuche = s), qualitativWerte, dokumentName, dokumentPath, setD, (name, path) {
                               setD(() { dokumentName = name; dokumentPath = path; });
                               doSave(setD);
                             }, () => doSave(setD))
@@ -2131,6 +2136,9 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     String type,
     String analyseId,
     Map<String, TextEditingController> controllers,
+    TextEditingController sucheController,
+    String suche,
+    ValueChanged<String> onSuche,
     Map<String, String> qualitativWerte,
     String dokumentName,
     String dokumentPath,
@@ -2243,8 +2251,24 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
       ),
     ));
 
+    // ⚠️ Suchfeld direkt über der Liste. Mit 170 Feldern ist Scrollen keine
+    // Bedienung mehr; man tippt „TSH" und will das Feld sehen.
+    final alle = _blutParameter;
+    final sichtbar = blutParameterFiltern(alle, suche);
+    final gefuellt = alle.where((p) => p['qualitativ'] == true
+        ? (qualitativWerte[p['key'] as String] ?? '').isNotEmpty
+        : (controllers[p['key'] as String]?.text.trim() ?? '').isNotEmpty).length;
+    rows.add(BlutwerteSuchfeld(
+      controller: sucheController,
+      suche: suche,
+      onSuche: onSuche,
+      treffer: sichtbar.length,
+      gesamt: alle.length,
+      ausgefuellt: gefuellt,
+    ));
+
     // Parameter groups
-    for (final p in _blutParameter) {
+    for (final p in sichtbar) {
       final gruppe = p['gruppe'] as String;
       final key = p['key'] as String;
       if (gruppe != lastGruppe) {
