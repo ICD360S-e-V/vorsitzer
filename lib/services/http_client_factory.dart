@@ -125,7 +125,7 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
     client.connectionFactory = (uri, proxyHost, proxyPort) {
       final verbindung = SecureSocket.connect(
         uri.host,
-        uri.port,
+        zielPort(uri),
         context: securityContext,
         timeout: connectionTimeout,
       ).then<Socket>((socket) {
@@ -145,6 +145,30 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 
     debugPrint('[SSL] Pinning aktiv: Anker ISRG X1+X2 und ${spkiPins.length} Schlüsselpins');
     return client;
+  }
+
+  /// Der Anschluss, zu dem wirklich verbunden wird.
+  ///
+  /// 🔴 `uri.port` allein reicht NICHT, und das hat den Live-Chat vom
+  /// 22.08.2026 bis heute lahmgelegt. `Uri` kennt Standardanschlüsse nur für
+  /// `http` und `https`; für `wss` gibt der Aufrufer **0** zurück. Und
+  /// `WebSocket.connect` schreibt die Adresse vor dem Aufstieg um — Schema auf
+  /// `https`, aber `port: uri.port` wörtlich übernommen. Beim `HttpClient`
+  /// landet damit `https://icd360sev.icd360s.de:0/wss/`.
+  ///
+  /// Der eingebaute Weg fängt das ab, unsere Verbindungsfabrik las die 0
+  /// wörtlich: `SecureSocket.connect(host, 0)` hängt, bis die 15 Sekunden
+  /// [connectionTimeout] ablaufen, und meldet
+  /// `SocketException: Connection timed out … port: 0`.
+  ///
+  /// ⚠️ Die REST-Aufrufe blieben heil — `https://…` liefert 443 aus dem
+  /// Aufrufer. Nur der Kanal ohne eigenen Anschluss in der Adresse fiel um,
+  /// also genau der eine, den kein Test anfasst: im Debug-Build gibt
+  /// [createPinnedWebSocketClient] `null` zurück, dort läuft diese Fabrik
+  /// überhaupt nicht mit.
+  static int zielPort(Uri uri) {
+    if (uri.port != 0) return uri.port;
+    return uri.isScheme('http') || uri.isScheme('ws') ? 80 : 443;
   }
 
   /// Client für den WebSocket-Handshake — `null` im Debug-Build.
