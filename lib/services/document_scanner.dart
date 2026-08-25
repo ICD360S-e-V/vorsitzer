@@ -24,6 +24,36 @@ class PreparedScan {
 ///
 /// The live preview scanner shares [findDocumentQuad] with this still path, so
 /// "the overlay locked on" is real evidence that the still will detect too.
+/// Längste Kante eines fertigen Scans, in Pixeln.
+///
+/// A4 hat 297 mm; 1754 px darauf sind rund **150 dpi**. Das ist gemessen, nicht
+/// gewählt: dieselbe Laborzeile durch dieselbe OCR-Kette, nur die Auflösung
+/// verändert —
+///
+///     ~58 dpi    2 von 22 Werten richtig, 1 falsch
+///     ~73 dpi   12                        3 falsch
+///     ~94 dpi   17                        1 falsch
+///   121–400 dpi 21                        0 falsch   ← Plateau
+///     ~600 dpi  19                        1 falsch
+///     ~750 dpi  18                        1 falsch
+///
+/// ⚠️ Beide Enden sind schlecht, und das untere ist das schlimmere: unter
+/// ~120 dpi verliert die Erkennung nicht nur Werte, sie **erfindet** welche
+/// (bei 73 dpi drei falsche, darunter Cholesterin 39 statt 201). 150 dpi
+/// liegen im Plateau, aber nah an dessen Rand — deshalb wird hier die
+/// LANGE Kante begrenzt und nie die kurze: bei einem Hochformat-A4 ist die
+/// lange Kante die, an der 150 dpi hängen.
+///
+/// ⚠️ Es wird nur VERKLEINERT, nie vergrößert. Ein kleiner Beleg bleibt so
+/// groß, wie er fotografiert wurde; ihn auf A4-Maß aufzublasen erfände
+/// Bildpunkte, die es nie gab.
+///
+/// ⚠️ Bewusste Abwägung: der Scan ist meist die einzige Kopie, das Papier
+/// wandert ins Ordner. 150 dpi sind zum Lesen und für die Erkennung genug,
+/// aber sehr kleines Kleingedrucktes und eine spätere Nachbearbeitung
+/// verlieren dabei. Wer das ändern will, ändert diese eine Zahl.
+const int kScanLangeSeitePx = 1754;
+
 class DocumentScanner {
   /// Bake the JPEG's EXIF orientation into pixels (so the Flutter preview and
   /// OpenCV agree on coordinates), then auto-detect the document corners.
@@ -34,6 +64,31 @@ class DocumentScanner {
   /// original on any failure).
   static Future<Uint8List> deskew(Uint8List jpg, List<double> corners8) =>
       compute(_warp, _DeskewArgs(jpg, corners8));
+
+  /// Begrenzt ein Bild auf [kScanLangeSeitePx], ohne es zu beschneiden.
+  ///
+  /// Für den Weg „ohne Zuschnitt hochladen": dort läuft [deskew] nicht, und
+  /// ohne diese Begrenzung landet die volle Sensorauflösung im Cloud-Speicher
+  /// und später in der Texterkennung — beides unnötig, und Letzteres
+  /// nachweislich schlechter.
+  static Future<Uint8List> begrenzen(Uint8List jpg) => compute(_begrenzen, jpg);
+}
+
+Uint8List _begrenzen(Uint8List jpg) {
+  try {
+    final bild = img.decodeImage(jpg);
+    if (bild == null) return jpg;
+    final lang = bild.width > bild.height ? bild.width : bild.height;
+    if (lang <= kScanLangeSeitePx) return jpg;   // nie vergrößern
+    final f = kScanLangeSeitePx / lang;
+    final klein = img.copyResize(bild,
+        width: (bild.width * f).round().clamp(1, 100000),
+        height: (bild.height * f).round().clamp(1, 100000),
+        interpolation: img.Interpolation.average);
+    return Uint8List.fromList(img.encodeJpg(klein, quality: 92));
+  } catch (_) {
+    return jpg;   // lieber zu groß als gar nicht
+  }
 }
 
 PreparedScan _prepare(Uint8List jpg) {
@@ -291,8 +346,19 @@ Uint8List _warp(_DeskewArgs args) {
     final bl = cv.Point2f(o[6], o[7]);
     double dist(cv.Point2f a, cv.Point2f b) =>
         math.sqrt(math.pow(a.x - b.x, 2) + math.pow(a.y - b.y, 2)).toDouble();
-    final wOut = math.max(dist(tl, tr), dist(bl, br)).round().clamp(1, 10000);
-    final hOut = math.max(dist(tl, bl), dist(tr, br)).round().clamp(1, 10000);
+    var wOut = math.max(dist(tl, tr), dist(bl, br)).round().clamp(1, 10000);
+    var hOut = math.max(dist(tl, bl), dist(tr, br)).round().clamp(1, 10000);
+    // ⚠️ Hier, nicht in der Kamera: erst nach dem Entzerren steht fest, wie
+    // viele Bildpunkte auf das BLATT entfallen. Eine Auflösung an der Kamera
+    // festzuzurren hieße raten, wie viel vom Bild das Blatt füllt — bei
+    // halbem Bildanteil wäre eine 150-dpi-Aufnahme am Ende bei 75 dpi, und
+    // dort erfindet die Erkennung Werte.
+    final lang = math.max(wOut, hOut);
+    if (lang > kScanLangeSeitePx) {
+      final f = kScanLangeSeitePx / lang;
+      wOut = (wOut * f).round().clamp(1, 10000);
+      hOut = (hOut * f).round().clamp(1, 10000);
+    }
     srcV = cv.VecPoint2f.fromList([tl, tr, br, bl]);
     dstV = cv.VecPoint2f.fromList([
       cv.Point2f(0, 0),
