@@ -223,6 +223,24 @@ SipgateTelefonLage sipgateTelefonLage({
   return SipgateTelefonLage.bereit;
 }
 
+/// Ist diese Verlaufszeile ein verpasster Anruf, um den sich noch niemand
+/// gekuemmert hat?
+///
+/// Entscheidet zweierlei im Verlauf: ob die Zeile hervorgehoben wird und ob
+/// das Zurueckrufen den Anruf aus dem Abzeichen nimmt. Beide Male dieselbe
+/// Regel — als Funktion, weil sie sonst an zwei Stellen steht und beim
+/// naechsten Anfassen auseinanderlaeuft.
+///
+/// ⚠️ `abgelehnt` gehoert NICHT dazu: einen Anruf wegzudruecken ist eine
+/// Entscheidung, kein Versaeumnis. `klingelt` dagegen schon — drei Zeilen
+/// stehen dauerhaft darauf, weil die App mitten im Laeuten abgeraeumt wurde.
+bool sipgateVerpasstOffen(Map<String, dynamic> zeile) {
+  if (zeile['richtung'] != 'ein') return false;
+  if (zeile['gesehen'] == true) return false;
+  final status = '${zeile['status']}';
+  return status == 'verpasst' || status == 'klingelt';
+}
+
 /// Der Text am Telefonsymbol in der Kopfleiste.
 ///
 /// ⚠️ HIER DARF NICHTS UEBER EIN GESPRAECH STEHEN, UND DAS IST DER ZWECK
