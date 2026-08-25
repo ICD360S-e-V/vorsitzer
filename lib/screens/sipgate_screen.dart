@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../services/api_service.dart';
 import '../services/anruf_badge_service.dart';
+import '../services/phone_call_service.dart';
 import '../services/sipgate_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/sipgate_anruf_overlay.dart';
@@ -1237,15 +1238,61 @@ class _SipgateScreenState extends State<SipgateScreen> {
     }
   }
 
+  /// Ruft die Nummer aus dem Verlauf zurück — und zwar sofort.
+  ///
+  /// ⚠️ VORHER FÜLLTE DIESER KNOPF NUR DAS EINGABEFELD.
+  /// Man musste danach unter der Tastatur ein zweites Mal auf „Anrufen"
+  /// drücken. Auf dem Telefon steht die Tastatur ausserdem weit unterhalb des
+  /// Verlaufs — der Knopf sah aus, als täte er nichts.
+  ///
+  /// ⚠️ Auf dem RECHNER tat er tatsächlich nichts. Der Verlauf wird dort
+  /// angezeigt, das Wählfeld aber nicht (`if (_dienst.plattformFaehig)`) —
+  /// der Knopf schrieb also in ein Feld, das gar nicht auf dem Schirm steht.
+  /// Ein Druck, sichtbar keine Wirkung, kein Fehler.
+  ///
+  /// ⚠️ Und er hakte den verpassten Anruf als erledigt ab, OHNE dass jemand
+  /// angerufen hatte. Wer danach nicht auch noch „Anrufen" drückte, hatte den
+  /// Anruf aus dem Abzeichen genommen und nie zurückgerufen — genau das, was
+  /// das Abzeichen verhindern soll. Abgehakt wird deshalb erst, wenn die Wahl
+  /// wirklich angelaufen ist.
+  ///
+  /// Zwei Wege, weil es zwei Geräte sind: auf dem Tablet telefoniert die App
+  /// selbst über sipgate (derselbe Weg wie der Knopf unter der Tastatur), vom
+  /// Rechner aus geht ein Fernwahl-Auftrag an das Tablet — dasselbe, was ein
+  /// Klick auf eine Rufnummer in einer Behördenkarte tut.
+  Future<void> _zurueckrufen(Map<String, dynamic> a) async {
+    final nummer = '${a['nummer'] ?? ''}';
+    if (nummer.isEmpty) return;
+    final name = '${a['bezeichnung'] ?? ''}';
+    final offen = sipgateVerpasstOffen(a);
+
+    if (!_dienst.plattformFaehig) {
+      await PhoneCallService.call(context, nummer,
+          label: name.isEmpty ? null : name);
+      if (offen) await _abhaken(a);
+      return;
+    }
+
+    final meldung =
+        await _dienst.anrufen(nummer, bezeichnung: name.isEmpty ? null : name);
+    if (!mounted) return;
+    if (meldung != null) {
+      // Die Nummer nicht verlieren: sie steht jetzt im Feld, damit man es
+      // nach dem Grund („Erst muss das laufende Gespräch verbunden sein")
+      // noch einmal versuchen kann, ohne sie zu suchen.
+      setState(() => _nummer.text = nummer);
+      _melde(meldung, fehler: true);
+      return;
+    }
+    if (offen) await _abhaken(a);
+  }
+
   Widget _verlaufszeile(Map<String, dynamic> a) {
     final ein = a['richtung'] == 'ein';
     final status = '${a['status']}';
-    // Offen ist ein eingehender Anruf, der niemanden erreicht hat und den noch
-    // niemand abgehakt hat. `abgelehnt` gehoert nicht dazu: wegdruecken ist
-    // eine Entscheidung, kein Versaeumnis.
-    final offen = ein &&
-        a['gesehen'] != true &&
-        (status == 'verpasst' || status == 'klingelt');
+    // Dieselbe Regel wie beim Zurückrufen — einmal geschrieben, siehe
+    // [sipgateVerpasstOffen].
+    final offen = sipgateVerpasstOffen(a);
     final (farbe, symbol) = switch (status) {
       'beendet' => (Colors.green.shade600, ein ? Icons.call_received : Icons.call_made),
       'verbunden' => (Colors.green.shade600, Icons.call),
@@ -1318,15 +1365,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
           icon: const Icon(Icons.call, size: 18),
           tooltip: 'Zurückrufen',
           visualDensity: VisualDensity.compact,
-          onPressed: nummer.isEmpty
-              ? null
-              : () {
-                  _nummer.text = nummer;
-                  setState(() {});
-                  // Wer zurueckruft, hat sich gekuemmert — das ist genau der
-                  // Zweck des Abzeichens, also erlischt es hier von selbst.
-                  if (offen) _abhaken(a);
-                },
+          onPressed: nummer.isEmpty ? null : () => _zurueckrufen(a),
         ),
       ]),
     );
