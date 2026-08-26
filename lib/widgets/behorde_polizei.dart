@@ -31,6 +31,15 @@ class BehordePolizeiContent extends StatefulWidget {
 class _BehordePolizeiContentState extends State<BehordePolizeiContent> with SingleTickerProviderStateMixin {
   late final TabController _tabCtrl;
   List<Map<String, dynamic>> _dienststellen = [];
+
+  /// Treffer aus dem bundesweiten Katalog (polizei_datenbank, 3524 Zeilen).
+  ///
+  /// ⚠️ Die sieben Zeilen in [_dienststellen] bleiben daneben bestehen und
+  /// stehen VORNE: sie sind von Hand gepflegt und tragen Durchwahlen
+  /// (0731 188-3312), waehrend der amtliche Satz nur die Zentrale kennt
+  /// (0731 188-0). An ihnen haengt ausserdem user_polizei.dienststelle_id.
+  final Map<String, List<Map<String, dynamic>>> _katalogCache = {};
+  List<Map<String, dynamic>> _katalogTreffer = [];
   List<Map<String, dynamic>> _vorfaelle = [];
   Map<String, dynamic>? _polizeiData;
   bool _isLoading = true;
@@ -92,8 +101,34 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
     } catch (_) {}
   }
 
+  /// Fragt den Katalog und merkt sich die Antwort je Suchbegriff.
+  ///
+  /// Flutters [Autocomplete] verwirft von sich aus Antworten, deren Text
+  /// inzwischen veraltet ist - der Zwischenspeicher spart nur die
+  /// Wiederholung, wenn jemand ein Zeichen loescht und wieder tippt.
+  Future<List<Map<String, dynamic>>> _katalogSuchen(String q) async {
+    final schluessel = q.toLowerCase();
+    final gemerkt = _katalogCache[schluessel];
+    if (gemerkt != null) {
+      _katalogTreffer = gemerkt;
+      return gemerkt;
+    }
+    final r = await widget.apiService.suchePolizeiDatenbank(q: q, limit: 25);
+    final treffer = List<Map<String, dynamic>>.from(r['dienststellen'] as List);
+    if (_katalogCache.length > 40) _katalogCache.clear();
+    _katalogCache[schluessel] = treffer;
+    _katalogTreffer = treffer;
+    return treffer;
+  }
+
   Future<void> _saveDienststelle() async {
     final name = _zustaendigController.text.trim();
+    // ⚠️ Die id darf NUR aus [_dienststellen] kommen, nie aus dem Katalog.
+    // user_polizei.dienststelle_id zeigt auf polizei_dienststellen; eine id
+    // aus polizei_datenbank waere dort eine gueltige, aber voellig andere
+    // Zeile - eine Verknuepfung, die stimmt und trotzdem falsch ist. Wer aus
+    // dem Katalog waehlt, bekommt deshalb den Namen und keine id; das ist
+    // gewollt und kein vergessener Fall.
     final selected = _dienststellen.where((d) => d['name'] == name).toList();
     final dienststelleId = selected.isNotEmpty ? selected.first['id'] as int? : null;
 
@@ -826,10 +861,24 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
           const SizedBox(height: 6),
           Autocomplete<String>(
             initialValue: TextEditingValue(text: _zustaendigController.text),
-            optionsBuilder: (v) {
-              if (v.text.isEmpty) return _dienststellen.map((d) => d['name'] as String);
-              return _dienststellen.map((d) => d['name'] as String)
-                  .where((n) => n.toLowerCase().contains(v.text.toLowerCase()));
+            optionsBuilder: (v) async {
+              final q = v.text.trim();
+              if (q.isEmpty) return _dienststellen.map((d) => d['name'] as String);
+              final lokal = _dienststellen
+                  .map((d) => d['name'] as String)
+                  .where((n) => n.toLowerCase().contains(q.toLowerCase()));
+              // Erst ab zwei Zeichen den Server fragen - bei einem Buchstaben
+              // waeren es hunderte Treffer und eine Anfrage pro Tastendruck.
+              if (q.length < 2) return lokal;
+              final fern = await _katalogSuchen(q);
+              // Handgepflegte Zeilen zuerst, dann der Katalog ohne Doppelung.
+              final gesehen = lokal.map((n) => n.toLowerCase()).toSet();
+              return [
+                ...lokal,
+                ...fern
+                    .map((d) => d['name'] as String)
+                    .where((n) => gesehen.add(n.toLowerCase())),
+              ];
             },
             onSelected: (s) { _zustaendigController.text = s; setState(() {}); },
             fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
@@ -858,7 +907,16 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
       d = _polizeiData;
     } else {
       final selected = _dienststellen.where((ds) => ds['name'] == _zustaendigController.text).toList();
-      if (selected.isNotEmpty) d = selected.first;
+      if (selected.isNotEmpty) {
+        d = selected.first;
+      } else {
+        // ⚠️ Auch im Katalog nachsehen: sonst waehlt man eine der 3517 neuen
+        // Dienststellen aus und darunter bleibt es leer, als haette die
+        // Auswahl nicht funktioniert.
+        final ausKatalog = _katalogTreffer
+            .where((ds) => ds['name'] == _zustaendigController.text).toList();
+        if (ausKatalog.isNotEmpty) d = ausKatalog.first;
+      }
     }
     if (d == null) return [];
 
@@ -868,7 +926,11 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
         width: double.infinity, padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (d['adresse'] != null) _contactRow(Icons.location_on, '${d['adresse']}, ${d['plz']} ${d['ort']}'),
+          // Der handgepflegte Satz nennt das Feld 'adresse', der Katalog
+          // 'strasse'. Beide lesen, sonst faellt bei Katalogzeilen die
+          // Anschrift stillschweigend weg.
+          if (d['adresse'] != null || d['strasse'] != null)
+            _contactRow(Icons.location_on, '${d['adresse'] ?? d['strasse']}, ${d['plz']} ${d['ort']}'),
           if (d['telefon'] != null) _contactRow(Icons.phone, d['telefon']),
           if (d['fax'] != null) _contactRow(Icons.fax, d['fax']),
           if (d['email'] != null) _contactRow(Icons.email, d['email']),
