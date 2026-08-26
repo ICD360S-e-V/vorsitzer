@@ -28,12 +28,14 @@ class BlitzKarte extends StatefulWidget {
   /// kleine Karte am Rechner.
   final bool gross;
 
-  /// Meldet nach aussen, ob schon etwas ins Antwortfeld getippt wurde.
+  /// Wie viele weitere Absender warten noch.
   ///
-  /// ⚠️ Daran hängt eine Sicherung, keine Spielerei: das Hauptfenster darf die
-  /// Karte NICHT auf eine andere Unterhaltung umschalten, solange hier ein
-  /// halber Satz steht — sonst ginge die Antwort an die falsche Person.
-  final ValueNotifier<bool>? entwurfMelder;
+  /// ⚠️ Der Zähler ist die Antwort darauf, dass bei zwei gleichzeitigen
+  /// Absendern der zweite unsichtbar blieb. Die Karte wird bewusst NICHT
+  /// unter den Fingern umgeschaltet — sonst ginge eine halb geschriebene
+  /// Antwort an die falsche Person —, aber verschweigen darf sie den
+  /// Wartenden auch nicht.
+  final int wartend;
 
   const BlitzKarte({
     super.key,
@@ -42,7 +44,7 @@ class BlitzKarte extends StatefulWidget {
     required this.onSchliessen,
     this.onImChatOeffnen,
     this.gross = false,
-    this.entwurfMelder,
+    this.wartend = 0,
   });
 
   @override
@@ -56,25 +58,11 @@ class _BlitzKarteState extends State<BlitzKarte> {
   String? _fehler;
 
   @override
-  void initState() {
-    super.initState();
-    _eingabe.addListener(_entwurfMelden);
-  }
-
-  void _entwurfMelden() => widget.entwurfMelder?.value = hatEntwurf;
-
-  @override
   void dispose() {
-    _eingabe.removeListener(_entwurfMelden);
     _eingabe.dispose();
     _eingabeFokus.dispose();
     super.dispose();
   }
-
-  /// Wurde schon etwas getippt? Das Hauptfenster fragt das, bevor es die
-  /// Karte auf eine ANDERE Unterhaltung umschaltet — sonst ginge die halb
-  /// geschriebene Antwort an die falsche Person.
-  bool get hatEntwurf => _eingabe.text.trim().isNotEmpty;
 
   Future<void> _senden() async {
     final text = _eingabe.text.trim();
@@ -236,6 +224,7 @@ class _BlitzKarteState extends State<BlitzKarte> {
               ],
             ),
           ),
+          if (widget.wartend > 0) _warteMarke(gross),
           IconButton(
             tooltip: 'Weglegen (Esc)',
             icon: Icon(Icons.close, size: gross ? 26 : 16, color: F.textSchwach),
@@ -245,6 +234,23 @@ class _BlitzKarteState extends State<BlitzKarte> {
       ),
     );
   }
+
+  /// „noch 1" — wer nach dieser Karte an der Reihe ist.
+  Widget _warteMarke(bool gross) => Container(
+        padding: EdgeInsets.symmetric(horizontal: gross ? 10 : 7, vertical: gross ? 5 : 3),
+        decoration: BoxDecoration(
+          color: F.flaecheBetont,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          'noch ${widget.wartend}',
+          style: TextStyle(
+            fontSize: gross ? 13 : 10.5,
+            fontWeight: FontWeight.w600,
+            color: F.textSchwach,
+          ),
+        ),
+      );
 
   Widget _fehlerZeile(bool gross) => Container(
         width: double.infinity,

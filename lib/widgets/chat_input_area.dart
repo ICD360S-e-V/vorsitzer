@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/clipboard_import.dart';
 import 'chat_pending_attachments.dart';
+import 'eingabe_tasten.dart';
 import 'paste_image_detector.dart';
 import '../utils/app_farben.dart';
 
@@ -100,9 +101,18 @@ class ChatInputArea extends StatelessWidget {
             child: PasteImageDetector(
               enabled: onPasteImage != null,
               onPaste: onPasteImage ?? () {},
-              child: TextField(
+              child: EingabeTasten(
+                onSend: onSend,
+                child: TextField(
               controller: controller,
-              onSubmitted: (_) => onSend(),
+              // ⚠️ GENAU EIN Weg je Plattform, sonst geht die Nachricht doppelt
+              // raus: auf dem Rechner fängt [_EingabeTasten] die Eingabetaste
+              // ab, auf dem Telefon löst der Senden-Knopf der Bildschirm-
+              // tastatur `onSubmitted` aus. Beides gleichzeitig hiesse zwei
+              // Aufrufe für einen Tastendruck.
+              onSubmitted: Platform.isAndroid || Platform.isIOS
+                  ? (_) => onSend()
+                  : null,
               onTap: onFocus,
               onChanged: onChanged,
               contentInsertionConfiguration: onKeyboardContent == null
@@ -120,6 +130,7 @@ class ChatInputArea extends StatelessWidget {
                   horizontal: 16,
                   vertical: 12,
                 ),
+              ),
               ),
               ),
             ),

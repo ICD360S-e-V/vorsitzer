@@ -110,8 +110,8 @@ class BlitzRuf {
   /// Blitz-Fenster → Hauptfenster: „im Chat öffnen" gedrückt.
   static const String imChatOeffnen = 'blitz.im_chat';
 
-  /// Hauptfenster → Blitz-Fenster: steht dort schon ein angefangener Satz?
-  /// Siehe [BlitzKarte.entwurfMelder] — verhindert, dass eine Antwort an die
-  /// falsche Person geht.
-  static const String hatEntwurf = 'blitz.hat_entwurf';
+  /// Blitz-Fenster → Hauptfenster: erledigt, gib mir die nächste wartende
+  /// Nachricht (oder verstecke dich, wenn keine mehr da ist).
+  static const String weiter = 'blitz.weiter';
+
 }

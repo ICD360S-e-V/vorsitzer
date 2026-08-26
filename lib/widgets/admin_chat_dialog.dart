@@ -671,6 +671,24 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         });
         if (mounted) _scrollToBottom();
 
+        // ⚠️ Eine Nachricht, die eintrifft, WÄHREND ihr Verlauf offen vor
+        // einem liegt, ist gesehen — sonst blieb sie für immer auf
+        // „ungelesen": markiert wurde bisher nur beim Öffnen des Verlaufs,
+        // beim Tippen und beim Kanalwechsel. Traf sie danach ein, färbte sich
+        // der Zähler im Kopf rot, obwohl man geradewegs draufschaut, und
+        // nichts setzte ihn je zurück. (Gemeldet aus dem Betrieb: „im Header
+        // steht rot, dass Nachrichten ungelesen sind, dabei sind sie
+        // gelesen.")
+        //
+        // Nur der SICHTBARE Kanal. Beide auf einmal zu stempeln hiesse, den
+        // ungelesenen SMS-Zähler zu löschen, während man im App-Verlauf tippt
+        // — dieselbe Überlegung wie in [_markMessagesAsRead].
+        if (!isOwn && chatKanalVon({'channel': message.channel}) == _channel) {
+          _markReadDebounce?.cancel();
+          _markReadDebounce =
+              Timer(const Duration(milliseconds: 600), _markMessagesAsRead);
+        }
+
         // A member message may carry an auto-archived attachment (upload.php
         // saves it to the member's cloud synchronously). Refresh the cloud
         // badge / ☁✓ state so it reflects any new file.
