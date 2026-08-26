@@ -258,6 +258,31 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
               backgroundColor: F.h(Colors.deepOrange, 700), foregroundColor: Colors.white),
             onPressed: _stelleSpeichern,
           )),
+          // Von der zustaendigen Stelle aus direkt zum Vorfall. Der Weg ueber
+          // den zweiten Reiter bleibt daneben bestehen - aber wer gerade ein
+          // Schreiben dieser Stelle in der Hand haelt, ist hier und nicht dort.
+          if (_hatStelle) ...[
+            const SizedBox(height: 8),
+            SizedBox(width: double.infinity, child: OutlinedButton.icon(
+              key: const Key('bg_vorfall_von_stelle'),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Neuer Vorfall zu dieser Stelle'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: F.h(Colors.deepOrange, 700),
+                side: BorderSide(color: F.h(Colors.deepOrange, 300)),
+              ),
+              onPressed: () => _vorfallDialog(),
+            )),
+            if (_vorfaelle.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Center(child: TextButton(
+                  onPressed: () => _tabCtrl.animateTo(1),
+                  child: Text('${_vorfaelle.length} erfasste Vorf\u00E4lle ansehen',
+                      style: const TextStyle(fontSize: 12)),
+                )),
+              ),
+          ],
         ]),
       ),
     );
