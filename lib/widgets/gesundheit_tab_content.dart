@@ -24,7 +24,6 @@ import '../utils/terminanfrage_vorlagen.dart';
 import 'terminanfrage_versand_dialog.dart';
 import 'terminanfrage_zustellung.dart';
 import 'radiologie_praxis_tab.dart';
-import '../utils/fachrichtung_map.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'phone_link.dart';
 import '../services/phone_call_service.dart';
@@ -56,6 +55,7 @@ import '../utils/sicherer_dateiname.dart';
 import 'blutwerte_uebernahme.dart';
 import '../utils/blut_parameter_liste.dart';
 import 'blutwerte_suche.dart';
+import 'arzt_suche_dialog.dart';
 
 /// Arzt-Tabs, die den Tab „Verordnung" (häusliche Krankenpflege, Muster 12)
 /// zeigen. Verordnen darf rechtlich jede Vertragsärztin — in der Praxis tut es
@@ -493,7 +493,8 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 ),
                 RettungsdienstContent(apiService: widget.apiService, userId: widget.user.id),
                 SanitaetshausContent(apiService: widget.apiService, userId: widget.user.id),
-                _buildArztContent('gesundheit_sonstige', 'Sonstiger Arzt', 'Weitere Fachrichtung'),
+                _buildArztContent('gesundheit_sonstige', 'Sonstiger Arzt', '')  // ⚠️ leer, nicht 'Weitere Fachrichtung': dieser Reiter ist der
+                // Sammelplatz für alles Übrige und darf gerade NICHT eingrenzen.,
               ],
             ),
           ),
@@ -10369,176 +10370,17 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     );
   }
 
-  void _showArztSucheDialog(BuildContext context, String fachrichtung, Function(Map<String, dynamic>) onSelect) {
-    final searchController = TextEditingController();
-    List<Map<String, dynamic>> results = [];
-    bool isLoading = false;
-    bool initialLoaded = false;
-    // ⚠️ Standard AN, aber abschaltbar: für neun der 24 Fachrichtungen steht
-    // noch keine einzige Praxis in der Datenbank. Ohne Ausweg stünde man dort
-    // vor einer leeren Liste, die nicht sagt, dass sie leer SEIN MUSS.
-    bool nurFach = fachrichtung.trim().isNotEmpty;
-
-    showDialog(
+  /// Öffnet die gemeinsame Lupe (siehe `arzt_suche_dialog.dart`).
+  ///
+  /// ⚠️ [fachrichtung] ist hier NUR noch ein Filter. Wer den Katalog wechseln
+  /// will, wechselt [katalog] — nicht diese Zeichenkette.
+  void _showArztSucheDialog(BuildContext context, String fachrichtung,
+      Function(Map<String, dynamic>) onSelect) {
+    ArztSucheDialog.oeffnen(
       context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            Future<void> doSearch() async {
-              setDialogState(() => isLoading = true);
-              try {
-                final isKrankenhaus = fachrichtung.contains('Krankenhaus') || fachrichtung.contains('Klinik') || fachrichtung.contains('Stationare');
-                // 🔴 `fachrichtung` WURDE HEREINGEREICHT UND NIE BENUTZT.
-                // Der Dialog nahm den Parameter entgegen, entschied damit nur
-                // "ist das ein Krankenhaus?" und suchte dann OHNE ihn. Wer aus
-                // einer Radiologie-Überweisung auf die Lupe drückte, bekam alle
-                // 38 Praxen der Datenbank aufgelistet, Zahnärzte und
-                // Physiotherapeuten inbegriffen. Der Server kann seit jeher
-                // filtern (`WHERE ... AND fachrichtung = ?`) — gefragt hat ihn
-                // nur niemand.
-                //
-                // ⚠️ Der Serverfilter ist EXAKTE GLEICHHEIT. Das Auswahlfeld der
-                // Überweisung führt Kurzformen ("HNO"), die Datenbank die
-                // amtlichen Langformen ("Hals-Nasen-Ohren-Heilkunde") — ohne
-                // [fachrichtungFuerSuche] fände die Suche dort NICHTS, und eine
-                // leere Liste sieht kaputter aus als eine zu lange.
-                final res = isKrankenhaus
-                    ? await widget.apiService.searchKliniken(search: searchController.text.trim())
-                    : await widget.apiService.searchAerzte(
-                        search: searchController.text.trim(),
-                        fachrichtung: nurFach ? fachrichtungFuerSuche(fachrichtung) : '',
-                      );
-                final dataKey = isKrankenhaus ? 'kliniken' : 'data';
-                if (res['success'] == true && res[dataKey] != null) {
-                  var list = List<Map<String, dynamic>>.from(res[dataKey]);
-                  if (isKrankenhaus) {
-                    list = list.map(klinikAlsArzt).toList();
-                  }
-                  setDialogState(() { results = list; isLoading = false; });
-                } else {
-                  setDialogState(() { results = []; isLoading = false; });
-                }
-              } catch (e) {
-                debugPrint('[AERZTE-DIALOG] Error: $e');
-                setDialogState(() { results = []; isLoading = false; });
-              }
-            }
-
-            // Auto-load on first open only
-            if (!initialLoaded) {
-              initialLoaded = true;
-              Future.microtask(() => doSearch());
-            }
-
-            return AlertDialog(
-              title: Row(
-                children: [
-                  Icon(Icons.search, color: F.h(Colors.teal, 700)),
-                  const SizedBox(width: 8),
-                  // ⚠️ Ein Dialogtitel hat nur die Dialogbreite minus Innenabstand —
-                  // auf einem 448-dp-Telefon rund 320 dp. Diese Zeile stand in
-                  // einem `showDialog(builder: …)` und wurde deshalb von keinem
-                  // bisherigen Test je gezeichnet.
-                  const Expanded(
-                    child: Text('Arzt aus Datenbank auswählen',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 16)),
-                  ),
-                ],
-              ),
-              content: SizedBox(
-                width: 600,
-                height: 450,
-                child: Column(
-                  children: [
-                    // Search field
-                    TextField(
-                      controller: searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Name, Praxis oder Ort suchen...',
-                        prefixIcon: const Icon(Icons.search, size: 20),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.search, color: Colors.teal),
-                          onPressed: doSearch,
-                        ),
-                        isDense: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      ),
-                      onSubmitted: (_) => doSearch(),
-                    ),
-                    const SizedBox(height: 12),
-                    // Results
-                    Expanded(
-                      child: isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : results.isEmpty
-                              ? Center(child: Text('Keine Ärzte gefunden', style: TextStyle(color: F.h(Colors.grey, 500))))
-                              : ListView.builder(
-                                  itemCount: results.length,
-                                  itemBuilder: (ctx, i) {
-                                    final arzt = results[i];
-                                    return Card(
-                                      margin: const EdgeInsets.only(bottom: 8),
-                                      child: ListTile(
-                                        leading: CircleAvatar(
-                                          backgroundColor: F.h(Colors.teal, 100),
-                                          child: Icon(Icons.local_hospital, color: F.h(Colors.teal, 700), size: 20),
-                                        ),
-                                        title: Text(arzt['praxis_name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                                        subtitle: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text('${arzt['arzt_name'] ?? ''}${arzt['weitere_aerzte']?.isNotEmpty == true ? ', ${arzt['weitere_aerzte']}' : ''}',
-                                                style: const TextStyle(fontSize: 12)),
-                                            Text('${arzt['strasse'] ?? ''}, ${arzt['plz_ort'] ?? ''}',
-                                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
-                                            if (arzt['telefon']?.isNotEmpty == true)
-                                              PhoneText(arzt['telefon']?.toString(), prefix: 'Tel: ', label: arzt['arzt_name']?.toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
-                                            if ((arzt['lanr']?.isNotEmpty == true) || (arzt['bsnr']?.isNotEmpty == true))
-                                              Padding(
-                                                padding: const EdgeInsets.only(top: 3),
-                                                child: Wrap(spacing: 6, children: [
-                                                  if (arzt['lanr']?.isNotEmpty == true)
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                      decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.indigo, 200))),
-                                                      child: Text('LANR: ${arzt['lanr']}', style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 700), fontWeight: FontWeight.w600)),
-                                                    ),
-                                                  if (arzt['bsnr']?.isNotEmpty == true)
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                      decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.purple, 200))),
-                                                      child: Text('BSNR: ${arzt['bsnr']}', style: TextStyle(fontSize: 10, color: F.h(Colors.purple, 700), fontWeight: FontWeight.w600)),
-                                                    ),
-                                                ]),
-                                              ),
-                                          ],
-                                        ),
-                                        isThreeLine: true,
-                                        onTap: () {
-                                          Navigator.of(ctx).pop();
-                                          onSelect(arzt);
-                                        },
-                                        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                                      ),
-                                    );
-                                  },
-                                ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Abbrechen'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      fachrichtung: fachrichtung,
+      katalog: arztKatalog((s) => widget.apiService.searchAerzte(search: s)),
+      onSelect: onSelect,
     );
   }
 
