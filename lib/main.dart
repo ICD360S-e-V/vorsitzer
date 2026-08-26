@@ -9,6 +9,7 @@ import 'screens/blitz_fenster_app.dart';
 import 'models/blitz_nachricht.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'services/api_service.dart';
+import 'utils/einzelne_instanz.dart';
 import 'utils/privater_temp.dart';
 import 'services/device_key_service.dart';
 import 'services/notification_service.dart';
@@ -147,6 +148,29 @@ void main(List<String> args) async {
           },
         ),
       );
+    }
+
+    // Dasselbe für Linux — dort fehlte es bisher ganz.
+    //
+    // ⚠️ VOR windowManager und vor dem Tray-Symbol. Ein zweiter Prozess, der
+    // erst ein Fenster baut und sich dann beendet, hinterlässt ein Flackern
+    // und ein doppeltes Tray-Symbol.
+    if (Platform.isLinux) {
+      final weiter = await StartupDiagnostics.stepWithTimeout(
+            'EinzelneInstanz.beanspruchen',
+            const Duration(seconds: 5),
+            () => EinzelneInstanz.beanspruchen(
+              nachVorne: () => TrayService().showWindow(),
+            ),
+          ) ??
+          true;
+      if (!weiter) {
+        // Die bereits laufende Instanz wurde nach vorn geholt. Hier ist
+        // nichts mehr zu tun — und vor allem darf hier NICHTS weiterlaufen:
+        // jeder zusätzliche Prozess bedeutet einen zweiten WebSocket, eine
+        // zweite Benachrichtigung und ein zweites Blitz-Fenster pro Nachricht.
+        exit(0);
+      }
     }
 
     await StartupDiagnostics.stepWithTimeout(
