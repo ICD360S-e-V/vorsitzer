@@ -45,6 +45,7 @@ import '../utils/sicherer_dateiname.dart';
 import 'blutwerte_uebernahme.dart';
 import '../utils/blut_parameter_liste.dart';
 import 'blutwerte_suche.dart';
+import 'arzt_suche_dialog.dart';
 
 /// Medizinischer Dienst (MD, ehemals MDK) — eigenständiger Sub-Tab unter
 /// Ärzte, geklont vom Krankenhaus-Screen (eigene md_* Tabellen, relational,
@@ -4957,8 +4958,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
       bool editingTermin = (termin['datum']?.toString() ?? '').isEmpty;
 
       // Auto-fetch portal_url from DB if not set but praxis is selected
+      // ⚠️ Im ALLGEMEINEN Katalog nachschlagen, nicht im eigenen: die Praxis
+      // dieser Überweisung wurde dort ausgewählt. Im eigenen Katalog steht sie
+      // nicht, das Portal bliebe still leer.
       if ((termin['portal_url']?.toString() ?? '').isEmpty && praxisNameC.text.isNotEmpty) {
-        widget.apiService.searchMdDatenbank(search: praxisNameC.text).then((result) {
+        widget.apiService.searchAerzte(search: praxisNameC.text).then((result) {
           final aerzte = result['aerzte'] as List? ?? [];
           for (final a in aerzte) {
             final pUrl = a['portal_url']?.toString() ?? '';
@@ -5115,7 +5119,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                   padding: const EdgeInsets.symmetric(vertical: 8),
                                 ),
                                 onPressed: () {
-                                  _showArztSucheDialog(context, anVal, (arzt) {
+                                  _showAllgemeineArztSuche(context, anVal, (arzt) {
                                     setDlgState(() {
                                       praxisNameC.text = arzt['praxis_name']?.toString() ?? '';
                                       final str = arzt['strasse']?.toString() ?? '';
@@ -5703,7 +5707,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                   label: Text(selectedPraxis != null ? (selectedPraxis!['praxis_name']?.toString() ?? 'Praxis') : 'Praxis auswahlen', style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 700))),
                                                   style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.teal, 300)), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                                                   onPressed: () {
-                                                    _showArztSucheDialog(context, '', (arzt) {
+                                                    _showAllgemeineArztSuche(context, '', (arzt) {
                                                       setAddState(() => selectedPraxis = Map<String, dynamic>.from(arzt));
                                                     });
                                                   },
@@ -9802,143 +9806,40 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
     );
   }
 
-  void _showArztSucheDialog(BuildContext context, String fachrichtung, Function(Map<String, dynamic>) onSelect) {
-    final searchController = TextEditingController();
-    List<Map<String, dynamic>> results = [];
-    bool isLoading = false;
-    bool initialLoaded = false;
-
-    showDialog(
+  /// Öffnet die gemeinsame Lupe (siehe `arzt_suche_dialog.dart`) auf den
+  /// EIGENEN Katalog: MD Bund + die 15 Landes-MD.
+  ///
+  /// ⚠️ [fachrichtung] wird hier NICHT als Filter durchgereicht. Der Reiter
+  /// nennt sein Fach 'Begutachtungsdienst der Kranken-/Pflegekassen (MD, ehem.
+  /// MDK)' — eine Erklärung, keine Fachrichtung; im Katalog steht
+  /// 'Medizinischer Dienst'. Als Filter gelesen hätte sie alle 16 Einträge
+  /// weggenommen.
+  void _showArztSucheDialog(BuildContext context, String fachrichtung,
+      Function(Map<String, dynamic>) onSelect) {
+    ArztSucheDialog.oeffnen(
       context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            Future<void> doSearch() async {
-              setDialogState(() => isLoading = true);
-              try {
-                // MD hat einen eigenen Katalog (md_datenbank): MD Bund + die
-                // 15 Landes-MD. Keine Klinik-/Praxissuche.
-                final res = await widget.apiService.searchMdDatenbank(search: searchController.text.trim());
-                const dataKey = 'data';
-                if (res['success'] == true && res[dataKey] != null) {
-                  final list = List<Map<String, dynamic>>.from(res[dataKey]);
-                  setDialogState(() { results = list; isLoading = false; });
-                } else {
-                  setDialogState(() { results = []; isLoading = false; });
-                }
-              } catch (e) {
-                debugPrint('[AERZTE-DIALOG] Error: $e');
-                setDialogState(() { results = []; isLoading = false; });
-              }
-            }
+      katalog: arztKatalog((s) => widget.apiService.searchMdDatenbank(search: s)),
+      onSelect: onSelect,
+      titel: 'Medizinischen Dienst auswählen',
+      platzhalter: 'MD Bayern, MD Nord, Ort ...',
+    );
+  }
 
-            // Auto-load on first open only
-            if (!initialLoaded) {
-              initialLoaded = true;
-              Future.microtask(() => doSearch());
-            }
-
-            return AlertDialog(
-              title: Row(
-                children: [
-                  Icon(Icons.search, color: F.h(Colors.teal, 700)),
-                  const SizedBox(width: 8),
-                  const Flexible(child: Text('Medizinischen Dienst auswählen', style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
-                ],
-              ),
-              content: SizedBox(
-                width: 600,
-                height: 450,
-                child: Column(
-                  children: [
-                    // Search field
-                    TextField(
-                      controller: searchController,
-                      decoration: InputDecoration(
-                        hintText: 'MD Bayern, MD Nord, Ort ...',
-                        prefixIcon: const Icon(Icons.search, size: 20),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.search, color: Colors.teal),
-                          onPressed: doSearch,
-                        ),
-                        isDense: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      ),
-                      onSubmitted: (_) => doSearch(),
-                    ),
-                    const SizedBox(height: 12),
-                    // Results
-                    Expanded(
-                      child: isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : results.isEmpty
-                              ? Center(child: Text('Keine Ärzte gefunden', style: TextStyle(color: F.h(Colors.grey, 500))))
-                              : ListView.builder(
-                                  itemCount: results.length,
-                                  itemBuilder: (ctx, i) {
-                                    final arzt = results[i];
-                                    return Card(
-                                      margin: const EdgeInsets.only(bottom: 8),
-                                      child: ListTile(
-                                        leading: CircleAvatar(
-                                          backgroundColor: F.h(Colors.teal, 100),
-                                          child: Icon(Icons.local_hospital, color: F.h(Colors.teal, 700), size: 20),
-                                        ),
-                                        title: Text(arzt['praxis_name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                                        subtitle: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text('${arzt['arzt_name'] ?? ''}${arzt['weitere_aerzte']?.isNotEmpty == true ? ', ${arzt['weitere_aerzte']}' : ''}',
-                                                style: const TextStyle(fontSize: 12)),
-                                            Text('${arzt['strasse'] ?? ''}, ${arzt['plz_ort'] ?? ''}',
-                                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
-                                            if (arzt['telefon']?.isNotEmpty == true)
-                                              PhoneText(arzt['telefon']?.toString(), prefix: 'Tel: ', label: arzt['arzt_name']?.toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
-                                            if ((arzt['lanr']?.isNotEmpty == true) || (arzt['bsnr']?.isNotEmpty == true))
-                                              Padding(
-                                                padding: const EdgeInsets.only(top: 3),
-                                                child: Wrap(spacing: 6, children: [
-                                                  if (arzt['lanr']?.isNotEmpty == true)
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                      decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.indigo, 200))),
-                                                      child: Text('LANR: ${arzt['lanr']}', style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 700), fontWeight: FontWeight.w600)),
-                                                    ),
-                                                  if (arzt['bsnr']?.isNotEmpty == true)
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                      decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.purple, 200))),
-                                                      child: Text('BSNR: ${arzt['bsnr']}', style: TextStyle(fontSize: 10, color: F.h(Colors.purple, 700), fontWeight: FontWeight.w600)),
-                                                    ),
-                                                ]),
-                                              ),
-                                          ],
-                                        ),
-                                        isThreeLine: true,
-                                        onTap: () {
-                                          Navigator.of(ctx).pop();
-                                          onSelect(arzt);
-                                        },
-                                        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                                      ),
-                                    );
-                                  },
-                                ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Abbrechen'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+  /// Die Lupe auf den ALLGEMEINEN Praxis-Katalog (`aerzte_datenbank`).
+  ///
+  /// 🔴 Wofür das gebraucht wird: eine Überweisung geht per Definition an ein
+  /// FREMDES Fach. Der eigene Katalog dieses Reiters führt nur das eigene —
+  /// eine Radiologie ist dort niemals zu finden. Bis zum 26.08.2026 wurde
+  /// trotzdem dort gesucht: entweder kam eine leere Liste (HNO, weil dort
+  /// serverseitig gefiltert wurde) oder, schlimmer, die eigenen Praxen wurden
+  /// als Radiologie angeboten.
+  void _showAllgemeineArztSuche(BuildContext context, String fachrichtung,
+      Function(Map<String, dynamic>) onSelect) {
+    ArztSucheDialog.oeffnen(
+      context: context,
+      fachrichtung: fachrichtung,
+      katalog: arztKatalog((s) => widget.apiService.searchAerzte(search: s)),
+      onSelect: onSelect,
     );
   }
 
@@ -12198,7 +12099,7 @@ $vollName$footer''';
                                   label: Text(r['physio_praxis_name'] != null ? 'Andern' : 'Auswahlen', style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 600))),
                                   style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2)),
                                   onPressed: () {
-                                    _showArztSucheDialog(context, 'Physiotherapie', (praxis) {
+                                    _showAllgemeineArztSuche(context, 'Physiotherapie', (praxis) {
                                       r['physio_praxis_name'] = praxis['praxis_name']?.toString() ?? '';
                                       r['physio_praxis_strasse'] = praxis['strasse']?.toString() ?? '';
                                       r['physio_praxis_plz_ort'] = praxis['plz_ort']?.toString() ?? '';
