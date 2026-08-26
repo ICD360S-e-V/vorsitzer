@@ -9751,6 +9751,77 @@ class ApiService {
     }
   }
 
+
+  /// Hängt Dateien an einen Bußgeld-Vorgang, wahlweise an ein bestimmtes
+  /// Schreiben.
+  ///
+  /// ⚠️ Das Ergebnis wird zurückgegeben und MUSS ausgewertet werden. Bei den
+  /// fünf `*_attachment.php`-Endpunkten warf der Client es weg — ein HTTP 500
+  /// sah dort monatelang aus wie „nichts passiert": keine Meldung, keine
+  /// Anhänge, kein Hinweis worauf.
+  Future<Map<String, dynamic>> uploadBussgeldAnhaenge({
+    required int userId,
+    required int vorfallId,
+    int? korrespondenzId,
+    required List<String> pfade,
+    String kategorie = 'sonstiges',
+    String? beschreibung,
+  }) async {
+    try {
+      final req = http.MultipartRequest(
+          'POST', Uri.parse('$baseUrl/admin/bussgeld_vorfall_upload.php'));
+      // ⚠️ Erst kopieren, dann entfernen. `_headers` ist heute ein Getter,
+      // der jedes Mal eine frische Map liefert — ein `..remove()` darauf
+      // träfe also nur die Kopie. Würde daraus je ein Feld, löschte dieselbe
+      // Zeile das Content-Type für ALLE Anfragen der App.
+      final kopf = Map<String, String>.from(_headers)..remove('Content-Type');
+      req.headers.addAll(kopf);
+      req.fields['user_id'] = '$userId';
+      req.fields['vorfall_id'] = '$vorfallId';
+      if (korrespondenzId != null) req.fields['korrespondenz_id'] = '$korrespondenzId';
+      req.fields['kategorie'] = kategorie;
+      if (beschreibung != null && beschreibung.isNotEmpty) {
+        req.fields['beschreibung'] = beschreibung;
+      }
+      for (final p in pfade) {
+        req.files.add(await http.MultipartFile.fromPath('files[]', p));
+      }
+      final res = await http.Response.fromStream(
+          await req.send().timeout(const Duration(seconds: 120)));
+      final m = Map<String, dynamic>.from(jsonDecode(res.body) as Map);
+      m['httpStatus'] = res.statusCode;
+      return m;
+    } on FormatException {
+      return {'success': false, 'message': 'Ungültige Serverantwort'};
+    } catch (e) {
+      return {'success': false, 'message': 'Verbindungsfehler beim Hochladen'};
+    }
+  }
+
+  /// Lädt einen Anhang. Die Datei liegt verschlüsselt; der Server entschlüsselt
+  /// sie und prüft dabei die beim Hochladen gespeicherte Prüfsumme.
+  Future<http.Response> downloadBussgeldAnhang(int userId, int dokumentId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/bussgeld_vorfall_dok.php?id=$dokumentId&user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 60));
+  }
+
+  Future<Map<String, dynamic>> deleteBussgeldAnhang(int userId, int dokumentId) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/bussgeld_vorfall_dok.php'),
+        headers: _headers,
+        body: jsonEncode({'action': 'delete', 'user_id': userId, 'id': dokumentId}),
+      ).timeout(const Duration(seconds: 20));
+      final m = Map<String, dynamic>.from(jsonDecode(r.body) as Map);
+      m['httpStatus'] = r.statusCode;
+      return m;
+    } catch (e) {
+      return {'success': false, 'message': 'Verbindungsfehler'};
+    }
+  }
+
   // ========== BUSSGELD-VOLLMACHT ==========
 
   /// Umfangsmatrix, Grenzen und Belehrung.
