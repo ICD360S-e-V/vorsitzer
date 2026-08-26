@@ -6,9 +6,9 @@ void main() {
     final m = blutParameterListe(true);
     final w = blutParameterListe(false);
 
-    test('alle 201 Parameter des Katalogs', () {
-      expect(m, hasLength(201));
-      expect(w, hasLength(201));
+    test('alle 208 Parameter des Katalogs', () {
+      expect(m, hasLength(208));
+      expect(w, hasLength(208));
     });
 
     // ⚠️ Der Schlüssel IST der Speicher: er steht so in der verschlüsselten
