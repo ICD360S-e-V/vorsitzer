@@ -73,6 +73,25 @@ void main() {
     });
   });
 
+  group('Versand der Vollmacht', () {
+    test('die Wege decken sich mit dem ENUM der Datenbank', () {
+      // ⚠️ Dieselbe Liste steht im ENUM bussgeld_vollmacht_versand.weg.
+      // Ein Wert daneben würde stillschweigend auf '' gekürzt — der Nachweis,
+      // WIE die Vollmacht hinausging, wäre dann weg.
+      expect(kVersandWege.keys.toSet(), {'post', 'fax', 'email', 'persoenlich', 'sonstige'});
+    });
+
+    test('der Versand wird auch angezeigt, nicht nur erfasst', () {
+      // Eine Vollmacht, die im Ordner liegt, wirkt nicht — die Behörde muss
+      // sie haben. Wer den Versand nur speichert und nie zeigt, hat die
+      // Frage „ist sie schon dort?" nicht beantwortet.
+      expect(quelle.contains("_liste(vm['versand'])"), isTrue);
+      expect(quelle.contains('_versandVermerken'), isTrue);
+    });
+  });
+
+  _abgleich();
+
   group('Der Weg über das "+"', () {
     test('die Schnellanlage fragt nur nach dem Aktenzeichen und den Daten', () {
       // Wer ein Schreiben in der Hand hält, hat zuerst das Aktenzeichen.
@@ -93,5 +112,36 @@ void main() {
     test('ein Tippen auf die Zeile führt in den Vorgang, nicht ins Formular', () {
       expect(stelle.contains("onTap: () => _detailsOeffnen(v['id'] as int)"), isTrue);
     });
+  });
+}
+
+/// ⚠️ Serverseitige Aktionen, die kein Client aufruft, sind totes Gewicht —
+/// und man merkt es nicht, weil nichts rot wird. `add_versand` war genau das,
+/// bis dieser Abgleich es gezeigt hat.
+///
+/// Die Liste der Server-Aktionen steht hier als Literal, weil das PHP in
+/// keinem Repo liegt. Sie ist damit zugleich die einzige Stelle, an der ein
+/// Auseinanderlaufen von Client und Server überhaupt auffallen kann —
+/// dieselbe Rolle wie `_serverWhitelist` bei den Chat-Reaktionen.
+void _abgleich() {
+  const serverAktionen = {
+    // bussgeld_vorfall_details.php
+    'add_korrespondenz', 'delete_korrespondenz', 'save_einspruch', 'delete_einspruch',
+    // bussgeld_vollmacht_manage.php
+    'create', 'revoke', 'add_versand',
+    // user_bussgeldstelle.php
+    'save_stelle', 'save_vorfall', 'delete_vorfall',
+  };
+
+  test('jede Server-Aktion wird vom Client auch benutzt', () {
+    final quellen = [
+      File('lib/widgets/bussgeld_vorfall_details_dialog.dart').readAsStringSync(),
+      File('lib/widgets/behorde_bussgeldstelle.dart').readAsStringSync(),
+      File('lib/services/api_service.dart').readAsStringSync(),
+    ].join('\n');
+    for (final a in serverAktionen) {
+      expect(quellen.contains("'$a'"), isTrue,
+          reason: 'Der Server kennt "$a", aber kein Client ruft es auf');
+    }
   });
 }

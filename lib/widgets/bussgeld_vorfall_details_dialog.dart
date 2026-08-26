@@ -30,6 +30,19 @@ class BussgeldVorfallDetailsDialog extends StatefulWidget {
 /// ⚠️ `zurueckgenommen` ist etwas anderes als „nie eingelegt": die Rücknahme
 /// lässt den Bescheid rechtskräftig werden und muss im Verlauf sichtbar
 /// bleiben.
+/// Wege, auf denen die Vollmacht zur Stelle gelangt.
+///
+/// ⚠️ Deckungsgleich mit dem ENUM `bussgeld_vollmacht_versand.weg`. Ein Wert
+/// daneben würde von MariaDB stillschweigend auf '' gekürzt — der Nachweis,
+/// WIE sie hinausging, wäre dann weg.
+const Map<String, String> kVersandWege = {
+  'post': 'Post',
+  'fax': 'Fax',
+  'email': 'E-Mail',
+  'persoenlich': 'Persönlich abgegeben',
+  'sonstige': 'Sonstiger Weg',
+};
+
 const Map<String, String> kEinspruchErgebnisse = {
   'offen': 'noch offen',
   'abgeholfen': 'Behörde hat abgeholfen',
@@ -736,12 +749,29 @@ class _BussgeldVorfallDetailsDialogState extends State<BussgeldVorfallDetailsDia
           if (widerrufen && vm['revoked_reason'] != null)
             Text('Widerrufen: ${vm['revoked_reason']}',
                 style: TextStyle(fontSize: 11.5, color: F.h(Colors.red, 700))),
+          // Wann sie WIRKLICH bei der Stelle war. Eine Vollmacht, die im
+          // Ordner liegt, wirkt nicht; die Behörde muss sie haben.
+          for (final vs in _liste(vm['versand']))
+            Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+              Icon(Icons.check, size: 14, color: F.h(Colors.green, 700)),
+              const SizedBox(width: 4),
+              Expanded(child: Text(
+                '${kVersandWege[vs['weg']] ?? vs['weg']}'
+                '${vs['versendet_am'] == null ? '' : ' am ${_datum(vs['versendet_am'])}'}'
+                '${vs['empfaenger'] == null ? '' : ' an ${vs['empfaenger']}'}',
+                style: const TextStyle(fontSize: 11))),
+            ])),
           const SizedBox(height: 8),
           Wrap(spacing: 8, children: [
             OutlinedButton.icon(
               icon: const Icon(Icons.picture_as_pdf, size: 16),
               label: const Text('PDF'),
               onPressed: () => _vollmachtPdf(vm['id'] as int),
+            ),
+            if (!widerrufen) OutlinedButton.icon(
+              icon: const Icon(Icons.send_outlined, size: 16),
+              label: const Text('Versand vermerken'),
+              onPressed: () => _versandVermerken(vm['id'] as int),
             ),
             if (!widerrufen) TextButton.icon(
               icon: const Icon(Icons.cancel_outlined, size: 16),
@@ -846,6 +876,69 @@ class _BussgeldVorfallDetailsDialogState extends State<BussgeldVorfallDetailsDia
     }
     _sagen('PDF erzeugt (${(r.bodyBytes.length / 1024).round()} kB) — im Vorgang abgelegt.');
     _laden();
+  }
+
+  Future<void> _versandVermerken(int vollmachtId) async {
+    final empfaenger = TextEditingController();
+    final notiz = TextEditingController();
+    DateTime? am = DateTime.now();
+    String weg = 'post';
+
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(
+      builder: (ctx, ss) => AlertDialog(
+        title: const Text('Versand vermerken'),
+        content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Align(alignment: Alignment.centerLeft, child: Text(
+            'Eine Vollmacht wirkt gegenüber der Behörde erst, wenn sie dort ist. '
+            'Hier wird festgehalten, wann sie hinausgegangen ist.',
+            style: TextStyle(fontSize: 12))),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: weg,
+            decoration: const InputDecoration(labelText: 'Weg', border: OutlineInputBorder(), isDense: true),
+            items: [for (final e in kVersandWege.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
+            onChanged: (v) => ss(() => weg = v ?? weg),
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: () async {
+              final d = await showDatePicker(context: ctx, initialDate: am ?? DateTime.now(),
+                  firstDate: DateTime(2000), lastDate: DateTime.now().add(const Duration(days: 30)));
+              if (d != null) ss(() => am = d);
+            },
+            child: InputDecorator(
+              decoration: const InputDecoration(labelText: 'Versendet am', border: OutlineInputBorder(), isDense: true),
+              child: Text(am == null ? '\u2014' : _datum(_iso(am!))!),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(controller: empfaenger, decoration: const InputDecoration(
+              labelText: 'Empfänger', border: OutlineInputBorder(), isDense: true)),
+          const SizedBox(height: 10),
+          TextField(controller: notiz, decoration: const InputDecoration(
+              labelText: 'Notiz (z.B. Einwurf-Einschreiben Nr.)', border: OutlineInputBorder(), isDense: true)),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Vermerken')),
+        ],
+      ),
+    ));
+    if (ok != true) return;
+    final r = await widget.apiService.bussgeldVollmachtAktion({
+      'action': 'add_versand',
+      'user_id': widget.userId,
+      'vollmacht_id': vollmachtId,
+      'weg': weg,
+      'versendet_am': am == null ? null : _iso(am!),
+      'empfaenger': empfaenger.text.trim(),
+      'notiz': notiz.text.trim(),
+    });
+    if (r['success'] == true) {
+      _laden();
+    } else {
+      _sagen('Nicht vermerkt: ${r['message'] ?? 'unbekannter Fehler'}', fehler: true);
+    }
   }
 
   Future<void> _vollmachtWiderrufen(int id) async {
