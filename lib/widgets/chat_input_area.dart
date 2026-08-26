@@ -103,16 +103,13 @@ class ChatInputArea extends StatelessWidget {
               onPaste: onPasteImage ?? () {},
               child: EingabeTasten(
                 onSend: onSend,
-                child: TextField(
+                bauen: (senden) => TextField(
               controller: controller,
-              // ⚠️ GENAU EIN Weg je Plattform, sonst geht die Nachricht doppelt
-              // raus: auf dem Rechner fängt [_EingabeTasten] die Eingabetaste
-              // ab, auf dem Telefon löst der Senden-Knopf der Bildschirm-
-              // tastatur `onSubmitted` aus. Beides gleichzeitig hiesse zwei
-              // Aufrufe für einen Tastendruck.
-              onSubmitted: Platform.isAndroid || Platform.isIOS
-                  ? (_) => onSend()
-                  : null,
+              // BEIDE Wege gehen auf dieselbe abgesicherte Funktion: die
+              // Eingabetaste einer echten Tastatur und der Senden-Knopf der
+              // Bildschirmtastatur. [EingabeTasten] lässt einen doppelten
+              // Aufruf fallen, also kann nichts zweimal rausgehen.
+              onSubmitted: (_) => senden(),
               onTap: onFocus,
               onChanged: onChanged,
               contentInsertionConfiguration: onKeyboardContent == null

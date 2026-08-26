@@ -1708,17 +1708,15 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
                 onPaste: _pasteFromClipboard,
                 child: EingabeTasten(
                   onSend: _sendMessage,
-                  child: TextField(
+                  bauen: (senden) => TextField(
                   controller: _messageController,
                   onChanged: (text) {
                     _onTyping();
                     _onInputChanged(text);
                   },
-                  // ⚠️ Genau ein Weg je Plattform — sonst geht die Nachricht
-                  // doppelt raus. Siehe [EingabeTasten].
-                  onSubmitted: Platform.isAndroid || Platform.isIOS
-                      ? (_) => _sendMessage()
-                      : null,
+                  // Beide Wege auf dieselbe abgesicherte Funktion — siehe
+                  // [EingabeTasten].
+                  onSubmitted: (_) => senden(),
                   // Gboard schickt Bilder und GIFs direkt aus der Tastatur.
                   // Ohne Handler zeigt Android nur „Feld unterstützt das nicht".
                   contentInsertionConfiguration: ContentInsertionConfiguration(
