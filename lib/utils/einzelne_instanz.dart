@@ -25,6 +25,19 @@ import 'package:path_provider/path_provider.dart';
 /// verschwindet statt sich zu schliessen: ein zweiter Start sieht aus wie
 /// „die App war zu".
 ///
+/// ⚠️ DIES IST DIE ZWEITE REIHE, NICHT DIE ERSTE.
+/// Die Eindeutigkeit besorgt seit dem 26.08.2026 GTK selbst: in
+/// `linux/runner/my_application.cc` ist `G_APPLICATION_NON_UNIQUE` entfallen,
+/// und `my_application_activate` holt das vorhandene Fenster nach vorn. Das
+/// ist der vorgesehene Weg und greift, bevor Flutter überhaupt hochfährt.
+///
+/// Diese Klasse deckt den Fall ab, in dem GTK das NICHT kann: ohne
+/// Sitzungsbus (D-Bus) registriert sich jeder Prozess als der erste, und die
+/// Eindeutigkeit fällt still aus — genau die Art von Ausfall, die niemand
+/// bemerkt, bis wieder vier Töne gleichzeitig kommen. Kostet im Normalfall
+/// nichts: läuft GTKs Sperre, kommt dieser Code im zweiten Prozess gar nicht
+/// mehr zur Ausführung.
+///
 /// ⚠️ Ohne Zusatzpaket. Ein Unix-Socket ist gleichzeitig Schloss UND
 /// Nachrichtenweg: wer ihn binden kann, ist der erste; wer nicht, meldet dem
 /// Ersten „zeig dich" und beendet sich.

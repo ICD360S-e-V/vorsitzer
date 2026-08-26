@@ -24,6 +24,24 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
+
+  // ⚠️ ZWEITER START: das vorhandene Fenster nach vorn holen, KEIN neues bauen.
+  //
+  // Seit `G_APPLICATION_NON_UNIQUE` unten entfallen ist, landet ein zweiter
+  // Start nicht mehr in einem eigenen Prozess, sondern als „activate" bei dem
+  // bereits laufenden. Ohne diese Abfrage baute der daraufhin ein ZWEITES
+  // Fenster in sich selbst — aus zwei Prozessen würden zwei Fenster, also
+  // dasselbe Bild von vorn.
+  //
+  // Das ist zugleich das gewünschte Verhalten beim Klick aufs Startsymbol:
+  // die App liegt beim Schliessen im Systemabschnitt, und `gtk_window_present`
+  // holt genau sie zurück.
+  GList* fenster = gtk_application_get_windows(GTK_APPLICATION(application));
+  if (fenster != nullptr) {
+    gtk_window_present(GTK_WINDOW(fenster->data));
+    return;
+  }
+
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
@@ -157,7 +175,24 @@ MyApplication* my_application_new() {
   // the application to be recognized beyond its binary name.
   g_set_prgname(APPLICATION_ID);
 
+  // ⚠️ OHNE `G_APPLICATION_NON_UNIQUE` — und das ist der Kern der Sache.
+  //
+  // Die Flutter-Vorlage setzt dieses Kennzeichen, das GTK ausdrücklich
+  // ERLAUBT, die App mehrfach zu starten. Am 26.08.2026 liefen dadurch drei
+  // Instanzen gleichzeitig auf demselben Rechner: drei WebSockets, drei
+  // Benachrichtigungstöne und drei Blitz-Karten für ein und dieselbe
+  // Nachricht (belegt im Protokoll, message_id 29175 dreifach in derselben
+  // Sekunde, eine davon noch auf Version 6.159.0).
+  //
+  // Ohne das Kennzeichen übernimmt GTK die Eindeutigkeit selbst: der zweite
+  // Start meldet sich beim ersten und beendet sich. Das ist der von GNOME
+  // vorgesehene Weg und billiger als jede eigene Sperre — er greift, bevor
+  // Flutter überhaupt hochfährt.
+  //
+  // ⚠️ APPLICATION_ID NICHT ändern. Daran hängen `~/.cache/<id>` und damit
+  // das private Temp-Verzeichnis; ein neuer Name liesse die bisherigen
+  // Daten verwaisen.
   return MY_APPLICATION(g_object_new(my_application_get_type(),
-                                     "application-id", APPLICATION_ID, "flags",
-                                     G_APPLICATION_NON_UNIQUE, nullptr));
+                                     "application-id", APPLICATION_ID,
+                                     nullptr));
 }
