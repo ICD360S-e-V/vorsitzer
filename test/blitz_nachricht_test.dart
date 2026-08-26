@@ -23,13 +23,13 @@ Future<void> _karteBauen(
   required BlitzNachricht nachricht,
   Future<String?> Function(String)? onSenden,
   VoidCallback? onSchliessen,
-  ValueNotifier<bool>? entwurf,
+  int wartend = 0,
 }) async {
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(
       body: BlitzKarte(
         nachricht: nachricht,
-        entwurfMelder: entwurf,
+        wartend: wartend,
         onSenden: onSenden ?? (_) async => null,
         onSchliessen: onSchliessen ?? () {},
       ),
@@ -162,19 +162,17 @@ void main() {
       expect(versuche, 0);
     });
 
-    testWidgets('meldet einen angefangenen Satz nach aussen', (tester) async {
-      // Daran haengt die Sperre gegen den Wechsel auf eine andere
-      // Unterhaltung — sonst ginge die halbe Antwort an die falsche Person.
-      final entwurf = ValueNotifier<bool>(false);
-      addTearDown(entwurf.dispose);
-      await _karteBauen(tester, nachricht: _n(), entwurf: entwurf);
-      expect(entwurf.value, isFalse);
-      await tester.enterText(find.byType(TextField), 'halb getippt');
-      await tester.pump();
-      expect(entwurf.value, isTrue);
-      await tester.enterText(find.byType(TextField), '   ');
-      await tester.pump();
-      expect(entwurf.value, isFalse, reason: 'Leerzeichen sind kein Entwurf');
+    testWidgets('zeigt an, wer noch wartet', (tester) async {
+      // Der Zähler ist die Antwort darauf, dass bei zwei gleichzeitigen
+      // Absendern der zweite unsichtbar blieb.
+      await _karteBauen(tester, nachricht: _n(), wartend: 2);
+      expect(find.text('noch 2'), findsOneWidget);
     });
+
+    testWidgets('ohne Wartende steht kein Zaehler da', (tester) async {
+      await _karteBauen(tester, nachricht: _n());
+      expect(find.textContaining('noch '), findsNothing);
+    });
+
   });
 }

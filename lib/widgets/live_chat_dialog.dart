@@ -17,6 +17,7 @@ import '../utils/chat_message_merge.dart';
 import 'chat_image_attachment.dart';
 import 'chat_pending_attachments.dart';
 import 'linkified_text.dart';
+import 'eingabe_tasten.dart';
 import 'paste_image_detector.dart';
 import '../utils/app_farben.dart';
 
@@ -1705,13 +1706,19 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
             Expanded(
               child: PasteImageDetector(
                 onPaste: _pasteFromClipboard,
-                child: TextField(
+                child: EingabeTasten(
+                  onSend: _sendMessage,
+                  child: TextField(
                   controller: _messageController,
                   onChanged: (text) {
                     _onTyping();
                     _onInputChanged(text);
                   },
-                  onSubmitted: (_) => _sendMessage(),
+                  // ⚠️ Genau ein Weg je Plattform — sonst geht die Nachricht
+                  // doppelt raus. Siehe [EingabeTasten].
+                  onSubmitted: Platform.isAndroid || Platform.isIOS
+                      ? (_) => _sendMessage()
+                      : null,
                   // Gboard schickt Bilder und GIFs direkt aus der Tastatur.
                   // Ohne Handler zeigt Android nur „Feld unterstützt das nicht".
                   contentInsertionConfiguration: ContentInsertionConfiguration(
@@ -1729,6 +1736,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
                     ),
                   ),
                   enabled: !_isLoading,
+                ),
                 ),
               ),
             ),

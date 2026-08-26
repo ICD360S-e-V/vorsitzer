@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
@@ -17,6 +18,12 @@ import 'logger_service.dart';
 ///    zu. Ein zweites Fenster fände den Kanal besetzt.
 /// 2. Eine Engine zu starten dauert spürbar. Ein „Blitz", der erst eine
 ///    halbe Sekunde nachdenkt, ist keiner.
+///
+/// ⚠️ SCHREIBEN ZWEI GLEICHZEITIG, GEHT KEINER VERLOREN.
+/// Die Karte zeigt einen nach dem anderen; wer warten muss, steht als Zähler
+/// („noch 1") in der Karte und rückt nach, sobald der erste beantwortet oder
+/// weggelegt ist. Die Karte NICHT unter den Fingern umzuschalten ist Absicht:
+/// sonst ginge eine halb geschriebene Antwort an die falsche Person.
 class BlitzFensterSteuerung {
   BlitzFensterSteuerung._();
   static final BlitzFensterSteuerung instanz = BlitzFensterSteuerung._();
@@ -28,16 +35,36 @@ class BlitzFensterSteuerung {
   BlitzNachricht? _aktuell;
   bool _sichtbar = false;
 
+  /// Wer warten muss, in Ankunftsreihenfolge. Höchstens eine Zeile je
+  /// Unterhaltung — ein zweiter Satz derselben Person wird an ihre wartende
+  /// Nachricht angehängt, statt eine zweite Wartemarke zu erzeugen.
+  final List<BlitzNachricht> _warteschlange = [];
+
+  /// ⚠️ Alle Zugriffe laufen NACHEINANDER durch diese Kette.
+  ///
+  /// Ohne sie gab es eine echte Wettlaufsituation: `WindowController.create`
+  /// ist asynchron, `_fenster` wird erst danach gesetzt. Trafen zwei
+  /// Nachrichten in derselben Sekunde ein, sah die zweite noch `null` und
+  /// baute ein ZWEITES Fenster — auf dem bidirektionalen Kanal ist das der
+  /// dritte Teilnehmer, also scheiterte es, und die zweite Nachricht fiel auf
+  /// die gewöhnliche Benachrichtigung zurück, die von selbst verschwindet.
+  /// Genau das war „bei zwei Absendern sieht man nur den ersten".
+  Future<void> _kette = Future.value();
+
   /// Wird gerufen, wenn im Blitz-Fenster „im Chat öffnen" gedrückt wurde.
-  /// Setzt das Dashboard.
   void Function(int conversationId)? onImChatOeffnen;
 
   bool get sichtbar => _sichtbar;
+  int get wartend => _warteschlange.length;
 
-  /// Muss einmal laufen, bevor das erste Fenster entsteht — sonst hat das
-  /// Blitz-Fenster niemanden, dem es die Antwort geben kann.
   Future<void> bereitmachen() async {
     await _kanal.setMethodCallHandler(_ruf);
+  }
+
+  Future<T> _nacheinander<T>(Future<T> Function() arbeit) {
+    final naechste = _kette.then((_) => arbeit());
+    _kette = naechste.then((_) {}, onError: (_) {});
+    return naechste;
   }
 
   Future<dynamic> _ruf(MethodCall ruf) async {
@@ -45,18 +72,26 @@ class BlitzFensterSteuerung {
       case BlitzRuf.senden:
         return _senden(ruf.arguments);
       case BlitzRuf.schliessen:
-        _sichtbar = false;
-        _aktuell = null;
-        return true;
+      case BlitzRuf.weiter:
+        return _nacheinander(_nachruecken);
       case BlitzRuf.imChatOeffnen:
-        _sichtbar = false;
         final id = _alsInt(_karte(ruf.arguments)['conversation_id']);
-        _aktuell = null;
         if (id != null) onImChatOeffnen?.call(id);
-        return true;
+        return _nacheinander(_nachruecken);
       default:
         return null;
     }
+  }
+
+  /// Erledigte Karte weglegen und die nächste wartende nachziehen.
+  Future<bool> _nachruecken() async {
+    _aktuell = null;
+    if (_warteschlange.isEmpty) {
+      _sichtbar = false;
+      return true;
+    }
+    final naechste = _warteschlange.removeAt(0);
+    return _hinlegen(naechste);
   }
 
   Future<Map<String, dynamic>> _senden(dynamic argumente) async {
@@ -85,11 +120,7 @@ class BlitzFensterSteuerung {
         // Mitglied die Antwort nie zu sehen bekommt.
         channel: kanal == 'sms' ? 'sms' : 'app',
       );
-      if (r['success'] == true) {
-        _sichtbar = false;
-        _aktuell = null;
-        return {'ok': true};
-      }
+      if (r['success'] == true) return {'ok': true};
       return {'ok': false, 'fehler': '${r['message'] ?? 'Senden fehlgeschlagen'}'};
     } catch (e) {
       _log.error('Blitz-Antwort fehlgeschlagen: $e', tag: 'BLITZ');
@@ -97,86 +128,122 @@ class BlitzFensterSteuerung {
     }
   }
 
-  /// Legt die Karte auf den Bildschirm.
+  /// Legt die Karte auf den Bildschirm — oder stellt sie an, wenn gerade eine
+  /// andere Unterhaltung offen ist.
   ///
-  /// Gibt `false` zurück, wenn der Blitz NICHT gezeigt wurde — dann muss der
-  /// Aufrufer auf die gewöhnliche Benachrichtigung ausweichen, damit die
-  /// Nachricht nicht einfach verschwindet.
+  /// Gibt `false` zurück, wenn der Blitz gar nicht möglich war; dann weicht
+  /// der Aufrufer auf die gewöhnliche Benachrichtigung aus.
   Future<bool> zeigen({
     required int conversationId,
     required String absender,
     required String text,
     required String kanal,
     required DateTime zeit,
-  }) async {
-    try {
-      // Gleiche Unterhaltung, Karte steht schon: anhängen statt ersetzen.
-      final vorhanden = _aktuell;
-      BlitzNachricht neu;
-      if (_sichtbar && vorhanden != null && vorhanden.conversationId == conversationId) {
-        neu = vorhanden.ergaenztUm(text, zeit);
-      } else {
-        // ⚠️ ANDERE Unterhaltung, und im Feld steht ein angefangener Satz:
-        // Karte in Ruhe lassen. Umschalten würde die halbe Antwort an die
-        // falsche Person schicken.
-        if (_sichtbar && vorhanden != null && vorhanden.conversationId != conversationId) {
-          if (await _hatEntwurf()) {
-            _log.info('Blitz übersprungen — Entwurf für andere Unterhaltung offen',
-                tag: 'BLITZ');
-            return false;
-          }
-        }
-        neu = BlitzNachricht(
-          conversationId: conversationId,
-          absender: absender,
-          zeilen: [text],
-          kanal: kanal,
-          zeit: zeit,
-        );
-      }
+  }) =>
+      _nacheinander(() => _zeigen(conversationId, absender, text, kanal, zeit));
 
+  Future<bool> _zeigen(
+      int conversationId, String absender, String text, String kanal, DateTime zeit) async {
+    try {
+      return await _zeigenRoh(conversationId, absender, text, kanal, zeit);
+    } catch (e) {
+      // ⚠️ Nichts darf hier hinausfliegen. `melden()` ruft ohne `await`; eine
+      // Ausnahme landete sonst als unbehandelter Fehler im Protokoll, und der
+      // Aufrufer erführe nie, dass er auf die Benachrichtigung ausweichen
+      // muss.
+      _log.error('Blitz fehlgeschlagen: $e', tag: 'BLITZ');
+      return false;
+    }
+  }
+
+  Future<bool> _zeigenRoh(
+      int conversationId, String absender, String text, String kanal, DateTime zeit) async {
+    final vorhanden = _aktuell;
+
+    // Dieselbe Unterhaltung liegt schon vorn: anhängen statt ersetzen.
+    if (_sichtbar && vorhanden != null && vorhanden.conversationId == conversationId) {
+      return _hinlegen(vorhanden.ergaenztUm(text, zeit));
+    }
+
+    final neu = BlitzNachricht(
+      conversationId: conversationId,
+      absender: absender,
+      zeilen: [text],
+      kanal: kanal,
+      zeit: zeit,
+    );
+
+    // Eine ANDERE Unterhaltung, während vorn schon eine liegt: anstellen.
+    if (_sichtbar && vorhanden != null) {
+      final i = _warteschlange.indexWhere((w) => w.conversationId == conversationId);
+      if (i >= 0) {
+        // Schon in der Schlange — an ihre Nachricht anhängen, keine zweite
+        // Wartemarke für dieselbe Person.
+        _warteschlange[i] = _warteschlange[i].ergaenztUm(text, zeit);
+      } else {
+        _warteschlange.add(neu);
+      }
+      // Die vorne liegende Karte über den neuen Zähler in Kenntnis setzen.
+      await _schieben(vorhanden);
+      return true;
+    }
+
+    return _hinlegen(neu);
+  }
+
+  /// Karte nach vorn legen (erzeugt das Fenster beim ersten Mal).
+  Future<bool> _hinlegen(BlitzNachricht n) async {
+    try {
+      _aktuell = n;
       if (_fenster == null) {
         _fenster = await WindowController.create(WindowConfiguration(
           hiddenAtLaunch: true,
           arguments: '$kBlitzFensterArgument:${jsonEncode({
-                'nachricht': neu.toJson(),
+                'nachricht': n.toJson(),
+                'wartend': _warteschlange.length,
                 'dunkel': F.istDunkel,
               })}',
         ));
       } else {
-        // ⚠️ ÜBER [kBlitzKanal], NICHT über `_fenster.invokeMethod`.
-        // `WindowController.invokeMethod` spricht den paketeigenen Kanal
-        // `mixin.one/window_controller/<id>` an, auf dem hier niemand hört —
-        // gemessen: die zweite Nachricht derselben Unterhaltung wurde
-        // abgelehnt, `_fenster` daraufhin verworfen, und die dritte öffnete
-        // ein ZWEITES Blitz-Fenster übereinander.
-        await _kanal.invokeMethod(BlitzRuf.zeigen, neu.kodiert());
+        await _schieben(n);
       }
-      _aktuell = neu;
       _sichtbar = true;
       return true;
     } catch (e) {
       _log.error('Blitz-Fenster konnte nicht gezeigt werden: $e', tag: 'BLITZ');
       // ⚠️ `_fenster` wird NICHT verworfen. Das Fenster wird nie geschlossen,
-      // nur versteckt; es wegzuwerfen hiess beim nächsten Mal ein zweites zu
-      // erzeugen — genau das ist in der Probe passiert, zwei Karten
-      // übereinander. Der Aufrufer weicht auf die Benachrichtigung aus.
+      // nur versteckt; es wegzuwerfen hiesse beim nächsten Mal ein zweites zu
+      // erzeugen. Der Aufrufer weicht auf die Benachrichtigung aus.
       _sichtbar = false;
       _aktuell = null;
       return false;
     }
   }
 
-  Future<bool> _hatEntwurf() async {
-    try {
-      if (_fenster == null) return false;
-      return await _kanal.invokeMethod<bool>(BlitzRuf.hatEntwurf) ?? false;
-    } catch (_) {
-      // Keine Antwort heisst „weiss nicht". Dann lieber nicht umschalten:
-      // eine übersprungene Karte kostet einen Klick, eine an die falsche
-      // Person geschickte Antwort kostet mehr.
-      return true;
+  /// ⚠️ ÜBER [kBlitzKanal], NICHT über `_fenster.invokeMethod`.
+  /// `WindowController.invokeMethod` spricht den paketeigenen Kanal
+  /// `mixin.one/window_controller/<id>` an, auf dem hier niemand hört.
+  ///
+  /// ⚠️ MIT GEDULD, und das ist kein Schmuck. Das Blitz-Fenster meldet sich
+  /// erst auf dem Kanal an, wenn seine Engine hochgefahren ist — das dauert
+  /// rund eine Sekunde. Wer in dieser Zeit schiebt, bekommt
+  /// `CHANNEL_UNREGISTERED`. Gemessen mit drei Absendern in derselben
+  /// Sekunde: die zweite Nachricht warf eine unbehandelte Ausnahme und war
+  /// weg — also genau der gemeldete Fehler, nur eine Ebene tiefer.
+  Future<void> _schieben(BlitzNachricht n) async {
+    final nutzlast =
+        jsonEncode({'nachricht': n.toJson(), 'wartend': _warteschlange.length});
+    for (var versuch = 0; versuch < 25; versuch++) {
+      try {
+        await _kanal.invokeMethod(BlitzRuf.zeigen, nutzlast);
+        return;
+      } on WindowChannelException {
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+      }
     }
+    // Nach drei Sekunden ist etwas grundsätzlich falsch. Die Nachricht selbst
+    // ist nicht verloren — sie steht in der Schlange bzw. ist `_aktuell`.
+    _log.warning('Blitz-Fenster meldet sich nicht auf dem Kanal', tag: 'BLITZ');
   }
 
   static Map<String, dynamic> _karte(dynamic a) =>

@@ -11,17 +11,22 @@ import '../widgets/blitz_karte.dart';
 /// Breite der Karte am Rechner. Bewusst schmal: sie legt sich über das, woran
 /// gerade gearbeitet wird, und soll dort nichts verdecken, was man noch
 /// braucht.
-const double kBlitzBreite = 460;
+///
+/// 26.08.2026 von 460 auf 380 verkleinert — im Betrieb war die Karte „ein
+/// bisschen gross" (Rückmeldung des Vorsitzenden, nachdem sie das erste Mal
+/// wirklich auf dem Schreibtisch stand). Eine Meldung, die man wegklicken
+/// will, darf weniger Platz einnehmen als das, woran man arbeitet.
+const double kBlitzBreite = 380;
 
 /// Höhe beim Aufblenden, bevor der erste Rahmen gemessen ist. Danach richtet
 /// sich das Fenster nach dem Inhalt ([_BlitzFensterAppState._hoeheAnpassen]).
-const double kBlitzStartHoehe = 170;
+const double kBlitzStartHoehe = 130;
 
 /// Grenzen für die inhaltsabhängige Höhe. Nach oben gedeckelt, damit ein
 /// Schwall von fünf Zeilen die Karte nicht über den halben Bildschirm zieht —
 /// darüber scrollt der Text innerhalb der Karte.
-const double kBlitzMinHoehe = 130;
-const double kBlitzMaxHoehe = 420;
+const double kBlitzMinHoehe = 96;
+const double kBlitzMaxHoehe = 340;
 
 const Size kBlitzFensterGroesse = Size(kBlitzBreite, kBlitzStartHoehe);
 
@@ -34,8 +39,13 @@ const Size kBlitzFensterGroesse = Size(kBlitzBreite, kBlitzStartHoehe);
 /// wäre eine zweite, nicht angemeldete Instanz und würde still 401 liefern.
 class BlitzFensterApp extends StatefulWidget {
   final BlitzNachricht ersteNachricht;
+  final int wartend;
 
-  const BlitzFensterApp({super.key, required this.ersteNachricht});
+  const BlitzFensterApp({
+    super.key,
+    required this.ersteNachricht,
+    this.wartend = 0,
+  });
 
   @override
   State<BlitzFensterApp> createState() => _BlitzFensterAppState();
@@ -46,7 +56,7 @@ class _BlitzFensterAppState extends State<BlitzFensterApp>
   static const _kanal = WindowMethodChannel(kBlitzKanal);
 
   late BlitzNachricht _nachricht = widget.ersteNachricht;
-  final _entwurf = ValueNotifier<bool>(false);
+  late int _wartend = widget.wartend;
 
   /// Schlüssel auf die Karte, um ihre wirkliche Höhe zu messen.
   final _karteSchluessel = GlobalKey();
@@ -64,18 +74,19 @@ class _BlitzFensterAppState extends State<BlitzFensterApp>
     _kanal.setMethodCallHandler((ruf) async {
       switch (ruf.method) {
         case BlitzRuf.zeigen:
-          final n = BlitzNachricht.entschluesselt('${ruf.arguments}');
+          final nutzlast = _nutzlast('${ruf.arguments}');
+          final n = nutzlast == null
+              ? null
+              : BlitzNachricht.fromJson(
+                  Map<String, dynamic>.from(nutzlast['nachricht'] as Map? ?? const {}));
           if (n != null && mounted) {
-            setState(() => _nachricht = n);
+            setState(() {
+              _nachricht = n;
+              _wartend = (nutzlast!['wartend'] as num?)?.toInt() ?? 0;
+            });
             await _nachVorneHolen();
           }
           return true;
-        // Das Hauptfenster fragt vor einem Wechsel auf eine ANDERE
-        // Unterhaltung, ob hier schon getippt wurde. Sagt es ja, lässt das
-        // Hauptfenster die Karte in Ruhe und schickt die neue Nachricht
-        // stattdessen als gewöhnliche Benachrichtigung.
-        case BlitzRuf.hatEntwurf:
-          return _entwurf.value;
         default:
           return null;
       }
@@ -90,13 +101,21 @@ class _BlitzFensterAppState extends State<BlitzFensterApp>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _entwurf.dispose();
     super.dispose();
+  }
+
+  static Map<String, dynamic>? _nutzlast(String roh) {
+    try {
+      final j = jsonDecode(roh);
+      return j is Map ? Map<String, dynamic>.from(j) : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Fenster auf die Höhe der Karte bringen.
   ///
-  /// ⚠️ Ohne das steht die Karte oben in einem festen 460×300-Fenster und
+  /// ⚠️ Ohne das steht die Karte oben in einem Fenster fester Höhe und
   /// darunter klafft ein leeres Rechteck — auf einem Bildschirm ohne
   /// Compositor schwarz, gemessen im Probelauf.
   ///
@@ -157,6 +176,9 @@ class _BlitzFensterAppState extends State<BlitzFensterApp>
       await windowManager.hide();
     } catch (_) {/* siehe oben */}
     try {
+      // Das Hauptfenster legt die Karte weg und zieht die nächste wartende
+      // nach. Kommt eine, zeigt es sich gleich wieder — deshalb hier NICHT
+      // auf das Verstecken warten.
       await _kanal.invokeMethod(BlitzRuf.schliessen);
     } catch (_) {/* Hauptfenster weg — dann ist ohnehin nichts mehr zu melden */}
   }
@@ -195,13 +217,28 @@ class _BlitzFensterAppState extends State<BlitzFensterApp>
         // ausrichten kann; in einem festen Rahmen gemessen wäre die Karte
         // immer genau so hoch wie das Fenster und würde nie wachsen.
         body: SingleChildScrollView(
-          child: BlitzKarte(
-            key: _karteSchluessel,
-            nachricht: _nachricht,
-            entwurfMelder: _entwurf,
-            onSenden: _senden,
-            onSchliessen: _schliessen,
-            onImChatOeffnen: _imChatOeffnen,
+          // ⚠️ Meldet, wenn die KARTE selbst ihre Höhe ändert — etwa weil eine
+          // Fehlerzeile erscheint oder das Antwortfeld auf zwei Zeilen wächst.
+          // Ohne das blieb das Fenster stehen: gemessen, wie nach einem
+          // fehlgeschlagenen Senden die Fehlermeldung erschien und das
+          // Eingabefeld unten aus dem Fenster geschnitten wurde. `build` des
+          // Fensters läuft dabei nämlich gar nicht — die Karte setzt ihren
+          // Zustand selbst, und ein Kind-Rebuild erreicht den Elternteil nicht.
+          child: NotificationListener<SizeChangedLayoutNotification>(
+            onNotification: (_) {
+              _hoeheAnpassen();
+              return true;
+            },
+            child: SizeChangedLayoutNotifier(
+              child: BlitzKarte(
+                key: _karteSchluessel,
+                nachricht: _nachricht,
+                wartend: _wartend,
+                onSenden: _senden,
+                onSchliessen: _schliessen,
+                onImChatOeffnen: _imChatOeffnen,
+              ),
+            ),
           ),
         ),
       ),
@@ -263,5 +300,8 @@ Future<void> blitzFensterStarten(String argument) async {
     },
   );
 
-  runApp(BlitzFensterApp(ersteNachricht: nachricht));
+  runApp(BlitzFensterApp(
+    ersteNachricht: nachricht,
+    wartend: (nutzlast['wartend'] as num?)?.toInt() ?? 0,
+  ));
 }

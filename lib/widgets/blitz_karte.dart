@@ -28,12 +28,14 @@ class BlitzKarte extends StatefulWidget {
   /// kleine Karte am Rechner.
   final bool gross;
 
-  /// Meldet nach aussen, ob schon etwas ins Antwortfeld getippt wurde.
+  /// Wie viele weitere Absender warten noch.
   ///
-  /// ⚠️ Daran hängt eine Sicherung, keine Spielerei: das Hauptfenster darf die
-  /// Karte NICHT auf eine andere Unterhaltung umschalten, solange hier ein
-  /// halber Satz steht — sonst ginge die Antwort an die falsche Person.
-  final ValueNotifier<bool>? entwurfMelder;
+  /// ⚠️ Der Zähler ist die Antwort darauf, dass bei zwei gleichzeitigen
+  /// Absendern der zweite unsichtbar blieb. Die Karte wird bewusst NICHT
+  /// unter den Fingern umgeschaltet — sonst ginge eine halb geschriebene
+  /// Antwort an die falsche Person —, aber verschweigen darf sie den
+  /// Wartenden auch nicht.
+  final int wartend;
 
   const BlitzKarte({
     super.key,
@@ -42,7 +44,7 @@ class BlitzKarte extends StatefulWidget {
     required this.onSchliessen,
     this.onImChatOeffnen,
     this.gross = false,
-    this.entwurfMelder,
+    this.wartend = 0,
   });
 
   @override
@@ -56,25 +58,11 @@ class _BlitzKarteState extends State<BlitzKarte> {
   String? _fehler;
 
   @override
-  void initState() {
-    super.initState();
-    _eingabe.addListener(_entwurfMelden);
-  }
-
-  void _entwurfMelden() => widget.entwurfMelder?.value = hatEntwurf;
-
-  @override
   void dispose() {
-    _eingabe.removeListener(_entwurfMelden);
     _eingabe.dispose();
     _eingabeFokus.dispose();
     super.dispose();
   }
-
-  /// Wurde schon etwas getippt? Das Hauptfenster fragt das, bevor es die
-  /// Karte auf eine ANDERE Unterhaltung umschaltet — sonst ginge die halb
-  /// geschriebene Antwort an die falsche Person.
-  bool get hatEntwurf => _eingabe.text.trim().isNotEmpty;
 
   Future<void> _senden() async {
     final text = _eingabe.text.trim();
@@ -130,11 +118,11 @@ class _BlitzKarteState extends State<BlitzKarte> {
     return Container(
       decoration: BoxDecoration(
         color: F.flaeche,
-        borderRadius: BorderRadius.circular(gross ? 0 : 14),
+        borderRadius: BorderRadius.circular(gross ? 0 : 12),
         border: gross ? null : Border.all(color: F.rand),
         boxShadow: gross
             ? null
-            : const [BoxShadow(color: Color(0x33000000), blurRadius: 18, offset: Offset(0, 6))],
+            : const [BoxShadow(color: Color(0x2E000000), blurRadius: 14, offset: Offset(0, 4))],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -163,19 +151,19 @@ class _BlitzKarteState extends State<BlitzKarte> {
 
   Widget _verlauf(BlitzNachricht n, bool gross) {
     final inhalt = Padding(
-        padding: EdgeInsets.fromLTRB(gross ? 24 : 14, 4, gross ? 24 : 14, 8),
+        padding: EdgeInsets.fromLTRB(gross ? 24 : 11, 2, gross ? 24 : 11, 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             for (final z in n.zeilen)
               Padding(
-                padding: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
                   z,
                   style: TextStyle(
-                    fontSize: gross ? 19 : 14.5,
-                    height: 1.35,
+                    fontSize: gross ? 19 : 13,
+                    height: 1.3,
                     color: F.textStark,
                   ),
                 ),
@@ -188,22 +176,22 @@ class _BlitzKarteState extends State<BlitzKarte> {
   Widget _kopf(BlitzNachricht n, bool gross) {
     final farbe = _farbeFuer(n.absender);
     return Padding(
-      padding: EdgeInsets.fromLTRB(gross ? 24 : 14, gross ? 20 : 12, gross ? 12 : 6, 6),
+      padding: EdgeInsets.fromLTRB(gross ? 24 : 11, gross ? 20 : 8, gross ? 12 : 4, 3),
       child: Row(
         children: [
           CircleAvatar(
-            radius: gross ? 22 : 15,
+            radius: gross ? 22 : 12,
             backgroundColor: farbe,
             child: Text(
               _initiale(n.absender),
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
-                fontSize: gross ? 18 : 13,
+                fontSize: gross ? 18 : 11.5,
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,36 +203,54 @@ class _BlitzKarteState extends State<BlitzKarte> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: gross ? 20 : 14.5,
+                    fontSize: gross ? 20 : 13,
                     color: F.textStark,
                   ),
                 ),
                 Row(
                   children: [
                     if (n.kanal == 'sms') ...[
-                      Icon(Icons.sms_outlined, size: gross ? 15 : 12, color: F.textLeise),
+                      Icon(Icons.sms_outlined, size: gross ? 15 : 11, color: F.textLeise),
                       const SizedBox(width: 4),
                       Text('SMS · ',
-                          style: TextStyle(fontSize: gross ? 13 : 11, color: F.textLeise)),
+                          style: TextStyle(fontSize: gross ? 13 : 10, color: F.textLeise)),
                     ],
                     Text(
                       _uhrzeit(n.zeit),
-                      style: TextStyle(fontSize: gross ? 13 : 11, color: F.textLeise),
+                      style: TextStyle(fontSize: gross ? 13 : 10, color: F.textLeise),
                     ),
                   ],
                 ),
               ],
             ),
           ),
+          if (widget.wartend > 0) _warteMarke(gross),
           IconButton(
             tooltip: 'Weglegen (Esc)',
-            icon: Icon(Icons.close, size: gross ? 26 : 18, color: F.textSchwach),
+            icon: Icon(Icons.close, size: gross ? 26 : 16, color: F.textSchwach),
             onPressed: widget.onSchliessen,
           ),
         ],
       ),
     );
   }
+
+  /// „noch 1" — wer nach dieser Karte an der Reihe ist.
+  Widget _warteMarke(bool gross) => Container(
+        padding: EdgeInsets.symmetric(horizontal: gross ? 10 : 7, vertical: gross ? 5 : 3),
+        decoration: BoxDecoration(
+          color: F.flaecheBetont,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          'noch ${widget.wartend}',
+          style: TextStyle(
+            fontSize: gross ? 13 : 10.5,
+            fontWeight: FontWeight.w600,
+            color: F.textSchwach,
+          ),
+        ),
+      );
 
   Widget _fehlerZeile(bool gross) => Container(
         width: double.infinity,
@@ -266,14 +272,14 @@ class _BlitzKarteState extends State<BlitzKarte> {
 
   Widget _fuss(bool gross) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(gross ? 24 : 12, 4, gross ? 24 : 12, gross ? 24 : 12),
+      padding: EdgeInsets.fromLTRB(gross ? 24 : 8, 2, gross ? 24 : 8, gross ? 24 : 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (widget.onImChatOeffnen != null)
             IconButton(
               tooltip: 'Im Chat öffnen',
-              icon: Icon(Icons.open_in_new, size: gross ? 24 : 19, color: F.textSchwach),
+              icon: Icon(Icons.open_in_new, size: gross ? 24 : 17, color: F.textSchwach),
               onPressed: widget.onImChatOeffnen,
             ),
           Expanded(
@@ -286,23 +292,23 @@ class _BlitzKarteState extends State<BlitzKarte> {
                 autofocus: true,
                 enabled: !_sendet,
                 minLines: 1,
-                maxLines: gross ? 5 : 3,
+                maxLines: gross ? 5 : 2,
                 textInputAction: TextInputAction.newline,
-                style: TextStyle(fontSize: gross ? 17 : 14, color: F.textStark),
+                style: TextStyle(fontSize: gross ? 17 : 13, color: F.textStark),
                 decoration: InputDecoration(
                   hintText: 'Antwort schreiben…',
-                  hintStyle: TextStyle(color: F.textLeise, fontSize: gross ? 17 : 14),
+                  hintStyle: TextStyle(color: F.textLeise, fontSize: gross ? 17 : 13),
                   filled: true,
                   fillColor: F.flaecheGedaempft,
                   isDense: true,
                   contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: gross ? 14 : 10),
+                      EdgeInsets.symmetric(horizontal: gross ? 12 : 10, vertical: gross ? 14 : 7),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(gross ? 12 : 9),
+                    borderRadius: BorderRadius.circular(gross ? 12 : 8),
                     borderSide: BorderSide(color: F.rand),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(gross ? 12 : 9),
+                    borderRadius: BorderRadius.circular(gross ? 12 : 8),
                     borderSide: BorderSide(color: F.rand),
                   ),
                 ),
@@ -312,8 +318,8 @@ class _BlitzKarteState extends State<BlitzKarte> {
           const SizedBox(width: 6),
           _sendet
               ? SizedBox(
-                  width: gross ? 44 : 36,
-                  height: gross ? 44 : 36,
+                  width: gross ? 44 : 32,
+                  height: gross ? 44 : 32,
                   child: const Center(
                     child: SizedBox(
                         width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -321,7 +327,7 @@ class _BlitzKarteState extends State<BlitzKarte> {
                 )
               : IconButton(
                   tooltip: 'Senden (Eingabe)',
-                  icon: Icon(Icons.send, size: gross ? 26 : 20),
+                  icon: Icon(Icons.send, size: gross ? 26 : 18),
                   color: const Color(0xFF4a90d9),
                   onPressed: _senden,
                 ),
