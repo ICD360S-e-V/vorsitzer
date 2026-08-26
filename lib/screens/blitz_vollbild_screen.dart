@@ -44,6 +44,21 @@ class BlitzVollbildScreen extends StatelessWidget {
         channel: nachricht.kanal == 'sms' ? 'sms' : 'app',
       );
       if (r['success'] == true) {
+        // Wer antwortet, hat gelesen — sonst wächst das rote Abzeichen weiter,
+        // während man gerade dabei ist. Siehe
+        // [BlitzFensterSteuerung._alsGelesenMarkieren] für die Begründung,
+        // warum ohne Nachrichten-IDs.
+        try {
+          await ApiService().markMessagesRead(
+            conversationId: nachricht.conversationId,
+            mitgliedernummer: mnr,
+            status: 'read',
+          );
+        } catch (e) {
+          // Die Antwort ist heraus; nur das Abzeichen bleibt stehen.
+          _log.warning('Blitz-Vollbild: gelesen-Markierung fehlgeschlagen: $e',
+              tag: 'BLITZ');
+        }
         BlitzNachrichtService.instanz.vergessen(nachricht.conversationId);
         return null;
       }
