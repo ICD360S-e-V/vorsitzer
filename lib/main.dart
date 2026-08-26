@@ -21,6 +21,7 @@ import 'services/theme_service.dart';
 import 'utils/app_farben.dart';
 import 'utils/app_theme.dart';
 import 'utils/keyboard_rdp_fix.dart';
+import 'utils/mpv_locale_fix.dart';
 
 // Desktop-only packages (compile on all platforms, but only used on desktop)
 import 'package:window_manager/window_manager.dart';
@@ -114,6 +115,11 @@ void main(List<String> args) async {
   // radio streams actually produce sound. Must run before any AudioPlayer is
   // constructed (RadioService creates one at field-init time).
   if (Platform.isWindows || Platform.isLinux) {
+    // ⚠️ Zuerst LC_NUMERIC auf "C" stellen, sonst bricht libmpv beim ersten
+    // AudioPlayer mit abort() ab (deutsches Linux hat LC_NUMERIC=de_DE.UTF-8).
+    // Siehe mpv_locale_fix.dart.
+    StartupDiagnostics.log('→ mpvLocaleFix (LC_NUMERIC=C)');
+    mpvLocaleFix();
     await StartupDiagnostics.stepWithTimeout(
       'JustAudioMediaKit.ensureInitialized',
       const Duration(seconds: 5),
