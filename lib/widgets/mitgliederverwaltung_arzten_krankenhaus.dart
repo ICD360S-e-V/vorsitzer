@@ -425,19 +425,25 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
         // ⚠️ NUR die Herkunftstabelle fragen: die id-Folgen sind je Tabelle
         // eigenständig, ein Treffer in der falschen Tabelle wäre eine fremde
         // Praxis mit derselben id. Siehe lib/utils/arzt_quelle.dart.
-        final ausKlinik = istKlinikEintrag(selectedArzt);
+        //
+        // 🔴 Für DIESEN Reiter gibt es nur eine Herkunft: `kliniken_datenbank`.
+        // Hier stand bis zum 26.08.2026 eine Verzweigung auf
+        // `searchKrankenhausDatenbank` — und die wurde IMMER genommen: der
+        // Server liefert `selected_arzt` fertig aus `kliniken_datenbank`
+        // (KrankenhausStore::loadSelectedArzt), ohne die Spalte `krankenhaus`
+        // und ohne Herkunftsmarke, weshalb `istKlinikEintrag` stets `false`
+        // sagte. Gefragt wurde damit `krankenhaus_datenbank` — eine Tabelle
+        // mit 0 Zeilen. Das Auffrischen konnte nie etwas finden, ohne dass
+        // etwas fehlschlug.
         final suchbegriff = selectedArzt['arzt_name']?.toString() ?? selectedArzt['praxis_name']?.toString() ?? '';
-        (ausKlinik
-                ? widget.apiService.searchKliniken(search: suchbegriff)
-                : widget.apiService.searchKrankenhausDatenbank(search: suchbegriff))
+        widget.apiService.searchKliniken(search: suchbegriff)
             .then((result) {
-          final aerzte = (ausKlinik ? result['kliniken'] : result['aerzte']) as List? ?? [];
+          final aerzte = result['kliniken'] as List? ?? [];
           for (final a in aerzte) {
             if (a['id'].toString() == arztId) {
               if (mounted) {
                 setState(() {
-                  final roh = Map<String, dynamic>.from(a as Map);
-                  selectedArzt = ausKlinik ? klinikAlsArzt(roh) : roh;
+                  selectedArzt = klinikAlsArzt(Map<String, dynamic>.from(a as Map));
                   data['selected_arzt'] = selectedArzt;
                   _gesundheitData[type] = data;
                 });
@@ -8298,11 +8304,15 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
     final arztId = activeData['arzt_id']?.toString();
     if (onlineTerminUrl.isEmpty && arztId != null && arztId.isNotEmpty) {
       try {
-        final result = await widget.apiService.searchKrankenhausDatenbank(search: selArzt['arzt_name']?.toString() ?? selArzt['praxis_name']?.toString() ?? '');
-        final aerzte = result['aerzte'] as List? ?? [];
+        // 🔴 `kliniken_datenbank`, nicht `krankenhaus_datenbank`: dort stehen
+        // die Häuser dieses Reiters, und 6 von 144 tragen eine Adresse für die
+        // Online-Terminvergabe. Gefragt wurde bis zum 26.08.2026 die leere
+        // Tabelle — der Knopf „Online-Termin" konnte deshalb nie nachwachsen.
+        final result = await widget.apiService.searchKliniken(search: selArzt['arzt_name']?.toString() ?? selArzt['praxis_name']?.toString() ?? '');
+        final aerzte = result['kliniken'] as List? ?? [];
         for (final a in aerzte) {
           if (a['id'].toString() == arztId && (a['online_termin_url']?.toString() ?? '').isNotEmpty) {
-            selArzt = Map<String, dynamic>.from(a as Map);
+            selArzt = klinikAlsArzt(Map<String, dynamic>.from(a as Map));
             activeData['selected_arzt'] = selArzt;
             _gesundheitData[type] = activeData;
             _augenSave(type, activeData);
