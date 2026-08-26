@@ -48,6 +48,7 @@ import 'blutwerte_uebernahme.dart';
 import '../utils/blut_parameter_liste.dart';
 import 'blutwerte_suche.dart';
 import 'arzt_suche_dialog.dart';
+import 'klinik_formular.dart';
 
 class MitgliederverwaltungArztenKrankenhaus extends StatefulWidget {
   final User user;
@@ -942,6 +943,24 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                                             ]),
                                           ),
                                         const Spacer(),
+                                        // Ergänzt Fax, Notaufnahme-Nummer oder
+                                        // Terminportal direkt im Katalog —
+                                        // bisher ging das nur mit SQL.
+                                        TextButton.icon(
+                                          icon: Icon(Icons.edit_location_alt, size: 14, color: F.h(Colors.grey, 600)),
+                                          label: Text('Klinikdaten', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2)),
+                                          onPressed: () async {
+                                            final aktualisiert = await KlinikFormular.bearbeiten(
+                                                context, widget.apiService, selectedArzt);
+                                            if (aktualisiert == null) return;
+                                            setLocalState(() {
+                                              selectedArzt = aktualisiert;
+                                              data['selected_arzt'] = selectedArzt;
+                                            });
+                                            saveAll();
+                                          },
+                                        ),
                                         TextButton.icon(
                                           icon: Icon(Icons.edit, size: 14, color: F.h(Colors.grey, 600)),
                                           label: Text('LANR/BSNR', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
@@ -10184,12 +10203,17 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                 return;
               }
               try {
-                final result = await widget.apiService.manageArzt({
-                  'action': 'update_nummern',
-                  'id': arztId,
-                  'lanr': lanrC.text.trim(),
-                  'bsnr': bsnrC.text.trim(),
-                });
+                // 🔴 NICHT `manageArzt`: das ist `aerzte_datenbank`, und `arztId`
+                // stammt aus dem Katalog DIESES Reiters. Die id-Folgen sind je
+                // Tabelle eigenstaendig — bis zum 26.08.2026 landeten die
+                // Nummern deshalb auf einer wildfremden Praxis, waehrend sie
+                // hier nie erschienen. Siehe lib/utils/arzt_quelle.dart.
+                final result = await widget.apiService.updateKatalogNummern(
+                  endpunkt: 'kliniken_manage.php',
+                  id: arztId,
+                  lanr: lanrC.text.trim(),
+                  bsnr: bsnrC.text.trim(),
+                );
                 if (!dlgCtx.mounted) return;
                 if (result['success'] == true) {
                   Navigator.pop(dlgCtx);
@@ -10228,6 +10252,14 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
       ),
       onSelect: onSelect,
       vorbelegteSuche: vorbelegteSuche,
+      // Der Katalog führt 144 Abteilungen aus sechs Häusern, alle im Raum
+      // Ulm/Tübingen. Wer anderswo behandelt wurde, war bis zum 26.08.2026
+      // nicht erfassbar — die Lupe fand nichts, und anlegen ging auch nicht.
+      anlegenBeschriftung: 'Klinik aufnehmen',
+      onAnlegen: (suchtext) => KlinikFormular.anlegen(
+        context, widget.apiService,
+        vorbelegterName: suchtext.isEmpty ? null : suchtext,
+      ),
     );
   }
 

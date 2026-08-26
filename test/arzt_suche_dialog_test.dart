@@ -19,6 +19,7 @@ Future<void> _oeffnen(
   ArztKatalogAbfrage? katalog,
   bool nurFachVoreinstellung = true,
   void Function(Map<String, dynamic>)? onSelect,
+  Future<Map<String, dynamic>?> Function(String)? onAnlegen,
 }) async {
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(
@@ -30,6 +31,8 @@ Future<void> _oeffnen(
             nurFachVoreinstellung: nurFachVoreinstellung,
             katalog: katalog ?? (_) async => _katalog,
             onSelect: onSelect ?? (_) {},
+            onAnlegen: onAnlegen,
+            anlegenBeschriftung: 'Klinik aufnehmen',
           ),
           child: const Text('auf'),
         ),
@@ -114,6 +117,65 @@ void main() {
     // Der Dialog fährt animiert heraus — ohne die Übergangszeit steht er noch da.
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  group('Weg aus einer leeren Liste', () {
+    // 🔴 Der Klinik-Katalog war bis zum 26.08.2026 nur lesbar. Wer in einem
+    // Haus behandelt wurde, das nicht unter den gespeicherten stand, hatte
+    // nichts zu wählen und nichts anzulegen — eine Sackgasse.
+    testWidgets('ohne onAnlegen gibt es keinen Knopf', (tester) async {
+      await _oeffnen(tester, fachrichtung: 'Urologie');
+      expect(find.text('Keine Ärzte gefunden'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Klinik aufnehmen'), findsNothing);
+    });
+
+    testWidgets('der Knopf steht IN der leeren Liste, nicht nur in der Leiste',
+        (tester) async {
+      // Unten in der Leiste würde ihn dort niemand suchen.
+      await _oeffnen(tester,
+          fachrichtung: 'Urologie', onAnlegen: (_) async => null);
+      expect(find.widgetWithText(FilledButton, 'Klinik aufnehmen'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Klinik aufnehmen'), findsOneWidget);
+    });
+
+    testWidgets('der Suchtext wird durchgereicht', (tester) async {
+      // Wer „Katharinenhospital" getippt hat, soll den Namen im Formular
+      // wiederfinden statt ihn abzutippen.
+      String? gesehen;
+      await _oeffnen(tester,
+          fachrichtung: '', onAnlegen: (t) async { gesehen = t; return null; });
+      await tester.enterText(find.byType(TextField), 'Katharinenhospital');
+      await tester.tap(find.widgetWithText(TextButton, 'Klinik aufnehmen'));
+      await tester.pump();
+      expect(gesehen, 'Katharinenhospital');
+    });
+
+    testWidgets('das Angelegte ist sofort das Gewählte', (tester) async {
+      Map<String, dynamic>? gewaehlt;
+      final neu = {'id': 145, 'praxis_name': 'Katharinenhospital', 'fachrichtung': 'Urologie'};
+      await _oeffnen(tester,
+          fachrichtung: 'Urologie',
+          onSelect: (a) => gewaehlt = a,
+          onAnlegen: (_) async => neu);
+      await tester.tap(find.widgetWithText(FilledButton, 'Klinik aufnehmen'));
+      await tester.pump();
+      expect(gewaehlt?['id'], 145);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(AlertDialog), findsNothing);
+    });
+
+    testWidgets('ein Abbruch im Formular wählt nichts und schliesst nichts',
+        (tester) async {
+      var gewaehlt = false;
+      await _oeffnen(tester,
+          fachrichtung: 'Urologie',
+          onSelect: (_) => gewaehlt = true,
+          onAnlegen: (_) async => null);
+      await tester.tap(find.widgetWithText(FilledButton, 'Klinik aufnehmen'));
+      await tester.pump(const Duration(seconds: 1));
+      expect(gewaehlt, isFalse);
+      expect(find.byType(AlertDialog), findsOneWidget);
+    });
   });
 
   group('arztKatalog', () {
