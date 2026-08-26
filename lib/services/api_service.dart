@@ -9712,6 +9712,97 @@ class ApiService {
     }
   }
 
+
+  // ========== BUSSGELD-VORFALL: DETAILS, KORRESPONDENZ, EINSPRUCH ==========
+
+  /// Ein Vorfall mit allem, was daran hängt.
+  ///
+  /// ⚠️ [userId] ist nicht bloß Beiwerk: der Server nimmt sie in die
+  /// WHERE-Klausel und antwortet bei einer fremden Kennung mit 404 statt
+  /// mit dem Vorgang eines anderen Mitglieds.
+  Future<Map<String, dynamic>> getBussgeldVorfallDetails(int userId, int vorfallId) async {
+    try {
+      final r = await _client.get(
+        Uri.parse('$baseUrl/admin/bussgeld_vorfall_details.php?user_id=$userId&vorfall_id=$vorfallId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 20));
+      final m = Map<String, dynamic>.from(jsonDecode(r.body) as Map);
+      m['httpStatus'] = r.statusCode;
+      return m;
+    } catch (e) {
+      return {'success': false, 'message': 'Verbindungsfehler'};
+    }
+  }
+
+  Future<Map<String, dynamic>> bussgeldVorfallAktion(Map<String, dynamic> daten) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/bussgeld_vorfall_details.php'),
+        headers: _headers,
+        body: jsonEncode(daten),
+      ).timeout(const Duration(seconds: 20));
+      final m = Map<String, dynamic>.from(jsonDecode(r.body) as Map);
+      m['httpStatus'] = r.statusCode;
+      return m;
+    } on FormatException {
+      return {'success': false, 'message': 'Ungültige Serverantwort'};
+    } catch (e) {
+      return {'success': false, 'message': 'Verbindungsfehler'};
+    }
+  }
+
+  // ========== BUSSGELD-VOLLMACHT ==========
+
+  /// Umfangsmatrix, Grenzen und Belehrung.
+  ///
+  /// ⚠️ Der Bildschirm ZEIGT diese Matrix, er hält keine zweite Kopie —
+  /// sonst verspricht die Oberfläche etwas anderes, als das PDF druckt.
+  Future<Map<String, dynamic>> bussgeldVollmachtOptionen() async =>
+      _bussgeldVollmachtGet('action=optionen');
+
+  Future<Map<String, dynamic>> listBussgeldVollmachten(int userId, int vorfallId) async =>
+      _bussgeldVollmachtGet('action=list&user_id=$userId&vorfall_id=$vorfallId');
+
+  Future<Map<String, dynamic>> _bussgeldVollmachtGet(String query) async {
+    try {
+      final r = await _client.get(
+        Uri.parse('$baseUrl/admin/bussgeld_vollmacht_manage.php?$query'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 20));
+      final m = Map<String, dynamic>.from(jsonDecode(r.body) as Map);
+      m['httpStatus'] = r.statusCode;
+      return m;
+    } catch (e) {
+      return {'success': false, 'message': 'Verbindungsfehler'};
+    }
+  }
+
+  Future<Map<String, dynamic>> bussgeldVollmachtAktion(Map<String, dynamic> daten) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/bussgeld_vollmacht_manage.php'),
+        headers: _headers,
+        body: jsonEncode(daten),
+      ).timeout(const Duration(seconds: 25));
+      final m = Map<String, dynamic>.from(jsonDecode(r.body) as Map);
+      m['httpStatus'] = r.statusCode;
+      return m;
+    } on FormatException {
+      return {'success': false, 'message': 'Ungültige Serverantwort'};
+    } catch (e) {
+      return {'success': false, 'message': 'Verbindungsfehler'};
+    }
+  }
+
+  /// Das Vollmacht-PDF. Der Server legt es zugleich ab und setzt den Status
+  /// von `draft` auf `wartet_unterschrift`.
+  Future<http.Response> downloadBussgeldVollmachtPdf(int userId, int vollmachtId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/bussgeld_vollmacht_pdf.php?id=$vollmachtId&user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 40));
+  }
+
   // ========== USER POLIZEI ==========
 
   Future<Map<String, dynamic>> getUserPolizei(int userId) async {

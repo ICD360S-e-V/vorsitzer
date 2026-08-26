@@ -6,6 +6,7 @@ import '../models/user.dart';
 import '../utils/app_farben.dart';
 import 'phone_link.dart';
 import 'bussgeld_vorfall_dialog.dart';
+import 'bussgeld_vorfall_details_dialog.dart';
 
 /// Behörden-Reiter „Bußgeldstelle" — Zwilling des Polizei-Reiters daneben.
 ///
@@ -109,6 +110,135 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
           : 'Nicht gespeichert: ${r['message'] ?? 'unbekannter Fehler'}'),
     ));
     if (r['success'] == true) _laden();
+  }
+
+  /// Der "+"-Weg: nur das Aktenzeichen, dann steht der Vorgang.
+  ///
+  /// ⚠️ Bewusst NICHT das grosse Formular. Wer ein Schreiben in der Hand
+  /// haelt, hat als erstes das Aktenzeichen — Betraege, Tatort und
+  /// Punktestand stehen weiter unten auf dem Blatt und koennen warten. Ein
+  /// Formular mit zwanzig Feldern am Anfang fuehrt dazu, dass der Vorgang
+  /// gar nicht erst angelegt wird.
+  Future<void> _vorfallSchnellAnlegen() async {
+    final az = TextEditingController();
+    String art = 'bussgeldbescheid';
+    DateTime? zugang = DateTime.now();
+    DateTime? bescheid;
+
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(
+      builder: (ctx, ss) {
+        Widget dat(String label, DateTime? wert, ValueChanged<DateTime?> setzen, {String? hilfe}) => InkWell(
+              onTap: () async {
+                final d = await showDatePicker(context: ctx, initialDate: wert ?? DateTime.now(),
+                    firstDate: DateTime(2000), lastDate: DateTime.now().add(const Duration(days: 365)));
+                if (d != null) ss(() => setzen(d));
+              },
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: label, border: const OutlineInputBorder(), isDense: true, helperText: hilfe,
+                  suffixIcon: wert == null ? const Icon(Icons.calendar_today, size: 16)
+                      : IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => ss(() => setzen(null))),
+                ),
+                child: Text(wert == null ? '\u2014'
+                    : '${wert.day.toString().padLeft(2, '0')}.${wert.month.toString().padLeft(2, '0')}.${wert.year}'),
+              ),
+            );
+        return AlertDialog(
+          title: Row(children: [
+            Icon(Icons.gavel, color: F.h(Colors.deepOrange, 700)),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Aktenzeichen erfassen')),
+          ]),
+          content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (_zustaendig?['stelle_name'] != null)
+              Padding(padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(children: [
+                    Icon(Icons.account_balance, size: 15, color: F.h(Colors.grey, 600)),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(_zustaendig!['stelle_name'].toString(),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
+                  ])),
+            TextField(
+              key: const Key('bg_schnell_az'),
+              controller: az,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Aktenzeichen *', border: OutlineInputBorder(), isDense: true,
+                hintText: 'genau wie auf dem Schreiben'),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: art,
+              decoration: const InputDecoration(labelText: 'Art des Schreibens', border: OutlineInputBorder(), isDense: true),
+              items: [for (final e in kBussgeldArten.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
+              onChanged: (v) => ss(() => art = v ?? art),
+            ),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(child: dat('Datum des Schreibens', bescheid, (d) => bescheid = d)),
+              const SizedBox(width: 10),
+              Expanded(child: dat('Zugegangen am', zugang, (d) => zugang = d, hilfe: 'Fristbeginn')),
+            ]),
+            const SizedBox(height: 6),
+            Text('Alles Weitere \u2014 Vorwurf, Betr\u00E4ge, Tatort \u2014 l\u00E4sst sich danach im Vorgang erg\u00E4nzen.',
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+          ])),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: F.h(Colors.deepOrange, 700), foregroundColor: Colors.white),
+              child: const Text('Anlegen und \u00F6ffnen'),
+            ),
+          ],
+        );
+      },
+    ));
+    if (ok != true) return;
+    if (az.text.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Ohne Aktenzeichen findet die Beh\u00F6rde den Vorgang nicht \u2014 bitte eintragen.')));
+      }
+      return;
+    }
+
+    final id = _zustaendig?['stelle_id'];
+    final r = await widget.apiService.saveBussgeldVorfall(widget.userId, {
+      'stelle_id': id is int ? id : int.tryParse(id?.toString() ?? ''),
+      'stelle_name': _zustaendig?['stelle_name'],
+      'art': art,
+      'aktenzeichen': az.text.trim(),
+      'bescheid_datum': bescheid == null ? null : _iso(bescheid!),
+      'zugang_datum': zugang == null ? null : _iso(zugang!),
+    });
+    if (!mounted) return;
+    if (r['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Nicht angelegt: ${r['message'] ?? 'unbekannter Fehler'}')));
+      return;
+    }
+    await _laden();
+    if (!mounted) return;
+    // Direkt in den Vorgang: dort stehen Details, Korrespondenz,
+    // Widerspruch und Vollmacht.
+    await _detailsOeffnen(r['id'] as int);
+  }
+
+  static String _iso(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Future<void> _detailsOeffnen(int vorfallId) async {
+    await showDialog<bool>(
+      context: context,
+      builder: (_) => BussgeldVorfallDetailsDialog(
+        apiService: widget.apiService,
+        userId: widget.userId,
+        vorfallId: vorfallId,
+      ),
+    );
+    if (mounted) _laden();
   }
 
   Future<void> _vorfallDialog({Map<String, dynamic>? vorfall}) async {
@@ -266,12 +396,12 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
             SizedBox(width: double.infinity, child: OutlinedButton.icon(
               key: const Key('bg_vorfall_von_stelle'),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Neuer Vorfall zu dieser Stelle'),
+              label: const Text('Aktenzeichen hinzuf\u00FCgen'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: F.h(Colors.deepOrange, 700),
                 side: BorderSide(color: F.h(Colors.deepOrange, 300)),
               ),
-              onPressed: () => _vorfallDialog(),
+              onPressed: _vorfallSchnellAnlegen,
             )),
             if (_vorfaelle.isNotEmpty)
               Padding(
@@ -365,7 +495,7 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
               label: const Text('Neuer Vorfall'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: F.h(Colors.deepOrange, 700), foregroundColor: Colors.white),
-              onPressed: () => _vorfallDialog(),
+              onPressed: _vorfallSchnellAnlegen,
             ),
           ]),
           const Divider(height: 24),
@@ -444,7 +574,10 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
           IconButton(icon: const Icon(Icons.delete_outline, size: 18), tooltip: 'Löschen',
               color: F.h(Colors.red, 600), onPressed: () => _vorfallLoeschen(v)),
         ]),
-        onTap: () => _vorfallDialog(vorfall: v),
+        // Tippen auf die Zeile fuehrt in den VORGANG (Details, Korrespondenz,
+        // Widerspruch, Vollmacht); der Stift daneben oeffnet weiterhin direkt
+        // das Formular.
+        onTap: () => _detailsOeffnen(v['id'] as int),
       ),
     );
   }
