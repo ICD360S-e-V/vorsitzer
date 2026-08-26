@@ -92,6 +92,7 @@ void main() {
 
   _abgleich();
   _anhaenge();
+  _zustaendigkeit();
 
   group('Der Weg über das "+"', () {
     test('die Schnellanlage fragt nur nach dem Aktenzeichen und den Daten', () {
@@ -206,6 +207,58 @@ void _anhaenge() {
     test('das Plus sitzt bei den Vorgängen', () {
       expect(stelle.contains("Key('bg_neuer_vorfall')"), isTrue);
       expect(stelle.contains('onPressed: _vorfallSchnellAnlegen'), isTrue);
+    });
+  });
+}
+
+/// Die Zuständigkeit speichert sich selbst — es gibt keinen Knopf mehr.
+void _zustaendigkeit() {
+  final stelle = File('lib/widgets/behorde_bussgeldstelle.dart').readAsStringSync();
+
+  group('Zuständige Stelle ohne Speichern-Knopf', () {
+    test('der Knopf ist weg', () {
+      // ⚠️ Er war die Folge eines Entwurfsfehlers: das Feld war Suchschlitz
+      // UND gespeicherter Name zugleich, also musste irgendwer entscheiden,
+      // wann aus einem Suchbegriff eine Zuständigkeit wird. Wer eine Stelle
+      // antippt, hat das entschieden.
+      expect(stelle.contains("Key('bg_stelle_speichern')"), isFalse);
+      expect(stelle.contains('_stelleSpeichern'), isFalse);
+    });
+
+    test('Antippen eines Treffers speichert sofort', () {
+      expect(stelle.contains('_stelleUebernehmen'), isTrue);
+      expect(stelle.contains('onTap: schonGesetzt ? null : () => _stelleUebernehmen(s)'), isTrue);
+    });
+
+    test('eine bereits gesetzte Stelle wird im Treffer markiert', () {
+      // Sonst tippt man sie ein zweites Mal an und weiß nicht, ob etwas
+      // geschehen ist.
+      expect(stelle.contains('schonGesetzt'), isTrue);
+    });
+
+    test('ein Fehlschlag beim automatischen Speichern wird gezeigt', () {
+      // ⚠️ Ohne Knopf gibt es keinen zweiten Versuch, den jemand von sich
+      // aus unternähme — ein stiller Fehler bliebe für immer stumm.
+      expect(stelle.contains('Nicht gespeichert:'), isTrue);
+    });
+
+    test('Freitext bleibt möglich, aber nur mit eigenem Tipper', () {
+      // Der Katalog hat erst drei Einträge. Automatisches Speichern beim
+      // Tippen würde jeden halben Suchbegriff zur Zuständigkeit machen.
+      expect(stelle.contains("Key('bg_stelle_freitext')"), isTrue);
+      expect(stelle.contains('_stelleUebernehmen(null)'), isTrue);
+    });
+
+    test('es gibt einen Weg zurück', () {
+      // Ohne Knopf ließe sich eine gesetzte Zuständigkeit sonst nur noch
+      // überschreiben, nie aufheben.
+      expect(stelle.contains("Key('bg_stelle_entfernen')"), isTrue);
+      expect(stelle.contains('_stelleEntfernen'), isTrue);
+    });
+
+    test('beim Entfernen wird auf die bleibenden Vorgänge hingewiesen', () {
+      // Sie hängen am Mitglied, nicht an der Auswahl.
+      expect(stelle.contains('bleiben bestehen'), isTrue);
     });
   });
 }

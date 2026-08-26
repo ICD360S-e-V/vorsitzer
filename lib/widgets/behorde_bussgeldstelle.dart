@@ -37,10 +37,10 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
   /// Treffer der letzten Katalogsuche. Wird serverseitig gesucht, deshalb
   /// steht hier immer nur ein Ausschnitt, nie der ganze Katalog.
   List<Map<String, dynamic>> _treffer = [];
-  Map<String, dynamic>? _gewaehlt;
   final _sucheCtrl = TextEditingController();
   Timer? _tippPause;
   bool _sucht = false;
+  bool _speichert = false;
 
   @override
   void initState() {
@@ -64,10 +64,6 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
       _vorfaelle = r['vorfaelle'] is List
           ? List<Map<String, dynamic>>.from((r['vorfaelle'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
           : [];
-      if (_zustaendig != null) {
-        _sucheCtrl.text = _zustaendig!['stelle_name']?.toString() ?? '';
-        _gewaehlt = _zustaendig;
-      }
       _laedt = false;
     });
   }
@@ -91,29 +87,75 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
     });
   }
 
-  Future<void> _stelleSpeichern() async {
-    final id = _gewaehlt?['id'] ?? _gewaehlt?['stelle_id'];
-    final r = await widget.apiService.saveUserBussgeldstelle(
-      widget.userId,
-      id is int ? id : int.tryParse(id?.toString() ?? ''),
-      _sucheCtrl.text.trim().isEmpty ? null : _sucheCtrl.text.trim(),
-    );
+  /// Übernimmt eine Stelle als zuständig — und speichert dabei sofort.
+  ///
+  /// [stelle] `null` heißt: den freien Text aus dem Suchfeld übernehmen.
+  Future<void> _stelleUebernehmen(Map<String, dynamic>? stelle) async {
+    final name = stelle?['name']?.toString().trim() ?? _sucheCtrl.text.trim();
+    if (name.isEmpty) return;
+    final roh = stelle?['id'];
+    final id = roh is int ? roh : int.tryParse(roh?.toString() ?? '');
+
+    setState(() => _speichert = true);
+    final r = await widget.apiService.saveUserBussgeldstelle(widget.userId, id, name);
+    if (!mounted) return;
+    setState(() => _speichert = false);
+
+    if (r['success'] != true) {
+      // ⚠️ Beim automatischen Speichern MUSS der Fehlschlag sichtbar sein.
+      // Ohne Knopf gibt es keinen zweiten Versuch, den jemand von sich aus
+      // unternähme — ein stiller Fehler bliebe für immer stumm.
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Nicht gespeichert: ${r['message'] ?? 'unbekannter Fehler'}'),
+        backgroundColor: F.h(Colors.red, 700),
+      ));
+      return;
+    }
+    setState(() { _treffer = []; _sucheCtrl.clear(); });
+    await _laden();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(r['success'] == true
-          ? 'Zuständige Bußgeldstelle gespeichert'
-          : 'Nicht gespeichert: ${r['message'] ?? 'unbekannter Fehler'}'),
+      content: Text('$name als zuständig gespeichert'),
+      duration: const Duration(seconds: 2),
     ));
-    if (r['success'] == true) _laden();
   }
 
-  /// Der "+"-Weg: nur das Aktenzeichen, dann steht der Vorgang.
+  /// Nimmt die Zuständigkeit zurück.
   ///
-  /// ⚠️ Bewusst NICHT das grosse Formular. Wer ein Schreiben in der Hand
-  /// haelt, hat als erstes das Aktenzeichen — Betraege, Tatort und
-  /// Punktestand stehen weiter unten auf dem Blatt und koennen warten. Ein
-  /// Formular mit zwanzig Feldern am Anfang fuehrt dazu, dass der Vorgang
-  /// gar nicht erst angelegt wird.
+  /// ⚠️ Die Vorgänge bleiben. Sie hängen am Mitglied, nicht an der Auswahl —
+  /// wer die Stelle wechselt, verliert sonst seine Aktenzeichen.
+  Future<void> _stelleEntfernen() async {
+    final sicher = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Zuständigkeit entfernen?'),
+      content: Text(_vorfaelle.isEmpty
+          ? 'Die hinterlegte Bußgeldstelle wird entfernt.'
+          : 'Die hinterlegte Bußgeldstelle wird entfernt. '
+            'Die ${_vorfaelle.length} erfassten Vorgänge bleiben bestehen.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          child: const Text('Entfernen'),
+        ),
+      ],
+    ));
+    if (sicher != true) return;
+    setState(() => _speichert = true);
+    final r = await widget.apiService.saveUserBussgeldstelle(widget.userId, null, null);
+    if (!mounted) return;
+    setState(() => _speichert = false);
+    if (r['success'] == true) {
+      _sucheCtrl.clear();
+      _laden();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Nicht entfernt: ${r['message'] ?? 'unbekannter Fehler'}'),
+        backgroundColor: F.h(Colors.red, 700),
+      ));
+    }
+  }
+
   Future<void> _vorfallSchnellAnlegen() async {
     final az = TextEditingController();
     String art = 'bussgeldbescheid';
@@ -305,8 +347,16 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
             const SizedBox(width: 8),
             const Flexible(child: Text('Zuständige Bußgeldstelle',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+            if (_speichert) const Padding(padding: EdgeInsets.only(left: 8),
+                child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))),
           ]),
           const Divider(height: 24),
+
+          // ⚠️ Das Feld ist NUR Suche. Vorher war es beides — Suchschlitz und
+          // zugleich der gespeicherte Name — und genau daher rührte der
+          // Speichern-Knopf: irgendwer musste ja entscheiden, wann aus einem
+          // Suchbegriff eine Zuständigkeit wird. Wer eine Stelle antippt, hat
+          // das entschieden; ein Knopf danach fragt nur noch einmal dasselbe.
           TextField(
             key: const Key('bg_stelle_suche'),
             controller: _sucheCtrl,
@@ -319,10 +369,29 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
               suffixIcon: _sucht
                   ? const Padding(padding: EdgeInsets.all(12),
                       child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)))
-                  : null,
+                  : (_sucheCtrl.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          tooltip: 'Suche leeren',
+                          onPressed: () => setState(() {
+                            _sucheCtrl.clear();
+                            _treffer = [];
+                          }),
+                        )),
             ),
-            onChanged: (v) { _gewaehlt = null; _sucheAngestossen(v); },
+            // ⚠️ setState beim Tippen, nicht erst wenn die Suche antwortet.
+            // Der Leeren-Knopf und der Freitext-Knopf hängen am Inhalt des
+            // Feldes; ohne Neuaufbau erschienen sie erst 350 ms später mit
+            // dem Suchergebnis — und bei einem Begriff ohne Treffer, für den
+            // der Freitext-Knopf ja gerade gedacht ist, wirkte das wie ein
+            // Aussetzer.
+            onChanged: (v) {
+              setState(() {});
+              _sucheAngestossen(v);
+            },
           ),
+
           if (_treffer.isNotEmpty) ...[
             const SizedBox(height: 8),
             ConstrainedBox(
@@ -334,6 +403,8 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
                   itemCount: _treffer.length,
                   itemBuilder: (_, i) {
                     final s = _treffer[i];
+                    final schonGesetzt = _zustaendig != null &&
+                        '${_zustaendig!['stelle_id']}' == '${s['id']}';
                     return ListTile(
                       dense: true,
                       leading: Icon(
@@ -341,30 +412,38 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
                         size: 18, color: F.h(Colors.deepOrange, 600)),
                       title: Text(s['name']?.toString() ?? '', style: const TextStyle(fontSize: 13)),
                       subtitle: Text(_anschriftKurz(s), style: const TextStyle(fontSize: 11)),
-                      onTap: () => setState(() {
-                        _gewaehlt = s;
-                        _sucheCtrl.text = s['name']?.toString() ?? '';
-                        _treffer = [];
-                      }),
+                      trailing: schonGesetzt
+                          ? Icon(Icons.check, size: 18, color: F.h(Colors.green, 700))
+                          : null,
+                      // Antippen IST das Speichern.
+                      onTap: schonGesetzt ? null : () => _stelleUebernehmen(s),
                     );
                   },
                 ),
               ),
             ),
           ],
-          if (_gewaehlt != null || _hatStelle) _stelleInfo(_gewaehlt ?? _zustaendig!),
-          const SizedBox(height: 16),
-          SizedBox(width: double.infinity, child: ElevatedButton.icon(
-            key: const Key('bg_stelle_speichern'),
-            icon: const Icon(Icons.save, size: 18),
-            label: const Text('Speichern'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: F.h(Colors.deepOrange, 700), foregroundColor: Colors.white),
-            onPressed: _stelleSpeichern,
-          )),
-          // Von der zustaendigen Stelle aus direkt zum Vorfall. Der Weg ueber
-          // den zweiten Reiter bleibt daneben bestehen - aber wer gerade ein
-          // Schreiben dieser Stelle in der Hand haelt, ist hier und nicht dort.
+
+          // ⚠️ Freitext bleibt möglich, aber nur mit einem eigenen Tipper.
+          // Der Katalog hat erst drei Einträge; die Bußgeldstelle des
+          // Landkreises steht noch nicht darin. Ohne diesen Weg wäre sie gar
+          // nicht einzutragen — und ein automatisches Speichern beim
+          // Tippen würde jeden halben Suchbegriff zur Zuständigkeit machen.
+          if (_treffer.isEmpty && !_sucht && _sucheCtrl.text.trim().length >= 3 &&
+              _sucheCtrl.text.trim() != (_zustaendig?['stelle_name']?.toString() ?? ''))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: OutlinedButton.icon(
+                key: const Key('bg_stelle_freitext'),
+                icon: const Icon(Icons.add, size: 16),
+                label: Text('„${_sucheCtrl.text.trim()}" übernehmen (nicht im Katalog)',
+                    style: const TextStyle(fontSize: 12)),
+                onPressed: () => _stelleUebernehmen(null),
+              ),
+            ),
+
+          if (_hatStelle) _stelleInfo(_zustaendig!),
+
           if (_hatStelle) ...[
             const Divider(height: 28),
             _vorgaengeImKarten(),
@@ -384,33 +463,53 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
   Widget _stelleInfo(Map<String, dynamic> d) {
     final post = _zeile(d['strasse'], d['plz'], d['ort']);
     final besuch = _zeile(d['besuch_strasse'], d['besuch_plz'], d['besuch_ort']);
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: F.h(Colors.deepOrange, 50),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: F.h(Colors.deepOrange, 200)),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.only(top: 14, bottom: 2),
+        child: Row(children: [
+          Icon(Icons.check_circle, size: 16, color: F.h(Colors.green, 700)),
+          const SizedBox(width: 6),
+          Expanded(child: Text(d['stelle_name']?.toString() ?? '',
+              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600))),
+          // Ohne Speichern-Knopf braucht es einen Weg zurück: sonst ließe
+          // sich eine einmal gesetzte Zuständigkeit nur noch überschreiben,
+          // nie aufheben.
+          IconButton(
+            key: const Key('bg_stelle_entfernen'),
+            icon: const Icon(Icons.link_off, size: 18),
+            tooltip: 'Zuständigkeit entfernen',
+            color: F.h(Colors.grey, 600),
+            onPressed: _speichert ? null : _stelleEntfernen,
+          ),
+        ]),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // ⚠️ Post- und Besuchsanschrift getrennt zeigen. Die Zentrale
-        // Bußgeldstelle BW hat als Postanschrift nur „76073 Karlsruhe" ohne
-        // Straße; dorthin geht der fristgebundene Einspruch. Die
-        // Kapellenstraße ist das Haus.
-        if (post.isNotEmpty) _feld(Icons.markunread_mailbox, 'Postanschrift', post),
-        if (besuch.isNotEmpty && besuch != post) _feld(Icons.location_on, 'Besuchsanschrift', besuch),
-        if (d['telefon'] != null) _feld(Icons.phone, 'Telefon', d['telefon'].toString()),
-        if (d['fax'] != null) _feld(Icons.fax, 'Fax', d['fax'].toString()),
-        if (d['email'] != null) _feld(Icons.email, 'E-Mail', d['email'].toString()),
-        if (d['oeffnungszeiten'] != null) _feld(Icons.access_time, 'Erreichbarkeit', d['oeffnungszeiten'].toString()),
-        if (d['zustaendigkeit'] != null) _feld(Icons.info_outline, 'Zuständigkeit', d['zustaendigkeit'].toString()),
-        if (d['website'] != null) InkWell(
-          onTap: () => launchUrl(Uri.parse(d['website'].toString()), mode: LaunchMode.externalApplication),
-          child: _feld(Icons.open_in_new, 'Website', 'öffnen'),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: F.h(Colors.deepOrange, 50),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: F.h(Colors.deepOrange, 200)),
         ),
-      ]),
-    );
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // ⚠️ Post- und Besuchsanschrift getrennt zeigen. Die Zentrale
+          // Bußgeldstelle BW hat als Postanschrift nur „76073 Karlsruhe" ohne
+          // Straße; dorthin geht der fristgebundene Einspruch. Die
+          // Kapellenstraße ist das Haus.
+          if (post.isNotEmpty) _feld(Icons.markunread_mailbox, 'Postanschrift', post),
+          if (besuch.isNotEmpty && besuch != post) _feld(Icons.location_on, 'Besuchsanschrift', besuch),
+          if (d['telefon'] != null) _feld(Icons.phone, 'Telefon', d['telefon'].toString()),
+          if (d['fax'] != null) _feld(Icons.fax, 'Fax', d['fax'].toString()),
+          if (d['email'] != null) _feld(Icons.email, 'E-Mail', d['email'].toString()),
+          if (d['oeffnungszeiten'] != null) _feld(Icons.access_time, 'Erreichbarkeit', d['oeffnungszeiten'].toString()),
+          if (d['zustaendigkeit'] != null) _feld(Icons.info_outline, 'Zuständigkeit', d['zustaendigkeit'].toString()),
+          if (d['website'] != null) InkWell(
+            onTap: () => launchUrl(Uri.parse(d['website'].toString()), mode: LaunchMode.externalApplication),
+            child: _feld(Icons.open_in_new, 'Website', 'öffnen'),
+          ),
+        ]),
+      ),
+    ]);
   }
 
   String _zeile(dynamic strasse, dynamic plz, dynamic ort) {
