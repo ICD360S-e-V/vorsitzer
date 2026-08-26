@@ -29,6 +29,7 @@ import 'behorde_vermieter.dart';
 import 'behorde_schule.dart';
 import 'behorde_konsulat.dart';
 import 'behorde_polizei.dart';
+import 'behorde_bussgeldstelle.dart';
 import 'behorde_sozialamt.dart';
 import 'behorde_versorgungsamt.dart';
 import 'behorde_landratsamt.dart';
@@ -89,7 +90,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     'arbeitgeber', 'bundesagentur', 'jobcenter', 'sozialamt', 'finanzamt',
     'gericht',
     'krankenkasse', 'rentenversicherung', 'auslaenderbehoerde', 'familienkasse',
-    'jugendamt', 'einwohnermeldeamt', 'wohngeldstelle', 'bamf', 'vermieter', 'deutschlandticket', 'schule', 'konsulat', 'polizei',
+    'jugendamt', 'einwohnermeldeamt', 'wohngeldstelle', 'bamf', 'vermieter', 'deutschlandticket', 'schule', 'konsulat', 'polizei', 'bussgeldstelle',
     'versorgungsamt', 'landratsamt', 'rundfunkbeitrag', 'kindergarten', 'fruehfoerderung', 'wbs', 'deutschebahn',
   ];
 
@@ -114,6 +115,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     'schule': ['schul_name', 'schulart', 'schul_beginn'],
     'konsulat': ['konsulat_name', 'konsulat_adresse'],
     'polizei': ['zustaendige_dienststelle', 'aktenzeichen', 'sachbearbeiter'],
+    'bussgeldstelle': ['zustaendige_stelle', 'aktenzeichen', 'zugang_datum'],
     'deutschebahn': ['institution_id', 'institution_name'],
   };
 
@@ -439,6 +441,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'schule', 'icon': Icons.school, 'label': 'Schule'},
     {'type': 'konsulat', 'icon': Icons.account_balance, 'label': 'Konsulat'},
     {'type': 'polizei', 'icon': Icons.local_police, 'label': 'Polizei'},
+    {'type': 'bussgeldstelle', 'icon': Icons.gavel, 'label': 'Bu\u00DFgeldstelle'},
     {'type': 'versorgungsamt', 'icon': Icons.accessible, 'label': 'Versorgungsamt'},
     {'type': 'rundfunkbeitrag', 'icon': Icons.radio, 'label': 'ARD ZDF'},
     {'type': 'kindergarten', 'icon': Icons.child_care, 'label': 'Kindergarten'},
@@ -452,7 +455,12 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 1100;
     return DefaultTabController(
-      length: 25,
+      // Aus der Liste abgeleitet, nicht festgeschrieben: bis zum
+      // 03.07.2026 stand hier 25, waehrend _tabDefs schon 26 Eintraege
+      // hatte - der Reiter "Deutsche Bahn" war dadurch nicht
+      // erreichbar. Eine feste Zahl neben einer wachsenden Liste geht
+      // frueher oder spaeter genau so aus.
+      length: _tabDefs.length,
       child: Column(
         children: [
           _buildMemberAddressCard(),
@@ -670,6 +678,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   userId: widget.user.id,
                   user: widget.user,
                 ),
+                _buildTabContent('bussgeldstelle', () => BehordeBussgeldstelleContent(
+                  apiService: widget.apiService,
+                  userId: widget.user.id,
+                  user: widget.user,
+                )),
                 _buildTabContent('versorgungsamt', () => BehordeVersorgungsamtContent(
                   apiService: widget.apiService,
                   userId: widget.user.id,

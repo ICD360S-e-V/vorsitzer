@@ -9575,6 +9575,143 @@ class ApiService {
     }
   }
 
+
+  // ========== POLIZEI-DATENBANK (bundesweiter Katalog) ==========
+
+  /// Sucht im bundesweiten Katalog (Tabelle polizei_datenbank, 3524 Zeilen).
+  ///
+  /// ⚠️ Bewusst serverseitig gesucht statt wie bei [getPolizeiDienststellen]
+  /// alles zu laden und im Gerät zu filtern: der Katalog ist rund tausendmal
+  /// so groß wie die sieben handgepflegten Zeilen, und er würde bei jedem
+  /// Öffnen des Reiters über dieselbe Mobilfunkleitung gehen, deren
+  /// Langsamkeit an anderer Stelle beim Anbieter gerügt wird.
+  Future<Map<String, dynamic>> suchePolizeiDatenbank({
+    String? q,
+    String? plz,
+    String? bundesland,
+    String? typ,
+    int limit = 30,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/polizei_datenbank.php').replace(queryParameters: {
+        if (q != null && q.isNotEmpty) 'q': q,
+        if (plz != null && plz.isNotEmpty) 'plz': plz,
+        if (bundesland != null && bundesland.isNotEmpty) 'bundesland': bundesland,
+        if (typ != null && typ.isNotEmpty) 'typ': typ,
+        'limit': '$limit',
+      });
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
+      final body = jsonDecode(response.body);
+      if (body is Map && body['success'] == true) {
+        return {
+          'dienststellen': List<Map<String, dynamic>>.from(
+            ((body['dienststellen'] as List?) ?? const []).map((e) => Map<String, dynamic>.from(e as Map)),
+          ),
+          'gesamt': body['gesamt'] ?? 0,
+          'gekuerzt': body['gekuerzt'] == true,
+        };
+      }
+      return {'dienststellen': <Map<String, dynamic>>[], 'gesamt': 0, 'gekuerzt': false};
+    } catch (e) {
+      // Die Oberfläche darf an einer Suche nicht hängenbleiben; sie fällt
+      // auf die handgepflegte Liste zurück.
+      return {'dienststellen': <Map<String, dynamic>>[], 'gesamt': 0, 'gekuerzt': false};
+    }
+  }
+
+  // ========== BUSSGELDSTELLEN ==========
+
+  Future<Map<String, dynamic>> sucheBussgeldstellen({
+    String? q,
+    String? bundesland,
+    String? typ,
+    int limit = 30,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/bussgeldstellen.php').replace(queryParameters: {
+        if (q != null && q.isNotEmpty) 'q': q,
+        if (bundesland != null && bundesland.isNotEmpty) 'bundesland': bundesland,
+        if (typ != null && typ.isNotEmpty) 'typ': typ,
+        'limit': '$limit',
+      });
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
+      final body = jsonDecode(response.body);
+      if (body is Map && body['success'] == true) {
+        return {
+          'stellen': List<Map<String, dynamic>>.from(
+            ((body['stellen'] as List?) ?? const []).map((e) => Map<String, dynamic>.from(e as Map)),
+          ),
+          'gesamt': body['gesamt'] ?? 0,
+          'gekuerzt': body['gekuerzt'] == true,
+        };
+      }
+      return {'stellen': <Map<String, dynamic>>[], 'gesamt': 0, 'gekuerzt': false};
+    } catch (e) {
+      return {'stellen': <Map<String, dynamic>>[], 'gesamt': 0, 'gekuerzt': false};
+    }
+  }
+
+  Future<Map<String, dynamic>> getUserBussgeldstelle(int userId) async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/admin/user_bussgeldstelle.php?user_id=$userId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 15));
+      return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    } catch (e) {
+      return {'success': false, 'message': 'Verbindungsfehler'};
+    }
+  }
+
+  Future<Map<String, dynamic>> getBussgeldVorfall(int userId, int vorfallId) async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/admin/user_bussgeldstelle.php?user_id=$userId&action=vorfall&vorfall_id=$vorfallId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 15));
+      return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    } catch (e) {
+      return {'success': false, 'message': 'Verbindungsfehler'};
+    }
+  }
+
+  Future<Map<String, dynamic>> saveUserBussgeldstelle(int userId, int? stelleId, String? stelleName) async {
+    return _bussgeldPost({
+      'action': 'save_stelle',
+      'user_id': userId,
+      'stelle_id': stelleId,
+      'stelle_name': stelleName,
+    });
+  }
+
+  /// [daten] wird unverändert durchgereicht; die Prüfung der Werte (Datum,
+  /// Beträge, Aufzählungen) macht der Server, damit sie nicht an der
+  /// Client-Version hängt.
+  Future<Map<String, dynamic>> saveBussgeldVorfall(int userId, Map<String, dynamic> daten) async {
+    return _bussgeldPost({...daten, 'action': 'save_vorfall', 'user_id': userId});
+  }
+
+  Future<Map<String, dynamic>> deleteBussgeldVorfall(int userId, int vorfallId) async {
+    return _bussgeldPost({'action': 'delete_vorfall', 'user_id': userId, 'id': vorfallId});
+  }
+
+  Future<Map<String, dynamic>> _bussgeldPost(Map<String, dynamic> body) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/admin/user_bussgeldstelle.php'),
+        headers: _headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 20));
+      final m = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      m['httpStatus'] = response.statusCode;
+      return m;
+    } on FormatException {
+      return {'success': false, 'message': 'Ungültige Serverantwort'};
+    } catch (e) {
+      return {'success': false, 'message': 'Verbindungsfehler'};
+    }
+  }
+
   // ========== USER POLIZEI ==========
 
   Future<Map<String, dynamic>> getUserPolizei(int userId) async {
