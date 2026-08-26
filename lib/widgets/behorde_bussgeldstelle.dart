@@ -29,10 +29,7 @@ class BehordeBussgeldstelleContent extends StatefulWidget {
   State<BehordeBussgeldstelleContent> createState() => _BehordeBussgeldstelleContentState();
 }
 
-class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleContent>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabCtrl;
-
+class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleContent> {
   Map<String, dynamic>? _zustaendig;
   List<Map<String, dynamic>> _vorfaelle = [];
   bool _laedt = true;
@@ -48,14 +45,12 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
     _laden();
   }
 
   @override
   void dispose() {
     _tippPause?.cancel();
-    _tabCtrl.dispose();
     _sucheCtrl.dispose();
     super.dispose();
   }
@@ -289,36 +284,15 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
   @override
   Widget build(BuildContext context) {
     if (_laedt) return const Center(child: CircularProgressIndicator());
-    return Column(children: [
-      TabBar(
-        controller: _tabCtrl,
-        labelColor: F.h(Colors.deepOrange, 800),
-        unselectedLabelColor: F.h(Colors.grey, 500),
-        indicatorColor: F.h(Colors.deepOrange, 700),
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        tabs: [
-          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.circle, size: 8, color: _hatStelle ? Colors.green : Colors.red),
-            const SizedBox(width: 5),
-            const Icon(Icons.account_balance, size: 16),
-            const SizedBox(width: 5),
-            const Text('Zuständige Bußgeldstelle'),
-          ])),
-          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.circle, size: 8, color: _vorfaelle.isNotEmpty ? Colors.green : Colors.red),
-            const SizedBox(width: 5),
-            const Icon(Icons.gavel, size: 16),
-            const SizedBox(width: 5),
-            Text('Vorfälle${_vorfaelle.isNotEmpty ? ' (${_vorfaelle.length})' : ''}'),
-          ])),
-        ],
-      ),
-      Expanded(child: TabBarView(controller: _tabCtrl, children: [
-        SingleChildScrollView(padding: const EdgeInsets.all(16), child: _stelleKarte()),
-        SingleChildScrollView(padding: const EdgeInsets.all(16), child: _vorfaelleKarte()),
-      ])),
-    ]);
+    // ⚠️ KEINE zwei Reiter mehr. Die Vorgänge stehen IN der Karte der
+    // zuständigen Stelle, nicht daneben: ein Aktenzeichen gehört zu genau
+    // einer Behörde, und wer die Stelle vor sich hat, sucht ihre Vorgänge
+    // dort — nicht in einem zweiten Reiter, der aussieht, als wäre er etwas
+    // anderes.
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: _stelleKarte(),
+    );
   }
 
   Widget _stelleKarte() {
@@ -392,26 +366,8 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
           // den zweiten Reiter bleibt daneben bestehen - aber wer gerade ein
           // Schreiben dieser Stelle in der Hand haelt, ist hier und nicht dort.
           if (_hatStelle) ...[
-            const SizedBox(height: 8),
-            SizedBox(width: double.infinity, child: OutlinedButton.icon(
-              key: const Key('bg_vorfall_von_stelle'),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Aktenzeichen hinzuf\u00FCgen'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: F.h(Colors.deepOrange, 700),
-                side: BorderSide(color: F.h(Colors.deepOrange, 300)),
-              ),
-              onPressed: _vorfallSchnellAnlegen,
-            )),
-            if (_vorfaelle.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Center(child: TextButton(
-                  onPressed: () => _tabCtrl.animateTo(1),
-                  child: Text('${_vorfaelle.length} erfasste Vorf\u00E4lle ansehen',
-                      style: const TextStyle(fontSize: 12)),
-                )),
-              ),
+            const Divider(height: 28),
+            _vorgaengeImKarten(),
           ],
         ]),
       ),
@@ -479,46 +435,45 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
         ]),
       );
 
-  Widget _vorfaelleKarte() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.gavel, color: F.h(Colors.deepOrange, 700), size: 22),
-            const SizedBox(width: 8),
-            const Expanded(child: Text('Bußgeld-Vorfälle',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
-            ElevatedButton.icon(
-              key: const Key('bg_neuer_vorfall'),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Neuer Vorfall'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: F.h(Colors.deepOrange, 700), foregroundColor: Colors.white),
-              onPressed: _vorfallSchnellAnlegen,
-            ),
-          ]),
-          const Divider(height: 24),
-          if (_vorfaelle.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 28),
-              child: Center(child: Column(children: [
-                Icon(Icons.inbox, size: 40, color: F.h(Colors.grey, 400)),
-                const SizedBox(height: 8),
-                Text('Noch kein Vorfall erfasst',
-                    style: TextStyle(color: F.h(Colors.grey, 600))),
-                const SizedBox(height: 4),
-                Text('Anhörungsbogen, Bußgeldbescheid oder Mahnung hier eintragen — '
-                     'die Frist wird dann aus dem Zugangsdatum mitgerechnet.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
-              ])),
-            )
-          else
-            ..._vorfaelle.map(_vorfallZeile),
-        ]),
-      ),
-    );
+  /// Die Vorgänge dieser Stelle — innerhalb ihrer Karte.
+  ///
+  /// Das Plus sitzt in derselben Überschrift: wer die Stelle ausgewählt hat,
+  /// legt von hier aus das Aktenzeichen an und landet danach im Vorgang.
+  Widget _vorgaengeImKarten() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.gavel, size: 18, color: F.h(Colors.deepOrange, 700)),
+        const SizedBox(width: 8),
+        Expanded(child: Text(
+          _vorfaelle.isEmpty ? 'Vorgänge' : 'Vorgänge (${_vorfaelle.length})',
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+        IconButton(
+          key: const Key('bg_neuer_vorfall'),
+          icon: const Icon(Icons.add_circle),
+          color: F.h(Colors.deepOrange, 700),
+          tooltip: 'Aktenzeichen hinzufügen',
+          onPressed: _vorfallSchnellAnlegen,
+        ),
+      ]),
+      const SizedBox(height: 4),
+      if (_vorfaelle.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          child: Center(child: Column(children: [
+            Icon(Icons.inbox, size: 34, color: F.h(Colors.grey, 400)),
+            const SizedBox(height: 6),
+            Text('Noch kein Aktenzeichen erfasst',
+                style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 13)),
+            const SizedBox(height: 4),
+            Text('Über das Plus oben ein Schreiben dieser Stelle eintragen — '
+                 'die Frist wird dann aus dem Zugangsdatum mitgerechnet.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
+          ])),
+        )
+      else
+        ..._vorfaelle.map(_vorfallZeile),
+    ]);
   }
 
   Widget _vorfallZeile(Map<String, dynamic> v) {
