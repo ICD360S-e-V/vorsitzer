@@ -1,13 +1,11 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_farben.dart';
 import '../utils/file_picker_helper.dart';
+import 'bussgeld_korrespondenz_dialog.dart';
 import 'bussgeld_vorfall_dialog.dart';
+import 'file_viewer_dialog.dart';
 import 'phone_link.dart';
 
 /// Ein Bußgeld-Vorgang mit allem, was daran hängt.
@@ -354,21 +352,42 @@ class _BussgeldVorfallDetailsDialogState extends State<BussgeldVorfallDetailsDia
 
   Widget _korrZeile(Map<String, dynamic> k) {
     final anhaenge = _liste(k['anhaenge']);
+    final antworten = _liste(k['antworten']);
+    final istEingang = k['richtung'] == 'eingang';
+    final erledigt = k['erledigt'] == 1 || k['erledigt'] == true;
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ListTile(
           dense: true,
-          title: Text(k['betreff']?.toString() ?? '(ohne Betreff)',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          // Antippen führt in das Schreiben: Details, Unterlagen, Antwort.
+          onTap: () => _schreibenOeffnen(k),
+          title: Row(children: [
+            Expanded(child: Text(k['betreff']?.toString() ?? '(ohne Betreff)',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+            if (istEingang && erledigt)
+              Icon(Icons.check_circle, size: 15, color: F.h(Colors.green, 700)),
+          ]),
           subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (k['inhalt'] != null) Text(k['inhalt'].toString(), style: const TextStyle(fontSize: 12)),
-            Wrap(spacing: 12, children: [
+            if (k['inhalt'] != null) Text(k['inhalt'].toString(),
+                style: const TextStyle(fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+            Wrap(spacing: 12, runSpacing: 2, children: [
               if (k['datum'] != null) Text(_datum(k['datum'])!, style: const TextStyle(fontSize: 11)),
+              if (k['weg'] != null) Text(kKorrWege[k['weg']] ?? k['weg'].toString(),
+                  style: const TextStyle(fontSize: 11)),
               if (k['absender'] != null) Text('von ${k['absender']}', style: const TextStyle(fontSize: 11)),
               if (k['empfaenger'] != null) Text('an ${k['empfaenger']}', style: const TextStyle(fontSize: 11)),
+              if (anhaenge.isNotEmpty) Text('${anhaenge.length} Unterlage(n)',
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.deepOrange, 700))),
+              // ⚠️ Der wichtigste Zustand auf dieser Zeile: ein Eingang ohne
+              // Antwort ist etwas, das noch liegt.
+              if (istEingang) Text(antworten.isEmpty ? 'noch nicht beantwortet' : 'beantwortet',
+                  style: TextStyle(fontSize: 11,
+                      color: antworten.isEmpty ? F.h(Colors.orange, 800) : F.h(Colors.green, 700),
+                      fontWeight: antworten.isEmpty ? FontWeight.bold : null)),
             ]),
           ]),
+          isThreeLine: true,
           trailing: Row(mainAxisSize: MainAxisSize.min, children: [
             IconButton(
               icon: const Icon(Icons.attach_file, size: 18),
@@ -394,6 +413,20 @@ class _BussgeldVorfallDetailsDialogState extends State<BussgeldVorfallDetailsDia
           ),
       ]),
     );
+  }
+
+  Future<void> _schreibenOeffnen(Map<String, dynamic> k) async {
+    await showDialog<bool>(
+      context: context,
+      builder: (_) => BussgeldKorrespondenzDialog(
+        apiService: widget.apiService,
+        userId: widget.userId,
+        vorfallId: widget.vorfallId,
+        schreiben: k,
+        fristBis: _vorfall?['frist_bis']?.toString(),
+      ),
+    );
+    if (mounted) _laden();
   }
 
   Widget _anhangZeile(Map<String, dynamic> a) {
@@ -469,8 +502,22 @@ class _BussgeldVorfallDetailsDialogState extends State<BussgeldVorfallDetailsDia
     }
   }
 
-  /// ⚠️ Die Datei landet im privaten Verzeichnis der App, nie in /tmp:
-  /// dort läge ein Bußgeldbescheid für jedes andere Programm lesbar.
+  /// Zeigt den Anhang IM PROGRAMM, aus dem Arbeitsspeicher.
+  ///
+  /// 🔴 Vorher schrieb diese Stelle die Datei in das Dokumentenverzeichnis
+  /// der App und übergab sie an ein fremdes Programm. Beides ist falsch:
+  ///
+  ///  1. Ein Bußgeldbescheid trägt Name, Anschrift, Kennzeichen und Tatvorwurf
+  ///     eines Mitglieds. Auf der Platte liegt er dann entschlüsselt — genau
+  ///     das, was auf dem Server mit einigem Aufwand vermieden wird.
+  ///  2. Das fremde Programm behält ihn: eigener Verlauf, eigener Zwischen-
+  ///     speicher, womöglich eigene Sicherung in eine Wolke. Was die App
+  ///     danach löscht, ist längst kopiert.
+  ///
+  /// [FileViewerDialog.showFromBytes] rendert über `PdfViewer.data` direkt
+  /// aus den Bytes; die Datei berührt die Platte nie. Drucken und
+  /// „Speichern unter" bietet der Betrachter selbst an — dann aber, weil
+  /// jemand es ausdrücklich will.
   Future<void> _anhangOeffnen(Map<String, dynamic> a) async {
     final r = await widget.apiService.downloadBussgeldAnhang(widget.userId, a['id'] as int);
     if (!mounted) return;
@@ -478,15 +525,13 @@ class _BussgeldVorfallDetailsDialogState extends State<BussgeldVorfallDetailsDia
       _sagen('Anhang nicht abrufbar (HTTP ${r.statusCode}).', fehler: true);
       return;
     }
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      final name = (a['original_name']?.toString() ?? 'anhang')
-          .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
-      final datei = File('${dir.path}/$name');
-      await datei.writeAsBytes(r.bodyBytes, flush: true);
-      await OpenFilex.open(datei.path);
-    } catch (e) {
-      if (mounted) _sagen('Konnte nicht geöffnet werden: $e', fehler: true);
+    final name = a['original_name']?.toString() ?? 'anhang.pdf';
+    final gezeigt = await FileViewerDialog.showFromBytes(context, r.bodyBytes, name);
+    // ⚠️ Der Betrachter kann PDF und Bilder. Kommt je ein anderer Dateityp
+    // dazu, sagt er `false` — dann muss das hier auffallen und nicht als
+    // Tippfehler des Nutzers durchgehen.
+    if (!gezeigt && mounted) {
+      _sagen('Dieser Dateityp lässt sich hier nicht anzeigen: $name', fehler: true);
     }
   }
 

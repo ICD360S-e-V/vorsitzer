@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:icd360sev_vorsitzer/widgets/bussgeld_korrespondenz_dialog.dart';
 import 'package:icd360sev_vorsitzer/widgets/bussgeld_vorfall_details_dialog.dart';
 
 /// Der Vorgang: vier Reiter, und die Wörter darin müssen stimmen.
 void main() {
   final quelle = File('lib/widgets/bussgeld_vorfall_details_dialog.dart').readAsStringSync();
-  final stelle = File('lib/widgets/behorde_bussgeldstelle.dart').readAsStringSync();
 
   group('Ergebnisse des Einspruchs', () {
     test('jede Möglichkeit hat einen deutschen Text', () {
@@ -93,26 +93,29 @@ void main() {
   _abgleich();
   _anhaenge();
   _zustaendigkeit();
+  _schreiben();
 
   group('Der Weg über das "+"', () {
+    final manager = File('lib/widgets/bussgeld_vorgaenge_manager.dart').readAsStringSync();
+
     test('die Schnellanlage fragt nur nach dem Aktenzeichen und den Daten', () {
       // Wer ein Schreiben in der Hand hält, hat zuerst das Aktenzeichen.
       // Ein Formular mit zwanzig Feldern führt dazu, dass der Vorgang gar
       // nicht erst angelegt wird.
-      expect(stelle.contains('_vorfallSchnellAnlegen'), isTrue);
-      expect(stelle.contains("Key('bg_schnell_az')"), isTrue);
-      for (final feld in ['betrag_geldbusse', 'tatort_strasse', 'punkte', 'kennzeichen']) {
-        expect(stelle.contains("'$feld':"), isFalse,
+      expect(manager.contains('_schnellAnlegen'), isTrue);
+      expect(manager.contains("Key('bg_schnell_az')"), isTrue);
+      for (final feld in ['betrag_geldbusse', 'tatort_strasse', 'punkte']) {
+        expect(manager.contains("'$feld':"), isFalse,
             reason: 'Die Schnellanlage soll nicht nach $feld fragen');
       }
     });
 
     test('nach dem Anlegen öffnet sich der Vorgang', () {
-      expect(stelle.contains('_detailsOeffnen(r[\'id\'] as int)'), isTrue);
+      expect(manager.contains("await _oeffnen({'id': r['id']})"), isTrue);
     });
 
-    test('ein Tippen auf die Zeile führt in den Vorgang, nicht ins Formular', () {
-      expect(stelle.contains("onTap: () => _detailsOeffnen(v['id'] as int)"), isTrue);
+    test('ein Tippen auf die Zeile führt in den Vorgang', () {
+      expect(manager.contains('onTap: () => _oeffnen(v)'), isTrue);
     });
   });
 }
@@ -128,7 +131,8 @@ void main() {
 void _abgleich() {
   const serverAktionen = {
     // bussgeld_vorfall_details.php
-    'add_korrespondenz', 'delete_korrespondenz', 'save_einspruch', 'delete_einspruch',
+    'add_korrespondenz', 'update_korrespondenz', 'delete_korrespondenz',
+    'save_einspruch', 'delete_einspruch',
     // bussgeld_vollmacht_manage.php
     'create', 'revoke', 'add_versand',
     // user_bussgeldstelle.php
@@ -138,8 +142,13 @@ void _abgleich() {
   };
 
   test('jede Server-Aktion wird vom Client auch benutzt', () {
+    // ⚠️ Jede Datei, die Aktionen schickt, gehört hier hinein. Fehlt eine,
+    // meldet der Abgleich totes Gewicht, das gar keines ist — und beim
+    // nächsten Mal glaubt ihm niemand mehr.
     final quellen = [
       File('lib/widgets/bussgeld_vorfall_details_dialog.dart').readAsStringSync(),
+      File('lib/widgets/bussgeld_korrespondenz_dialog.dart').readAsStringSync(),
+      File('lib/widgets/bussgeld_vorgaenge_manager.dart').readAsStringSync(),
       File('lib/widgets/behorde_bussgeldstelle.dart').readAsStringSync(),
       File('lib/services/api_service.dart').readAsStringSync(),
     ].join('\n');
@@ -182,36 +191,81 @@ void _anhaenge() {
       expect(dialog.contains('FilePicker.platform'), isFalse);
     });
 
-    test('die heruntergeladene Datei landet nicht in /tmp', () {
-      // Dort läge ein Bußgeldbescheid für jedes andere Programm lesbar.
-      expect(dialog.contains('getApplicationDocumentsDirectory'), isTrue);
-      expect(dialog.contains("Directory.systemTemp"), isFalse);
+    test('die Datei berührt die Platte überhaupt nicht', () {
+      // ⚠️ Dieser Test forderte zuerst das Dokumentenverzeichnis der App —
+      // besser als /tmp, aber immer noch entschlüsselt auf der Platte. Der
+      // User hat zu Recht darauf bestanden, dass die Anzeige im Programm
+      // und aus dem Arbeitsspeicher geschieht.
+      expect(dialog.contains('getApplicationDocumentsDirectory'), isFalse);
+      expect(dialog.contains('Directory.systemTemp'), isFalse);
+      expect(dialog.contains('writeAsBytes'), isFalse);
+      expect(dialog.contains('FileViewerDialog.showFromBytes'), isTrue);
     });
   });
 
-  group('Vorgänge stehen in der Karte der Stelle', () {
-    test('es gibt keinen zweiten Reiter mehr daneben', () {
-      // ⚠️ Der User hat ausdrücklich gesagt: beim Klick auf die zuständige
-      // Stelle sollen die Vorgänge DORT erscheinen, nicht in einem Reiter
-      // daneben. Ein TabController hier wäre ein Rückfall.
+  group('Die Karte öffnet den Vorgangs-Manager', () {
+    final manager = File('lib/widgets/bussgeld_vorgaenge_manager.dart').readAsStringSync();
+
+    test('kein zweiter Reiter daneben', () {
+      // Erster Anlauf: Reiter neben der Stelle. Falsch.
       expect(stelle.contains('TabController'), isFalse);
       expect(stelle.contains('TabBarView'), isFalse);
-      expect(stelle.contains('SingleTickerProviderStateMixin'), isFalse);
     });
 
-    test('die Vorgänge hängen in der Stellen-Karte', () {
-      expect(stelle.contains('_vorgaengeImKarten()'), isTrue);
-      expect(stelle.contains('_vorfaelleKarte'), isFalse);
+    test('und auch keine Liste unter der Karte', () {
+      // ⚠️ Zweiter Anlauf: die Liste unter die Karte gehängt. Auch falsch —
+      // ein Tipp auf die Karte soll den MANAGER öffnen. Unter der Karte
+      // wächst die Liste mit jedem Schreiben, bis die Anschrift der Stelle
+      // nach unten aus dem Bild wandert.
+      expect(stelle.contains('_vorgaengeImKarten'), isFalse);
+      expect(stelle.contains('_vorfallZeile'), isFalse,
+          reason: 'die Zeilendarstellung gehört in den Manager');
+      expect(stelle.contains('_vorgaengeOeffnen'), isTrue);
+      expect(stelle.contains('BussgeldVorgaengeManager'), isTrue);
     });
 
-    test('das Plus sitzt bei den Vorgängen', () {
-      expect(stelle.contains("Key('bg_neuer_vorfall')"), isTrue);
-      expect(stelle.contains('onPressed: _vorfallSchnellAnlegen'), isTrue);
+    test('die Karte sagt, was dahinter liegt und was drängt', () {
+      // Sonst müsste man den Manager öffnen, um zu erfahren, dass man ihn
+      // öffnen sollte.
+      expect(stelle.contains('Vorgänge verwalten'), isTrue);
+      expect(stelle.contains('Frist'), isTrue);
+    });
+
+    test('🔴 jeder Vorgang gehört zu der Stelle, bei der er angelegt wurde', () {
+      // Der Manager einer Stelle zeigt ihre Vorgänge — nicht alles, was das
+      // Mitglied je erfasst hat.
+      expect(manager.contains('_gehoertZurStelle'), isTrue);
+      expect(manager.contains("'stelle_id': _stelleId"), isTrue);
+    });
+
+    test('Vorgänge anderer Stellen werden nicht versteckt', () {
+      // ⚠️ Wer die zuständige Stelle wechselt, verlöre sonst den Zugang zu
+      // allem, was vorher lief. Unerreichbare Daten sind schlimmer als eine
+      // Zeile zu viel.
+      expect(manager.contains('_Filter.andere'), isTrue);
+      expect(manager.contains('Andere Stelle'), isTrue);
+    });
+
+    test('ohne zuständige Stelle wird kein Vorgang angelegt', () {
+      expect(manager.contains('ein Vorgang gehört immer zu einer Behörde'), isTrue);
+    });
+
+    test('die Liste lässt sich durchsuchen und filtern', () {
+      // Eine Akte, keine Aufzählung.
+      expect(manager.contains("Key('bg_mgr_suche')"), isTrue);
+      for (final f in ['alle', 'offen', 'frist', 'erledigt']) {
+        expect(manager.contains('_Filter.$f'), isTrue, reason: 'Filter $f fehlt');
+      }
+    });
+
+    test('„Frist läuft" zählt nur, was noch offen ist', () {
+      // Ein bezahlter Bescheid mit abgelaufener Frist ließe sonst dauerhaft
+      // eine rote Zahl stehen, die niemand mehr wegbekommt.
+      expect(manager.contains('if (!_istOffen(v)) return false;'), isTrue);
     });
   });
 }
 
-/// Die Zuständigkeit speichert sich selbst — es gibt keinen Knopf mehr.
 void _zustaendigkeit() {
   final stelle = File('lib/widgets/behorde_bussgeldstelle.dart').readAsStringSync();
 
@@ -259,6 +313,81 @@ void _zustaendigkeit() {
     test('beim Entfernen wird auf die bleibenden Vorgänge hingewiesen', () {
       // Sie hängen am Mitglied, nicht an der Auswahl.
       expect(stelle.contains('bleiben bestehen'), isTrue);
+    });
+  });
+}
+
+/// Das einzelne Schreiben: Details, Unterlagen, Antwort.
+void _schreiben() {
+  final dialog = File('lib/widgets/bussgeld_korrespondenz_dialog.dart').readAsStringSync();
+  final vorgang = File('lib/widgets/bussgeld_vorfall_details_dialog.dart').readAsStringSync();
+
+  group('Anhänge werden IM PROGRAMM gezeigt', () {
+    test('kein fremdes Programm, keine Datei auf der Platte', () {
+      // 🔴 Ein Bußgeldbescheid trägt Name, Anschrift, Kennzeichen und
+      // Tatvorwurf. Auf der Platte läge er entschlüsselt, und ein fremder
+      // Betrachter behielte ihn in Verlauf, Zwischenspeicher und womöglich
+      // Wolkensicherung. Was die App danach löscht, ist längst kopiert.
+      for (final quelle in [dialog, vorgang]) {
+        expect(quelle.contains('OpenFilex'), isFalse,
+            reason: 'Anhänge dürfen nicht an ein fremdes Programm gehen');
+        expect(quelle.contains('getApplicationDocumentsDirectory'), isFalse,
+            reason: 'Anhänge dürfen nicht auf die Platte geschrieben werden');
+        expect(quelle.contains('writeAsBytes'), isFalse);
+      }
+    });
+
+    test('gezeigt wird aus den Bytes', () {
+      expect(dialog.contains('FileViewerDialog.showFromBytes'), isTrue);
+      expect(vorgang.contains('FileViewerDialog.showFromBytes'), isTrue);
+    });
+
+    test('ein nicht anzeigbarer Typ fällt auf', () {
+      expect(dialog.contains('lässt sich hier nicht anzeigen'), isTrue);
+    });
+  });
+
+  group('Ein Schreiben hat drei Reiter', () {
+    test('Details, Unterlagen, Antwort', () {
+      expect(dialog.contains("text: 'Details'"), isTrue);
+      expect(dialog.contains('Unterlagen'), isTrue);
+      expect(dialog.contains('Antwort'), isTrue);
+      expect(dialog.contains('TabController(length: 3'), isTrue);
+    });
+
+    test('ein Tippen auf die Zeile führt hinein', () {
+      expect(vorgang.contains('_schreibenOeffnen'), isTrue);
+      expect(vorgang.contains('onTap: () => _schreibenOeffnen(k)'), isTrue);
+    });
+
+    test('ein unbeantworteter Eingang ist in der Liste zu erkennen', () {
+      expect(vorgang.contains('noch nicht beantwortet'), isTrue);
+    });
+  });
+
+  group('Antwort', () {
+    test('die Wege decken sich mit dem ENUM der Datenbank', () {
+      // ⚠️ Dieselbe Liste steht im ENUM bussgeld_vorfall_korrespondenz.weg.
+      expect(kKorrWege.keys.toSet(),
+          {'post', 'fax', 'email', 'persoenlich', 'elektronisch', 'sonstige'});
+    });
+
+    test('eine Antwort ist ein Ausgang, kein Textfeld am Eingang', () {
+      // Sie hat eigenes Datum, eigenen Weg und eigene Anlagen. Als Feld am
+      // Eingang wäre all das verloren.
+      expect(dialog.contains("'richtung': 'ausgang'"), isTrue);
+      expect(dialog.contains("'antwort_auf_id': _s['id']"), isTrue);
+    });
+
+    test('🔴 der Schirm sagt, dass eine Antwort KEINE Frist wahrt', () {
+      // Wer das nicht liest, hält ein freundliches Schreiben für einen
+      // Einspruch — und die Frist läuft ab.
+      expect(dialog.contains('kein Rechtsbehelf'), isTrue);
+      expect(dialog.contains('§ 67 OWiG'), isTrue);
+    });
+
+    test('auf einen Ausgang wird nicht geantwortet', () {
+      expect(dialog.contains('Dies ist ein Ausgang'), isTrue);
     });
   });
 }
