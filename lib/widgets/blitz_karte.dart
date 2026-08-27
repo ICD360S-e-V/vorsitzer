@@ -291,9 +291,26 @@ class _BlitzKarteState extends State<BlitzKarte> {
                 // Der ganze Sinn des Blitzes: sofort schreiben können.
                 autofocus: true,
                 enabled: !_sendet,
+                // ⚠️ EINZEILIG, und das ist der ganze Punkt.
+                //
+                // Hier stand `maxLines: 2` mit `TextInputAction.newline` —
+                // also die ausdrückliche Ansage an das System „Eingabetaste
+                // bedeutet neue Zeile". [_taste] wollte gleichzeitig senden,
+                // aber gegen den Vertrag des Feldes kommt der Tastenhaken
+                // nicht an: gemeldet aus dem Betrieb „wenn ich Enter drücke,
+                // kommt eine neue Zeile, statt dass die Nachricht rausgeht".
+                //
+                // Bei einem einzeiligen Feld KANN die Eingabetaste keine Zeile
+                // einfügen; sie löst die Aktion aus. Damit gibt es nur noch
+                // ein mögliches Verhalten statt zweier, die sich streiten.
+                //
+                // Preis: keine mehrzeilige Antwort aus der Karte. Die Karte
+                // ist für die schnelle Antwort da — für einen langen Text
+                // führt der Knopf daneben in den vollen Chat.
                 minLines: 1,
-                maxLines: gross ? 5 : 2,
-                textInputAction: TextInputAction.newline,
+                maxLines: 1,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _senden(),
                 style: TextStyle(fontSize: gross ? 17 : 13, color: F.textStark),
                 decoration: InputDecoration(
                   hintText: 'Antwort schreiben…',
