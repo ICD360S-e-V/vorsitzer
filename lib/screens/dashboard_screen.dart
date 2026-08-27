@@ -248,6 +248,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     // den Bildschirm, mit Antwortfeld. Ausgelöst wird er in [ChatService];
     // hier wird nur scharf gemacht und gesagt, wohin „im Chat öffnen" führt.
     unawaited(BlitzNachrichtService.instanz.starten());
+    // Aus der Karte beantwortet = erledigt. Siehe die Begründung an
+    // [BlitzFensterSteuerung.onBeantwortet].
+    BlitzFensterSteuerung.instanz.onBeantwortet = _unterhaltungErledigt;
     BlitzFensterSteuerung.instanz.onImChatOeffnen = (convId) {
       if (!mounted || _isAdminChatOpen) return;
       _showAdminChatDialogInternal(null, initialConversationId: convId);
@@ -481,7 +484,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       final myId = _chatService.currentUserId;
       final isOwnMessage = (myId != null && message.senderId == myId) ||
           (widget.userName.isNotEmpty && message.senderName == widget.userName);
-      if (isOwnMessage) return;
+      if (isOwnMessage) {
+        // ⚠️ EIGENE Antwort — also ist diese Unterhaltung erledigt, egal von
+        // wo aus geantwortet wurde: aus der Blitz-Karte, aus dem Chatfenster
+        // oder von einem anderen Gerät.
+        //
+        // Ohne das zählte der Kopf-Zähler ewig weiter: übersprungen wurde
+        // bisher nur, wenn das CHATFENSTER offen ist ([_isAdminChatOpen]) —
+        // und wer aus der Karte antwortet, öffnet es nie. Gemeldet aus dem
+        // Betrieb: „das Symbol ist rot, ich tippe drauf, und da ist keine
+        // einzige Nachricht." Genau so sah es aus, denn auf dem Server waren
+        // sie längst gelesen; nur diese Zahl hier wusste nichts davon.
+        _unterhaltungErledigt(message.conversationId);
+        return;
+      }
       // Skip if the admin chat dialog is already open — user is actively
       // reading there. Bumping the badge would leave it stuck > 0 after
       // the user closes the dialog ("dialog says 0 unread, icon says unread").
@@ -1460,6 +1476,21 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         _loadUsers(); // Reload user list after update
       },
     );
+  }
+
+  /// Nimmt eine Unterhaltung aus dem ungelesen-Zähler im Kopf.
+  ///
+  /// Zwei Auslöser, absichtlich beide: die Antwort aus der Blitz-Karte (direkt)
+  /// und der WebSocket-Nachhall der eigenen Nachricht (auch von einem anderen
+  /// Gerät). Doppelt schadet nicht — beim zweiten Mal ist nichts mehr zu
+  /// entfernen.
+  void _unterhaltungErledigt(int conversationId) {
+    final erledigt = _chatBubbles.remove(conversationId);
+    if (erledigt == null || !mounted) return;
+    setState(() {
+      _unreadChatCount =
+          (_unreadChatCount - erledigt.unreadCount).clamp(0, 999999);
+    });
   }
 
   void _showAdminChatDialog() {
