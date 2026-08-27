@@ -197,8 +197,21 @@ jobs:
       # libdartcv.so zu kommen, und ohne die schlagen acht Tests fehl, weil
       # dartcv4 die Bibliothek zur Laufzeit nachlädt. Nebenbei ist es damit
       # überhaupt das erste Mal, dass ein PR kompiliert wird.
+      # ⚠️ Über retry-build.sh, wie jeder andere Build im Projekt. Dieser eine
+      # Schritt lief als einziger ohne Wiederholung — und er greift ins Netz:
+      # `flutter_webrtc` lädt beim CMake-Lauf libwebrtc-linux-x64-release.zip
+      # von release-assets.githubusercontent.com. Am 27.08.2026 hat GitHub die
+      # Verbindung im TLS-Handshake zurückgesetzt:
+      #
+      #     Recv failure: Connection reset by peer
+      #     OpenSSL SSL_connect: Connection reset by peer
+      #     Unable to generate build files
+      #
+      # Ein PR fiel damit rot aus, ohne dass am Code etwas war. Das Muster
+      # `Connection reset` steht längst in retry-build.sh — es wurde hier nur
+      # nie benutzt.
       - name: Build Linux (liefert libdartcv.so für die Tests)
-        run: flutter build linux --debug
+        run: .github/scripts/retry-build.sh flutter build linux --debug
 
       - name: flutter test
         run: |
