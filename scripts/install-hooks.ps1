@@ -3,6 +3,10 @@
 #
 # Run once per clone:   .\scripts\install-hooks.ps1
 #
+# Auf Linux/macOS stattdessen:  ./scripts/install-hooks.sh
+# (Diese Datei ist PowerShell; ohne das Gegenstueck blieb der Hook dort
+#  jahrelang unbemerkt inaktiv.)
+#
 # Why: git hooks are not committed by default — they live in .git/hooks/ which
 # is per-clone. The .githooks/ directory IS committed, and pointing core.hooksPath
 # at it lets every clone share the same hooks via a single git config flip.
