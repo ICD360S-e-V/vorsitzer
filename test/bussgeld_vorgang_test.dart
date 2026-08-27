@@ -94,6 +94,7 @@ void main() {
   _anhaenge();
   _zustaendigkeit();
   _schreiben();
+  _antwortAnlagen();
 
   group('Der Weg über das "+"', () {
     final manager = File('lib/widgets/bussgeld_vorgaenge_manager.dart').readAsStringSync();
@@ -388,6 +389,51 @@ void _schreiben() {
 
     test('auf einen Ausgang wird nicht geantwortet', () {
       expect(dialog.contains('Dies ist ein Ausgang'), isTrue);
+    });
+  });
+}
+
+/// Anlagen an der Antwort — und der Knopf, der verschwinden muss.
+void _antwortAnlagen() {
+  final dialog = File('lib/widgets/bussgeld_korrespondenz_dialog.dart').readAsStringSync();
+
+  group('Antwort mit Anlagen', () {
+    test('beim Verfassen lassen sich Dateien auswählen', () {
+      // Das Schreiben selbst gehört zur Antwort, nicht in einen zweiten
+      // Arbeitsgang. Wer gerade scannt, hängt es gleich an.
+      expect(dialog.contains("Key('bg_antwort_datei')"), isTrue);
+      expect(dialog.contains('FilePickerHelper.pickFiles'), isTrue);
+    });
+
+    test('PDF, JPG, JPEG und PNG sind erlaubt', () {
+      for (final e in ['pdf', 'jpg', 'jpeg', 'png']) {
+        expect(dialog.contains("'$e'"), isTrue, reason: '$e fehlt in den erlaubten Endungen');
+      }
+    });
+
+    test('eine bestehende Antwort nimmt weiter Anlagen an', () {
+      // Nachreichen ist kein zweites Antworten.
+      expect(dialog.contains("Key('bg_antwort_anlage')"), isTrue);
+    });
+
+    test('🔴 ein Fehlschlag beim Hochladen sieht nicht aus wie ein Fehlschlag des Ganzen', () {
+      // Die Antwort steht dann bereits. Wer eine gemeinsame Fehlermeldung
+      // bekäme, legte sie ein zweites Mal an — und in einer Behördenakte ist
+      // eine doppelte Antwort schlimmer als gar keine.
+      expect(dialog.contains('Anlagen nicht vollständig'), isTrue);
+    });
+  });
+
+  group('Der Antwort-Knopf verschwindet, wenn geantwortet wurde', () {
+    test('er hängt an "_antworten.isEmpty"', () {
+      expect(dialog.contains('if (_antworten.isEmpty)'), isTrue);
+      // Ein „Weitere Antwort erfassen" lädt dazu ein, dieselbe Sache zweimal
+      // zu schreiben.
+      expect(dialog.contains('Weitere Antwort'), isFalse);
+    });
+
+    test('stattdessen steht da, dass geantwortet wurde', () {
+      expect(dialog.contains('wurde geantwortet'), isTrue);
     });
   });
 }

@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -475,20 +477,41 @@ class _BussgeldKorrespondenzDialogState extends State<BussgeldKorrespondenzDialo
       else
         ..._antworten.map(_antwortZeile),
       const SizedBox(height: 8),
-      ElevatedButton.icon(
-        key: const Key('bg_korr_antworten'),
-        icon: const Icon(Icons.reply, size: 18),
-        label: Text(_antworten.isEmpty ? 'Antwort erfassen' : 'Weitere Antwort erfassen'),
-        style: ElevatedButton.styleFrom(
-            backgroundColor: F.h(Colors.orange, 800), foregroundColor: Colors.white),
-        onPressed: _arbeitet ? null : _antwortErfassen,
-      ),
+      // ⚠️ Sobald geantwortet ist, verschwindet der Knopf. Es ist beantwortet;
+      // ein weiterhin sichtbares „Antworten" lädt dazu ein, dieselbe Sache
+      // zweimal zu schreiben — und in einer Behördenakte ist eine doppelte
+      // Antwort schlimmer als gar keine.
+      //
+      // ⚠️ Anlagen an eine bestehende Antwort bleiben trotzdem möglich: das
+      // ist kein zweites Antworten, sondern das Nachreichen des Schreibens,
+      // das man gerade eingescannt hat. Der Knopf dafür sitzt an der Antwort.
+      if (_antworten.isEmpty)
+        ElevatedButton.icon(
+          key: const Key('bg_korr_antworten'),
+          icon: const Icon(Icons.reply, size: 18),
+          label: const Text('Antwort erfassen'),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: F.h(Colors.orange, 800), foregroundColor: Colors.white),
+          onPressed: _arbeitet ? null : _antwortErfassen,
+        )
+      else
+        Row(children: [
+          Icon(Icons.check_circle, size: 16, color: F.h(Colors.green, 700)),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            'Auf dieses Schreiben wurde geantwortet. Kommt eine Reaktion der '
+            'Behörde, wird sie als neuer Eingang erfasst.',
+            style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700)))),
+        ]),
     ]);
   }
 
-  Widget _antwortZeile(Map<String, dynamic> a) => Card(
-        margin: const EdgeInsets.only(bottom: 8),
-        child: ListTile(
+  Widget _antwortZeile(Map<String, dynamic> a) {
+    final anlagen = _liste(a['anhaenge']);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        ListTile(
           leading: Icon(Icons.outbox, color: F.h(Colors.orange, 700)),
           title: Text(a['betreff']?.toString() ?? '(ohne Betreff)',
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
@@ -499,11 +522,28 @@ class _BussgeldKorrespondenzDialogState extends State<BussgeldKorrespondenzDialo
               if (a['weg'] != null) Text(kKorrWege[a['weg']] ?? a['weg'].toString(),
                   style: const TextStyle(fontSize: 11)),
               if (a['empfaenger'] != null) Text('an ${a['empfaenger']}', style: const TextStyle(fontSize: 11)),
+              if (anlagen.isNotEmpty) Text('${anlagen.length} Anlage(n)',
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.deepOrange, 700))),
             ]),
           ]),
           isThreeLine: true,
+          // Nachreichen ist kein zweites Antworten.
+          trailing: IconButton(
+            key: const Key('bg_antwort_anlage'),
+            icon: const Icon(Icons.attach_file, size: 18),
+            tooltip: 'Schreiben anhängen (PDF oder Foto)',
+            color: F.h(Colors.deepOrange, 700),
+            onPressed: _arbeitet ? null : () => _hochladen(a['id'] as int),
+          ),
         ),
-      );
+        if (anlagen.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+            child: Column(children: [for (final x in anlagen) _anhangZeile(x)]),
+          ),
+      ]),
+    );
+  }
 
   Future<void> _antwortErfassen() async {
     final betreff = TextEditingController(
@@ -512,6 +552,9 @@ class _BussgeldKorrespondenzDialogState extends State<BussgeldKorrespondenzDialo
     final empfaenger = TextEditingController(text: _s['absender']?.toString() ?? '');
     DateTime? datum = DateTime.now();
     String weg = 'post';
+    // Das Schreiben selbst gehört zur Antwort, nicht in einen zweiten
+    // Arbeitsgang. Wer gerade scannt, hängt es hier gleich an.
+    final anlagen = <String>[];
 
     final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(
       builder: (ctx, ss) => AlertDialog(
@@ -553,10 +596,48 @@ class _BussgeldKorrespondenzDialogState extends State<BussgeldKorrespondenzDialo
               decoration: const InputDecoration(labelText: 'Was wurde geantwortet',
                   border: OutlineInputBorder(), isDense: true),
             ),
-            const SizedBox(height: 6),
-            Align(alignment: Alignment.centerLeft, child: Text(
-              'Das Schreiben selbst kann danach unter „Unterlagen" der Antwort angehängt werden.',
-              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
+            const SizedBox(height: 12),
+            Align(alignment: Alignment.centerLeft, child: Row(children: [
+              OutlinedButton.icon(
+                key: const Key('bg_antwort_datei'),
+                icon: const Icon(Icons.attach_file, size: 16),
+                label: const Text('PDF oder Foto anhängen', style: TextStyle(fontSize: 12.5)),
+                onPressed: () async {
+                  // ⚠️ Über FilePickerHelper, nicht über FilePicker direkt:
+                  // auf macOS nimmt der Helfer einen eigenen Weg.
+                  final w = await FilePickerHelper.pickFiles(
+                    allowMultiple: true,
+                    type: FileType.custom,
+                    allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'tif', 'tiff'],
+                  );
+                  final neu = (w?.files ?? [])
+                      .map((f) => f.path).whereType<String>()
+                      .where((x) => !anlagen.contains(x));   // kein Doppel
+                  if (neu.isNotEmpty) ss(() => anlagen.addAll(neu));
+                },
+              ),
+              const SizedBox(width: 10),
+              if (anlagen.isNotEmpty)
+                Text('${anlagen.length} Datei(en)',
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
+            ])),
+            // Die Auswahl sichtbar machen, samt Weg zurück — sonst weiß
+            // niemand, was gleich mitgeschickt wird.
+            for (final pfad in anlagen)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Row(children: [
+                  Icon(Icons.insert_drive_file, size: 14, color: F.h(Colors.grey, 600)),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(pfad.split(Platform.pathSeparator).last,
+                      style: const TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis)),
+                  IconButton(
+                    icon: const Icon(Icons.clear, size: 14),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => ss(() => anlagen.remove(pfad)),
+                  ),
+                ]),
+              ),
           ]))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
@@ -581,12 +662,34 @@ class _BussgeldKorrespondenzDialogState extends State<BussgeldKorrespondenzDialo
     });
     if (!mounted) return;
     setState(() => _arbeitet = false);
-    if (r['success'] == true) {
-      await _neuLaden();
-      _sagen('Antwort gespeichert — das Schreiben gilt jetzt als erledigt.');
-    } else {
+    if (r['success'] != true) {
       _sagen('Nicht gespeichert: ${r['message'] ?? 'unbekannter Fehler'}', fehler: true);
+      return;
     }
+
+    // ⚠️ Die Antwort steht bereits. Scheitert das Hochladen, darf das NICHT
+    // wie ein Fehlschlag des Ganzen aussehen — sonst legt jemand die Antwort
+    // ein zweites Mal an. Deshalb getrennte Meldungen.
+    if (anlagen.isNotEmpty) {
+      final u = await widget.apiService.uploadBussgeldAnhaenge(
+        userId: widget.userId,
+        vorfallId: widget.vorfallId,
+        korrespondenzId: r['id'] as int?,
+        pfade: anlagen,
+      );
+      if (!mounted) return;
+      final fehler = (u['fehler'] as List?)?.map((e) => e.toString()).toList() ?? const [];
+      if (u['success'] != true || fehler.isNotEmpty) {
+        _sagen('Antwort gespeichert, aber Anlagen nicht vollständig: '
+               '${fehler.isEmpty ? (u['message'] ?? 'unbekannter Fehler') : fehler.join('; ')}',
+               fehler: true);
+        await _neuLaden();
+        return;
+      }
+    }
+    await _neuLaden();
+    _sagen('Antwort gespeichert${anlagen.isEmpty ? '' : ' mit ${anlagen.length} Anlage(n)'}'
+           ' — das Schreiben gilt jetzt als erledigt.');
   }
 
   // ====================================================== Bausteine =======
