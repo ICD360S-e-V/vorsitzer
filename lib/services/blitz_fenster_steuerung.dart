@@ -54,6 +54,18 @@ class BlitzFensterSteuerung {
   /// Wird gerufen, wenn im Blitz-Fenster „im Chat öffnen" gedrückt wurde.
   void Function(int conversationId)? onImChatOeffnen;
 
+  /// Wird gerufen, nachdem aus der Karte heraus geantwortet wurde.
+  ///
+  /// ⚠️ Damit der ungelesen-Zähler im Kopf mitbekommt, dass die Unterhaltung
+  /// erledigt ist. Er zählte sonst weiter hoch, WÄHREND man antwortete, und
+  /// beim Antippen war dann keine einzige Nachricht da — auf dem Server
+  /// längst gelesen, nur diese Zahl wusste nichts davon.
+  ///
+  /// ⚠️ Absichtlich ein direkter Rückruf und nicht nur der WebSocket-Nachhall
+  /// der eigenen Nachricht: der Nachhall kommt zwar an, aber er ist der
+  /// Umweg über das Netz. Fällt er einmal aus, bliebe die Zahl stehen.
+  void Function(int conversationId)? onBeantwortet;
+
   bool get sichtbar => _sichtbar;
   int get wartend => _warteschlange.length;
 
@@ -122,6 +134,7 @@ class BlitzFensterSteuerung {
       );
       if (r['success'] == true) {
         await _alsGelesenMarkieren(convId, mnr);
+        onBeantwortet?.call(convId);
         return {'ok': true};
       }
       return {'ok': false, 'fehler': '${r['message'] ?? 'Senden fehlgeschlagen'}'};
