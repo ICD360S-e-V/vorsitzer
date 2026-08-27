@@ -120,11 +120,54 @@ class BlitzFensterSteuerung {
         // Mitglied die Antwort nie zu sehen bekommt.
         channel: kanal == 'sms' ? 'sms' : 'app',
       );
-      if (r['success'] == true) return {'ok': true};
+      if (r['success'] == true) {
+        await _alsGelesenMarkieren(convId, mnr);
+        return {'ok': true};
+      }
       return {'ok': false, 'fehler': '${r['message'] ?? 'Senden fehlgeschlagen'}'};
     } catch (e) {
       _log.error('Blitz-Antwort fehlgeschlagen: $e', tag: 'BLITZ');
       return {'ok': false, 'fehler': 'Netzwerkfehler'};
+    }
+  }
+
+  /// Wer aus der Karte heraus antwortet, hat gelesen.
+  ///
+  /// ⚠️ Ohne das wuchs der ungelesen-Zähler ins Endlose, WÄHREND man
+  /// antwortete. Gemessen am 26.08.2026 in Unterhaltung 21 — ein Hin und Her
+  /// über mehrere Minuten, und jede eingehende Zeile blieb auf `sent`:
+  ///
+  ///   29360 MITGLIED sent  23:40:28
+  ///   29358 ICH      read  23:40:08   ← hier wurde geantwortet
+  ///   29357 MITGLIED sent  23:40:02
+  ///   29355 ICH      read  23:39:15   ← und hier
+  ///
+  /// Als gelesen markiert wurde bis dahin nur beim ÖFFNEN des Chatfensters,
+  /// beim Tippen darin und beim Kanalwechsel. Die Karte ist aber ein
+  /// vollwertiger Antwortweg — wer sie benutzt, öffnet das Fenster nie.
+  ///
+  /// ⚠️ OHNE Nachrichten-IDs, also die ganze Unterhaltung. Nur die auf der
+  /// Karte sichtbaren Zeilen zu stempeln (höchstens fünf) liesse bei zwölf
+  /// ungelesenen sieben stehen — und damit genau das rote Abzeichen, um das
+  /// es hier geht.
+  ///
+  /// ⚠️ Preis dieser Entscheidung: der Server unterscheidet dabei nicht nach
+  /// Kanal. Hat dieselbe Person zusätzlich eine SMS geschickt, gilt auch die
+  /// als gelesen. Im Chatfenster wird bewusst anders entschieden (nur der
+  /// sichtbare Kanal) — dort sieht man ja, welcher Verlauf offen ist; hier
+  /// nicht.
+  ///
+  /// Schlägt es fehl, ist das KEIN Fehler der Antwort: die Nachricht ist
+  /// heraus, nur das Abzeichen bleibt stehen. Deshalb nur ins Protokoll.
+  Future<void> _alsGelesenMarkieren(int convId, String mnr) async {
+    try {
+      await ApiService().markMessagesRead(
+        conversationId: convId,
+        mitgliedernummer: mnr,
+        status: 'read',
+      );
+    } catch (e) {
+      _log.warning('Blitz: als gelesen markieren fehlgeschlagen: $e', tag: 'BLITZ');
     }
   }
 
