@@ -49,6 +49,7 @@ import 'blutwerte_uebernahme.dart';
 import '../utils/blut_parameter_liste.dart';
 import 'blutwerte_suche.dart';
 import 'arzt_suche_dialog.dart';
+import 'klinik_formular.dart';
 
 class MitgliederverwaltungArztenKrankenhaus extends StatefulWidget {
   final User user;
@@ -426,19 +427,25 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
         // ⚠️ NUR die Herkunftstabelle fragen: die id-Folgen sind je Tabelle
         // eigenständig, ein Treffer in der falschen Tabelle wäre eine fremde
         // Praxis mit derselben id. Siehe lib/utils/arzt_quelle.dart.
-        final ausKlinik = istKlinikEintrag(selectedArzt);
+        //
+        // 🔴 Für DIESEN Reiter gibt es nur eine Herkunft: `kliniken_datenbank`.
+        // Hier stand bis zum 26.08.2026 eine Verzweigung auf
+        // `searchKrankenhausDatenbank` — und die wurde IMMER genommen: der
+        // Server liefert `selected_arzt` fertig aus `kliniken_datenbank`
+        // (KrankenhausStore::loadSelectedArzt), ohne die Spalte `krankenhaus`
+        // und ohne Herkunftsmarke, weshalb `istKlinikEintrag` stets `false`
+        // sagte. Gefragt wurde damit `krankenhaus_datenbank` — eine Tabelle
+        // mit 0 Zeilen. Das Auffrischen konnte nie etwas finden, ohne dass
+        // etwas fehlschlug.
         final suchbegriff = selectedArzt['arzt_name']?.toString() ?? selectedArzt['praxis_name']?.toString() ?? '';
-        (ausKlinik
-                ? widget.apiService.searchKliniken(search: suchbegriff)
-                : widget.apiService.searchKrankenhausDatenbank(search: suchbegriff))
+        widget.apiService.searchKliniken(search: suchbegriff)
             .then((result) {
-          final aerzte = (ausKlinik ? result['kliniken'] : result['aerzte']) as List? ?? [];
+          final aerzte = result['kliniken'] as List? ?? [];
           for (final a in aerzte) {
             if (a['id'].toString() == arztId) {
               if (mounted) {
                 setState(() {
-                  final roh = Map<String, dynamic>.from(a as Map);
-                  selectedArzt = ausKlinik ? klinikAlsArzt(roh) : roh;
+                  selectedArzt = klinikAlsArzt(Map<String, dynamic>.from(a as Map));
                   data['selected_arzt'] = selectedArzt;
                   _gesundheitData[type] = data;
                 });
@@ -937,6 +944,24 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                                             ]),
                                           ),
                                         const Spacer(),
+                                        // Ergänzt Fax, Notaufnahme-Nummer oder
+                                        // Terminportal direkt im Katalog —
+                                        // bisher ging das nur mit SQL.
+                                        TextButton.icon(
+                                          icon: Icon(Icons.edit_location_alt, size: 14, color: F.h(Colors.grey, 600)),
+                                          label: Text('Klinikdaten', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2)),
+                                          onPressed: () async {
+                                            final aktualisiert = await KlinikFormular.bearbeiten(
+                                                context, widget.apiService, selectedArzt);
+                                            if (aktualisiert == null) return;
+                                            setLocalState(() {
+                                              selectedArzt = aktualisiert;
+                                              data['selected_arzt'] = selectedArzt;
+                                            });
+                                            saveAll();
+                                          },
+                                        ),
                                         TextButton.icon(
                                           icon: Icon(Icons.edit, size: 14, color: F.h(Colors.grey, 600)),
                                           label: Text('LANR/BSNR', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
@@ -8210,11 +8235,15 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
     final arztId = activeData['arzt_id']?.toString();
     if (onlineTerminUrl.isEmpty && arztId != null && arztId.isNotEmpty) {
       try {
-        final result = await widget.apiService.searchKrankenhausDatenbank(search: selArzt['arzt_name']?.toString() ?? selArzt['praxis_name']?.toString() ?? '');
-        final aerzte = result['aerzte'] as List? ?? [];
+        // 🔴 `kliniken_datenbank`, nicht `krankenhaus_datenbank`: dort stehen
+        // die Häuser dieses Reiters, und 6 von 144 tragen eine Adresse für die
+        // Online-Terminvergabe. Gefragt wurde bis zum 26.08.2026 die leere
+        // Tabelle — der Knopf „Online-Termin" konnte deshalb nie nachwachsen.
+        final result = await widget.apiService.searchKliniken(search: selArzt['arzt_name']?.toString() ?? selArzt['praxis_name']?.toString() ?? '');
+        final aerzte = result['kliniken'] as List? ?? [];
         for (final a in aerzte) {
           if (a['id'].toString() == arztId && (a['online_termin_url']?.toString() ?? '').isNotEmpty) {
-            selArzt = Map<String, dynamic>.from(a as Map);
+            selArzt = klinikAlsArzt(Map<String, dynamic>.from(a as Map));
             activeData['selected_arzt'] = selArzt;
             _gesundheitData[type] = activeData;
             _augenSave(type, activeData);
@@ -10086,12 +10115,17 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                 return;
               }
               try {
-                final result = await widget.apiService.manageArzt({
-                  'action': 'update_nummern',
-                  'id': arztId,
-                  'lanr': lanrC.text.trim(),
-                  'bsnr': bsnrC.text.trim(),
-                });
+                // 🔴 NICHT `manageArzt`: das ist `aerzte_datenbank`, und `arztId`
+                // stammt aus dem Katalog DIESES Reiters. Die id-Folgen sind je
+                // Tabelle eigenstaendig — bis zum 26.08.2026 landeten die
+                // Nummern deshalb auf einer wildfremden Praxis, waehrend sie
+                // hier nie erschienen. Siehe lib/utils/arzt_quelle.dart.
+                final result = await widget.apiService.updateKatalogNummern(
+                  endpunkt: 'kliniken_manage.php',
+                  id: arztId,
+                  lanr: lanrC.text.trim(),
+                  bsnr: bsnrC.text.trim(),
+                );
                 if (!dlgCtx.mounted) return;
                 if (result['success'] == true) {
                   Navigator.pop(dlgCtx);
@@ -10130,6 +10164,14 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
       ),
       onSelect: onSelect,
       vorbelegteSuche: vorbelegteSuche,
+      // Der Katalog führt 144 Abteilungen aus sechs Häusern, alle im Raum
+      // Ulm/Tübingen. Wer anderswo behandelt wurde, war bis zum 26.08.2026
+      // nicht erfassbar — die Lupe fand nichts, und anlegen ging auch nicht.
+      anlegenBeschriftung: 'Klinik aufnehmen',
+      onAnlegen: (suchtext) => KlinikFormular.anlegen(
+        context, widget.apiService,
+        vorbelegterName: suchtext.isEmpty ? null : suchtext,
+      ),
     );
   }
 

@@ -78,6 +78,34 @@ void main() {
     });
   });
 
+  group('so, wie der Server den Eintrag zurückgibt', () {
+    /// `KrankenhausStore::loadSelectedArzt` liefert `selected_arzt` fertig
+    /// gemappt aus `kliniken_datenbank` — mit `praxis_name`/`arzt_name`, aber
+    /// OHNE die Spalte `krankenhaus`.
+    Map<String, dynamic> rehydriert({bool mitMarke = true}) => {
+          'id': 10,
+          'fachrichtung': 'Gastroenterologie',
+          'praxis_name': 'Bundeswehrkrankenhaus Ulm',
+          'arzt_name': 'Klinik für Innere Medizin – Gastroenterologie',
+          'strasse': 'Oberer Eselsberg 40',
+          'plz_ort': '89081 Ulm',
+          'notaufnahme_telefon': '0731 1710-0',
+          if (mitMarke) kArztQuelleFeld: kArztQuelleKliniken,
+        };
+
+    test('🔴 ohne Marke ist die Herkunft NICHT erkennbar', () {
+      // Genau das war der Fehler bis zum 26.08.2026: der Server gab den
+      // Eintrag ohne Marke und ohne `krankenhaus`-Spalte zurück, die
+      // Rückfall-Erkennung sagte „Praxis", und der Krankenhaus-Reiter frischte
+      // aus `krankenhaus_datenbank` auf — einer Tabelle mit 0 Zeilen.
+      expect(istKlinikEintrag(rehydriert(mitMarke: false)), isFalse);
+    });
+
+    test('mit Marke wird er als Klinik-Eintrag erkannt', () {
+      expect(istKlinikEintrag(rehydriert()), isTrue);
+    });
+  });
+
   test('der eigentliche Fehlerfall: gleiche id, zwei Tabellen, zwei Herkünfte', () {
     // Genau diese Konstellation hat den gespeicherten Klinik-Eintrag beim
     // Auffrischen durch eine wildfremde Praxis ersetzt.

@@ -61,6 +61,12 @@ class ArztSucheDialog {
     String titel = 'Arzt aus Datenbank auswählen',
     String platzhalter = 'Name, Praxis oder Ort suchen...',
     String? vorbelegteSuche,
+    /// Weg aus einer leeren Liste: nimmt den aktuellen Suchtext entgegen und
+    /// gibt die neu angelegte Zeile zurück, oder `null` bei Abbruch. Ist er
+    /// gesetzt, erscheint ein Knopf — in der Leiste UND mitten in der leeren
+    /// Liste, wo der Mensch tatsächlich feststeckt.
+    Future<Map<String, dynamic>?> Function(String suchtext)? onAnlegen,
+    String anlegenBeschriftung = 'Aufnehmen',
   }) {
     final searchController = TextEditingController(text: vorbelegteSuche ?? '');
     // `alle` ist alles, was der Katalog zur Sucheingabe hergibt; `results` ist
@@ -206,6 +212,19 @@ class ArztSucheDialog {
                                         // gepflegten Liste „Fächer ohne Eintrag":
                                         // eine solche Liste veraltet still, sobald
                                         // jemand eine Praxis anlegt.
+                                        if (onAnlegen != null) ...[
+                                          const SizedBox(height: 12),
+                                          FilledButton.icon(
+                                            icon: const Icon(Icons.add_business, size: 16),
+                                            label: Text(anlegenBeschriftung),
+                                            onPressed: () async {
+                                              final neu = await onAnlegen(searchController.text.trim());
+                                              if (neu == null) return;
+                                              if (ctx.mounted) Navigator.of(ctx).pop();
+                                              onSelect(neu);
+                                            },
+                                          ),
+                                        ],
                                         if (!fehler && nurFach && alle.isNotEmpty) ...[
                                           const SizedBox(height: 6),
                                           Text(
@@ -276,6 +295,17 @@ class ArztSucheDialog {
                 ),
               ),
               actions: [
+                if (onAnlegen != null)
+                  TextButton.icon(
+                    icon: const Icon(Icons.add_business, size: 16),
+                    label: Text(anlegenBeschriftung),
+                    onPressed: () async {
+                      final neu = await onAnlegen(searchController.text.trim());
+                      if (neu == null) return;
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                      onSelect(neu);
+                    },
+                  ),
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
                   child: const Text('Abbrechen'),

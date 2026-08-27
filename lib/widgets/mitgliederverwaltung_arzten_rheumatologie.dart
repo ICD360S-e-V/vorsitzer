@@ -10090,12 +10090,17 @@ class _MitgliederverwaltungArztenRheumatologieState extends State<Mitgliederverw
                 return;
               }
               try {
-                final result = await widget.apiService.manageArzt({
-                  'action': 'update_nummern',
-                  'id': arztId,
-                  'lanr': lanrC.text.trim(),
-                  'bsnr': bsnrC.text.trim(),
-                });
+                // 🔴 NICHT `manageArzt`: das ist `aerzte_datenbank`, und `arztId`
+                // stammt aus dem Katalog DIESES Reiters. Die id-Folgen sind je
+                // Tabelle eigenstaendig — bis zum 26.08.2026 landeten die
+                // Nummern deshalb auf einer wildfremden Praxis, waehrend sie
+                // hier nie erschienen. Siehe lib/utils/arzt_quelle.dart.
+                final result = await widget.apiService.updateKatalogNummern(
+                  endpunkt: 'rheumatologie_datenbank_manage.php',
+                  id: arztId,
+                  lanr: lanrC.text.trim(),
+                  bsnr: bsnrC.text.trim(),
+                );
                 if (!dlgCtx.mounted) return;
                 if (result['success'] == true) {
                   Navigator.pop(dlgCtx);

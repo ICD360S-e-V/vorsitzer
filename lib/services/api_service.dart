@@ -11083,6 +11083,49 @@ class ApiService {
 
   // ========== ÄRZTE DATENBANK ==========
 
+  /// Schreibzugriff auf den Klinik-Katalog (`kliniken_datenbank`).
+  ///
+  /// 🔴 Bis zum 26.08.2026 war dieser Katalog NUR lesbar — `kliniken_manage.php`
+  /// kannte allein `search`, alles andere lief in ein 405. Der
+  /// Krankenhaus-Reiter liest aber ausschliesslich hier, es gab also keinen Weg,
+  /// ein Haus aufzunehmen, das nicht unter den gespeicherten Abteilungen stand.
+  /// Die Schreibhälfte lag derweil auf `krankenhaus_datenbank` — einer Tabelle
+  /// mit 0 Zeilen, die niemand las.
+  ///
+  /// `action`: `add` · `update` · `update_nummern`. Ein `delete` gibt es
+  /// bewusst nicht (siehe Kommentar im Endpunkt).
+  Future<Map<String, dynamic>> manageKlinik(Map<String, dynamic> daten) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/kliniken_manage.php'),
+      headers: _headers,
+      body: jsonEncode(daten),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  /// LANR und BSNR im Katalog EINES Fachreiters setzen.
+  ///
+  /// 🔴 Alle sechs Arzt-Reiter riefen dafür `manageArzt` auf, also
+  /// `aerzte_manage.php`. In fünf davon stammt die id aber aus einem ANDEREN
+  /// Katalog (`augenarzt_datenbank`, `hno_datenbank`, …), und die id-Folgen
+  /// sind je Tabelle eigenständig: die Nummern landeten auf einer wildfremden
+  /// Praxis, im eigenen Reiter erschienen sie nie. Beides ohne Fehlermeldung —
+  /// und LANR/BSNR stehen auf der Überweisung.
+  /// Siehe `lib/utils/arzt_quelle.dart`.
+  Future<Map<String, dynamic>> updateKatalogNummern({
+    required String endpunkt,
+    required dynamic id,
+    required String lanr,
+    required String bsnr,
+  }) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/$endpunkt'),
+      headers: _headers,
+      body: jsonEncode({'action': 'update_nummern', 'id': id, 'lanr': lanr, 'bsnr': bsnr}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
   Future<Map<String, dynamic>> searchKliniken({String search = '', String fachrichtung = ''}) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/kliniken_manage.php'),
@@ -15407,24 +15450,7 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
-  Future<Map<String, dynamic>> searchKrankenhausDatenbank({String search = '', String fachrichtung = 'Augenheilkunde'}) async {
-    final r = await _client.post(
-      Uri.parse('$baseUrl/admin/krankenhaus_datenbank_manage.php'),
-      headers: _headers,
-      body: jsonEncode({'action': 'search', 'search': search, 'fachrichtung': fachrichtung}),
-    ).timeout(const Duration(seconds: 20));
-    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
-  }
 
-  Future<Map<String, dynamic>> addKrankenhausDatenbank(Map<String, dynamic> arzt) async {
-    final payload = {...arzt, 'action': 'add', 'fachrichtung': arzt['fachrichtung'] ?? 'Augenheilkunde'};
-    final r = await _client.post(
-      Uri.parse('$baseUrl/admin/krankenhaus_datenbank_manage.php'),
-      headers: _headers,
-      body: jsonEncode(payload),
-    ).timeout(const Duration(seconds: 20));
-    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
-  }
 
   Future<Map<String, dynamic>> krankenhausRechnungAction(Map<String, dynamic> data) async {
     final response = await _client.post(
