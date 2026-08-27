@@ -1,6 +1,12 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_farben.dart';
+import '../utils/file_picker_helper.dart';
 import 'bussgeld_vorfall_dialog.dart';
 import 'phone_link.dart';
 
@@ -64,6 +70,7 @@ class _BussgeldVorfallDetailsDialogState extends State<BussgeldVorfallDetailsDia
   Map<String, dynamic>? _vmOptionen;
 
   bool _laedt = true;
+  bool _laedtHoch = false;
   String? _fehler;
 
   @override
@@ -345,9 +352,12 @@ class _BussgeldVorfallDetailsDialogState extends State<BussgeldVorfallDetailsDia
       ]));
   }
 
-  Widget _korrZeile(Map<String, dynamic> k) => Card(
-        margin: const EdgeInsets.only(bottom: 6),
-        child: ListTile(
+  Widget _korrZeile(Map<String, dynamic> k) {
+    final anhaenge = _liste(k['anhaenge']);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 6),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        ListTile(
           dense: true,
           title: Text(k['betreff']?.toString() ?? '(ohne Betreff)',
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
@@ -359,13 +369,148 @@ class _BussgeldVorfallDetailsDialogState extends State<BussgeldVorfallDetailsDia
               if (k['empfaenger'] != null) Text('an ${k['empfaenger']}', style: const TextStyle(fontSize: 11)),
             ]),
           ]),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18),
-            color: F.h(Colors.red, 600),
-            onPressed: () => _korrespondenzLoeschen(k),
-          ),
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(
+              icon: const Icon(Icons.attach_file, size: 18),
+              tooltip: 'PDF oder Foto anhängen',
+              color: F.h(Colors.deepOrange, 700),
+              onPressed: _laedtHoch ? null : () => _anhangHochladen(k['id'] as int),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 18),
+              tooltip: 'Eintrag löschen',
+              color: F.h(Colors.red, 600),
+              onPressed: () => _korrespondenzLoeschen(k),
+            ),
+          ]),
         ),
-      );
+        // Die Anhänge stehen UNTER ihrem Schreiben, nicht in einer eigenen
+        // Liste daneben: der Bescheid, sein Messprotokoll und das Lichtbild
+        // gehören zusammen und werden auch zusammen gesucht.
+        if (anhaenge.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+            child: Column(children: [for (final a in anhaenge) _anhangZeile(a)]),
+          ),
+      ]),
+    );
+  }
+
+  Widget _anhangZeile(Map<String, dynamic> a) {
+    final istPdf = (a['mime']?.toString() ?? '').contains('pdf');
+    return InkWell(
+      onTap: () => _anhangOeffnen(a),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(children: [
+          Icon(istPdf ? Icons.picture_as_pdf : Icons.image_outlined,
+              size: 16, color: F.h(istPdf ? Colors.red : Colors.blue, 600)),
+          const SizedBox(width: 6),
+          Expanded(child: Text(a['original_name']?.toString() ?? 'Anhang',
+              style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
+          if (a['groesse'] != null)
+            Text('${((int.tryParse(a['groesse'].toString()) ?? 0) / 1024).round()} kB',
+                style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 16),
+            visualDensity: VisualDensity.compact,
+            color: F.h(Colors.grey, 600),
+            tooltip: 'Anhang löschen',
+            onPressed: () => _anhangLoeschen(a),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  /// Hängt Dateien an ein Schreiben.
+  ///
+  /// ⚠️ Das Ergebnis wird ausgewertet und der Grund angezeigt. Genau das
+  /// fehlte bei den `*_attachment.php`-Pfaden: dort verschwand ein HTTP 500
+  /// wortlos, und die leere Anhangsliste sah aus wie „ich habe wohl nichts
+  /// ausgewählt".
+  Future<void> _anhangHochladen(int korrespondenzId) async {
+    // ⚠️ Über FilePickerHelper, nicht über FilePicker direkt: auf macOS
+    // nimmt der Helfer einen eigenen Weg, und auf Android/iOS sind die
+    // Datei-Knöpfe der App schon einmal reihenweise daran gescheitert.
+    final auswahl = await FilePickerHelper.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'tif', 'tiff'],
+    );
+    final pfade = (auswahl?.files ?? [])
+        .map((f) => f.path)
+        .whereType<String>()
+        .toList();
+    if (pfade.isEmpty) return;
+
+    setState(() => _laedtHoch = true);
+    final r = await widget.apiService.uploadBussgeldAnhaenge(
+      userId: widget.userId,
+      vorfallId: widget.vorfallId,
+      korrespondenzId: korrespondenzId,
+      pfade: pfade,
+      kategorie: 'bescheid',
+    );
+    if (!mounted) return;
+    setState(() => _laedtHoch = false);
+
+    final fehlerTexte = (r['fehler'] as List?)?.map((e) => e.toString()).toList() ?? const [];
+    if (r['success'] == true) {
+      final n = (r['hochgeladen'] as List?)?.length ?? 0;
+      _sagen(fehlerTexte.isEmpty
+          ? '$n Datei(en) angehängt'
+          : '$n angehängt, nicht übernommen: ${fehlerTexte.join('; ')}');
+      _laden();
+    } else {
+      _sagen(fehlerTexte.isEmpty
+          ? 'Nicht hochgeladen: ${r['message'] ?? 'unbekannter Fehler'}'
+          : 'Nicht hochgeladen: ${fehlerTexte.join('; ')}', fehler: true);
+    }
+  }
+
+  /// ⚠️ Die Datei landet im privaten Verzeichnis der App, nie in /tmp:
+  /// dort läge ein Bußgeldbescheid für jedes andere Programm lesbar.
+  Future<void> _anhangOeffnen(Map<String, dynamic> a) async {
+    final r = await widget.apiService.downloadBussgeldAnhang(widget.userId, a['id'] as int);
+    if (!mounted) return;
+    if (r.statusCode != 200 || r.bodyBytes.isEmpty) {
+      _sagen('Anhang nicht abrufbar (HTTP ${r.statusCode}).', fehler: true);
+      return;
+    }
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final name = (a['original_name']?.toString() ?? 'anhang')
+          .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+      final datei = File('${dir.path}/$name');
+      await datei.writeAsBytes(r.bodyBytes, flush: true);
+      await OpenFilex.open(datei.path);
+    } catch (e) {
+      if (mounted) _sagen('Konnte nicht geöffnet werden: $e', fehler: true);
+    }
+  }
+
+  Future<void> _anhangLoeschen(Map<String, dynamic> a) async {
+    final sicher = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Anhang löschen?'),
+      content: Text('„${a['original_name'] ?? 'Anhang'}" wird endgültig entfernt.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          child: const Text('Löschen'),
+        ),
+      ],
+    ));
+    if (sicher != true) return;
+    final r = await widget.apiService.deleteBussgeldAnhang(widget.userId, a['id'] as int);
+    if (r['success'] == true) {
+      _laden();
+    } else {
+      _sagen('Nicht gelöscht: ${r['message'] ?? 'unbekannter Fehler'}', fehler: true);
+    }
+  }
 
   Future<void> _korrespondenzAnlegen() async {
     final betreff = TextEditingController();

@@ -91,6 +91,8 @@ void main() {
   });
 
   _abgleich();
+  _anhaenge();
+  _zustaendigkeit();
 
   group('Der Weg über das "+"', () {
     test('die Schnellanlage fragt nur nach dem Aktenzeichen und den Daten', () {
@@ -131,6 +133,8 @@ void _abgleich() {
     'create', 'revoke', 'add_versand',
     // user_bussgeldstelle.php
     'save_stelle', 'save_vorfall', 'delete_vorfall',
+    // bussgeld_vorfall_dok.php
+    'delete',
   };
 
   test('jede Server-Aktion wird vom Client auch benutzt', () {
@@ -143,5 +147,118 @@ void _abgleich() {
       expect(quellen.contains("'$a'"), isTrue,
           reason: 'Der Server kennt "$a", aber kein Client ruft es auf');
     }
+  });
+}
+
+/// Anhänge: der Teil, den der User als fehlend gemeldet hat.
+void _anhaenge() {
+  final dialog = File('lib/widgets/bussgeld_vorfall_details_dialog.dart').readAsStringSync();
+  final stelle = File('lib/widgets/behorde_bussgeldstelle.dart').readAsStringSync();
+
+  group('PDF am Schreiben', () {
+    test('jede Korrespondenz-Zeile hat einen Knopf zum Anhängen', () {
+      expect(dialog.contains('_anhangHochladen'), isTrue);
+      expect(dialog.contains('Icons.attach_file'), isTrue);
+    });
+
+    test('die Anhänge stehen unter ihrem Schreiben, nicht in einer Extraliste', () {
+      // Der Bescheid, sein Messprotokoll und das Lichtbild gehören zusammen.
+      expect(dialog.contains("_liste(k['anhaenge'])"), isTrue);
+    });
+
+    test('das Ergebnis des Uploads wird ausgewertet, nicht weggeworfen', () {
+      // ⚠️ Genau das fehlte bei den fünf *_attachment.php-Pfaden: dort
+      // verschwand ein HTTP 500 wortlos und die leere Liste sah aus wie
+      // "ich habe wohl nichts ausgewählt".
+      expect(dialog.contains("r['success'] == true"), isTrue);
+      expect(dialog.contains('Nicht hochgeladen'), isTrue);
+      expect(dialog.contains('fehlerTexte'), isTrue);
+    });
+
+    test('gewählt wird über den Helfer des Projekts, nicht über FilePicker direkt', () {
+      // Auf macOS geht FilePickerHelper einen eigenen Weg; die Datei-Knöpfe
+      // der App sind an der direkten Verwendung schon einmal gescheitert.
+      expect(dialog.contains('FilePickerHelper.pickFiles'), isTrue);
+      expect(dialog.contains('FilePicker.platform'), isFalse);
+    });
+
+    test('die heruntergeladene Datei landet nicht in /tmp', () {
+      // Dort läge ein Bußgeldbescheid für jedes andere Programm lesbar.
+      expect(dialog.contains('getApplicationDocumentsDirectory'), isTrue);
+      expect(dialog.contains("Directory.systemTemp"), isFalse);
+    });
+  });
+
+  group('Vorgänge stehen in der Karte der Stelle', () {
+    test('es gibt keinen zweiten Reiter mehr daneben', () {
+      // ⚠️ Der User hat ausdrücklich gesagt: beim Klick auf die zuständige
+      // Stelle sollen die Vorgänge DORT erscheinen, nicht in einem Reiter
+      // daneben. Ein TabController hier wäre ein Rückfall.
+      expect(stelle.contains('TabController'), isFalse);
+      expect(stelle.contains('TabBarView'), isFalse);
+      expect(stelle.contains('SingleTickerProviderStateMixin'), isFalse);
+    });
+
+    test('die Vorgänge hängen in der Stellen-Karte', () {
+      expect(stelle.contains('_vorgaengeImKarten()'), isTrue);
+      expect(stelle.contains('_vorfaelleKarte'), isFalse);
+    });
+
+    test('das Plus sitzt bei den Vorgängen', () {
+      expect(stelle.contains("Key('bg_neuer_vorfall')"), isTrue);
+      expect(stelle.contains('onPressed: _vorfallSchnellAnlegen'), isTrue);
+    });
+  });
+}
+
+/// Die Zuständigkeit speichert sich selbst — es gibt keinen Knopf mehr.
+void _zustaendigkeit() {
+  final stelle = File('lib/widgets/behorde_bussgeldstelle.dart').readAsStringSync();
+
+  group('Zuständige Stelle ohne Speichern-Knopf', () {
+    test('der Knopf ist weg', () {
+      // ⚠️ Er war die Folge eines Entwurfsfehlers: das Feld war Suchschlitz
+      // UND gespeicherter Name zugleich, also musste irgendwer entscheiden,
+      // wann aus einem Suchbegriff eine Zuständigkeit wird. Wer eine Stelle
+      // antippt, hat das entschieden.
+      expect(stelle.contains("Key('bg_stelle_speichern')"), isFalse);
+      expect(stelle.contains('_stelleSpeichern'), isFalse);
+    });
+
+    test('Antippen eines Treffers speichert sofort', () {
+      expect(stelle.contains('_stelleUebernehmen'), isTrue);
+      expect(stelle.contains('onTap: schonGesetzt ? null : () => _stelleUebernehmen(s)'), isTrue);
+    });
+
+    test('eine bereits gesetzte Stelle wird im Treffer markiert', () {
+      // Sonst tippt man sie ein zweites Mal an und weiß nicht, ob etwas
+      // geschehen ist.
+      expect(stelle.contains('schonGesetzt'), isTrue);
+    });
+
+    test('ein Fehlschlag beim automatischen Speichern wird gezeigt', () {
+      // ⚠️ Ohne Knopf gibt es keinen zweiten Versuch, den jemand von sich
+      // aus unternähme — ein stiller Fehler bliebe für immer stumm.
+      expect(stelle.contains('Nicht gespeichert:'), isTrue);
+    });
+
+    test('Freitext bleibt möglich, aber nur mit eigenem Tipper', () {
+      // Der Katalog hat erst drei Einträge. Automatisches Speichern beim
+      // Tippen würde jeden halben Suchbegriff zur Zuständigkeit machen.
+      expect(stelle.contains("Key('bg_stelle_freitext')"), isTrue);
+      expect(stelle.contains('_stelleUebernehmen(null)'), isTrue);
+    });
+
+    test('es gibt einen Weg zurück', () {
+      // Ohne Knopf ließe sich eine gesetzte Zuständigkeit sonst nur noch
+      // überschreiben, nie aufheben.
+      expect(stelle.contains("Key('bg_stelle_entfernen')"), isTrue);
+      expect(stelle.contains('_stelleEntfernen'), isTrue);
+    });
+
+    test('beim Entfernen wird auf die bleibenden Vorgänge hingewiesen', () {
+      // Sie hängen am Mitglied, nicht an der Auswahl.
+      expect(stelle.contains('bleiben bestehen'), isTrue);
+    });
   });
 }
