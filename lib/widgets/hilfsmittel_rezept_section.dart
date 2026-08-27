@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'phone_link.dart';
 import '../utils/app_farben.dart';
+import '../utils/sehhilfen_muster.dart';
 
 /// Tab-ul "Hilfsmittel" din pagina Arzt (între Rezept și Heilmittel).
 /// Tracking pentru toate Hilfsmittel (Schuheinlagen PG 08, Bandagen PG 05,
@@ -74,6 +75,15 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
   List<Map<String, dynamic>> _sanitaetshaeuser = [];
   bool _loading = true;
 
+  /// Ob dieser Reiter Muster 8 / 8A anbieten darf.
+  ///
+  /// Gebunden an [HilfsmittelTab.augenarzt], weil das genau „dieser Reiter
+  /// gehört einer Fachärztin oder einem Facharzt für Augenheilkunde" heißt —
+  /// und nur die dürfen Sehhilfen verordnen (§ 12 Abs. 2 und 3, § 16 Abs. 1
+  /// HilfsM-RL). Ein Orthopäde bekommt die Auswahl gar nicht erst zu sehen,
+  /// statt sie zu sehen und vom Server abgewiesen zu werden.
+  bool get _sehhilfenErlaubt => widget.augenarzt;
+
   @override
   void initState() {
     super.initState();
@@ -119,9 +129,21 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                 child: RichText(
                   text: TextSpan(
                     style: TextStyle(fontSize: 11.5, color: F.h(Colors.teal, 900), height: 1.4),
-                    children: const [
-                      TextSpan(text: 'Hilfsmittel ', style: TextStyle(fontWeight: FontWeight.bold)),
-                      TextSpan(text: 'sind körpernahe Hilfen, die beim Patienten verbleiben (Schuheinlagen PG 08, Bandagen PG 05, Hörgeräte PG 13, Sehhilfen PG 25 etc.). Verordnung erfolgt per Muster 16 — Einlösung beim Sanitätshaus. GKV-Zuzahlung: 10 %, mind. 5 €, max. 10 € pro Stück. Wiederversorgung Schuheinlagen frühestens nach 6 Monaten.'),
+                    children: [
+                      const TextSpan(text: 'Hilfsmittel ', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const TextSpan(text: 'sind körpernahe Hilfen, die beim Patienten verbleiben (Schuheinlagen PG 08, Bandagen PG 05, Hörgeräte PG 13, Blindenhilfsmittel PG 07 etc.). Verordnung per Muster 16 — Einlösung beim Sanitätshaus. GKV-Zuzahlung: 10 %, mind. 5 €, max. 10 € pro Stück. Wiederversorgung Schuheinlagen frühestens nach 6 Monaten.'),
+                      // ⚠️ Bis 27.08.2026 stand hier „Sehhilfen PG 25 … per Muster 16".
+                      // Die Produktgruppe stimmte, der Vordruck nicht: Sehhilfen gehen
+                      // auf Muster 8 bzw. 8A und werden beim Augenoptiker eingelöst.
+                      // Der Satz schickte also zum falschen Formular an den falschen Ort.
+                      if (_sehhilfenErlaubt)
+                        const TextSpan(
+                          text: '\n\nSehhilfen (PG 25) laufen NICHT über Muster 16: '
+                              'Brillengläser, Kontaktlinsen und therapeutische Sehhilfen '
+                              'auf Muster 8, vergrößernde Sehhilfen auf Muster 8A — '
+                              'beide einzulösen beim Augenoptiker. Den Vordruck wählen '
+                              'Sie beim Anlegen aus.',
+                        ),
                     ],
                   ),
                 ),
@@ -215,7 +237,27 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(r['hilfsmittel']?.toString() ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              Row(children: [
+                Flexible(child: Text(r['hilfsmittel']?.toString() ?? '',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis)),
+                // Der Vordruck steht nur dort, wo es überhaupt mehr als einen
+                // gibt — sonst wäre „Muster 16" auf jeder Zeile jedes Arztes
+                // eine Angabe, die nichts unterscheidet.
+                if (_sehhilfenErlaubt) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: F.h(Colors.teal, 50),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: F.h(Colors.teal, 300)),
+                    ),
+                    child: Text(musterVordruck(r['muster']?.toString()).kurz,
+                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
+                  ),
+                ],
+              ]),
               const SizedBox(height: 2),
               Row(children: [
                 if ((r['diagnose_label'] ?? '').toString().isNotEmpty)
@@ -262,16 +304,22 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
   }
 
   // ──────────────────────── NEW REZEPT DIALOG ────────────────────────
-  static const _diagnosen = [
-    {'icd10': 'M21.4', 'label': 'Senk-/Spreiz-/Knickfuß'},
-    {'icd10': 'M20.1', 'label': 'Hallux valgus'},
-    {'icd10': 'M72.2', 'label': 'Plantarfasziitis (Fersensporn)'},
-    {'icd10': 'E10/E11', 'label': 'Diabetes — Diabetiker-Einlagen'},
-    {'icd10': 'M41/M21.7', 'label': 'Skoliose / Beinlängendifferenz'},
-  ];
+
+  /// Eindeutiger Wert einer Indikation für die Radio-Gruppe.
+  ///
+  /// ⚠️ Die Fundstelle allein reicht NICHT: bei Muster 8 tragen zwei Einträge
+  /// „§ 12 Abs. 1 Nr. 3" (Myopie und Astigmatismus), zwei „§ 12 Abs. 1 Nr. 2"
+  /// und bei Muster 8A drei „§ 16 Abs. 3". Gleiche Werte in einer RadioGroup
+  /// heißt: zwei Knöpfe leuchten zusammen und die Auswahl ist mehrdeutig.
+  /// Gespeichert wird trotzdem nur die Fundstelle — siehe [_indikationRef].
+  static String _indikationWert(MusterIndikation d) => '${d.ref}|${d.label}';
+
+  /// Aus dem Radio-Wert zurück auf das, was in `diagnose_icd10` gehört.
+  static String _indikationRef(String wert) => wert.split('|').first;
 
   Future<void> _showNewRezeptDialog() async {
-    final hilfsC = TextEditingController(text: 'Orthopädische Einlagen');
+    String muster = kMuster16;
+    final hilfsC = TextEditingController(text: musterVordruck(muster).vorschlag);
     final datumC = TextEditingController(text: DateFormat('yyyy-MM-dd').format(DateTime.now()));
     final arztNameC = TextEditingController(text: widget.arztName ?? '');
     final freitextC = TextEditingController();
@@ -294,6 +342,70 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
             width: 540,
             child: SingleChildScrollView(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                // ── Vordruck-Auswahl (nur Augenheilkunde) ──
+                if (_sehhilfenErlaubt) ...[
+                  Text('Welcher Vordruck?',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: kMusterVordrucke.map((m) => ChoiceChip(
+                      label: Text(m.kurz, style: TextStyle(
+                        fontSize: 12,
+                        color: muster == m.key ? Colors.white : F.textStark,
+                      )),
+                      selected: muster == m.key,
+                      selectedColor: F.h(Colors.teal, 600),
+                      onSelected: (_) => setDlg(() {
+                        if (muster == m.key) return;
+                        muster = m.key;
+                        // Die Indikationsliste wechselt mit — eine ausgewählte
+                        // Diagnose des alten Vordrucks muss weg, sonst stünde
+                        // „Hallux valgus" unter einer Sehhilfenverordnung.
+                        selectedIcd = '';
+                        selectedLabel = '';
+                        freitextC.clear();
+                        if (!m.zeigtAnzahlPaare) {
+                          anzahlPaare = 1;
+                          begruendungC.clear();
+                        }
+                        // Vorschlagstext nur ersetzen, wenn er noch der
+                        // unveränderte Vorschlag des anderen Vordrucks ist —
+                        // Getipptes wird nicht überschrieben.
+                        if (kMusterVordrucke.any((v) => v.vorschlag == hilfsC.text.trim())) {
+                          hilfsC.text = m.vorschlag;
+                        }
+                      }),
+                    )).toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  Builder(builder: (_) {
+                    final v = musterVordruck(muster);
+                    return Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: F.h(Colors.teal, 50),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: F.h(Colors.teal, 200)),
+                      ),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(v.titel, style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 900))),
+                        const SizedBox(height: 3),
+                        Text(v.hinweis, style: TextStyle(fontSize: 11, height: 1.35, color: F.h(Colors.teal, 900))),
+                        const SizedBox(height: 3),
+                        Row(children: [
+                          Icon(Icons.storefront, size: 13, color: F.h(Colors.teal, 700)),
+                          const SizedBox(width: 5),
+                          Expanded(child: Text('Einlösung: ${v.einloesestelle}',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.teal, 800)))),
+                        ]),
+                      ]),
+                    );
+                  }),
+                  const SizedBox(height: 12),
+                ],
                 TextField(
                   controller: hilfsC,
                   decoration: InputDecoration(
@@ -338,7 +450,17 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                   )),
                 ]),
                 const SizedBox(height: 14),
-                Text('Diagnose / Indikation (ICD-10):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
+                Text(
+                  muster == kMuster16
+                      ? 'Diagnose / Indikation (ICD-10):'
+                      : 'Indikation / Anspruchsgrund (HilfsM-RL):',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700)),
+                ),
+                // ⚠️ Bei Sehhilfen steht in der zweiten Zeile die Fundstelle
+                // statt eines ICD-Codes. Der Anspruch folgt dort aus der
+                // Richtlinie, nicht aus einer Diagnoseziffer — und die beiden
+                // Wege sind verschieden: § 12 hängt an Alter und Dioptrien,
+                // § 17 allein an der Diagnose, ohne beides.
                 const SizedBox(height: 6),
                 RadioGroup<String>(
                   groupValue: selectedIcd,
@@ -346,19 +468,33 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                     selectedIcd = v ?? '';
                     selectedLabel = v == 'andere'
                         ? 'Andere'
-                        : _diagnosen.firstWhere(
-                            (d) => d['icd10'] == v,
-                            orElse: () => const <String, String>{'label': ''},
-                          )['label']!;
+                        : musterIndikationen(muster)
+                            .firstWhere((d) => _indikationWert(d) == v,
+                                orElse: () => const MusterIndikation('', ''))
+                            .label;
                   }),
                   child: Column(children: [
-                    ..._diagnosen.map((d) => RadioListTile<String>(
-                      value: d['icd10']!,
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      visualDensity: const VisualDensity(vertical: -3),
-                      title: Text(d['label']!, style: const TextStyle(fontSize: 12)),
-                      subtitle: Text(d['icd10']!, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+                    ...musterIndikationen(muster).map((d) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (d.gruppe.isNotEmpty) Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 2),
+                          child: Text(d.gruppe.toUpperCase(), style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.4,
+                            color: F.h(Colors.teal, 700),
+                          )),
+                        ),
+                        RadioListTile<String>(
+                          value: _indikationWert(d),
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          visualDensity: const VisualDensity(vertical: -3),
+                          title: Text(d.label, style: const TextStyle(fontSize: 12)),
+                          subtitle: Text(d.ref, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+                        ),
+                      ],
                     )),
                     RadioListTile<String>(
                       value: 'andere',
@@ -382,6 +518,10 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                       ),
                     ),
                   ),
+                // „Zwei Paare aus hygienischen Gründen" ist eine Einlagen-Frage
+                // und bei Sehhilfen sinnlos — dort entscheiden Festbetrag und
+                // Indikation, nicht die Stückzahl.
+                if (musterVordruck(muster).zeigtAnzahlPaare) ...[
                 const SizedBox(height: 12),
                 Text('Anzahl Paare:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                 RadioGroup<int>(
@@ -395,6 +535,7 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                     const Flexible(child: Text('2 Paare (Wechselversorgung)', style: TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
                   ]),
                 ),
+                ],
                 if (anzahlPaare == 2)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
@@ -434,8 +575,9 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                   'action': 'create',
                   'user_id': widget.userId,
                   'arzt_type': widget.arztType,
+                  'muster': muster,
                   'hilfsmittel': hilfsC.text.trim(),
-                  'diagnose_icd10': selectedIcd == 'andere' ? null : selectedIcd,
+                  'diagnose_icd10': selectedIcd == 'andere' ? null : _indikationRef(selectedIcd),
                   'diagnose_label': selectedIcd == 'andere' ? 'Andere' : selectedLabel,
                   'diagnose_freitext': selectedIcd == 'andere' ? freitextC.text.trim() : null,
                   'anzahl_paare': anzahlPaare,
@@ -447,6 +589,14 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                 if (r['success'] == true) {
                   if (ctx.mounted) Navigator.pop(ctx);
                   await _load();
+                  // Direkt in die Akte des neuen Rezepts springen: dort hängt
+                  // der Scan-Block. Anhänge brauchen die id der gespeicherten
+                  // Zeile, es geht also nicht schon im Anlege-Dialog — der
+                  // Sprung erspart aber das Suchen in der Liste.
+                  final neu = r['rezept'];
+                  if (mounted && neu is Map) {
+                    await _showRezeptDetailDialog(Map<String, dynamic>.from(neu));
+                  }
                 } else {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -455,7 +605,7 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                   }
                 }
               },
-              child: const Text('Speichern'),
+              child: const Text('Speichern & Scan anhängen'),
             ),
           ],
         ),
@@ -605,11 +755,35 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _detailsBlock(),
                 const SizedBox(height: 14),
+                _verordnungsScan(),
+                const SizedBox(height: 14),
                 Text('⏱  Chronologie', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
                 const Divider(height: 12),
                 ..._steps.map((s) => _stepRow(s['key'] as String, s['label'] as String, s['icon'] as IconData)),
                 const SizedBox(height: 14),
-                if (_rezept['wiederversorgung_ab'] != null) Container(
+                // ⚠️ Der Kasten sagt bei Sehhilfen etwas ANDERES, nicht dasselbe
+                // mit anderem Datum: Muster 16 hat eine Frist (6 Monate), Muster
+                // 8/8A haben eine Bedingung (Refraktionsänderung ≥ 0,5 dpt bzw.
+                // geänderter Vergrößerungsbedarf). Ein Datum hinzuschreiben
+                // würde eine Frist behaupten, die es nicht gibt — deshalb wird
+                // er dort auch ohne `wiederversorgung_ab` gezeigt.
+                if (!musterHatWiederversorgungsTicket(_rezept['muster']?.toString())) Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: F.h(Colors.blue, 50),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: F.h(Colors.blue, 200)),
+                  ),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Icon(Icons.rule, size: 18, color: F.h(Colors.blue, 700)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(
+                      wiederversorgungRegel(_rezept['muster']?.toString()),
+                      style: TextStyle(fontSize: 11.5, height: 1.35, color: F.h(Colors.blue, 900)),
+                    )),
+                  ]),
+                )
+                else if (_rezept['wiederversorgung_ab'] != null) Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: F.h(Colors.blue, 50),
@@ -646,6 +820,52 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
     );
   }
 
+  /// Der Vordruck selbst — Scan oder PDF der ausgestellten Verordnung.
+  ///
+  /// ⚠️ `modul` trennt diesen Anhang von den beiden bestehenden
+  /// (`rezept_bestellung`, `rezept_zuzahlung`); die Fachrichtung trennen die
+  /// Flags, weil jede ihre eigene `*_attachment`-Tabelle hat. Ohne die Flags
+  /// landeten alle sechs Fachrichtungen in derselben generischen Tabelle, und
+  /// da der Schlüssel nur `(modul, korrespondenz_id)` ist, teilten sich zwei
+  /// Rezepte mit gleicher id die Dokumente — genau der Fehler, der am
+  /// 17.08.2026 schon einmal in der Vorsorge-Historie steckte.
+  Widget _verordnungsScan() {
+    final id = int.tryParse((_rezept['id'] ?? '').toString()) ?? 0;
+    if (id == 0) return const SizedBox.shrink();
+    final v = musterVordruck(_rezept['muster']?.toString());
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: F.h(Colors.teal, 50),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: F.h(Colors.teal, 200)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.description, size: 16, color: F.h(Colors.teal, 700)),
+          const SizedBox(width: 6),
+          Expanded(child: Text('Verordnung (${v.kurz}) — Scan oder PDF',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 900)))),
+        ]),
+        const SizedBox(height: 2),
+        Text('Ausgestellt am ${_fmtDate(_rezept['datum_ausstellung']?.toString())}',
+            style: TextStyle(fontSize: 10.5, color: F.h(Colors.teal, 700))),
+        const SizedBox(height: 6),
+        KorrAttachmentsWidget(
+          apiService: widget.apiService,
+          modul: 'rezept_verordnung',
+          korrespondenzId: id,
+          augenarzt: widget.augenarzt,
+          hno: widget.hno,
+          krankenhaus: widget.krankenhaus,
+          md: widget.md,
+          rheumatologie: widget.rheumatologie,
+          memberId: widget.userId,
+        ),
+      ]),
+    );
+  }
+
   Widget _detailsBlock() {
     String t(String k) => (_rezept[k] ?? '').toString();
     return Container(
@@ -656,10 +876,11 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
         border: Border.all(color: F.h(Colors.grey, 300)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _detailRow('Vordruck', '${musterVordruck(t('muster')).kurz} — ${musterVordruck(t('muster')).titel}'),
         _detailRow('Hilfsmittel', t('hilfsmittel')),
         _detailRow('Diagnose', '${t('diagnose_label')}${t('diagnose_icd10').isNotEmpty ? ' (${t('diagnose_icd10')})' : ''}'),
         if (t('diagnose_freitext').isNotEmpty) _detailRow('Freier Text', t('diagnose_freitext')),
-        _detailRow('Anzahl Paare', t('anzahl_paare')),
+        if (musterVordruck(t('muster')).zeigtAnzahlPaare) _detailRow('Anzahl Paare', t('anzahl_paare')),
         if (t('begruendung_wechselpaar').isNotEmpty) _detailRow('Begründung', t('begruendung_wechselpaar')),
         _detailRow('Ausstellungsdatum', _fmtDate(t('datum_ausstellung'))),
         if (t('arzt_name').isNotEmpty) _detailRow('Arzt', t('arzt_name')),
@@ -763,6 +984,11 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
                     apiService: widget.apiService,
                     modul: 'rezept_bestellung',
                     korrespondenzId: int.tryParse(status['id'].toString()) ?? 0,
+                    augenarzt: widget.augenarzt,
+                    hno: widget.hno,
+                    krankenhaus: widget.krankenhaus,
+                    md: widget.md,
+                    rheumatologie: widget.rheumatologie,
                     // Aus dem Cloud: mit der Mitglieds-ID zeigt das Widget
                     // neben „Datei" auch „Cloud".
                     memberId: widget.userId,
@@ -798,6 +1024,11 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
                     apiService: widget.apiService,
                     modul: 'rezept_zuzahlung',
                     korrespondenzId: int.tryParse(status['id'].toString()) ?? 0,
+                    augenarzt: widget.augenarzt,
+                    hno: widget.hno,
+                    krankenhaus: widget.krankenhaus,
+                    md: widget.md,
+                    rheumatologie: widget.rheumatologie,
                     // Aus dem Cloud: mit der Mitglieds-ID zeigt das Widget
                     // neben „Datei" auch „Cloud".
                     memberId: widget.userId,
