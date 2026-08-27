@@ -276,11 +276,6 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
             ),
 
           if (_hatStelle) _stelleInfo(_zustaendig!),
-
-          if (_hatStelle) ...[
-            const Divider(height: 28),
-            _vorgaengeZeile(),
-          ],
         ]),
       ),
     );
@@ -316,7 +311,16 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
           ),
         ]),
       ),
-      Container(
+      // ⚠️ Die Karte der Institution IST der Knopf. Vorher hing darunter eine
+      // eigene Zeile „Vorgänge verwalten" — wer die Stelle vor sich hat und
+      // sie antippt, will ihre Vorgänge sehen, nicht erst eine zweite Zeile
+      // suchen. Die Telefonnummer und der Website-Verweis darin bleiben
+      // trotzdem für sich anklickbar: das innere Element gewinnt.
+      InkWell(
+        key: const Key('bg_vorgaenge_oeffnen'),
+        onTap: _vorgaengeOeffnen,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -340,10 +344,46 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
             onTap: () => launchUrl(Uri.parse(d['website'].toString()), mode: LaunchMode.externalApplication),
             child: _feld(Icons.open_in_new, 'Website', 'öffnen'),
           ),
+
+          // ⚠️ Was dahinter liegt und was drängt, steht IM Block. Ohne das
+          // müsste man ihn öffnen, um zu erfahren, dass man ihn öffnen sollte.
+          const Divider(height: 20),
+          Row(children: [
+            Icon(Icons.folder_shared, size: 18, color: F.h(Colors.deepOrange, 700)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+              _vorfaelle.isEmpty
+                  ? 'Vorgänge verwalten — noch kein Aktenzeichen'
+                  : 'Vorgänge verwalten — ${_vorfaelle.length} erfasst · $_offen offen',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+            if (_eilig > 0)
+              Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: F.h(Colors.red, 50),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: F.h(Colors.red, 300)),
+                ),
+                child: Text('$_eilig × Frist',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold,
+                        color: F.h(Colors.red, 700))),
+              ),
+            Icon(Icons.chevron_right, color: F.h(Colors.deepOrange, 700)),
+          ]),
         ]),
+      ),
       ),
     ]);
   }
+
+  int get _offen => _vorfaelle.where((v) => !_fertig.contains(v['status'])).length;
+
+  int get _eilig => _vorfaelle.where((v) {
+        if (_fertig.contains(v['status'])) return false;
+        final t = v['tage_bis_frist'];
+        return t is int && t <= 3;
+      }).length;
 
   String _zeile(dynamic strasse, dynamic plz, dynamic ort) {
     final s = strasse?.toString().trim() ?? '';
@@ -366,62 +406,6 @@ class _BehordeBussgeldstelleContentState extends State<BehordeBussgeldstelleCont
           Expanded(child: phoneAwareText(ikon, wert, style: const TextStyle(fontSize: 12))),
         ]),
       );
-
-  /// Der Zugang zum Vorgangs-Manager dieser Stelle.
-  ///
-  /// ⚠️ Hier steht bewusst KEINE Liste. Die Vorgänge einer Stelle sind eine
-  /// Akte: man sucht darin und filtert nach dem, was noch offen ist. Unter
-  /// der Karte ausgebreitet wächst sie mit jedem Schreiben, bis die Anschrift
-  /// der Stelle — der eigentliche Inhalt dieser Karte — nach unten aus dem
-  /// Bild wandert. Ein Tippen öffnet den Manager; hier steht nur, was drin
-  /// ist und was drängt.
-  Widget _vorgaengeZeile() {
-    final offen = _vorfaelle.where((v) => !_fertig.contains(v['status'])).length;
-    final eilig = _vorfaelle.where((v) {
-      if (_fertig.contains(v['status'])) return false;
-      final t = v['tage_bis_frist'];
-      return t is int && t <= 3;
-    }).length;
-
-    return InkWell(
-      key: const Key('bg_vorgaenge_oeffnen'),
-      onTap: _vorgaengeOeffnen,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-        child: Row(children: [
-          Icon(Icons.folder_shared, size: 22, color: F.h(Colors.deepOrange, 700)),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Vorgänge verwalten',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 2),
-            Text(
-              _vorfaelle.isEmpty
-                  ? 'Noch kein Aktenzeichen erfasst'
-                  : '${_vorfaelle.length} erfasst · $offen offen',
-              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
-          ])),
-          // ⚠️ Was drängt, gehört auf die Karte — sonst müsste man den
-          // Manager öffnen, um zu erfahren, dass man ihn öffnen sollte.
-          if (eilig > 0)
-            Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: F.h(Colors.red, 50),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: F.h(Colors.red, 300)),
-              ),
-              child: Text('\$eilig × Frist',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold,
-                      color: F.h(Colors.red, 700))),
-            ),
-          Icon(Icons.chevron_right, color: F.h(Colors.grey, 500)),
-        ]),
-      ),
-    );
-  }
 
   /// Zustände, die als abgeschlossen gelten.
   ///

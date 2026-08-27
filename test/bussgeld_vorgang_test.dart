@@ -225,11 +225,23 @@ void _anhaenge() {
       expect(stelle.contains('BussgeldVorgaengeManager'), isTrue);
     });
 
+    test('🔴 die Karte der Institution IST der Knopf', () {
+      // ⚠️ Dritter Anlauf. Erst ein Reiter daneben, dann eine Liste darunter,
+      // dann eine eigene Zeile „Vorgänge verwalten" UNTER der Karte — alle
+      // drei falsch. Wer die Stelle vor sich hat und sie antippt, will ihre
+      // Vorgänge sehen, nicht erst eine zweite Zeile suchen.
+      final block = stelle.substring(stelle.indexOf('Widget _stelleInfo'));
+      expect(block.contains("Key('bg_vorgaenge_oeffnen')"), isTrue,
+          reason: 'der Block mit der Anschrift muss selbst anklickbar sein');
+      expect(block.contains('onTap: _vorgaengeOeffnen'), isTrue);
+      // Keine getrennte Zeile mehr darunter.
+      expect(stelle.contains('_vorgaengeZeile'), isFalse);
+    });
+
     test('die Karte sagt, was dahinter liegt und was drängt', () {
-      // Sonst müsste man den Manager öffnen, um zu erfahren, dass man ihn
-      // öffnen sollte.
+      // Sonst müsste man sie öffnen, um zu erfahren, dass man sie öffnen sollte.
       expect(stelle.contains('Vorgänge verwalten'), isTrue);
-      expect(stelle.contains('Frist'), isTrue);
+      expect(stelle.contains('× Frist'), isTrue);
     });
 
     test('🔴 jeder Vorgang gehört zu der Stelle, bei der er angelegt wurde', () {
