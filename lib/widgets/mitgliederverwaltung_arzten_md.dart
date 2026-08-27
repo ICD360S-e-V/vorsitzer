@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../utils/blut_pdf_teile.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
@@ -3229,104 +3230,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
   // ── PDF Export für Blutanalyse Bericht ──
   Future<void> _exportBlutanalysePdf(String datum, List<Map<String, dynamic>> filledParams, List<Map<String, dynamic>> abnormalParams) async {
     try {
-      final pdf = pw.Document();
-      final userName = '${widget.user.vorname ?? ''} ${widget.user.nachname ?? ''}'.trim();
-
-      pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(40),
-          header: (ctx) => pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text('Blutanalyse Bericht', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 4),
-              pw.Text('Patient: $userName  |  Datum: $datum  |  ${widget.user.mitgliedernummer}',
-                  style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
-              pw.Divider(),
-              pw.SizedBox(height: 8),
-            ],
-          ),
-          build: (ctx) {
-            final widgets = <pw.Widget>[];
-
-            // Summary
-            widgets.add(pw.Container(
-              padding: const pw.EdgeInsets.all(10),
-              decoration: pw.BoxDecoration(
-                color: abnormalParams.isEmpty ? PdfColors.green50 : PdfColors.orange50,
-                borderRadius: pw.BorderRadius.circular(6),
-              ),
-              child: pw.Text(
-                abnormalParams.isEmpty
-                    ? 'Alle ${filledParams.length} Werte im Normalbereich'
-                    : '${abnormalParams.length} von ${filledParams.length} Werten auffaellig',
-                style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
-              ),
-            ));
-            widgets.add(pw.SizedBox(height: 12));
-
-            // Table
-            String? lastGruppe;
-            for (final p in filledParams) {
-              final gruppe = p['gruppe'] as String;
-              if (gruppe != lastGruppe) {
-                if (lastGruppe != null) widgets.add(pw.SizedBox(height: 6));
-                widgets.add(pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  color: PdfColors.grey200,
-                  child: pw.Text(gruppe, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                ));
-                lastGruppe = gruppe;
-              }
-
-              final status = p['status'] as String;
-              final isQ = p['qualitativ'] == true;
-              PdfColor rowColor = PdfColors.white;
-              if (status == 'hoch') {
-                rowColor = PdfColors.red50;
-              } else if (status == 'niedrig') {
-                rowColor = PdfColors.blue50;
-              } else if (status == 'auffällig') {
-                rowColor = PdfColors.orange50;
-              }
-
-              final arrow = status == 'hoch' ? ' ↑' : status == 'niedrig' ? ' ↓' : '';
-
-              widgets.add(pw.Container(
-                padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                color: rowColor,
-                child: pw.Row(
-                  children: [
-                    pw.Expanded(flex: 4, child: pw.Text(p['label'] as String, style: const pw.TextStyle(fontSize: 10))),
-                    pw.SizedBox(
-                      width: 60,
-                      child: pw.Text(
-                        isQ ? (p['value'] as String) : '${p['value']}$arrow',
-                        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-                        textAlign: pw.TextAlign.right,
-                      ),
-                    ),
-                    pw.SizedBox(width: 6),
-                    pw.SizedBox(width: 40, child: pw.Text(isQ ? '' : (p['unit'] as String), style: const pw.TextStyle(fontSize: 9))),
-                    pw.SizedBox(width: 6),
-                    if (!isQ)
-                      pw.SizedBox(
-                        width: 60,
-                        child: pw.Text(
-                          '${(p['min'] as num) > 0 ? p['min'] : '0'} - ${(p['max'] as num) < 999 ? p['max'] : ''}',
-                          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
-                          textAlign: pw.TextAlign.right,
-                        ),
-                      ),
-                  ],
-                ),
-              ));
-            }
-
-            return widgets;
-          },
-        ),
+      // ⚠️ Der Bericht wird EINMAL gebaut, in blut_pdf_teile.dart. Vorher stand
+      // dieselbe Erzeugung in allen sechs Ärzte-Dialogen; eine Kopie, die eine
+      // Änderung nicht mitbekommt, druckt still ein anderes Blatt.
+      final pdf = blutBerichtPdf(
+        datum: datum,
+        patient: '${widget.user.vorname ?? ''} ${widget.user.nachname ?? ''}'.trim(),
+        mitgliedsnummer: widget.user.mitgliedernummer,
+        werte: filledParams,
+        auffaellig: abnormalParams,
       );
 
       // ⚠️ Im EIGENEN Betrachter öffnen, nicht über Printing.layoutPdf.

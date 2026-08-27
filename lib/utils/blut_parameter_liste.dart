@@ -46,14 +46,17 @@ List<Map<String, dynamic>> blutParameterListe(bool maennlich) {
     // ── Differentialblutbild ──
     {'key': 'basophile_absolut', 'label': 'Basophile Granulozyten (absolut)', 'unit': 'Tsd/µl', 'min': 0.015, 'max': 0.05, 'gruppe': 'Differentialblutbild', 'such': 'Basophile Granulozyten Basophile Granulozyten (absolut) Differentialblutbild absolut'},
     {'key': 'basophile_prozent', 'label': 'Basophile Granulozyten (relativ)', 'unit': '%', 'min': 0.0, 'max': 1.0, 'gruppe': 'Differentialblutbild', 'such': 'BA Baso Basophile Granulozyten Basophile Granulozyten (relativ) Differentialblutbild relativ'},
+    {'key': 'blasten', 'label': 'Blasten', 'unit': '%', 'min': 0.0, 'max': 0.0, 'gruppe': 'Differentialblutbild', 'such': 'BLA Blasten Differentialblutbild'},
     {'key': 'eosinophile_absolut', 'label': 'Eosinophile Granulozyten (absolut)', 'unit': 'Tsd/µl', 'min': 0.05, 'max': 0.25, 'gruppe': 'Differentialblutbild', 'such': 'Differentialblutbild Eosinophile Granulozyten Eosinophile Granulozyten (absolut) absolut'},
     {'key': 'eosinophile_prozent', 'label': 'Eosinophile Granulozyten (relativ)', 'unit': '%', 'min': 1.0, 'max': 3.0, 'gruppe': 'Differentialblutbild', 'such': 'Differentialblutbild EO Eos Eosinophile Granulozyten Eosinophile Granulozyten (relativ) relativ'},
     {'key': 'lymphozyten_absolut', 'label': 'Lymphozyten (absolut)', 'unit': 'Tsd/µl', 'min': 1.5, 'max': 3.0, 'gruppe': 'Differentialblutbild', 'such': 'Differentialblutbild Lymphozyten Lymphozyten (absolut) absolut'},
     {'key': 'lymphozyten_prozent', 'label': 'Lymphozyten (relativ)', 'unit': '%', 'min': 25.0, 'max': 33.0, 'gruppe': 'Differentialblutbild', 'such': 'Differentialblutbild LYM Lympho Lymphozyten Lymphozyten (relativ) relativ'},
     {'key': 'monozyten_absolut', 'label': 'Monozyten (absolut)', 'unit': 'Tsd/µl', 'min': 0.28, 'max': 0.5, 'gruppe': 'Differentialblutbild', 'such': 'Differentialblutbild Monozyten Monozyten (absolut) absolut'},
     {'key': 'monozyten_prozent', 'label': 'Monozyten (relativ)', 'unit': '%', 'min': 3.0, 'max': 7.0, 'gruppe': 'Differentialblutbild', 'such': 'Differentialblutbild MO Mono Monozyten Monozyten (relativ) relativ'},
+    {'key': 'myelozyten', 'label': 'Myelozyten', 'unit': '%', 'min': 0.0, 'max': 0.0, 'gruppe': 'Differentialblutbild', 'such': 'Differentialblutbild Myelozyten MYZ'},
     {'key': 'neutrophile_absolut', 'label': 'Neutrophile Granulozyten (absolut)', 'unit': 'Tsd/µl', 'min': 1.8, 'max': 7.0, 'gruppe': 'Differentialblutbild', 'such': 'ANC Differentialblutbild Neutrophile Granulozyten Neutrophile Granulozyten (absolut) absolut'},
     {'key': 'neutrophile_prozent', 'label': 'Neutrophile Granulozyten (relativ)', 'unit': '%', 'min': 40.0, 'max': 75.0, 'gruppe': 'Differentialblutbild', 'such': 'Differentialblutbild NEUT Neutro Neutrophile Granulozyten Neutrophile Granulozyten (relativ) relativ'},
+    {'key': 'promyelozyten', 'label': 'Promyelozyten', 'unit': '%', 'min': 0.0, 'max': 0.0, 'gruppe': 'Differentialblutbild', 'such': 'Differentialblutbild PRM Promyelozyten'},
     {'key': 'segmentkernige', 'label': 'Segmentkernige neutrophile Granulozyten', 'unit': '%', 'min': 54.0, 'max': 62.0, 'gruppe': 'Differentialblutbild', 'such': 'Differentialblutbild Segmentkernige neutrophile Granulozyten Segmk.'},
     {'key': 'stabkernige', 'label': 'Stabkernige neutrophile Granulozyten', 'unit': '%', 'min': 3.0, 'max': 5.0, 'gruppe': 'Differentialblutbild', 'such': 'Differentialblutbild Stabk. Stabkernige neutrophile Granulozyten'},
     // ── Entzündung ──
@@ -79,6 +82,7 @@ List<Map<String, dynamic>> blutParameterListe(bool maennlich) {
     {'key': 'cystatin_c', 'label': 'Cystatin C', 'unit': 'mg/l', 'min': 0.5, 'max': 1.0, 'gruppe': 'Nierenwerte', 'such': 'CysC Cystatin C Nierenwerte'},
     {'key': 'harnstoff', 'label': 'Harnstoff', 'unit': 'mg/dl', 'min': 17.0, 'max': 43.0, 'gruppe': 'Nierenwerte', 'such': 'BUN Harnstoff Nierenwerte Urea'},
     {'key': 'harnsaeure', 'label': 'Harnsäure (Serum)', 'unit': 'mg/dl', 'min': m ? 3.4 : 2.4, 'max': m ? 7.0 : 5.7, 'gruppe': 'Nierenwerte', 'such': 'HS Harnsäure Harnsäure (Serum) Nierenwerte Serum Urat'},
+    {'key': 'creatinin_clearance', 'label': 'Kreatinin-Clearance', 'unit': 'ml/min', 'min': m ? 95.0 : 98.0, 'max': m ? 160.0 : 156.0, 'gruppe': 'Nierenwerte', 'such': 'Clearance KRCL Kreatinin-Clearance Nierenwerte'},
     // ── Elektrolyte ──
     {'key': 'calcium', 'label': 'Calcium (Serum)', 'unit': 'mmol/l', 'min': 2.2, 'max': 2.65, 'gruppe': 'Elektrolyte', 'such': 'Ca Calcium Calcium (Serum) Elektrolyte & Mineralstoffe Serum'},
     {'key': 'chlorid', 'label': 'Chlorid', 'unit': 'mmol/l', 'min': 95.0, 'max': 105.0, 'gruppe': 'Elektrolyte', 'such': 'Chlorid Cl Elektrolyte & Mineralstoffe'},
@@ -169,6 +173,7 @@ List<Map<String, dynamic>> blutParameterListe(bool maennlich) {
     {'key': 'elastase_1', 'label': 'Pankreas-Elastase 1 (Stuhl)', 'unit': 'µg/g', 'min': 200.0, 'max': 999.0, 'gruppe': 'Bauchspeicheldrüse', 'such': 'Bauchspeicheldrüse Pankreas-Elastase 1 Pankreas-Elastase 1 (Stuhl) Stuhl'},
     // ── Eiweiße & Immunglobuline ──
     {'key': 'albumin', 'label': 'Albumin', 'unit': 'g/l', 'min': 35.0, 'max': 53.0, 'gruppe': 'Eiweiße & Immunglobuline', 'such': 'ALB Albumin Eiweiße & Immunglobuline'},
+    {'key': 'coeruloplasmin', 'label': 'Coeruloplasmin', 'unit': 'mg/dl', 'min': 20.0, 'max': 60.0, 'gruppe': 'Eiweiße & Immunglobuline', 'such': 'COER Coeruloplasmin Eiweiße & Immunglobuline'},
     {'key': 'gesamteiweiss', 'label': 'Gesamteiweiß', 'unit': 'g/l', 'min': 66.0, 'max': 83.0, 'gruppe': 'Eiweiße & Immunglobuline', 'such': 'EW Eiweiße & Immunglobuline Gesamteiweiß TP'},
     {'key': 'iga', 'label': 'Immunglobulin A', 'unit': 'g/l', 'min': 0.7, 'max': 4.0, 'gruppe': 'Eiweiße & Immunglobuline', 'such': 'Eiweiße & Immunglobuline IgA Immunglobulin A'},
     {'key': 'ige_gesamt', 'label': 'Immunglobulin E gesamt', 'unit': 'IU/ml', 'min': 0.0, 'max': 100.0, 'gruppe': 'Eiweiße & Immunglobuline', 'such': 'Eiweiße & Immunglobuline IgE Immunglobulin E gesamt'},
@@ -201,9 +206,11 @@ List<Map<String, dynamic>> blutParameterListe(bool maennlich) {
     {'key': 'ca_19_9', 'label': 'CA 19-9', 'unit': 'U/ml', 'min': 0.0, 'max': 37.0, 'gruppe': 'Tumormarker', 'such': 'CA 19-9 CA19-9 Tumormarker'},
     {'key': 'calcitonin', 'label': 'Calcitonin', 'unit': 'pg/ml', 'min': m ? 2.0 : 2.0, 'max': m ? 48.0 : 10.0, 'gruppe': 'Tumormarker', 'such': 'CT Calcitonin Tumormarker'},
     {'key': 'cea', 'label': 'CEA (Carcinoembryonales Antigen)', 'unit': 'ng/ml', 'min': 0.0, 'max': 5.0, 'gruppe': 'Tumormarker', 'such': 'CEA CEA (Carcinoembryonales Antigen) Carcinoembryonales Antigen Tumormarker'},
+    {'key': 'cyfra_21_1', 'label': 'CYFRA 21-1', 'unit': 'µg/l', 'min': 0.0, 'max': 2.0, 'gruppe': 'Tumormarker', 'such': 'CYFRA CYFRA 21-1 Tumormarker'},
     {'key': 'psa_frei', 'label': 'Freies PSA', 'unit': 'ng/ml', 'min': 0.0, 'max': 0.0, 'gruppe': 'Tumormarker', 'qualitativ': true, 'such': 'Freies PSA Tumormarker fPSA'},
     {'key': 'nse', 'label': 'NSE (Neuronenspezifische Enolase)', 'unit': 'ng/ml', 'min': 0.0, 'max': 17.0, 'gruppe': 'Tumormarker', 'such': 'NSE NSE (Neuronenspezifische Enolase) Neuronenspezifische Enolase Tumormarker'},
     {'key': 'psa', 'label': 'PSA (Prostataspezifisches Antigen)', 'unit': 'ng/ml', 'min': 0.0, 'max': 4.0, 'gruppe': 'Tumormarker', 'such': 'PSA PSA (Prostataspezifisches Antigen) Prostataspezifisches Antigen Tumormarker'},
+    {'key': 'scc', 'label': 'SCC-Antigen', 'unit': 'µg/l', 'min': 0.0, 'max': 3.0, 'gruppe': 'Tumormarker', 'such': 'SCC SCC-Antigen Tumormarker'},
     // ── Medikamentenspiegel ──
     {'key': 'med_amiodaron', 'label': 'Amiodaron', 'unit': 'mg/l', 'min': 0.7, 'max': 2.0, 'gruppe': 'Medikamentenspiegel', 'such': 'Amiodaron Medikamentenspiegel'},
     {'key': 'med_digitoxin', 'label': 'Digitoxin', 'unit': 'µg/l', 'min': 10.0, 'max': 30.0, 'gruppe': 'Medikamentenspiegel', 'such': 'Digitoxin Medikamentenspiegel'},
