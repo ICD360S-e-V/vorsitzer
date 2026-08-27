@@ -80,13 +80,6 @@ class NotificationService {
   /// wortlos zu einem gewöhnlichen Streifen wird.
   static const String channelIdBlitz = 'blitz_nachricht';
 
-  /// Wie lange die Blitz-Benachrichtigung auf dem Tablet stehen bleibt.
-  ///
-  /// Zehn Minuten: lang genug, um aus einem anderen Zimmer zurückzukommen,
-  /// kurz genug, dass am Abend keine Sammlung gelesener Nachrichten in der
-  /// Leiste steht.
-  static const Duration kBlitzVerfall = Duration(minutes: 10);
-
   /// Kennungen der beiden Knöpfe in der Anruf-Benachrichtigung. Kommen als
   /// `response.actionId` zurück und werden auf [onNotificationClicked] als
   /// `sipgate-aktion:<id>` weitergereicht.
@@ -378,8 +371,6 @@ class NotificationService {
     /// Overrides the default channel — for ÖPNV features which each own
     /// a dedicated Android channel (user can mute independently).
     String? androidChannelId,
-    /// Android räumt die Benachrichtigung nach dieser Zeit selbst weg.
-    Duration? verfaelltNach,
   }) {
     final chId = androidChannelId ?? _channelId;
     // Match name/description/importance to whatever we registered at boot.
@@ -427,7 +418,6 @@ class NotificationService {
         fullScreenIntent: fullScreenIntent,
         category: fullScreenIntent ? AndroidNotificationCategory.call : null,
         actions: actions,
-        timeoutAfter: verfaelltNach?.inMilliseconds,
         playSound: playSound,
         enableVibration: chId != channelIdOpnvStoerung,
         icon: '@mipmap/ic_launcher',
@@ -486,8 +476,6 @@ class NotificationService {
     /// [channelIdOpnvAlarm], [channelIdOpnvStoerung]. Null = default channel.
     /// Chosen channel controls importance + user-facing mute controls.
     String? androidChannelId,
-    /// Siehe [_getNotificationDetails].
-    Duration? verfaelltNach,
   }) async {
     if (eventTime != null) {
       final hint = WeatherService.instance.weatherHintAt(eventTime);
@@ -512,7 +500,6 @@ class NotificationService {
           notificationDetails: _getNotificationDetails(
             payload: payload,
             androidChannelId: androidChannelId,
-            verfaelltNach: verfaelltNach,
             fullScreenIntent: fullScreenIntent,
             actions: actions,
           ),
@@ -640,17 +627,15 @@ class NotificationService {
       // von Android auf einen Streifen zurückgestuft, ohne jede Meldung.
       androidChannelId: channelIdBlitz,
       fullScreenIntent: true,
-      // ⚠️ Räumt sich selbst weg. Vorher blieb die Benachrichtigung oben in
-      // der Leiste hängen, auch wenn die Nachricht längst am Linux-Rechner
-      // gelesen und beantwortet war — man musste sie von Hand wegwischen.
+      // ⚠️ KEINE Zeitschaltung (`timeoutAfter`). Sie stand hier bis zum
+      // 27.08.2026 auf zehn Minuten und war der falsche Hebel: gestört hat
+      // nie die Dauer, sondern dass der Hinweis noch dastand, wenn die Sache
+      // längst erledigt war. Das erledigt jetzt [blitzWegraeumen], sobald ein
+      // anderes Gerät gelesen oder geantwortet hat.
       //
-      // Bewusst KEIN Abgleich über die Geräte hinweg: dafür müsste jedes Gerät
-      // melden, was es gelesen hat, und wer gerade unterwegs ist, verlöre die
-      // Benachrichtigung, sobald irgendwo anders hingeschaut wird.
-      // ⚠️ Preis dieser Entscheidung: wer [kBlitzVerfall] lang nicht auf das
-      // Tablet sieht, findet dort nichts mehr. Der Chat selbst verliert
-      // nichts — die Nachricht steht im Verlauf, nur der Hinweis ist weg.
-      verfaelltNach: kBlitzVerfall,
+      // Eine Zeitschaltung daneben wäre sogar schädlich: wer zwanzig Minuten
+      // aus dem Zimmer geht, fände nichts mehr vor — obwohl niemand
+      // geantwortet hat und die Nachricht noch offen ist.
       payload: 'blitz:$conversationId:$kanal',
     );
     _log.info('Blitz-Vollbild: $senderName (conv=$conversationId)', tag: 'NOTIF');
