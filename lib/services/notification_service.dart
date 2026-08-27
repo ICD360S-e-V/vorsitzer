@@ -589,6 +589,31 @@ class NotificationService {
     }
   }
 
+  /// Räumt den Blitz-Hinweis für eine Unterhaltung weg.
+  ///
+  /// ⚠️ WOFÜR: Der Vorsitzende sitzt an mehreren Geräten gleichzeitig. Wer am
+  /// Rechner antwortet, hat gelesen — dann darf auf dem Tablet kein Hinweis
+  /// mehr stehen. Gemeldet aus dem Betrieb: „warum verschwindet die
+  /// Benachrichtigung nicht vom Android, wenn ich am Linux schon geantwortet
+  /// habe".
+  ///
+  /// ⚠️ Es wird KEIN neuer Serverweg dafür gebraucht. Die eigene Antwort
+  /// kommt über den WebSocket ohnehin auf allen Geräten des Benutzers an —
+  /// nachgemessen am 27.08.2026, Nachricht 29398 traf in derselben Sekunde
+  /// auf Linux und Android ein. Bisher hat das dort nur niemand ausgewertet.
+  ///
+  /// Beide Kanäle wegräumen: welcher es war, weiss der Aufrufer nicht, und
+  /// eine Kennung, die auf nichts zeigt, kostet nichts.
+  Future<void> blitzWegraeumen(int conversationId) async {
+    for (final kanal in const ['app', 'sms']) {
+      try {
+        await _notifications.cancel(id: _notificationIdFor("blitz:$conversationId:$kanal"));
+      } catch (_) {
+        // Nicht vorhanden ist der Normalfall, kein Fehler.
+      }
+    }
+  }
+
   /// Der Blitz auf Android: Vollbild-Schirm mit der Nachricht und einem
   /// Antwortfeld, über jeder anderen App und auch über dem Sperrbildschirm.
   ///

@@ -729,7 +729,15 @@ class ChatService {
               kanal: chatMsg.channel,
               zeit: chatMsg.createdAt,
             ));
-          } else if (isMuted && !isOwnMessage) {
+          } else if (isOwnMessage) {
+            // ⚠️ EIGENE Antwort — also hat ein anderes Gerät des Vorsitzenden
+            // gerade geantwortet. Dann gehört der Blitz-Hinweis hier weg:
+            // gelesen und beantwortet ist gelesen und beantwortet, egal an
+            // welchem Gerät. Ohne das blieb die Benachrichtigung auf dem
+            // Tablet stehen, bis man sie von Hand wegwischte.
+            unawaited(NotificationService().blitzWegraeumen(chatMsg.conversationId));
+          }
+          if (isMuted && !isOwnMessage) {
             _log.debug('SKIPPED notification - conversation muted (from: ${chatMsg.senderName})', tag: 'NOTIF');
           } else {
             _log.debug('SKIPPED notification - own message (from: ${chatMsg.senderName})', tag: 'NOTIF');
@@ -911,6 +919,15 @@ class ChatService {
 
         case 'read_receipt':
           _readReceiptController.add(ReadReceiptEvent.fromJson(json));
+          // Gelesen zählt auch ohne Antwort: wer die Unterhaltung am Rechner
+          // nur öffnet, soll den Hinweis vom Tablet ebenfalls loswerden.
+          if (json['status'] == 'read') {
+            final cid = json['conversation_id'];
+            final id = cid is int ? cid : int.tryParse('$cid');
+            if (id != null) {
+              unawaited(NotificationService().blitzWegraeumen(id));
+            }
+          }
           break;
 
         case 'reaction_update':
