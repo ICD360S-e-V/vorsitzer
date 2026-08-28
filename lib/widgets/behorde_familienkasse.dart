@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
+import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/app_farben.dart';
 
@@ -985,6 +986,11 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
   }
 
   void _showKorrDetail(Map<String, dynamic> k) {
+    // Ohne Zeilen-id gibt es nichts, woran ein Anhang haengen koennte. Kommt
+    // in der Praxis nicht vor (die Liste kommt vom Server), aber ein
+    // stillschweigend auf 0 gesetzter Schluessel wuerde die Dateien aller
+    // Antraege in einen Sammeleimer werfen.
+    final kId = k['id'] is int ? k['id'] as int : int.tryParse(k['id']?.toString() ?? '');
     final isEin = k['richtung'] == 'eingang';
     final color = isEin ? Colors.green : Colors.blue;
     showDialog(context: context, builder: (ctx) => AlertDialog(
@@ -1011,6 +1017,31 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
           const SizedBox(height: 4),
           Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: SelectableText(k['notiz'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
+        ],
+        // Anhaenge haengen an der einzelnen Korrespondenz, nicht am Antrag:
+        // der Bescheid gehoert zu DEM Schreiben, mit dem er kam. Die Ablage
+        // ist ueber (modul, korrespondenz_id) geschluesselt und kennt keine
+        // user_id — `fk_antrag_korr` muss deshalb ein eigener, nirgends sonst
+        // benutzter Name bleiben, sonst teilen sich zwei Module eine Zeile.
+        if (kId != null) ...[
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          KorrAttachmentsWidget(
+            apiService: widget.apiService,
+            modul: 'fk_antrag_korr',
+            korrespondenzId: kId,
+            // Schaltet den Cloud-Knopf frei. Welcher der beiden Speicher sich
+            // oeffnet, entscheidet CloudPickerHelper: der 1-GB-Cloud des
+            // Mitglieds (der Server kopiert direkt, die Datei beruehrt das
+            // Geraet nie) oder der eigene verschluesselte 50-GB-Cloud, wenn
+            // der Vorsitzende seine EIGENE Akte bearbeitet.
+            memberId: widget.userId,
+            // Ohne png: hier sind ausdruecklich nur diese drei gewollt.
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg'],
+            // Pro Griff, nicht insgesamt — kein maxTotal.
+            maxFiles: 20,
+          ),
         ],
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
