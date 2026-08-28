@@ -2244,6 +2244,15 @@ class _MailMessageViewState extends State<MailMessageView> {
         }
         setState(() => _scan = map);
         widget.onScanFertig?.call();
+        final auffaellig =
+            map.values.where((b) => b.wert == MailScanWert.verdaechtig).length;
+        // Ein „auffällig" darf nicht stumm bleiben — aber es ist auch keine
+        // Sperre, also der ruhigere Satz.
+        if (auffaellig > 0) {
+          _toast(auffaellig == 1
+              ? 'Ein Anhang ist auffällig — bitte die Plakette lesen.'
+              : '$auffaellig Anhänge sind auffällig — bitte die Plaketten lesen.');
+        }
         final treffer = map.values.where((b) => b.gesperrt).length;
         if (treffer > 0) {
           _toast(treffer == 1
