@@ -18,6 +18,7 @@ import '../utils/mail_print.dart';
 import '../utils/mail_suche.dart';
 import '../widgets/cloud_unlock_dialog.dart';
 import '../widgets/file_viewer_dialog.dart';
+import '../widgets/html_anhang_dialog.dart';
 import '../widgets/mail_delivery_indicator.dart';
 import '../widgets/mail_delivery_report_card.dart';
 import '../widgets/mail_echtheit_karte.dart';
@@ -2527,7 +2528,24 @@ class _MailMessageViewState extends State<MailMessageView> {
       }
       final bytes = base64Decode('${res['data_base64'] ?? ''}');
       final name = '${res['name'] ?? a['name'] ?? 'anhang'}';
+      final typ = '${res['type'] ?? a['type'] ?? ''}';
       if (!mounted) return;
+
+      // HTML zeigt die App selbst — durch denselben Sanitizer wie der
+      // Nachrichtentext. Vorher landete ein `.html`-Anhang unten bei
+      // OpenFilex, also im Systembrowser: mit JavaScript, Zählpixeln und
+      // einer unverschlüsselten Kopie im Temp-Verzeichnis. Ein HTML-Anhang
+      // ist der klassische Träger für nachgebaute Anmeldemasken.
+      if (HtmlAnhangDialog.istHtml(name, typ)) {
+        await HtmlAnhangDialog.zeigen(
+          context,
+          bytes: Uint8List.fromList(bytes),
+          fileName: name,
+          contentType: typ,
+          loadInlineImage: _loadInlineImage,
+        );
+        return;
+      }
 
       // PDFs und Bilder zeigt die App selbst — direkt aus dem Speicher, ohne
       // die Datei je auf die Platte zu schreiben und ohne sie einem fremden
@@ -2535,7 +2553,7 @@ class _MailMessageViewState extends State<MailMessageView> {
       // Weg für Schadsoftware, und hier gehen Arzt-, Jobcenter- und
       // Behördenunterlagen durch.
       final shown = await FileViewerDialog.showFromBytes(
-          context, Uint8List.fromList(bytes), _viewerName(name, '${res['type'] ?? ''}'));
+          context, Uint8List.fromList(bytes), _viewerName(name, typ));
       if (shown) return;
 
       // Nur für Formate ohne eingebauten Betrachter — etwa Word oder Excel.
