@@ -11,7 +11,8 @@ import '../utils/app_farben.dart';
 /// Familienkasse: 4 Tabs
 ///  1. Zuständige Familienkasse — Auswahl aus geteilter Datenbank
 ///     (familienkassen_datenbank: BA-Regional / öffentl. Dienst / Ausland).
-///  2. Stammdaten — Kindergeld-Nummer, Sachbearbeiter, Kinderzuschlag, Notizen.
+///  2. Stammdaten — nur die Kindergeld-Nummer; schreibgeschützt, sobald sie
+///     einmal erfasst ist (Änderung nur über die Rückfrage hinter dem Stift).
 ///  3. Anträge — Liste mit "+" Button; pro Antrag ein Detail-Modal mit
 ///     Details / Unterlagen / Korrespondenz / Termine / Bewilligung
 ///     (eigene DB-Tabellen, verschlüsselt). Jeder Antrag hat eine Art
@@ -249,7 +250,7 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
         Row(children: [
           Icon(Icons.info_outline, size: 14, color: F.h(Colors.grey, 500)),
           const SizedBox(width: 6),
-          Expanded(child: Text('Kindergeld-Nummer & Sachbearbeiter im Tab „Stammdaten"; Aktenzeichen, Korrespondenz & Unterlagen pro Antrag im Tab „Anträge".', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)))),
+          Expanded(child: Text('Kindergeld-Nummer im Tab „Stammdaten"; Aktenzeichen, Korrespondenz & Unterlagen pro Antrag im Tab „Anträge".', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)))),
         ]),
       ]),
     );
@@ -576,41 +577,64 @@ class _FkStammdatenTab extends StatefulWidget {
   State<_FkStammdatenTab> createState() => _FkStammdatenTabState();
 }
 
+/// Stammdaten trägt nur noch die Kindergeld-Nummer.
+///
+/// ⚠️ Sobald eine Nummer gespeichert ist, ist das Feld **schreibgeschützt** —
+/// die Nummer kommt von der Familienkasse und ändert sich im Regelfall nie.
+/// Ein Tippfehler darf aber nicht auf Dauer feststehen, deshalb entsperrt der
+/// Stift sie nach einer Rückfrage; ohne diese Rückfrage wäre "read only" nur
+/// eine Sackgasse.
 class _FkStammdatenTabState extends State<_FkStammdatenTab> {
-  late TextEditingController _kindergeldNrC, _sachbearbeiterC, _kinderzuschlagC, _notizenC;
-  late bool _hatKinderzuschlag;
+  late TextEditingController _kindergeldNrC;
+  /// Bereits gespeicherte Nummer. Leer = noch nie erfasst, also frei editierbar.
+  late String _gespeichert;
+  bool _entsperrt = false;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    final s = widget.initial;
-    _kindergeldNrC = TextEditingController(text: s['kindergeld_nr']?.toString() ?? '');
-    _sachbearbeiterC = TextEditingController(text: s['sachbearbeiter']?.toString() ?? '');
-    _kinderzuschlagC = TextEditingController(text: s['kinderzuschlag']?.toString() ?? '');
-    _notizenC = TextEditingController(text: s['notizen']?.toString() ?? '');
-    _hatKinderzuschlag = (s['hat_kinderzuschlag']?.toString() ?? '') == 'true' || s['hat_kinderzuschlag'] == true;
+    _gespeichert = widget.initial['kindergeld_nr']?.toString().trim() ?? '';
+    _kindergeldNrC = TextEditingController(text: _gespeichert);
   }
 
   @override
   void dispose() {
     _kindergeldNrC.dispose();
-    _sachbearbeiterC.dispose();
-    _kinderzuschlagC.dispose();
-    _notizenC.dispose();
     super.dispose();
+  }
+
+  bool get _gesperrt => _gespeichert.isNotEmpty && !_entsperrt;
+
+  Future<void> _aendernAnfragen() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Kindergeld-Nummer ändern?'),
+        content: const Text(
+          'Die Kindergeld-Nummer vergibt die Familienkasse und sie bleibt in der Regel unverändert. '
+          'Nur ändern, wenn sie falsch erfasst wurde oder die Familienkasse eine neue Nummer mitgeteilt hat.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Ändern')),
+        ],
+      ),
+    );
+    if (ok == true && mounted) setState(() => _entsperrt = true);
   }
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    await widget.onSave({
-      'kindergeld_nr': _kindergeldNrC.text.trim(),
-      'sachbearbeiter': _sachbearbeiterC.text.trim(),
-      'hat_kinderzuschlag': _hatKinderzuschlag,
-      'kinderzuschlag': _kinderzuschlagC.text.trim(),
-      'notizen': _notizenC.text.trim(),
-    });
-    if (mounted) setState(() => _saving = false);
+    final wert = _kindergeldNrC.text.trim();
+    await widget.onSave({'kindergeld_nr': wert});
+    if (mounted) {
+      setState(() {
+        _gespeichert = wert;
+        _entsperrt = false;
+        _saving = false;
+      });
+    }
   }
 
   @override
@@ -622,77 +646,58 @@ class _FkStammdatenTabState extends State<_FkStammdatenTab> {
         Text('Stammdaten', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
       ]),
       const SizedBox(height: 12),
-      Text('Kindergeld-Nummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
+      Row(children: [
+        Text('Kindergeld-Nummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
+        if (_gesperrt) ...[
+          const SizedBox(width: 6),
+          Icon(Icons.lock_outline, size: 14, color: F.h(Colors.grey, 500)),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: _aendernAnfragen,
+            icon: const Icon(Icons.edit, size: 16),
+            label: const Text('Ändern'),
+            style: TextButton.styleFrom(foregroundColor: F.h(Colors.orange, 800), visualDensity: VisualDensity.compact),
+          ),
+        ],
+      ]),
       const SizedBox(height: 4),
       TextField(
         controller: _kindergeldNrC,
+        readOnly: _gesperrt,
         decoration: InputDecoration(
           hintText: 'z.B. FK 123 456 789 0',
           prefixIcon: const Icon(Icons.confirmation_number, size: 20),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          filled: _gesperrt,
+          fillColor: _gesperrt ? F.h(Colors.grey, 100) : null,
           isDense: true,
         ),
       ),
-      const SizedBox(height: 16),
-      Text('Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
-      const SizedBox(height: 4),
-      TextField(
-        controller: _sachbearbeiterC,
-        decoration: InputDecoration(
-          hintText: 'Name des Sachbearbeiters',
-          prefixIcon: const Icon(Icons.person, size: 20),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          isDense: true,
-        ),
-      ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 8),
       Row(children: [
-        Text('Kinderzuschlag (KiZ) bezogen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
-        const SizedBox(width: 8),
-        Switch(
-          value: _hatKinderzuschlag,
-          activeTrackColor: Colors.green.shade300,
-          activeThumbColor: Colors.green,
-          onChanged: (val) => setState(() => _hatKinderzuschlag = val),
-        ),
-        Text(_hatKinderzuschlag ? 'Ja' : 'Nein', style: TextStyle(color: _hatKinderzuschlag ? Colors.green : F.h(Colors.grey, 500))),
+        Icon(Icons.info_outline, size: 14, color: F.h(Colors.grey, 500)),
+        const SizedBox(width: 6),
+        Expanded(child: Text(
+          _gesperrt
+              ? 'Die Kindergeld-Nummer ist erfasst und deshalb schreibgeschützt.'
+              : 'Steht auf jedem Schreiben der Familienkasse.',
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
+        )),
       ]),
-      if (_hatKinderzuschlag) ...[
-        const SizedBox(height: 8),
-        TextField(
-          controller: _kinderzuschlagC,
-          decoration: InputDecoration(
-            hintText: 'Betrag / Details',
-            prefixIcon: const Icon(Icons.euro, size: 20),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            isDense: true,
+      if (!_gesperrt) ...[
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _saving ? null : _save,
+            icon: _saving
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.save, size: 18),
+            label: const Text('Speichern'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white),
           ),
         ),
       ],
-      const SizedBox(height: 16),
-      Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
-      const SizedBox(height: 4),
-      TextField(
-        controller: _notizenC,
-        maxLines: 3,
-        decoration: InputDecoration(
-          hintText: 'Weitere Informationen...',
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          isDense: true,
-        ),
-      ),
-      const SizedBox(height: 24),
-      SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: _saving ? null : _save,
-          icon: _saving
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.save, size: 18),
-          label: const Text('Speichern'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white),
-        ),
-      ),
     ]));
   }
 }
