@@ -45,12 +45,15 @@ import 'dart:io';
 // Unterschriften-System, nicht als Datei.
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../services/api_service.dart';
 import '../services/signatur_service.dart';
+import '../utils/cloud_picker_helper.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/kiga_korr_optionen.dart';
 import '../utils/ra_antwort.dart';
 import 'behorde_kindergarten_zahlung.dart';
 import 'file_viewer_dialog.dart';
@@ -131,7 +134,7 @@ class KigaBuchungszeichenDetailDialog extends StatelessWidget {
         Expanded(
           child: TabBarView(children: [
             _DetailsTab(vorgang: vorgang),
-            _KorrTab(apiService: apiService, buchungszeichenId: _kzId),
+            _KorrTab(apiService: apiService, buchungszeichenId: _kzId, userId: userId),
             _AkteneinsichtTab(apiService: apiService, buchungszeichenId: _kzId),
             _RatenTab(apiService: apiService, buchungszeichenId: _kzId, vorgang: vorgang),
             _ErmaessigungTab(apiService: apiService, buchungszeichenId: _kzId, onChanged: onChanged),
@@ -461,10 +464,32 @@ class _SchreibenSendenDialogState extends State<_SchreibenSendenDialog> {
 // 2 · Korrespondenz
 // ═══════════════════════════════════════════════════════════════════════
 
+/// Die Symbole zur Wegeliste. ⚠️ Die Liste selbst steht in
+/// `utils/kiga_korr_optionen.dart` — sie hängt am Enum des Servers und
+/// wird dort von einem Test dagegen gehalten.
+const _kKorrMedienSymbol = <String, IconData>{
+  'brief': Icons.mail_outline,
+  'einschreiben': Icons.markunread_mailbox_outlined,
+  'email': Icons.email_outlined,
+  'de_mail': Icons.verified_outlined,
+  'telefon': Icons.phone,
+  'fax': Icons.print,
+  'persoenlich': Icons.person_outline,
+  'sonstiges': Icons.more_horiz,
+};
+
 class _KorrTab extends StatefulWidget {
   final ApiService apiService;
   final int buchungszeichenId;
-  const _KorrTab({required this.apiService, required this.buchungszeichenId});
+
+  /// Nur für den Cloud-Knopf: die verschlüsselte Ablage gehört dem
+  /// Mitglied, nicht dem Vorgang.
+  final int userId;
+  const _KorrTab({
+    required this.apiService,
+    required this.buchungszeichenId,
+    required this.userId,
+  });
 
   @override
   State<_KorrTab> createState() => _KorrTabState();
@@ -473,6 +498,8 @@ class _KorrTab extends StatefulWidget {
 class _KorrTabState extends State<_KorrTab> {
   List<Map<String, dynamic>> _items = [];
   bool _geladen = false;
+  bool _arbeitet = false;
+  String _fortschritt = '';
 
   @override
   void initState() {
@@ -489,11 +516,431 @@ class _KorrTabState extends State<_KorrTab> {
     });
   }
 
+  // ── Anlegen und Bearbeiten ───────────────────────────────────────────
+
+  /// [vorhanden] leer = neuer Eintrag.
+  ///
+  /// ⚠️ Die Anhänge eines NEUEN Eintrags werden im Dialog nur vorgemerkt
+  /// und erst nach dem Speichern hochgeladen: der Upload braucht die
+  /// `parent_id`, und die entsteht erst mit der Zeile. Wer vorher hochlädt,
+  /// hängt die Datei an nichts.
+  Future<void> _bearbeiten([Map<String, dynamic>? vorhanden]) async {
+    final istNeu = vorhanden == null;
+    final betreffC = TextEditingController(text: raWert(vorhanden?['betreff']));
+    final textC = TextEditingController(text: raWert(vorhanden?['text']));
+    final partnerC = TextEditingController(text: raWert(vorhanden?['gespraechspartner']));
+    final notizC = TextEditingController(text: raWert(vorhanden?['notizen']));
+    var datum = raWert(vorhanden?['datum']).isEmpty
+        ? DateTime.now().toIso8601String().substring(0, 10)
+        : raWert(vorhanden?['datum']).substring(0, 10);
+    var richtung = raWert(vorhanden?['richtung']).isEmpty
+        ? 'eingehend'
+        : raWert(vorhanden?['richtung']);
+    var medium =
+        kKigaKorrMedien.containsKey(raWert(vorhanden?['medium'])) ? raWert(vorhanden?['medium']) : 'brief';
+    var erledigt = (int.tryParse(raWert(vorhanden?['erledigt'])) ?? 0) == 1;
+    final vorgemerkt = <PlatformFile>[];
+
+    final daten = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setDlg) => AlertDialog(
+          title: Text(istNeu ? 'Neuer Schriftwechsel' : 'Schriftwechsel bearbeiten',
+              style: const TextStyle(fontSize: 15)),
+          content: SizedBox(
+            width: zahlungDialogGroesse(ctx2).width,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                // ⚠️ Die Richtung steht ganz oben und ist nie vorbelegt
+                // „ausgehend": ein eingegangener Bescheid, der als eigenes
+                // Schreiben abgelegt ist, dreht die Beweisrichtung um.
+                Wrap(spacing: 8, children: [
+                  for (final r in kKigaKorrRichtungen)
+                    ChoiceChip(
+                      avatar: Icon(
+                        r == 'eingehend' ? Icons.call_received : Icons.call_made,
+                        size: 15,
+                        color: richtung == r ? Colors.white : F.h(Colors.grey, 600),
+                      ),
+                      label: Text(r == 'eingehend' ? 'Eingang' : 'Ausgang',
+                          style: const TextStyle(fontSize: 12)),
+                      selected: richtung == r,
+                      selectedColor: r == 'eingehend' ? F.h(Colors.green, 700) : kZahlungFarbe,
+                      labelStyle: TextStyle(
+                          fontSize: 12,
+                          color: richtung == r ? Colors.white : F.h(Colors.grey, 800)),
+                      onSelected: (_) => setDlg(() => richtung = r),
+                    ),
+                ]),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: ctx2,
+                          initialDate: DateTime.tryParse(datum) ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2040),
+                          locale: const Locale('de'),
+                        );
+                        // ISO geht an den Server; angezeigt wird deutsch.
+                        if (d != null) {
+                          setDlg(() => datum = d.toIso8601String().substring(0, 10));
+                        }
+                      },
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Datum',
+                          isDense: true,
+                          prefixIcon: const Icon(Icons.calendar_today, size: 16),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: Text(raDatumDe(datum), style: const TextStyle(fontSize: 13)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: medium,
+                      decoration: InputDecoration(
+                        labelText: 'Weg',
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      items: kKigaKorrMedien.entries
+                          .map((e) => DropdownMenuItem(
+                              value: e.key,
+                              child: Text(e.value, style: const TextStyle(fontSize: 12))))
+                          .toList(),
+                      onChanged: (v) => setDlg(() => medium = v ?? medium),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: betreffC,
+                  decoration: InputDecoration(
+                    labelText: 'Betreff *',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: textC,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    labelText: 'Text',
+                    alignLabelWithHint: true,
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                // ── Anhänge, nur beim Anlegen ────────────────────────
+                //
+                // Beim Bearbeiten führt der Weg über den geöffneten
+                // Eintrag: dort stehen die vorhandenen Dateien, und ein
+                // zweiter Ort zum Anhängen ließe offen, welcher gilt.
+                if (istNeu) ...[
+                  const Divider(height: 22),
+                  Row(children: [
+                    Icon(Icons.attach_file, size: 15, color: F.h(Colors.grey, 700)),
+                    const SizedBox(width: 5),
+                    Text('Anhänge',
+                        style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                            color: F.h(Colors.grey, 700))),
+                    const Spacer(),
+                    TextButton.icon(
+                      icon: const Icon(Icons.add, size: 15),
+                      label: const Text('Gerät', style: TextStyle(fontSize: 11.5)),
+                      style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: Size.zero),
+                      onPressed: () async {
+                        final r = await FilePickerHelper.pickFiles(
+                          allowMultiple: true,
+                          type: FileType.custom,
+                          allowedExtensions: kKigaKorrEndungen,
+                        );
+                        if (r == null) return;
+                        setDlg(() => _vormerken(vorgemerkt, r.files));
+                      },
+                    ),
+                    CloudPickButton(
+                      memberId: widget.userId,
+                      apiService: widget.apiService,
+                      allowedExtensions: kKigaKorrEndungen,
+                      maxFiles: kKigaKorrMaxDateien,
+                      kompakt: true,
+                      onPicked: (r) => setDlg(() => _vormerken(vorgemerkt, r.files)),
+                    ),
+                  ]),
+                  if (vorgemerkt.isEmpty)
+                    Text('PDF, JPG, JPEG, PNG · max. $kKigaKorrMaxDateien Dateien',
+                        style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 500)))
+                  else
+                    for (final f in vorgemerkt)
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        leading: Icon(Icons.description_outlined, size: 17, color: kZahlungFarbe),
+                        title: Text(f.name, style: const TextStyle(fontSize: 12)),
+                        subtitle: Text(_KorrDetailDialogState._groesse(f.size),
+                            style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
+                        trailing: IconButton(
+                          icon: Icon(Icons.close, size: 16, color: F.h(Colors.red, 400)),
+                          onPressed: () => setDlg(() => vorgemerkt.remove(f)),
+                        ),
+                      ),
+                ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: partnerC,
+                  decoration: InputDecoration(
+                    labelText: 'Gesprächspartner',
+                    // Bei einem Anruf ist der Name die halbe Beweiskraft:
+                    // ohne ihn lässt sich später nicht sagen, wem gegenüber
+                    // etwas zugesagt wurde.
+                    helperText: 'Wer bei der Stelle — bei Telefonaten wichtig',
+                    helperMaxLines: 2,
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: notizC,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: 'Interne Notiz',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                CheckboxListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  value: erledigt,
+                  onChanged: (v) => setDlg(() => erledigt = v ?? false),
+                  title: const Text('Erledigt', style: TextStyle(fontSize: 12.5)),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: kZahlungFarbe),
+              onPressed: () {
+                // ⚠️ Ohne Betreff ist die Zeile in der Liste leer und der
+                // Eintrag praktisch unauffindbar — die Liste zeigt nichts
+                // anderes an.
+                if (betreffC.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(ctx2).showSnackBar(const SnackBar(
+                    content: Text('Ohne Betreff steht der Eintrag später ohne Bezeichnung '
+                        'in der Akte.'),
+                    backgroundColor: Colors.orange,
+                  ));
+                  return;
+                }
+                Navigator.pop(ctx, <String, dynamic>{
+                  if (!istNeu) 'id': int.tryParse(raWert(vorhanden['id'])) ?? 0,
+                  'datum': datum,
+                  'richtung': richtung,
+                  'medium': medium,
+                  'erledigt': erledigt ? 1 : 0,
+                  'betreff': betreffC.text.trim(),
+                  'text': textC.text.trim(),
+                  'gespraechspartner': partnerC.text.trim(),
+                  'notizen': notizC.text.trim(),
+                });
+              },
+              child: Text(istNeu ? 'Anlegen' : 'Speichern'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (daten == null || !mounted) return;
+    setState(() => _arbeitet = true);
+    final res = await widget.apiService
+        .saveKigaZahlungKorrespondenz(widget.buchungszeichenId, daten);
+    if (!mounted) return;
+    if (res['success'] != true) {
+      setState(() => _arbeitet = false);
+      _melden('Nicht gespeichert: ${raWert(res['message'])}', Colors.red);
+      return;
+    }
+    final neueId = int.tryParse(raWert(res['id'])) ?? 0;
+    if (vorgemerkt.isNotEmpty) {
+      if (neueId > 0) {
+        await _hochladen(neueId, vorgemerkt);
+      } else {
+        // ⚠️ Ohne `id` gibt es keine `parent_id`, also kein Ziel für die
+        // Dateien. Sie hier stillschweigend fallen zu lassen wäre der
+        // schlimmste Ausgang: der Eintrag steht, die Belege fehlen, und
+        // niemand erfährt es. Also gesagt, wo sie nachzutragen sind.
+        _melden(
+          'Der Eintrag ist gespeichert, die ${vorgemerkt.length} Anhänge aber nicht — '
+          'der Server hat keine Kennung zurückgegeben. Bitte im Eintrag nachtragen.',
+          Colors.orange,
+        );
+      }
+    }
+    if (!mounted) return;
+    setState(() { _arbeitet = false; _fortschritt = ''; });
+    await _laden();
+  }
+
+  /// Nimmt die Auswahl an, ohne Doppelte und ohne über die Obergrenze
+  /// hinaus. ⚠️ Dateien ohne Pfad werden verworfen — auf dem Weg zum
+  /// Server wird der Pfad gebraucht, und eine Zeile in der Liste, die
+  /// später stillschweigend nicht hochgeht, ist schlimmer als eine, die
+  /// gar nicht erst erscheint.
+  void _vormerken(List<PlatformFile> ziel, List<PlatformFile> neu) {
+    for (final f in neu) {
+      if (ziel.length >= kKigaKorrMaxDateien) break;
+      if (f.path == null) continue;
+      if (ziel.any((v) => v.path == f.path)) continue;
+      ziel.add(f);
+    }
+  }
+
+  /// Eine Datei je Aufruf, wie der Endpunkt es verlangt.
+  Future<void> _hochladen(int korrId, List<PlatformFile> dateien) async {
+    var fertig = 0;
+    var gescheitert = 0;
+    for (final f in dateien) {
+      if (mounted) {
+        setState(() => _fortschritt = 'Anhang ${fertig + 1} / ${dateien.length}');
+      }
+      try {
+        final r = await widget.apiService.uploadKigaZahlungDoc(
+          bereich: 'korr',
+          parentId: korrId,
+          filePath: f.path!,
+          fileName: f.name,
+        );
+        if (r['success'] != true) gescheitert++;
+      } catch (_) {
+        gescheitert++;
+      }
+      fertig++;
+    }
+    // ⚠️ Der Eintrag selbst steht schon; ein gescheiterter Anhang darf ihn
+    // nicht mit sich reißen. Aber er wird auch nicht verschwiegen —
+    // stillschweigend fehlende Anhänge sind der Grund, warum später
+    // niemand weiß, ob es je einen Beleg gab.
+    if (gescheitert > 0 && mounted) {
+      _melden(
+        '$gescheitert von ${dateien.length} Anhängen nicht hochgeladen. Der Eintrag '
+        'ist gespeichert — die Dateien lassen sich im Eintrag nachtragen.',
+        Colors.orange,
+      );
+    }
+  }
+
+  Future<void> _loeschen(Map<String, dynamic> k) async {
+    final id = int.tryParse(raWert(k['id'])) ?? 0;
+    if (id <= 0) return;
+    final anzahl = int.tryParse(raWert(k['anhaenge'])) ?? 0;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eintrag löschen?', style: TextStyle(fontSize: 15)),
+        content: Text(
+          '„${raWert(k['betreff'])}"\n\n'
+          'Gelöscht werden der Eintrag'
+          '${anzahl > 0 ? ' und seine $anzahl Anhänge' : ''}. '
+          'Das lässt sich nicht rückgängig machen.'
+          '${raHat(k['mail_status']) || raHat(k['fax_status'])
+              ? '\n\n⚠️ Dieser Eintrag belegt eine tatsächliche Sendung samt '
+                'Zustellstand. Ist die Frist noch offen, geht mit ihm der '
+                'Nachweis verloren, dass überhaupt etwas hinausging.'
+              : ''}',
+          style: const TextStyle(fontSize: 12.5),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _arbeitet = true);
+    final res = await widget.apiService.deleteKigaZahlungKorrespondenz(id);
+    if (!mounted) return;
+    setState(() => _arbeitet = false);
+    if (res['success'] != true) {
+      _melden('Nicht gelöscht: ${raWert(res['message'])}', Colors.red);
+      return;
+    }
+    await _laden();
+  }
+
+  void _melden(String text, Color farbe) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(text), backgroundColor: farbe));
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_geladen) return const Center(child: CircularProgressIndicator());
-    if (_items.isEmpty) {
-      return Center(
+    return Column(children: [
+      // ── Kopfzeile ────────────────────────────────────────────────
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+        child: Row(children: [
+          Icon(Icons.mail_outline, size: 17, color: kZahlungFarbe),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              _items.isEmpty
+                  ? 'Kein Schriftwechsel'
+                  : '${_items.length} ${_items.length == 1 ? 'Eintrag' : 'Einträge'}',
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700)),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (_arbeitet) ...[
+            const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+            if (_fortschritt.isNotEmpty) ...[
+              const SizedBox(width: 6),
+              Text(_fortschritt, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+            ],
+            const SizedBox(width: 8),
+          ],
+          FilledButton.icon(
+            onPressed: _arbeitet ? null : () => _bearbeiten(),
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Eintrag', style: TextStyle(fontSize: 12)),
+            style: FilledButton.styleFrom(
+              backgroundColor: kZahlungFarbe,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              minimumSize: Size.zero,
+            ),
+          ),
+        ]),
+      ),
+      Expanded(child: _items.isEmpty ? _leer() : _liste()),
+    ]);
+  }
+
+  Widget _leer() => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -503,68 +950,127 @@ class _KorrTabState extends State<_KorrTab> {
             const SizedBox(height: 4),
             Text(
               'Was über „Akteneinsicht", „Ratenzahlung" oder „Ermäßigung" gesendet '
-              'wird, erscheint hier automatisch.',
+              'wird, erscheint hier automatisch. Ein Brief, ein Anruf oder ein Bescheid '
+              'von außerhalb wird über „Eintrag" nachgetragen.',
               style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 500)),
               textAlign: TextAlign.center,
             ),
           ]),
         ),
       );
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _items.length,
-      itemBuilder: (_, i) {
-        final k = _items[i];
-        final eingehend = raWert(k['richtung']) == 'eingehend';
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: Icon(
-              eingehend ? Icons.call_received : Icons.call_made,
-              color: eingehend ? F.h(Colors.green, 700) : kZahlungFarbe,
-              size: 20,
-            ),
-            title: Text(raWert(k['betreff']),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${raDatumDe(k['datum'])} · ${raWert(k['medium'])}',
-                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
-              // ⚠️ Der Zustellstand kommt MIT der Liste, nicht per zweitem
-              // Aufruf. Ohne ihn stünde hier „gesendet" ohne jeden Hinweis
-              // darauf, ob die Stelle es je bekommen hat.
-              if (raHat(k['mail_status']))
-                _Zustellstand(status: raWert(k['mail_status']), antwort: raWert(k['mail_antwort'])),
-              // ⚠️ Beim Fax genauso. „an sipgate übergeben" ist NICHT
-              // „zugestellt"; ohne den Stand liest jemand den Eintrag als
-              // Beleg für etwas, das vielleicht nie ankam.
-              if (raHat(k['fax_status']))
-                _Faxstand(
-                  status: raWert(k['fax_status']),
-                  seiten: raWert(k['fax_seiten']),
-                  fehler: raWert(k['fax_fehler']),
-                ),
-            ]),
-            trailing: (int.tryParse(raWert(k['anhaenge'])) ?? 0) > 0
-                ? Chip(
-                    label: Text(raWert(k['anhaenge']), style: const TextStyle(fontSize: 10)),
+
+  Widget _liste() => ListView.builder(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        itemCount: _items.length,
+        itemBuilder: (_, i) {
+          final k = _items[i];
+          final eingehend = raWert(k['richtung']) == 'eingehend';
+          final anhaenge = int.tryParse(raWert(k['anhaenge'])) ?? 0;
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: Icon(
+                eingehend ? Icons.call_received : Icons.call_made,
+                color: eingehend ? F.h(Colors.green, 700) : kZahlungFarbe,
+                size: 20,
+              ),
+              title: Text(
+                raWert(k['betreff']).isEmpty ? '(ohne Betreff)' : raWert(k['betreff']),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(_kKorrMedienSymbol[raWert(k['medium'])] ?? Icons.more_horiz,
+                      size: 12, color: F.h(Colors.grey, 600)),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      '${raDatumDe(k['datum'])} · '
+                      '${kKigaKorrMedien[raWert(k['medium'])] ?? raWert(k['medium'])}',
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if ((int.tryParse(raWert(k['erledigt'])) ?? 0) == 1) ...[
+                    const SizedBox(width: 6),
+                    Icon(Icons.check_circle_outline, size: 12, color: F.h(Colors.green, 700)),
+                    const SizedBox(width: 2),
+                    Text('erledigt',
+                        style: TextStyle(fontSize: 10.5, color: F.h(Colors.green, 700))),
+                  ],
+                ]),
+                // ⚠️ Der Zustellstand kommt MIT der Liste, nicht per zweitem
+                // Aufruf. Ohne ihn stünde hier „gesendet" ohne jeden Hinweis
+                // darauf, ob die Stelle es je bekommen hat.
+                if (raHat(k['mail_status']))
+                  _Zustellstand(status: raWert(k['mail_status']), antwort: raWert(k['mail_antwort'])),
+                // ⚠️ Beim Fax genauso. „an sipgate übergeben" ist NICHT
+                // „zugestellt"; ohne den Stand liest jemand den Eintrag als
+                // Beleg für etwas, das vielleicht nie ankam.
+                if (raHat(k['fax_status']))
+                  _Faxstand(
+                    status: raWert(k['fax_status']),
+                    seiten: raWert(k['fax_seiten']),
+                    fehler: raWert(k['fax_fehler']),
+                  ),
+              ]),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (anhaenge > 0)
+                  Chip(
+                    label: Text('$anhaenge', style: const TextStyle(fontSize: 10)),
                     avatar: const Icon(Icons.attach_file, size: 12),
                     visualDensity: VisualDensity.compact,
-                  )
-                : null,
-            onTap: () => showDialog(
-              context: context,
-              builder: (ctx) => _KorrDetailDialog(
-                apiService: widget.apiService,
-                eintrag: k,
-              ),
+                  ),
+                PopupMenuButton<String>(
+                  enabled: !_arbeitet,
+                  icon: Icon(Icons.more_vert, size: 18, color: F.h(Colors.grey, 600)),
+                  tooltip: 'Aktionen',
+                  onSelected: (w) {
+                    if (w == 'bearbeiten') _bearbeiten(k);
+                    if (w == 'loeschen') _loeschen(k);
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'bearbeiten',
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.edit_outlined, size: 18),
+                        title: Text('Bearbeiten', style: TextStyle(fontSize: 13)),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'loeschen',
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                        title: Text('Löschen',
+                            style: TextStyle(fontSize: 13, color: Colors.red)),
+                      ),
+                    ),
+                  ],
+                ),
+              ]),
+              onTap: () async {
+                await showDialog(
+                  context: context,
+                  builder: (ctx) => _KorrDetailDialog(
+                    apiService: widget.apiService,
+                    eintrag: k,
+                    userId: widget.userId,
+                  ),
+                );
+                // Im Eintrag lassen sich Anhänge nachtragen und entfernen —
+                // die Anzahl in der Liste stimmt danach sonst nicht mehr.
+                await _laden();
+              },
             ),
-          ),
-        );
-      },
-    );
-  }
+          );
+        },
+      );
 }
+
 
 /// Ein Korrespondenzeintrag im Ganzen: Text, Zustellstand, Anhänge.
 ///
@@ -574,7 +1080,14 @@ class _KorrTabState extends State<_KorrTab> {
 class _KorrDetailDialog extends StatefulWidget {
   final ApiService apiService;
   final Map<String, dynamic> eintrag;
-  const _KorrDetailDialog({required this.apiService, required this.eintrag});
+
+  /// Nur für den Cloud-Knopf beim Nachtragen von Anhängen.
+  final int userId;
+  const _KorrDetailDialog({
+    required this.apiService,
+    required this.eintrag,
+    required this.userId,
+  });
 
   @override
   State<_KorrDetailDialog> createState() => _KorrDetailDialogState();
@@ -584,6 +1097,8 @@ class _KorrDetailDialogState extends State<_KorrDetailDialog> {
   List<Map<String, dynamic>> _anhaenge = [];
   bool _laedt = true;
   int? _oeffnet;
+  bool _arbeitet = false;
+  String _fortschritt = '';
 
   Map<String, dynamic> get k => widget.eintrag;
 
@@ -633,6 +1148,92 @@ class _KorrDetailDialogState extends State<_KorrDetailDialog> {
     }
   }
 
+  /// Trägt Dateien an einem bestehenden Eintrag nach.
+  ///
+  /// [ausCloud] gesetzt = sie kommen aus der verschlüsselten Ablage; der
+  /// Geräte-Dialog entfällt, alles danach bleibt gleich.
+  Future<void> _anhaengeNachtragen({FilePickerResult? ausCloud}) async {
+    final id = int.tryParse(raWert(k['id'])) ?? 0;
+    if (id <= 0) return;
+    final res = ausCloud ??
+        await FilePickerHelper.pickFiles(
+          allowMultiple: true,
+          type: FileType.custom,
+          allowedExtensions: kKigaKorrEndungen,
+        );
+    if (res == null || res.files.isEmpty) return;
+    var dateien = res.files.where((f) => f.path != null).toList();
+    if (dateien.length > kKigaKorrMaxDateien) {
+      dateien = dateien.sublist(0, kKigaKorrMaxDateien);
+      _melden('Höchstens $kKigaKorrMaxDateien Dateien auf einmal — nur die ersten '
+          '$kKigaKorrMaxDateien werden hochgeladen.', Colors.orange);
+    }
+    if (dateien.isEmpty) return;
+
+    setState(() { _arbeitet = true; _fortschritt = '0 / ${dateien.length}'; });
+    var fertig = 0;
+    var gescheitert = 0;
+    for (final f in dateien) {
+      try {
+        final r = await widget.apiService.uploadKigaZahlungDoc(
+          bereich: 'korr',
+          parentId: id,
+          filePath: f.path!,
+          fileName: f.name,
+        );
+        if (r['success'] != true) gescheitert++;
+      } catch (_) {
+        gescheitert++;
+      }
+      fertig++;
+      if (mounted) setState(() => _fortschritt = '$fertig / ${dateien.length}');
+    }
+    if (!mounted) return;
+    setState(() { _arbeitet = false; _fortschritt = ''; });
+    if (gescheitert > 0) {
+      _melden('$gescheitert von ${dateien.length} nicht hochgeladen.',
+          gescheitert == dateien.length ? Colors.red : Colors.orange);
+    }
+    await _laden();
+  }
+
+  Future<void> _anhangLoeschen(Map<String, dynamic> a) async {
+    final id = int.tryParse(raWert(a['id'])) ?? 0;
+    if (id <= 0) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Anhang löschen?', style: TextStyle(fontSize: 15)),
+        content: Text('„${raWert(a['datei_name'])}"\n\nDas lässt sich nicht '
+            'rückgängig machen.', style: const TextStyle(fontSize: 12.5)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _arbeitet = true);
+    final res = await widget.apiService.deleteKigaZahlungDoc(id);
+    if (!mounted) return;
+    setState(() => _arbeitet = false);
+    if (res['success'] != true) {
+      _melden('Nicht gelöscht: ${raWert(res['message'])}', Colors.red);
+      return;
+    }
+    await _laden();
+  }
+
+  void _melden(String text, Color farbe) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(text), backgroundColor: farbe));
+  }
+
   @override
   Widget build(BuildContext context) {
     final istFax = raHat(k['fax_status']);
@@ -645,7 +1246,10 @@ class _KorrDetailDialogState extends State<_KorrDetailDialog> {
         child: SingleChildScrollView(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
-              '${raDatumDe(k['datum'])} · ${raWert(k['medium'])} · '
+              // Beschriftung wie in der Liste — „email" statt „E-Mail" an
+              // nur einer der beiden Stellen liest sich wie zwei Dinge.
+              '${raDatumDe(k['datum'])} · '
+              '${kKigaKorrMedien[raWert(k['medium'])] ?? raWert(k['medium'])} · '
               '${raWert(k['richtung']) == 'eingehend' ? 'eingegangen' : 'ausgegangen'}',
               style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
             ),
@@ -713,7 +1317,36 @@ class _KorrDetailDialogState extends State<_KorrDetailDialog> {
               const SizedBox(width: 4),
               Text('Anhänge', style: TextStyle(
                   fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
+              const Spacer(),
+              if (_arbeitet) ...[
+                const SizedBox(width: 13, height: 13,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+                if (_fortschritt.isNotEmpty) ...[
+                  const SizedBox(width: 5),
+                  Text(_fortschritt,
+                      style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
+                ],
+                const SizedBox(width: 6),
+              ],
+              TextButton.icon(
+                icon: const Icon(Icons.add, size: 15),
+                label: const Text('Gerät', style: TextStyle(fontSize: 11.5)),
+                style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8), minimumSize: Size.zero),
+                onPressed: _arbeitet ? null : () => _anhaengeNachtragen(),
+              ),
+              CloudPickButton(
+                memberId: widget.userId,
+                apiService: widget.apiService,
+                allowedExtensions: kKigaKorrEndungen,
+                maxFiles: kKigaKorrMaxDateien,
+                enabled: !_arbeitet,
+                kompakt: true,
+                onPicked: (r) => _anhaengeNachtragen(ausCloud: r),
+              ),
             ]),
+            Text('PDF, JPG, JPEG, PNG · max. 50 MB je Datei',
+                style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
             const SizedBox(height: 4),
             if (_laedt)
               const Padding(
@@ -739,6 +1372,11 @@ class _KorrDetailDialogState extends State<_KorrDetailDialog> {
                       raWert(a['notiz']),
                     ].where((s) => s.isNotEmpty).join(' · '),
                     style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600)),
+                  ),
+                  trailing: IconButton(
+                    icon: Icon(Icons.delete_outline, size: 17, color: F.h(Colors.red, 400)),
+                    tooltip: 'Anhang löschen',
+                    onPressed: _arbeitet ? null : () => _anhangLoeschen(a),
                   ),
                   onTap: _oeffnet != null ? null : () => _anhangOeffnen(a),
                 ),
