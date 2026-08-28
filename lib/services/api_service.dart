@@ -590,6 +590,62 @@ class ApiService {
     }
   }
 
+  /// Anhänge einer Nachricht durch unseren Virenscanner (ClamAV) prüfen.
+  ///
+  /// ⚠️ Genau EINMAL pro Anhang. Eine Mail wird von dovecot einmal geschrieben
+  /// und nie umgeschrieben, die Bytes können sich also nicht mehr ändern — ein
+  /// Anhang kann sich nicht „neu infizieren". Der Server merkt sich das
+  /// Ergebnis unter dem sha256 des Anhangs und liefert es beim nächsten Öffnen
+  /// aus dem Speicher, ohne die Mail überhaupt anzufassen.
+  ///
+  /// Was sich sehr wohl ändert, ist der Signaturstand von ClamAV. Deshalb
+  /// kommen `geprueft_am` und `signaturen` mit zurück und gehören in die
+  /// Anzeige: „geprüft am 28.08." ist wahr, „sicher" wäre es nicht.
+  ///
+  /// [neu] erzwingt eine erneute Prüfung mit den heutigen Signaturen.
+  Future<Map<String, dynamic>> mailScanAnhaenge({
+    required int uid,
+    String box = 'INBOX',
+    bool neu = false,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/scan.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'uid': uid,
+        'box': box,
+        if (neu) 'action': 'neu',
+      }),
+    ).timeout(const Duration(seconds: 130));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Gespeicherten Prüfstand für eine ganze Nachrichtenliste holen.
+  ///
+  /// ⚠️ Löst NIE eine Prüfung aus — eine Liste darf nicht fünfzig Nachrichten
+  /// vom Mailserver ziehen, nur weil sie sichtbar wird. Was noch nie geprüft
+  /// wurde, fehlt in der Antwort und bekommt in der Liste auch kein Zeichen.
+  Future<Map<String, dynamic>> mailScanStand({
+    required List<int> uids,
+    String box = 'INBOX',
+  }) async {
+    if (uids.isEmpty) return {'success': true, 'stand': <String, dynamic>{}};
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/scan.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'stand', 'box': box, 'uids': uids}),
+    ).timeout(const Duration(seconds: 30));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   /// Maximale Gesamtgröße aller Anhänge einer E-Mail (25 MB, wie serverseitig).
   static const int mailMaxAttachmentBytes = 25 * 1024 * 1024;
 

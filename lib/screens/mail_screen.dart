@@ -19,6 +19,8 @@ import '../utils/mail_suche.dart';
 import '../widgets/cloud_unlock_dialog.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../widgets/html_anhang_dialog.dart';
+import '../widgets/mail_virenscan_plakette.dart';
+import '../utils/mail_virenscan.dart';
 import '../widgets/mail_delivery_indicator.dart';
 import '../widgets/mail_delivery_report_card.dart';
 import '../widgets/mail_echtheit_karte.dart';
@@ -148,6 +150,13 @@ class _MailScreenState extends State<MailScreen> {
     super.dispose();
   }
 
+  /// Gespeicherter Virenbefund je uid des aktuellen Ordners.
+  ///
+  /// ⚠️ Enthält ausschließlich Ergebnisse, die schon einmal beim Öffnen einer
+  /// Nachricht entstanden sind. Die Liste prüft NIE selbst — sonst würde
+  /// jedes Aufziehen fünfzig Nachrichten vom Mailserver ziehen.
+  Map<int, MailScanWert> _scanStand = {};
+
   // ---------------- loading ----------------
 
   Future<void> _load({bool keepOpen = false}) async {
@@ -198,8 +207,40 @@ class _MailScreenState extends State<MailScreen> {
     _loadFolders();
     _loadQuota();
     _loadKorrespondenzStatus();
+    _ladeScanStand();
     _ladeFristen();
     if (mounted) setState(() => _loading = false);
+  }
+
+  /// Den gespeicherten Prüfstand für die sichtbaren Nachrichten holen.
+  ///
+  /// Best-effort wie [_loadKorrespondenzStatus]: klappt es nicht, fehlt nur
+  /// das kleine Zeichen. Ein erfundenes wäre der schlimmere Fehler.
+  Future<void> _ladeScanStand() async {
+    final uids = _messages
+        .map((m) => (m['uid'] as num?)?.toInt() ?? 0)
+        .where((u) => u > 0)
+        .toList();
+    if (uids.isEmpty) {
+      if (mounted && _scanStand.isNotEmpty) setState(() => _scanStand = {});
+      return;
+    }
+    try {
+      final res = await _api.mailScanStand(uids: uids, box: _box);
+      if (!mounted || res['success'] != true) return;
+      // ⚠️ Der Server kodiert die leere Map ausdrücklich als Objekt. Käme sie
+      // je als Liste, darf das kein TypeError sein — siehe die Speedtest-Falle.
+      final roh = res['stand'];
+      if (roh is! Map) return;
+      final neu = <int, MailScanWert>{};
+      roh.forEach((k, v) {
+        final uid = int.tryParse('$k');
+        if (uid != null) neu[uid] = mailScanWertAusText(v);
+      });
+      setState(() => _scanStand = neu);
+    } catch (_) {
+      // still
+    }
   }
 
   /// Mark the mails that already sit in a Korrespondenz archive.
@@ -1106,6 +1147,10 @@ class _MailScreenState extends State<MailScreen> {
                         selfEmail: widget.email,
                         mitgliedernummer: widget.mitgliedernummer,
                         onChanged: () => _load(keepOpen: true),
+                        // ⚠️ Nur hier gesetzt: die eigenständige Route
+                        // (_MailMessageRoute) hat keine Liste, die sich
+                        // auffrischen liesse.
+                        onScanFertig: _ladeScanStand,
                         onCompose: _compose,
                         onDeleted: () {
                           final msg = _messages.firstWhere(
@@ -1722,11 +1767,18 @@ class _MailScreenState extends State<MailScreen> {
                     style: TextStyle(fontWeight: seen ? FontWeight.normal : FontWeight.w600),
                   ),
                 ),
-                if (m['has_attachment'] == true)
+                if (m['has_attachment'] == true) ...[
                   Padding(
                     padding: const EdgeInsets.only(left: 4),
                     child: Icon(Icons.attach_file, size: 15, color: cs.onSurfaceVariant),
                   ),
+                  // Direkt neben der Büroklammer, weil sie beide dasselbe
+                  // meinen: „hier hängt etwas dran" und „so steht es darum".
+                  MailVirenscanListenZeichen(
+                    wert: _scanStand[(m['uid'] as num?)?.toInt() ?? -1] ??
+                        MailScanWert.unbekannt,
+                  ),
+                ],
               ],
             ),
             if (delivery != null || korrespondenz.isNotEmpty) ...[
@@ -1934,6 +1986,13 @@ class MailMessageView extends StatefulWidget {
   /// Wird gerufen, wenn die Nachricht verschoben/gelöscht wurde.
   final VoidCallback? onDeleted;
 
+  /// Wird gerufen, sobald ein Virenbefund vorliegt.
+  ///
+  /// ⚠️ Bewusst NICHT [onChanged]: das lädt den ganzen Ordner neu. Hier reicht
+  /// die kleine Sammelabfrage, damit das Zeichen in der Liste sofort steht und
+  /// nicht erst beim nächsten Aufziehen.
+  final VoidCallback? onScanFertig;
+
   final MailComposeCallback onCompose;
 
   const MailMessageView({
@@ -1945,6 +2004,7 @@ class MailMessageView extends StatefulWidget {
     required this.onChanged,
     required this.onCompose,
     this.onDeleted,
+    this.onScanFertig,
   });
 
   @override
@@ -1970,6 +2030,19 @@ class _MailMessageViewState extends State<MailMessageView> {
   bool _showFormatted = false;
   MailSanitizedHtml? _sanitized;
   final Set<int> _downloading = {};
+
+  /// Prüfergebnis je Anhangsindex. Leer heißt „noch nicht gefragt", nicht
+  /// „sauber" — deshalb wird ein fehlender Eintrag nirgends als Freigabe
+  /// gelesen.
+  Map<int, MailScanBefund> _scan = {};
+  bool _scanLaeuft = false;
+
+  MailScanBefund _befund(int index) => _scanLaeuft
+      ? MailScanBefund.laeuft
+      : (_scan[index] ?? MailScanBefund.unbekannt);
+
+  /// Gesperrt = der Scanner hat in dieser Datei etwas gefunden.
+  bool _gesperrt(int index) => _scan[index]?.gesperrt ?? false;
 
   /// Das Druck-PDF wird gebaut.
   bool _printing = false;
@@ -2038,9 +2111,13 @@ class _MailMessageViewState extends State<MailMessageView> {
     }
     if (mounted) setState(() => _loading = false);
     _loadKorrespondenzStatus();
-    // Nicht abwarten: die Nachricht soll sofort dastehen, das Archivieren
-    // laeuft daneben und meldet sich, wenn es fertig ist.
-    unawaited(_archiveAttachments());
+    // Nicht abwarten: die Nachricht soll sofort dastehen, Prüfung und
+    // Archivierung laufen daneben und melden sich, wenn sie fertig sind.
+    //
+    // ⚠️ Die Reihenfolge ist Absicht und keine Kosmetik: erst prüfen, dann
+    // sichern. Andersherum läge eine befallene Datei bereits entschlüsselt in
+    // der Cloud, bevor irgendjemand weiß, was sie ist.
+    unawaited(_pruefenDannSichern());
   }
 
   /// Ask separately whether this mail is already archived. The viewer fetches
@@ -2131,6 +2208,61 @@ class _MailMessageViewState extends State<MailMessageView> {
   ///
   /// Die Klartextbytes gehen direkt aus der Antwort in die Verschlüsselung;
   /// nichts davon berührt die Platte.
+  /// Erst durch den Virenscanner, dann in die Cloud.
+  Future<void> _pruefenDannSichern() async {
+    await _anhaengePruefen();
+    if (!mounted) return;
+    await _archiveAttachments();
+  }
+
+  /// Die Anhänge dieser Nachricht durch unseren Virenscanner schicken.
+  ///
+  /// ⚠️ Kostet fast immer nichts: der Server hat das Ergebnis unter dem sha256
+  /// des Anhangs gespeichert und antwortet beim zweiten Öffnen aus dem
+  /// Speicher, ohne die Mail überhaupt anzufassen. Der Anhang selbst kann sich
+  /// nicht mehr ändern, also genügt eine Prüfung — was sich ändert, ist der
+  /// Signaturstand, und der steht deshalb an der Plakette.
+  Future<void> _anhaengePruefen({bool neu = false}) async {
+    if (!mounted || _scanLaeuft) return;
+    // Aus dem Zwischenspeicher gibt es nichts zu prüfen: die Bytes liegen auf
+    // dem Server, und ohne Netz käme nur eine Fehlermeldung für etwas, das
+    // niemand versucht hat.
+    if (_standAus != null) return;
+    if (((_msg['attachments'] as List?) ?? const []).isEmpty) return;
+
+    setState(() => _scanLaeuft = true);
+    try {
+      final res = await _api.mailScanAnhaenge(
+          uid: widget.uid, box: widget.box, neu: neu);
+      if (!mounted) return;
+      if (res['success'] == true) {
+        final map = <int, MailScanBefund>{};
+        for (final roh in (res['attachments'] as List?) ?? const []) {
+          final a = Map<String, dynamic>.from(roh as Map);
+          final i = (a['index'] as num?)?.toInt();
+          if (i != null) map[i] = MailScanBefund.ausJson(a);
+        }
+        setState(() => _scan = map);
+        widget.onScanFertig?.call();
+        final treffer = map.values.where((b) => b.gesperrt).length;
+        if (treffer > 0) {
+          _toast(treffer == 1
+              ? 'Achtung: In einem Anhang wurde Schadsoftware gefunden.'
+              : 'Achtung: In $treffer Anhängen wurde Schadsoftware gefunden.');
+        } else if (neu) {
+          _toast('Erneut geprüft — ohne Befund.');
+        }
+      } else if (neu) {
+        _toast(res['message']?.toString() ?? 'Virenprüfung nicht möglich.');
+      }
+    } catch (_) {
+      // Stillschweigend: ohne Ergebnis erscheint einfach kein Zeichen. Ein
+      // ausgedachtes grünes Häkchen wäre der weitaus schlimmere Fehler.
+    } finally {
+      if (mounted) setState(() => _scanLaeuft = false);
+    }
+  }
+
   Future<void> _archiveAttachments() async {
     if (_archiving || !mounted) return;
     // ⚠️ Aus dem Zwischenspeicher gibt es keine Anhangsbytes zu sichern. Ohne
@@ -2150,6 +2282,12 @@ class _MailMessageViewState extends State<MailMessageView> {
     for (final a in wanted) {
       final index = (a['index'] as num?)?.toInt() ?? -1;
       if (index < 0) continue;
+      // ⚠️ Eine befallene Datei wird nicht gesichert. Die Cloud ist unser
+      // Langzeitarchiv — was einmal darin liegt, überlebt die Mail.
+      if (_gesperrt(index)) {
+        failure = 'Ein befallener Anhang wurde nicht gesichert';
+        continue;
+      }
       try {
         final res = await _api.getMailAttachment(
             uid: widget.uid, index: index, box: widget.box);
@@ -2380,6 +2518,13 @@ class _MailMessageViewState extends State<MailMessageView> {
           skipped.add(name);
           continue;
         }
+        // ⚠️ Eine befallene Datei wird nicht weitergeleitet. Sonst würde die
+        // App zum Verteiler — und der Empfänger bekäme sie von einer Adresse,
+        // der er vertraut.
+        if (_gesperrt(index)) {
+          skipped.add('$name (Schadsoftware)');
+          continue;
+        }
         try {
           final res = await _api.getMailAttachment(
               uid: widget.uid, index: index, box: widget.box);
@@ -2508,9 +2653,41 @@ class _MailMessageViewState extends State<MailMessageView> {
     }
   }
 
+  /// Warum hier nichts passiert. Ein wortloses Nichts sähe nach einem Fehler
+  /// der App aus — und beim nächsten Versuch würde jemand es umgehen wollen.
+  void _schadsoftwareErklaeren(Map<String, dynamic> a, int index) {
+    final b = _scan[index] ?? MailScanBefund.unbekannt;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: Icon(Icons.gpp_bad, color: Theme.of(ctx).colorScheme.error),
+        title: const Text('Anhang gesperrt'),
+        content: Text(
+          "In „${a['name'] ?? 'diesem Anhang'}\" hat unser Virenscanner "
+          'Schadsoftware gefunden.\n\n${mailScanErklaerung(b)}\n\n'
+          'Wenn Sie sicher sind, dass das ein Fehlalarm ist, melden Sie sich '
+          'bitte beim Vorstand — die Datei wird dann von Hand geprüft.',
+          style: const TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Verstanden')),
+        ],
+      ),
+    );
+  }
+
   Future<void> _openAttachment(Map<String, dynamic> a) async {
     final index = (a['index'] as num?)?.toInt() ?? -1;
     if (index < 0 || _downloading.contains(index)) return;
+    // ⚠️ Hier ist die Sperre am wichtigsten: „Als Datei öffnen" übergibt den
+    // Anhang einem fremden Programm des Systems. Das ist genau der Moment, in
+    // dem ein Treffer zählt.
+    if (_gesperrt(index)) {
+      _schadsoftwareErklaeren(a, index);
+      return;
+    }
     if (_standAus != null) {
       // ⚠️ Der Zwischenspeicher enthält absichtlich keine Anhangsbytes. Das
       // hier zu verschweigen und einen leeren Betrachter zu öffnen wäre der
@@ -2842,6 +3019,8 @@ class _MailMessageViewState extends State<MailMessageView> {
                   final a = Map<String, dynamic>.from(raw);
                   final index = (a['index'] as num?)?.toInt() ?? -1;
                   final busy = _downloading.contains(index);
+                  final befund = _befund(index);
+                  final gesperrt = befund.gesperrt;
                   return ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
@@ -2850,22 +3029,54 @@ class _MailMessageViewState extends State<MailMessageView> {
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.insert_drive_file_outlined),
+                        : Icon(
+                            gesperrt
+                                ? Icons.gpp_bad
+                                : Icons.insert_drive_file_outlined,
+                            color: gesperrt ? cs.error : null,
+                          ),
                     title: Text('${a['name'] ?? 'Anhang'}',
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text(_fmtSize((a['size'] as num?)?.toInt() ?? 0)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: gesperrt ? cs.error : null,
+                          // Durchgestrichen sagt ohne ein Wort: hieran kommen
+                          // Sie nicht heran.
+                          decoration:
+                              gesperrt ? TextDecoration.lineThrough : null,
+                        )),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_fmtSize((a['size'] as num?)?.toInt() ?? 0)),
+                        const SizedBox(height: 2),
+                        MailVirenscanPlakette(
+                          befund: befund,
+                          name: '${a['name'] ?? 'Anhang'}',
+                          erneutPruefen: _standAus != null
+                              ? null
+                              : () => _anhaengePruefen(neu: true),
+                        ),
+                      ],
+                    ),
                     // Grüne Wolke = liegt verschlüsselt in der Cloud. Nur bei
                     // den Anhängen, die dorthin gehören — bei einem inline
                     // eingebetteten Logo wäre sie eine Lüge.
-                    trailing: (_msg['archived'] == true && _cloudWorthy(a))
-                        ? const Icon(Icons.cloud_done,
-                            size: 20, color: Color(0xFF2E7D32))
-                        : _archiving && _cloudWorthy(a)
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.download, size: 20),
+                    trailing: gesperrt
+                        // Kein Download-Pfeil an einer gesperrten Datei: ein
+                        // Pfeil, der nichts tut, wirkt wie ein Fehler der App.
+                        ? Icon(Icons.block, size: 20, color: cs.error)
+                        : (_msg['archived'] == true && _cloudWorthy(a))
+                            ? const Icon(Icons.cloud_done,
+                                size: 20, color: Color(0xFF2E7D32))
+                            : _archiving && _cloudWorthy(a)
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child:
+                                        CircularProgressIndicator(strokeWidth: 2))
+                                : const Icon(Icons.download, size: 20),
                     onTap: () => _openAttachment(a),
                   );
                 }),
