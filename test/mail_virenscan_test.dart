@@ -44,11 +44,31 @@ void main() {
       expect(b.geprueftAm, isNull);
     });
 
-    test('nur ein Treffer sperrt', () {
+    test('nur ein amtlicher Treffer sperrt', () {
       expect(MailScanBefund.ausJson({'status': 'befallen'}).gesperrt, isTrue);
       expect(MailScanBefund.ausJson({'status': 'sauber'}).gesperrt, isFalse);
       expect(MailScanBefund.ausJson({'status': 'fehler'}).gesperrt, isFalse);
       expect(MailScanBefund.unbekannt.gesperrt, isFalse);
+    });
+
+    // ⚠️ Der Kern der Mehrquellen-Regel. 'verdaechtig' heißt: NUR die
+    // erweiterte Signaturquelle hat angeschlagen. Das wird angezeigt, aber
+    // nicht gesperrt — sonst würde ein Fehlalarm einer Drittanbieter-Signatur
+    // einen Behördenbescheid unerreichbar machen.
+    test('verdaechtig sperrt ausdrücklich NICHT', () {
+      final b = MailScanBefund.ausJson(
+          {'status': 'verdaechtig', 'treffer': 1, 'geprueft': 2});
+      expect(b.wert, MailScanWert.verdaechtig);
+      expect(b.gesperrt, isFalse);
+      expect(b.quote, '1 von 2 Prüfern');
+    });
+
+    test('X von N kommt aus der Antwort, nicht aus dem Status', () {
+      final b = MailScanBefund.ausJson(
+          {'status': 'sauber', 'treffer': 0, 'geprueft': 2});
+      expect(b.quote, '0 von 2 Prüfern');
+      // Ohne Angabe keine erfundene Quote.
+      expect(MailScanBefund.ausJson({'status': 'sauber'}).quote, '');
     });
   });
 
@@ -72,6 +92,18 @@ void main() {
     test('ein Treffer schlägt auch einen Fehler', () {
       expect(mailScanGesamt([b(MailScanWert.fehler), b(MailScanWert.befallen)]),
           MailScanWert.befallen);
+    });
+
+    test('befallen schlägt verdaechtig, verdaechtig schlägt fehler', () {
+      expect(
+          mailScanGesamt([b(MailScanWert.verdaechtig), b(MailScanWert.befallen)]),
+          MailScanWert.befallen);
+      expect(
+          mailScanGesamt([b(MailScanWert.fehler), b(MailScanWert.verdaechtig)]),
+          MailScanWert.verdaechtig);
+      expect(
+          mailScanGesamt([b(MailScanWert.sauber), b(MailScanWert.verdaechtig)]),
+          MailScanWert.verdaechtig);
     });
 
     test('ein Fehler schlägt sauber — „nicht prüfbar" ist nicht „sauber"', () {
@@ -101,6 +133,7 @@ void main() {
   group('Sammelstand der Liste', () {
     test('die Werte des Servers', () {
       expect(mailScanWertAusText('sauber'), MailScanWert.sauber);
+      expect(mailScanWertAusText('verdaechtig'), MailScanWert.verdaechtig);
       expect(mailScanWertAusText('befallen'), MailScanWert.befallen);
       expect(mailScanWertAusText('fehler'), MailScanWert.fehler);
     });
@@ -134,6 +167,18 @@ void main() {
           const MailScanBefund(wert: MailScanWert.fehler, signatur: 'clamd weg'));
       expect(t, contains('NICHT'));
       expect(t, contains('clamd weg'));
+    });
+
+    test('verdaechtig sagt, dass NICHT gesperrt wurde, und warum', () {
+      final t = mailScanErklaerung(const MailScanBefund(
+          wert: MailScanWert.verdaechtig,
+          signatur: 'URLhaus.3659400.UNOFFICIAL',
+          treffer: 1,
+          geprueft: 2));
+      expect(t, contains('URLhaus.3659400.UNOFFICIAL'));
+      expect(t, contains('1 von 2 Prüfern'));
+      expect(t, contains('NICHT gesperrt'));
+      expect(t, contains('Fehlalarme'));
     });
 
     test('Treffer nennt die Signatur und die Sperre', () {

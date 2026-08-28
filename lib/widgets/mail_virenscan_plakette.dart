@@ -19,6 +19,16 @@ Color _gruen(BuildContext context) =>
         ? const Color(0xFF81C784)
         : const Color(0xFF2E7D32);
 
+/// Bernstein für „auffällig, aber nicht gesperrt".
+///
+/// ⚠️ Bewusst NICHT die Fehlerfarbe: rot hieße „gesperrt", und genau das ist
+/// hier nicht der Fall. Ebenfalls gemessen — hell 5,70:1, dunkel 10,74:1.
+/// Umgekehrt eingesetzt wären es 3,18:1 bzw. 1,69:1, also unlesbar.
+Color _bernstein(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFFFFB74D)
+        : const Color(0xFF8D5A00);
+
 /// Das Zeichen neben EINEM Anhang.
 ///
 /// ⚠️ Es steht bewusst immer mit Datum da. Ein nacktes grünes Häkchen würde
@@ -68,7 +78,13 @@ class MailVirenscanPlakette extends StatelessWidget {
       MailScanWert.sauber => (
           Icons.verified_user,
           _gruen(context),
-          'Virengeprüft ${mailScanDatumKurz(befund.geprueftAm)}',
+          'Virengeprüft ${mailScanDatumKurz(befund.geprueftAm)}'
+              '${befund.geprueft > 0 ? ' · ${befund.quote}' : ''}',
+        ),
+      MailScanWert.verdaechtig => (
+          Icons.gpp_maybe,
+          _bernstein(context),
+          'Auffällig · ${befund.quote}',
         ),
       MailScanWert.befallen => (
           Icons.gpp_bad,
@@ -157,6 +173,10 @@ class MailVirenscanListenZeichen extends StatelessWidget {
       MailScanWert.sauber => Padding(
           padding: const EdgeInsets.only(left: 3),
           child: Icon(Icons.verified_user, size: 13, color: _gruen(context)),
+        ),
+      MailScanWert.verdaechtig => Padding(
+          padding: const EdgeInsets.only(left: 3),
+          child: Icon(Icons.gpp_maybe, size: 13, color: _bernstein(context)),
         ),
       MailScanWert.befallen => Padding(
           padding: const EdgeInsets.only(left: 3),
