@@ -9389,6 +9389,20 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Frischt den Zustellstand der Korrespondenz dieses Vorgangs auf.
+  ///
+  /// ⚠️ Der Endpunkt schreibt den Stand in die Tabelle; gelesen wird er beim
+  /// Neuladen der Liste. So gibt es nur EINE Quelle für die Anzeige — genau
+  /// wie bei Insolvenz, Kindergarten und der Anwaltsakte.
+  Future<Map<String, dynamic>> landratsamtKorrMailStatus(int vorfallId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/landratsamt_vorfall_detail.php'),
+      headers: _headers,
+      body: jsonEncode({'type': 'korr_mail_status', 'vorfall_id': vorfallId}),
+    ).timeout(const Duration(seconds: 25));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> saveLandratsamtVorfallKorr(int vorfallId, int userId, Map<String, dynamic> data) async {
     final body = Map<String, dynamic>.from(data);
     body['type'] = 'korr'; body['vorfall_id'] = vorfallId; body['user_id'] = userId;

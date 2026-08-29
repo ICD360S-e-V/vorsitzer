@@ -816,6 +816,56 @@ class _LandratsamtVorfallDetailView extends StatefulWidget {
 }
 
 class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetailView> {
+  /// Läuft gerade eine Abfrage des Zustellstands?
+  bool _standLaeuft = false;
+
+  /// Was der Server der BEHÖRDE geantwortet hat — nicht, dass unser eigener
+  /// Server die Nachricht angenommen hat.
+  ///
+  /// ⚠️ Ohne diese Zeile sahen am 29.08.2026 vier Einträge „Vollmacht
+  /// versandt" gleich aus, und drei davon waren mit
+  /// `550 #5.7.1 SPF unauthorized` abgewiesen worden. Eine Akte, die einen
+  /// Versand behauptet, der nie ankam, ist schlimmer als eine, in der er
+  /// fehlt — auf die erste verlässt sich jemand.
+  ///
+  /// Leer bei Fax, Brief und allem Eingehenden: dort gibt es keine
+  /// Message-ID, und „noch keine Rückmeldung" wäre dort eine Aussage über
+  /// etwas, das gar nicht stattgefunden hat.
+  Widget _zustellzeile(Map<String, dynamic> k) {
+    if ((k['mail_message_id'] ?? '').toString().isEmpty) return const SizedBox.shrink();
+    final stand = (k['mail_status'] ?? '').toString();
+    final (IconData ikone, Color farbe, String wort) = switch (stand) {
+      'sent'     => (Icons.mark_email_read, F.h(Colors.green, 700), 'zugestellt'),
+      'deferred' => (Icons.schedule, F.h(Colors.orange, 700), 'verzögert — wird erneut versucht'),
+      'bounced'  => (Icons.error_outline, F.h(Colors.red, 700), 'abgewiesen'),
+      ''         => (Icons.hourglass_empty, F.h(Colors.grey, 600), 'noch keine Rückmeldung'),
+      _          => (Icons.info_outline, F.h(Colors.grey, 700), stand),
+    };
+    final antwort = (k['mail_antwort'] ?? '').toString();
+    final wann = (k['mail_zugestellt_am'] ?? '').toString();
+    return Padding(padding: const EdgeInsets.only(top: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(ikone, size: 13, color: farbe),
+        const SizedBox(width: 4),
+        // Die Antwort im Wortlaut: bei einer Abweisung steht dort der Grund,
+        // und den will man nicht raten müssen.
+        Expanded(child: Text(
+          'E-Mail: $wort${wann.isEmpty ? '' : ' ($wann)'}'
+          '${antwort.isEmpty ? '' : '\n$antwort'}',
+          style: TextStyle(fontSize: 10, color: farbe))),
+      ]));
+  }
+
+  Future<void> _zustellstand() async {
+    setState(() => _standLaeuft = true);
+    await widget.apiService.landratsamtKorrMailStatus(widget.vorfallId);
+    if (!mounted) return;
+    setState(() => _standLaeuft = false);
+    // Der Endpunkt schreibt den Stand in die Tabelle; gelesen wird er beim
+    // Neuladen — so gibt es nur eine Quelle für die Anzeige.
+    await _load();
+  }
+
   /// Katalogeintrag zur gespeicherten Art — `null` bei Werten aus einer
   /// älteren Fassung oder bei freiem Text.
   LandratsamtAntrag? get _katalog =>
@@ -982,6 +1032,19 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
         Icon(Icons.mail_outline, size: 18, color: F.h(Colors.brown, 700)),
         const SizedBox(width: 6),
         Expanded(child: Text('Korrespondenz', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 700)))),
+        // ⚠️ Der Stand kommt aus dem Postprotokoll und aendert sich auch ohne
+        // unser Zutun: eine Abweisung trifft Sekunden nach dem Senden ein, eine
+        // Verzoegerung loest sich Stunden spaeter auf. Ohne diesen Knopf zeigte
+        // der Vorgang den Stand vom Zeitpunkt des Oeffnens.
+        IconButton(
+          tooltip: 'Zustellstand prüfen',
+          onPressed: _standLaeuft ? null : _zustellstand,
+          icon: _standLaeuft
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+              : Icon(Icons.mark_email_read_outlined, size: 18, color: F.h(Colors.brown, 700)),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+        ),
         ElevatedButton.icon(
           onPressed: _addKorr,
           icon: const Icon(Icons.add, size: 14),
@@ -1016,6 +1079,7 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
                           if ((k['notiz']?.toString() ?? '').isNotEmpty)
                             Padding(padding: const EdgeInsets.only(top: 2),
                               child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 11))),
+                          _zustellzeile(k),
                         ])),
                         IconButton(
                           icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
