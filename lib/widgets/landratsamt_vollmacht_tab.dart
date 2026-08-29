@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -127,20 +126,31 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
   DateTime? _bisDatum;
 
   List<Map<String, dynamic>> _vollmachten = const [];
-  int? _gewaehlt;
 
-  /// Ziele und Bereitschaft aus `vorlagen`, plus das Versandprotokoll.
-  /// [_zieleFuer] merkt, für WELCHE Vollmacht sie gelten — ohne das zeigte der
-  /// Reiter nach dem Umschalten im Auswahlmenü weiter die Ziele der vorigen.
-  Map<String, dynamic> _ziele = const {};
-  List<Map<String, dynamic>> _zeilen = const [];
-  List<Map<String, dynamic>> _links = const [];
-  int? _zieleFuer;
+  /// Ziele, Unterschriftsstand und Bereitschaft aus `vorlagen` — **je
+  /// Vollmacht**, mit deren id als Schlüssel.
+  ///
+  /// ⚠️ Früher ein einziges Feld plus ein Merker `_zieleFuer`, der festhielt,
+  /// zu welcher Vollmacht der geladene Stand gerade gehörte. Das war der Preis
+  /// dafür, dass der Versand in einem eigenen Reiter stand: dort gab es genau
+  /// einen Zustand für beliebig viele Vollmachten. Der Merker ist mit dem
+  /// Reiter weggefallen — nicht weil er falsch war, sondern weil die Frage,
+  /// die er beantwortete, nicht mehr gestellt wird.
+  Map<int, Map<String, dynamic>> _ziele = const {};
+
+  /// Wie viele Versandzeilen es je Vollmacht gibt.
+  ///
+  /// ⚠️ Steht am Knopf, nicht erst im Dialog. „Ist von hier je etwas
+  /// hinausgegangen" ist die erste Frage, die man an eine Vollmacht hat — und
+  /// am 29.08.2026 war genau diese Auskunft falsch: eine Zeile behauptete
+  /// einen Versand, den der Empfänger eine Sekunde später abgelehnt hatte.
+  /// Eine Zahl, für die man erst klicken muss, sieht sich seltener an.
+  Map<int, int> _versandAnzahl = const {};
 
   @override
   void initState() {
     super.initState();
-    _sub = TabController(length: 3, vsync: this);
+    _sub = TabController(length: 2, vsync: this);
     _laden0();
   }
 
@@ -181,6 +191,43 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
             .map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
     });
+    await _alleZieleLaden();
+  }
+
+  /// Den Stand ALLER Vollmachten holen.
+  ///
+  /// Eine Karte ohne Stand könnte weder die Unterschriften zeigen noch sagen,
+  /// ob gesendet werden darf — sie sähe aus wie eine Vollmacht, zu der nichts
+  /// passiert ist.
+  ///
+  /// ⚠️ Nebenläufig, nicht nacheinander: bei drei Vollmachten wären es sonst
+  /// drei Wartezeiten hintereinander. Ein Fehlschlag bei einer lässt die
+  /// anderen unberührt — die Karte bleibt dann ohne Stand, statt dass die
+  /// ganze Liste leer wird.
+  Future<void> _alleZieleLaden() async {
+    if (_vollmachten.isEmpty) {
+      if (mounted && _ziele.isNotEmpty) setState(() => _ziele = const {});
+      return;
+    }
+    final ids = _vollmachten.map((v) => v['id'] as int).toList();
+    final antworten = await Future.wait([
+      ...ids.map((i) => widget.apiService.landratsamtVollmachtVorlagen(i)),
+      ...ids.map((i) => widget.apiService.landratsamtVollmachtVersandListe(i)),
+    ]);
+    if (!mounted) return;
+    final neu = <int, Map<String, dynamic>>{};
+    final zahl = <int, int>{};
+    for (var i = 0; i < ids.length; i++) {
+      if (antworten[i]['success'] == true) {
+        neu[ids[i]] = Map<String, dynamic>.from(antworten[i]);
+      }
+      final p = antworten[ids.length + i];
+      if (p['success'] == true) {
+        zahl[ids[i]] = ((p['items'] as List?)?.length ?? 0)
+                     + ((p['links'] as List?)?.length ?? 0);
+      }
+    }
+    setState(() { _ziele = neu; _versandAnzahl = zahl; });
   }
 
   void _sagen(String text, Color farbe) {
@@ -307,13 +354,11 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
         tabs: [
           const Tab(icon: Icon(Icons.auto_awesome, size: 16), text: 'Generator'),
           Tab(icon: const Icon(Icons.history, size: 16), text: 'Historie (${_vollmachten.length})'),
-          const Tab(icon: Icon(Icons.outbox, size: 16), text: 'Versand'),
         ],
       ),
       Expanded(child: TabBarView(controller: _sub, children: [
         _generator(),
         _historie(),
-        _versand(),
       ])),
     ]);
   }
@@ -592,9 +637,10 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
                 onPressed: () => _widerrufen(id),
               ),
           ]),
+          if (status != 'revoked') ..._unterschriftUndVersand(vm, id, laeuft),
           // ⚠️ Der Papierweg bleibt — nicht jede Behörde und nicht jedes
-          // Mitglied kommt mit dem digitalen aus. Der digitale steht im
-          // Reiter „Versand"; hier liegt das eingescannte Blatt.
+          // Mitglied kommt mit dem digitalen aus. Darüber steht der digitale;
+          // hier liegt das eingescannte Blatt.
           if (status != 'revoked') ...[
             const Divider(height: 16),
             Text('Unterschriebenes Exemplar hochladen',
@@ -607,6 +653,164 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
         ]),
       ),
     );
+  }
+
+  /// Unterschrift, Versandwege und Protokoll — auf der Karte der Vollmacht,
+  /// zu der sie gehören.
+  ///
+  /// ⚠️ Bis zum 29.08.2026 stand das in einem eigenen Reiter „Versand", der
+  /// mit einem Auswahlmenü „Welche Vollmacht" begann: man wählte die Vollmacht
+  /// ein ZWEITES Mal, nachdem die Historie sie gerade aufgelistet hatte.
+  /// Gericht und Insolvenzverwaltung halten es seit jeher andersherum, und das
+  /// ist die richtige Reihenfolge — die Angaben gehören einer Vollmacht, also
+  /// stehen sie bei ihr.
+  List<Widget> _unterschriftUndVersand(Map<String, dynamic> vm, int id, bool laeuft) {
+    final stand  = _standVon(id);
+    final geladen = _laufendeUnterschriften(id);
+    final bereit = stand['bereit'] == true;
+    final noetig = (stand['noetig'] ?? 0) as int;
+    final fertig = (stand['unterschrieben'] ?? 0) as int;
+    // ⚠️ Zwei verschiedene Dinge: `vollstaendig` heißt „beide haben
+    // unterschrieben", `bereit` heißt „die gesiegelte Fassung liegt auf der
+    // Platte". Gesiegelt wird im Minutentakt, es gibt also ein Fenster, in dem
+    // das erste stimmt und das zweite noch nicht.
+    final vollstaendig = noetig > 0 && fertig >= noetig;
+    final signaturId = (stand['signatur_id'] ?? 0) as int;
+    // Beides zusammen, weil beide Knöpfe daran hängen: es ist unterschrieben
+    // UND es gibt einen Vorgang, über den sich die Fassung holen lässt.
+    final fertigUndAbrufbar = vollstaendig && signaturId > 0;
+    final empfaenger = (stand['empfaenger'] ?? '').toString();
+    final fax        = (stand['fax'] ?? '').toString();
+    final stelle     = (stand['stelle'] ?? '').toString();
+
+    return [
+      const Divider(height: 16),
+      _titel(Icons.verified_user, 'Unterschrift'),
+      Text(
+        !geladen
+            // ⚠️ „Wird geladen" ist NICHT dasselbe wie „nichts angefordert".
+            // Beides als „noch nicht gestellt" zu zeigen hieße, jemanden zum
+            // zweiten Auftrag einzuladen, während der erste längst läuft.
+            ? 'Stand wird geladen …'
+            : vollstaendig
+                ? (bereit
+                    ? 'Beide Unterschriften liegen vor.'
+                    : 'Beide haben unterschrieben — die gesiegelte Fassung wird noch erstellt.')
+                : (noetig > 0
+                    ? '$fertig von $noetig Unterschriften liegen vor.'
+                    : 'Noch nicht zur Unterschrift gestellt.'),
+        style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
+      // Wer unterschrieben hat, mit Namen und Uhrzeit. Eine Zahl allein sagt
+      // nicht, auf WEN noch gewartet wird — und beim Nachfragen ist genau das
+      // die einzige Auskunft, die gebraucht wird.
+      ..._unterzeichner(id).map(_unterzeichnerZeile),
+      const SizedBox(height: 6),
+      // ⚠️ Die Betonung folgt dem Zustand. Auf einer fertig unterschriebenen
+      // Vollmacht war der gefüllte grüne Knopf „Zur Unterschrift stellen" —
+      // also lag das Gewicht auf der einzigen Handlung, die dort NICHT mehr
+      // ansteht, während die unterschriebene Fassung blass daneben saß.
+      // Aufgefallen ist das erst am gerenderten Bild, nicht im Code.
+      Wrap(spacing: 8, runSpacing: 6, children: [
+        // ⚠️ NICHT dasselbe wie „Öffnen (DE)" darüber: der Knopf dort holt das
+        // ERZEUGTE Blatt mit den leeren Linien. Hier kommt die Fassung, auf
+        // der die Unterschriften stehen.
+        if (fertigUndAbrufbar)
+          ElevatedButton.icon(
+            icon: const Icon(Icons.verified, size: 15),
+            label: const Text('Unterschriebene Fassung', style: TextStyle(fontSize: 11)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: F.h(Colors.green, 700), foregroundColor: Colors.white),
+            onPressed: laeuft ? null : () => _signiertesOeffnen(signaturId, vm),
+          ),
+        if (fertigUndAbrufbar)
+          OutlinedButton.icon(
+            icon: laeuft
+                ? const SizedBox(width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.draw, size: 15),
+            label: const Text('Erneut zur Unterschrift', style: TextStyle(fontSize: 11)),
+            onPressed: laeuft ? null : () => _zurUnterschrift(vm),
+          )
+        else
+          ElevatedButton.icon(
+            icon: laeuft
+                ? const SizedBox(width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.draw, size: 15),
+            label: const Text('Zur Unterschrift stellen', style: TextStyle(fontSize: 11)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: F.h(Colors.green, 700), foregroundColor: Colors.white),
+            onPressed: laeuft ? null : () => _zurUnterschrift(vm),
+          ),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.chat_outlined, size: 15),
+          label: const Text('In den Chat', style: TextStyle(fontSize: 11)),
+          onPressed: laeuft ? null : () => _inDenChat(vm),
+        ),
+      ]),
+
+      _titel(Icons.sms_outlined, 'Ohne App: Link per SMS'),
+      VollmachtLinkKnoepfe(
+        farbe: _akzent,
+        widerrufen: false,
+        // ⚠️ Der Signierlink FÜHRT zu einem offenen Vorgang, er legt keinen
+        // an. Ohne gestellte Unterschrift lehnt der Server ab — der Knopf
+        // bleibt deshalb grau, statt die Auskunft erst nach dem Klick zu geben.
+        signierbar: noetig > 0,
+        signierHinweis: 'Erst „Zur Unterschrift stellen" — der Link führt zu '
+                        'einem offenen Vorgang, er legt keinen an.',
+        onGesendet: () => _zieleLaden(id),
+        onSenden: (zweck) => widget.apiService
+            .landratsamtVollmachtLinkSenden(vollmachtId: id, zweck: zweck),
+      ),
+
+      _titel(Icons.outbox, 'An das Landratsamt'),
+      if (!bereit)
+        Text(
+          vollstaendig
+              ? 'Beide haben unterschrieben. Die gesiegelte Fassung entsteht im '
+                'Minutentakt — gleich noch einmal öffnen, dann geht der Versand.'
+              : 'Erst unterschreiben lassen, dann senden — eine unvollständige '
+                'Vollmacht kostet nur eine Rückfrage.',
+          style: TextStyle(fontSize: 11.5, color: F.h(Colors.orange, 800)))
+      else ...[
+        if (stelle.isNotEmpty)
+          // ⚠️ Mit Mittelpunkt, nicht in Klammern: die Stelle trägt selbst
+          // schon eine Klammer („Frau Muster (Landratsamt Neu-Ulm)"), und zwei
+          // Klammerpaare hintereinander las sich wie ein Tippfehler.
+          Text('Empfänger: $stelle'
+               '${(stand['sachbearbeiter'] ?? '').toString().isNotEmpty ? ' · aus dem Vorgang' : ''}',
+              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          OutlinedButton.icon(
+            icon: const Icon(Icons.mail_outline, size: 15),
+            label: Text(empfaenger.isEmpty ? 'Keine E-Mail' : 'Per E-Mail',
+                style: const TextStyle(fontSize: 11)),
+            onPressed: (laeuft || empfaenger.isEmpty) ? null : () => _anBehoerde(vm, false),
+          ),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.print_outlined, size: 15),
+            label: Text(fax.isEmpty ? 'Kein Fax' : 'Per Fax',
+                style: const TextStyle(fontSize: 11)),
+            onPressed: (laeuft || fax.isEmpty) ? null : () => _anBehoerde(vm, true),
+          ),
+        ]),
+      ],
+      const SizedBox(height: 6),
+      Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+        icon: const Icon(Icons.receipt_long, size: 15),
+        // ⚠️ Ohne Zahl, solange sie nicht geladen ist — „Versandprotokoll (0)"
+        // an einer Vollmacht, die dreimal hinausging, wäre schlimmer als gar
+        // keine Zahl.
+        label: Text(
+            _versandAnzahl.containsKey(id)
+                ? 'Versandprotokoll (${_versandAnzahl[id]})'
+                : 'Versandprotokoll',
+            style: const TextStyle(fontSize: 11)),
+        onPressed: () => _versandprotokoll(id),
+      )),
+    ];
   }
 
   Widget _uploadZeile(int id, String signer, String label,
@@ -665,8 +869,8 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
     // Bündel Unterschriftsaufforderungen an dieselben zwei Menschen zu
     // schicken bleibt trotzdem falsch, solange das erste noch offen ist.
     final standGilt = _laufendeUnterschriften(id);
-    final wieViele   = (_ziele['noetig'] ?? 0) as int;
-    final wieWeit    = (_ziele['unterschrieben'] ?? 0) as int;
+    final wieViele   = (_standVon(id)['noetig'] ?? 0) as int;
+    final wieWeit    = (_standVon(id)['unterschrieben'] ?? 0) as int;
     final schonFertig = standGilt && wieViele > 0 && wieWeit >= wieViele;
     final schonOffen  = standGilt && wieViele > 0 && !schonFertig;
     if (schonFertig || schonOffen) {
@@ -833,10 +1037,11 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
 
   Future<void> _anBehoerde(Map<String, dynamic> vm, bool perFax) async {
     final id = vm['id'] as int;
-    final ziel = perFax ? (_ziele['fax'] ?? '').toString()
-                        : (_ziele['empfaenger'] ?? '').toString();
-    final stelle = (_ziele['stelle'] ?? 'die Behörde').toString();
-    final ausVorfall = (_ziele['sachbearbeiter'] ?? '').toString().isNotEmpty;
+    final stand = _standVon(id);
+    final ziel = perFax ? (stand['fax'] ?? '').toString()
+                        : (stand['empfaenger'] ?? '').toString();
+    final stelle = (stand['stelle'] ?? 'die Behörde').toString();
+    final ausVorfall = (stand['sachbearbeiter'] ?? '').toString().isNotEmpty;
     final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
       title: Text(perFax ? 'Vollmacht faxen?' : 'Vollmacht mailen?'),
       content: Text('Die unterschriebene Vollmacht geht an:\n\n$stelle\n$ziel'
@@ -864,15 +1069,19 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
   /// Serverfassung ganz, und ein leeres PHP-Array kommt als Liste `[]` an.
   /// Vgl. den Kopf von [vollmachtFeldAlsKatalog] — dasselbe Muster hat schon
   /// einen Bildschirm grau werden lassen.
-  List<Map<String, dynamic>> _unterzeichner() =>
-      vollmachtFeldAlsZeilen(_ziele['unterzeichner']);
+  List<Map<String, dynamic>> _unterzeichner(int id) =>
+      vollmachtFeldAlsZeilen(_standVon(id)['unterzeichner']);
 
-  /// Gehoert der geladene Stand zu genau dieser Vollmacht?
+  /// Der Stand GENAU dieser Vollmacht. Leer, solange er noch lädt oder die
+  /// Abfrage fehlgeschlagen ist — nie der Stand einer anderen.
+  Map<String, dynamic> _standVon(int id) => _ziele[id] ?? const {};
+
+  /// Liegt für diese Vollmacht überhaupt ein Stand vor?
   ///
-  /// [_ziele] wird nachgeladen; solange das laeuft, gehoeren die Zahlen darin
-  /// noch zur vorigen Auswahl. Eine Warnung „ist schon unterschrieben", die
-  /// sich auf eine andere Vollmacht bezieht, waere schlimmer als keine.
-  bool _laufendeUnterschriften(int id) => _zieleFuer == id && _ziele.isNotEmpty;
+  /// Ohne die Unterscheidung sähe „noch nicht geladen" aus wie „nichts
+  /// angefordert" — und die Warnung vor einer doppelten Anforderung bliebe
+  /// genau in dem Moment aus, in dem sie gebraucht wird.
+  bool _laufendeUnterschriften(int id) => _ziele.containsKey(id);
 
   /// Eine Zeile je Person: Name, in welcher Eigenschaft, wann.
   Widget _unterzeichnerZeile(Map<String, dynamic> u) {
@@ -956,183 +1165,72 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
         context, Uint8List.fromList(orig.bytes!), 'vollmacht_${vm['id']}_original.pdf');
   }
 
+  /// Den Stand EINER Vollmacht nachladen — nach einer Aktion an ihr.
+  ///
+  /// ⚠️ Schlägt die Abfrage fehl, bleibt der bisherige Stand stehen. Ihn zu
+  /// löschen hieße, eine Karte, auf der zwei Unterschriften standen, wegen
+  /// einer abgerissenen Verbindung leer zu zeigen — das läse sich wie
+  /// „nichts unterschrieben".
   Future<void> _zieleLaden(int id) async {
     final z = await widget.apiService.landratsamtVollmachtVorlagen(id);
+    if (!mounted || z['success'] != true) return;
+    setState(() => _ziele = {..._ziele, id: Map<String, dynamic>.from(z)});
+  }
+
+  /// Das Versandprotokoll dieser Vollmacht — als Dialog, wie bei Gericht.
+  ///
+  /// ⚠️ Beim Öffnen geladen, nicht im Voraus: es wird selten gebraucht, und
+  /// eine zweite Abfrage je Karte beim Aufbau des Reiters wäre die doppelte
+  /// Last für etwas, das die meisten nie aufklappen.
+  Future<void> _versandprotokoll(int id) async {
     final p = await widget.apiService.landratsamtVollmachtVersandListe(id);
     if (!mounted) return;
-    setState(() {
-      _ziele = z['success'] == true ? Map<String, dynamic>.from(z) : const {};
-      if (p['success'] == true) {
-        _zeilen = ((p['items'] as List?) ?? const [])
-            .map((e) => Map<String, dynamic>.from(e as Map)).toList();
-        _links = ((p['links'] as List?) ?? const [])
-            .map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      }
-    });
-  }
-
-  Widget _versand() {
-    if (_vollmachten.isEmpty) {
-      return Center(child: Padding(padding: const EdgeInsets.all(24),
-        child: Text('Erst eine Vollmacht erzeugen — dann führen von hier die Wege hinaus.',
-            style: TextStyle(color: F.h(Colors.grey, 600)), textAlign: TextAlign.center)));
+    final zeilen = ((p['items'] as List?) ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    // ⚠️ Die Linkzeilen stehen ABGESETZT von den Sendungen an das Amt. Eine
+    // Fax- oder Mailzeile beantwortet „wann ging was an wen"; eine Linkzeile
+    // beantwortet zusätzlich, was das Mitglied damit getan hat. In eine
+    // Tabelle gepresst, deren Zeitspalte „gesendet" heißt, läse sich das eine
+    // als das andere.
+    final links = ((p['links'] as List?) ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    // Beim Öffnen mitnehmen: inzwischen kann etwas dazugekommen sein.
+    if (p['success'] == true) {
+      setState(() => _versandAnzahl = {..._versandAnzahl, id: zeilen.length + links.length});
     }
-    final gewaehlt = _gewaehlt ?? (_vollmachten.first['id'] as int);
-    final vm = _vollmachten.firstWhere((v) => v['id'] == gewaehlt,
-        orElse: () => _vollmachten.first);
-    final id = vm['id'] as int;
-    if (_zieleFuer != id) { _zieleFuer = id; scheduleMicrotask(() => _zieleLaden(id)); }
-
-    final status = (vm['status'] ?? '').toString();
-    final widerrufen = status == 'revoked';
-    final bereit = _ziele['bereit'] == true;
-    final noetig = (_ziele['noetig'] ?? 0) as int;
-    final fertig = (_ziele['unterschrieben'] ?? 0) as int;
-    // ⚠️ Zwei verschiedene Dinge, die vorher eins waren: `vollstaendig` heisst
-    // „beide haben unterschrieben", `bereit` heisst „die gesiegelte Fassung
-    // liegt auf der Platte". Gesiegelt wird im Minutentakt, also gibt es ein
-    // Fenster, in dem das erste stimmt und das zweite noch nicht.
-    final vollstaendig = noetig > 0 && fertig >= noetig;
-    final signaturId = (_ziele['signatur_id'] ?? 0) as int;
-    final laeuft = _beschaeftigt == id;
-
-    return ListView(padding: const EdgeInsets.all(12), children: [
-      if (_vollmachten.length > 1)
-        Padding(padding: const EdgeInsets.only(bottom: 12),
-          child: DropdownButtonFormField<int>(
-            isExpanded: true,
-            initialValue: id,
-            decoration: const InputDecoration(labelText: 'Welche Vollmacht',
-                isDense: true, border: OutlineInputBorder()),
-            items: _vollmachten.map((v) => DropdownMenuItem<int>(
-              value: v['id'] as int,
-              child: Text('#${v['id']} — ${v['valid_from']} — '
-                          '${(v['status'] ?? '').toString().toUpperCase()}',
-                  style: const TextStyle(fontSize: 12)),
-            )).toList(),
-            onChanged: (w) => setState(() => _gewaehlt = w),
-          )),
-
-      if (widerrufen)
-        // 🔴 Der Server lehnt ohnehin ab; hier steht der Grund, statt ihn erst
-        // nach dem Klick zu zeigen.
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: F.h(Colors.red, 50), border: Border.all(color: F.h(Colors.red, 300)),
-            borderRadius: BorderRadius.circular(6)),
-          child: Text(
-            'Diese Vollmacht ist widerrufen. Sie bleibt als Spur in der Akte, '
-            'darf aber nicht mehr versendet und nicht mehr unterschrieben werden.',
-            style: TextStyle(fontSize: 11.5, color: F.h(Colors.red, 900))))
-      else ...[
-        _titel(Icons.verified_user, 'Unterschrift'),
-        Text(
-          vollstaendig
-              ? (bereit
-                  ? 'Beide Unterschriften liegen vor.'
-                  : 'Beide haben unterschrieben — die gesiegelte Fassung wird noch erstellt.')
-              : (noetig > 0
-                  ? '$fertig von $noetig Unterschriften liegen vor.'
-                  : 'Noch nicht zur Unterschrift gestellt.'),
-          style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
-        // Wer unterschrieben hat, mit Namen und Uhrzeit. Eine Zahl allein sagt
-        // nicht, auf WEN noch gewartet wird — und beim Nachfragen ist genau
-        // das die einzige Auskunft, die gebraucht wird.
-        ..._unterzeichner().map(_unterzeichnerZeile),
-        const SizedBox(height: 6),
-        Wrap(spacing: 8, runSpacing: 6, children: [
-          ElevatedButton.icon(
-            icon: laeuft
-                ? const SizedBox(width: 14, height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.draw, size: 15),
-            label: const Text('Zur Unterschrift stellen', style: TextStyle(fontSize: 11)),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: F.h(Colors.green, 700), foregroundColor: Colors.white),
-            onPressed: laeuft ? null : () => _zurUnterschrift(vm),
-          ),
-          // ⚠️ NICHT dasselbe wie „Öffnen (DE)" im Reiter Historie: der Knopf
-          // dort holt das ERZEUGTE Blatt mit den leeren Linien. Hier kommt die
-          // Fassung, auf der die beiden Unterschriften stehen.
-          if (signaturId > 0 && vollstaendig)
-            OutlinedButton.icon(
-              icon: const Icon(Icons.verified, size: 15),
-              label: const Text('Unterschriebene Fassung', style: TextStyle(fontSize: 11)),
-              onPressed: laeuft ? null : () => _signiertesOeffnen(signaturId, vm),
-            ),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.chat_outlined, size: 15),
-            label: const Text('In den Chat', style: TextStyle(fontSize: 11)),
-            onPressed: laeuft ? null : () => _inDenChat(vm),
-          ),
-        ]),
-
-        _titel(Icons.sms_outlined, 'Ohne App: Link per SMS'),
-        VollmachtLinkKnoepfe(
-          farbe: _akzent,
-          widerrufen: widerrufen,
-          // ⚠️ Der Signierlink FÜHRT zu einem offenen Vorgang, er legt keinen
-          // an. Ohne gestellte Unterschrift lehnt der Server ab — der Knopf
-          // bleibt deshalb grau, statt die Auskunft erst nach dem Klick zu geben.
-          signierbar: noetig > 0,
-          signierHinweis: 'Erst „Zur Unterschrift stellen" — der Link führt zu '
-                          'einem offenen Vorgang, er legt keinen an.',
-          onGesendet: () => _zieleLaden(id),
-          onSenden: (zweck) => widget.apiService
-              .landratsamtVollmachtLinkSenden(vollmachtId: id, zweck: zweck),
-        ),
-
-        _titel(Icons.outbox, 'An das Landratsamt'),
-        if (!bereit)
-          Text(
-            vollstaendig
-                ? 'Beide haben unterschrieben. Die gesiegelte Fassung entsteht '
-                  'im Minutentakt — gleich noch einmal öffnen, dann geht der Versand.'
-                : 'Erst unterschreiben lassen, dann senden — eine unvollständige '
-                  'Vollmacht kostet nur eine Rückfrage.',
-            style: TextStyle(fontSize: 11.5, color: F.h(Colors.orange, 800)))
-        else ...[
-          if ((_ziele['stelle'] ?? '').toString().isNotEmpty)
-            Text('Empfänger: ${_ziele['stelle']}'
-                 '${(_ziele['sachbearbeiter'] ?? '').toString().isNotEmpty ? '  (aus dem Vorgang)' : ''}',
-                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          Wrap(spacing: 8, runSpacing: 6, children: [
-            OutlinedButton.icon(
-              icon: const Icon(Icons.mail_outline, size: 15),
-              label: Text((_ziele['empfaenger'] ?? '').toString().isEmpty
-                  ? 'Keine E-Mail' : 'Per E-Mail', style: const TextStyle(fontSize: 11)),
-              onPressed: (laeuft || (_ziele['empfaenger'] ?? '').toString().isEmpty)
-                  ? null : () => _anBehoerde(vm, false),
-            ),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.print_outlined, size: 15),
-              label: Text((_ziele['fax'] ?? '').toString().isEmpty
-                  ? 'Kein Fax' : 'Per Fax', style: const TextStyle(fontSize: 11)),
-              onPressed: (laeuft || (_ziele['fax'] ?? '').toString().isEmpty)
-                  ? null : () => _anBehoerde(vm, true),
-            ),
-          ]),
-        ],
+    final breite = MediaQuery.of(context).size.width;
+    await showDialog<void>(context: context, builder: (c) => AlertDialog(
+      title: Text('Versandprotokoll — Vollmacht #$id', style: const TextStyle(fontSize: 15)),
+      content: SizedBox(
+        width: breite < 560 ? breite * 0.86 : 480,
+        child: (zeilen.isEmpty && links.isEmpty)
+            ? const Text('Noch nichts versandt.', style: TextStyle(fontSize: 13))
+            : SingleChildScrollView(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ⚠️ kVollmachtVersandWege statt des Rohwerts: sonst stünde
+                  // hier „fax an +49 731 …", kleingeschrieben und ohne
+                  // Präposition, wie ein Datenbankauszug.
+                  ...zeilen.map((z) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${z['gesendet_am'] ?? ''}',
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                      Text('${kVollmachtVersandWege[(z['weg'] ?? '').toString()]
+                              ?? (z['weg'] ?? '')} an ${z['empfaenger'] ?? ''}',
+                          style: const TextStyle(fontSize: 12)),
+                      if ((z['gesendet_von_name'] ?? '').toString().trim().isNotEmpty)
+                        Text('durch ${z['gesendet_von_name']}',
+                            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                    ]))),
+                  ...links.map((l) => VollmachtLinkZeile(link: l)),
+                ])),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text('Schließen')),
       ],
-
-      _titel(Icons.receipt_long, 'Versandprotokoll (${_zeilen.length + _links.length})'),
-      if (_zeilen.isEmpty && _links.isEmpty)
-        Text('Noch nichts versandt.',
-            style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 600))),
-      // ⚠️ kVollmachtVersandWege statt des Rohwerts: sonst stünde hier
-      // „fax an +49 731 …", kleingeschrieben und ohne Präposition, wie ein
-      // Datenbankauszug.
-      ..._zeilen.map((z) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(
-          '${z['gesendet_am'] ?? ''} · '
-          '${kVollmachtVersandWege[(z['weg'] ?? '').toString()] ?? (z['weg'] ?? '')} '
-          'an ${z['empfaenger'] ?? ''}'
-          '${(z['gesendet_von_name'] ?? '').toString().isEmpty ? '' : ' · durch ${z['gesendet_von_name']}'}',
-          style: const TextStyle(fontSize: 12)))),
-      ..._links.map((l) => VollmachtLinkZeile(link: l)),
-    ]);
+    ));
   }
+
 }
