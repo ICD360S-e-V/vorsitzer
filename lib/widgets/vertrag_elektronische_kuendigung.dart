@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:printing/printing.dart';
 
 import '../services/api_service.dart';
+import 'file_viewer_dialog.dart';
 import '../utils/app_farben.dart';
 import '../utils/kuendigung_autofill.dart' show kKuendigungBestaetigungMail;
 import '../utils/kuendigung_schreiben.dart';
@@ -242,6 +242,18 @@ class _VertragElektronischeKuendigungState
   /// Empfänger sieht, auf welchem Weg die Erklärung kam.
   String _sendWegVermerk = '';
 
+  /// Zeigt das Schreiben im eingebauten Betrachter.
+  ///
+  /// ⚠️ ÜBER FileViewerDialog, NICHT über `Printing`. `Printing.layoutPdf`
+  /// ist kein Betrachter, sondern der **Druckdialog** — wer nur nachsehen
+  /// will, was er gleich verschickt, bekommt eine Druckerauswahl vorgesetzt.
+  /// Und `PdfPreview` aus demselben Paket hat am 19.08.2026 auf Linux Mint
+  /// die ganze App geschlossen (Absturz in nativem Code, den kein try/catch
+  /// in Dart auffängt) — nachzulesen bei `_ansehen` in sipgate_fax_screen.dart.
+  /// `FileViewerDialog` benutzt `PdfViewer.data()` aus pdfrx, einen echten
+  /// Betrachter, der an rund zwei Dutzend Stellen dieser App läuft.
+  ///
+  /// Das PDF berührt dabei nie die Platte: es geht als Bytes hinein.
   Future<void> _pdfAnsehen() async {
     final fehlt = kuendigungFehlendeAngaben(_daten);
     if (fehlt.isNotEmpty) {
@@ -249,11 +261,10 @@ class _VertragElektronischeKuendigungState
       return;
     }
     final bytes = await _alsPdf();
-    await Printing.layoutPdf(
-      onLayout: (_) async => bytes,
-      name:
-          'Kuendigung_${_nummer.text.trim().replaceAll(RegExp(r'\s+'), '')}.pdf',
-    );
+    if (!mounted) return;
+    final nr = _nummer.text.trim().replaceAll(RegExp(r'[^A-Za-z0-9-]'), '');
+    await FileViewerDialog.showFromBytes(
+        context, bytes, 'Kuendigung${nr.isEmpty ? '' : '_$nr'}.pdf');
   }
 
   // ================= Versand =================
@@ -726,7 +737,7 @@ class _VertragElektronischeKuendigungState
             child: OutlinedButton.icon(
               onPressed: _sendet ? null : _pdfAnsehen,
               icon: const Icon(Icons.picture_as_pdf, size: 18),
-              label: const Text('PDF erzeugen und ansehen'),
+              label: const Text('PDF ansehen'),
             ),
           ),
           const SizedBox(height: 10),
