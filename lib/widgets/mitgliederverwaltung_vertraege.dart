@@ -7,11 +7,13 @@ import '../services/global_chat_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/mobilfunk_anbieter.dart';
 import '../utils/kuendigung_autofill.dart';
+import '../utils/kuendigung_schreiben.dart' show kuendigungNummerLabel;
 import '../screens/webview_screen.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'mitgliederverwaltung_vertrage_versicherung.dart';
 import 'mitgliederverwaltung_vertrag_rechtsanwalt.dart';
+import 'vertrag_elektronische_kuendigung.dart';
 import 'feld_reihe.dart';
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
@@ -464,6 +466,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
     final gekuendigtC = TextEditingController(text: existing?['gekuendigt_am']?.toString() ?? '');
     final endeC = TextEditingController(text: existing?['vertragsende']?.toString() ?? '');
     final kundennrC = TextEditingController(text: existing?['kundennummer']?.toString() ?? '');
+    final vertragsnrC = TextEditingController(text: existing?['vertragsnummer']?.toString() ?? '');
     final telC = TextEditingController(text: existing?['telefonnummer']?.toString() ?? '');
     final volumenC = TextEditingController(text: existing?['datenvolumen']?.toString() ?? '');
     final emailC = TextEditingController(text: existing?['login_email']?.toString() ?? '');
@@ -633,6 +636,30 @@ class _VertraegeContentState extends State<VertraegeContent> {
                 Expanded(child: TextField(controller: fristC, decoration: InputDecoration(labelText: 'Kündigungsfrist', hintText: 'z.B. 1 Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
               ]),
               const SizedBox(height: 8),
+              // ⚠️ Die Vertragsnummer stand seit jeher in der Datenbank
+              // (verschlüsselt) und wurde von der App weder geschrieben noch
+              // angezeigt — eine tote Spalte. Ohne sie kann kein
+              // Kündigungsschreiben einem Vertrag zugeordnet werden; genau
+              // daran hängt der Reiter „Elektronische Kündigung".
+              //
+              // ⚠️ EIN Feld, zwei Beschriftungen. Bei Versicherungen heisst
+              // dieselbe Nummer „Versicherungsscheinnummer". Eine zweite
+              // Spalte daneben wäre schlechter: dann stünde die Nummer mal
+              // hier, mal dort, und das Kündigungsschreiben müsste raten,
+              // welche gemeint ist.
+              TextField(
+                controller: vertragsnrC,
+                decoration: InputDecoration(
+                  labelText: kuendigungNummerLabel(selKat),
+                  helperText: selKat == 'versicherung'
+                      ? 'Steht auf dem Versicherungsschein und auf jeder Beitragsrechnung.'
+                      : null,
+                  helperMaxLines: 2,
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 12),
               // Kundennummer und Rufnummer stehen bei JEDER Kategorie: eine
               // Kundennummer hat auch der Strom- und der Versicherungsvertrag,
               // und ohne sie nimmt die Hotline keine Auskunft. Vorher gab es
@@ -703,6 +730,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
                   'gekuendigt_am': gekuendigtC.text.trim(),
                   'vertragsende': endeC.text.trim(),
                   'kundennummer': kundennrC.text.trim(),
+                  'vertragsnummer': vertragsnrC.text.trim(),
                   'telefonnummer': telC.text.trim(),
                   'datenvolumen': volumenC.text.trim(),
                   'login_email': emailC.text.trim(),
@@ -775,8 +803,11 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
     final v = widget.vertrag;
     final kosten = double.tryParse(v['monatliche_kosten']?.toString() ?? '') ?? 0;
     final aktiv = v['is_active'] == 1 || v['is_active'] == true || v['is_active'] == '1';
+    // ⚠️ Muss zur Zahl der Tabs unten passen. Eine Abweichung ist KEIN
+    // Analysefehler, sondern eine Zusicherung zur Laufzeit: der Vertrag
+    // liesse sich schlicht nicht mehr öffnen.
     return DefaultTabController(
-      length: 6,
+      length: 7,
       child: Column(children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -812,6 +843,7 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
             Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
             Tab(icon: Icon(Icons.receipt, size: 18), text: 'Rechnung'),
             Tab(icon: Icon(Icons.cancel, size: 18), text: 'Kündigung'),
+            Tab(icon: Icon(Icons.send_and_archive, size: 18), text: 'Elektronische Kündigung'),
             Tab(icon: Icon(Icons.gavel, size: 18), text: 'Inkasso'),
           ],
         ),
@@ -823,6 +855,13 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
           VertragDokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0,
               kategorie: 'kuendigung', label: 'Kündigung',
               vertrag: v, userId: widget.userId, onChanged: widget.onChanged),
+          VertragElektronischeKuendigung(
+            apiService: widget.apiService,
+            vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0,
+            userId: widget.userId,
+            vertrag: v,
+            onChanged: widget.onChanged,
+          ),
           _InkassoTab(apiService: widget.apiService,
               vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0,
               userId: widget.userId,
@@ -880,6 +919,8 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
         _row(Icons.exit_to_app, 'Kündigungsfrist', v['kuendigungsfrist']),
         _row(Icons.event_busy, 'Gekündigt am', v['gekuendigt_am']),
         _row(Icons.event, 'Vertragsende', v['vertragsende']),
+        if ((v['vertragsnummer']?.toString() ?? '').isNotEmpty)
+          _row(Icons.confirmation_number, kuendigungNummerLabel(v['kategorie']?.toString() ?? ''), v['vertragsnummer']),
         if ((v['kundennummer']?.toString() ?? '').isNotEmpty)
           _row(Icons.badge, 'Kundennummer', v['kundennummer']),
         if ((v['telefonnummer']?.toString() ?? '').isNotEmpty)
