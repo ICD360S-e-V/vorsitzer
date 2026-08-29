@@ -413,12 +413,24 @@ void main() {
         expect(datei.existsSync(), isTrue, reason: 'Datei fehlt: ${e.key}');
         final quelle = datei.readAsStringSync();
 
-        // Genau eine Übergabe, und zwar die richtige.
+        // JEDE Übergabe muss die richtige sein — und es muss mindestens
+        // eine geben.
+        //
+        // ⚠️ Bis zum 29.08.2026 stand hier `expect(treffer, [e.value])`, also
+        // „genau eine". Das war kein Teil der Regel, sondern der Zufall, dass
+        // es damals nur eine Aufrufstelle gab: die Terminanfrage. Seit die
+        // Terminverwaltung (bestätigen/verschieben/absagen) dazugekommen ist,
+        // sind es zwei — beide richtig. Die Zahl festzuschreiben hätte jede
+        // weitere Stelle rot gemacht, obwohl sie stimmt, und der nächste
+        // hätte den Test „repariert", indem er ihn lockert. Geprüft wird
+        // deshalb das, worum es geht: keine einzige falsche Übergabe.
         final treffer = RegExp(r'speichern: widget\.apiService\.(\w+)')
             .allMatches(quelle)
             .map((m) => m.group(1))
             .toList();
-        expect(treffer, [e.value],
+        expect(treffer, isNotEmpty,
+            reason: 'Dieser Tab reicht gar keine Speicherfunktion herein');
+        expect(treffer.toSet(), {e.value},
             reason: 'Dieser Tab muss mit ${e.value} speichern');
       });
     }

@@ -11223,6 +11223,38 @@ class ApiService {
     }
   }
 
+  /// Ärzte ▸ Termin ▸ Terminverwaltung — Bestätigung, Verlegung, Absage.
+  ///
+  /// Zwei Aktionen:
+  ///   `vorschau` → `{pdf_base64, filename, seiten, betreff, text}`
+  ///   `status`   → setzt `status`/`status_am` am Termin
+  ///
+  /// ⚠️ Dieser Endpunkt VERSCHICKT NICHTS. Der Brief geht über [sendMail]
+  /// oder [sipgateFaxAction] hinaus — dieselben zwei Wege wie bei der
+  /// Terminanfrage. Ein dritter Sendeweg wäre eine zweite Wahrheit: das Fax
+  /// stünde in keinem Fax-Bildschirm und `sipgate_fax_status.php` würde es
+  /// nicht nachverfolgen.
+  ///
+  /// ⚠️ 30 s statt der üblichen 15: der Server baut ein PDF mit eingebetteter
+  /// DejaVu-Schrift (rund 105 kB) und schickt es base64-kodiert zurück —
+  /// gemessen auf der Mobilfunkleitung, deren Langsamkeit wir andernorts
+  /// reklamieren.
+  Future<Map<String, dynamic>> arztTerminSchreiben(
+      Map<String, dynamic> data) async {
+    final response = await _client
+        .post(
+          Uri.parse('$baseUrl/admin/arzt_termin_schreiben.php'),
+          headers: _headers,
+          body: jsonEncode(data),
+        )
+        .timeout(const Duration(seconds: 30));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   // Augenarzt-eigene Termine (augenarzt_termin + korr/notiz children, GCM).
   Future<Map<String, dynamic>> getAugenarztTermine(int userId, String arztType) async {
     final response = await _client.post(
