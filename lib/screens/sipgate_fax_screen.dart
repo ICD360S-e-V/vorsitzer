@@ -1752,7 +1752,10 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
             'erhalten — Dokument, Sendebericht und Vorschau. Es ist über den '
             'Filter „Archiv" jederzeit wieder da.\n\n'
             'Gelöscht wird nichts: Faxe sind Nachweise, und ein Archiv, aus '
-            'dem sich spurlos etwas entfernen lässt, taugt als Nachweis nicht.',
+            'dem sich spurlos etwas entfernen lässt, taugt als Nachweis nicht.\n\n'
+            'Von selbst passiert das ohnehin: nach 14 Tagen wandert jedes Fax '
+            'automatisch ins Archiv. Hier von Hand wegzulegen lohnt nur, wenn '
+            'es jetzt schon aus dem Weg soll — dafür ist der Grund da.',
             style: TextStyle(fontSize: 13, height: 1.4),
           ),
           const SizedBox(height: 12),
@@ -2691,6 +2694,12 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     // Weggelegt heisst nicht geloescht — die Zeile taucht nur unter dem Filter
     // „Archiv" auf, und dort bekommt sie andere Menuepunkte.
     final imArchiv = (f['abgelegt_am'] ?? '').toString().isNotEmpty;
+    // ⚠️ Der Unterschied gehört auf den Schirm. Seit dem 29.08.2026 räumt ein
+    // Lauf nach 14 Tagen von selbst auf — ohne diese Unterscheidung sähe eine
+    // Entscheidung eines Menschen (die eine Begründung trägt) genauso aus wie
+    // eine abgelaufene Frist (die keine hat), und man müsste jedes Mal ins
+    // Protokoll schauen, um zu wissen, welche von beidem es war.
+    final archivAuto = imArchiv && f['abgelegt_art'] == 'auto';
     // Ob das Dokument, das rausging, ein Siegel trug. Zusammen mit der
     // Prüfsumme ist das die Aussage „was gesendet wurde, war das gesiegelte
     // Dokument, unverändert" — bei einer Vollmacht genau die Frage, die
@@ -2972,9 +2981,19 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
                   child: ListTile(leading: Icon(Icons.history_edu_outlined),
                       title: Text('Protokoll'))),
               if (imArchiv)
-                const PopupMenuItem(value: 'zurueckholen',
-                    child: ListTile(leading: Icon(Icons.unarchive_outlined),
-                        title: Text('Zurück in den Verlauf'))),
+                PopupMenuItem(
+                    value: 'zurueckholen',
+                    child: ListTile(
+                        leading: const Icon(Icons.unarchive_outlined),
+                        title: const Text('Zurück in den Verlauf'),
+                        // ⚠️ Beim automatisch Weggelegten muss dabeistehen,
+                        // dass es wiederkommt — sonst holt jemand es hervor,
+                        // findet es zwei Wochen später erneut im Archiv und
+                        // hält den Knopf für kaputt.
+                        subtitle: archivAuto
+                            ? const Text('kommt nach 14 Tagen von selbst zurück ins Archiv',
+                                style: TextStyle(fontSize: 11))
+                            : null)),
               if (!imArchiv)
                 const PopupMenuItem(value: 'weglegen',
                     child: ListTile(leading: Icon(Icons.archive_outlined),
