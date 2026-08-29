@@ -8862,6 +8862,118 @@ class ApiService {
   Future<Map<String, dynamic>> jcVollmachtVersandListe(int vollmachtId) =>
       _jcVollmacht({'action': 'versand_list', 'vollmacht_id': vollmachtId});
 
+  // ── Krankenkassen-Vollmacht: dieselben Wege, eigener Endpunkt ─────────
+  //
+  // ⚠️ Die Vollmacht selbst entsteht über die allgemeinen Endpunkte
+  // (`getVollmachtData` / `createVollmacht` / `listVollmachten` …) mit
+  // `behoerde: 'krankenkasse'`. Nur die WEGE HINAUS haben einen eigenen
+  // Endpunkt, weil Anschrift, Anschreiben und Korrespondenztabelle je Behörde
+  // andere sind.
+  //
+  // ⚠️ Gilt für JEDE gesetzliche Kasse. Welche zuständig ist, steht in den
+  // Stammdaten des Mitglieds (Behörde ▸ Krankenkasse ▸ Zuständige
+  // Krankenkasse); im Client steht kein Kassenname.
+  Future<Map<String, dynamic>> _kkVollmacht(Map<String, dynamic> body,
+      {Duration timeout = const Duration(seconds: 30)}) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/krankenkasse_vollmacht_versand.php'),
+        headers: _headers, body: jsonEncode(body)).timeout(timeout);
+      final d = jsonDecode(r.body);
+      return d is Map<String, dynamic> ? d : {'success': false};
+    } on FormatException {
+      return {'success': false, 'message': 'Unerwartete Antwort vom Server'};
+    } catch (e) {
+      return {'success': false, 'message': 'Server nicht erreichbar: $e'};
+    }
+  }
+
+  /// Anschreiben, beide Ziele (E-Mail und Fax) und der Unterschriftsstand.
+  ///
+  /// `bereit` sagt, ob eine unterschriebene Fassung vorliegt;
+  /// `unterschrieben`/`noetig` sagen, woran es sonst fehlt — damit der Schirm
+  /// den Grund nennen kann, statt nur grau zu bleiben.
+  ///
+  /// ⚠️ `kontakt_quelle` ist `standort`, wenn Fax und E-Mail aus dem
+  /// Verzeichnis kommen, sonst `keine`. Das ist der Unterschied zwischen „die
+  /// Kasse hat kein Fax" und „wir wissen es nicht" — und der Schirm darf ihn
+  /// nicht verwischen.
+  Future<Map<String, dynamic>> kkVollmachtVorlagen(int vollmachtId) =>
+      _kkVollmacht({'action': 'vorlagen', 'vollmacht_id': vollmachtId});
+
+  /// Die unterschriebene Vollmacht per E-Mail an die Kasse.
+  ///
+  /// [empfaenger] leer lassen, dann nimmt der Server die Adresse der
+  /// hinterlegten Geschäftsstelle.
+  Future<Map<String, dynamic>> kkVollmachtMailSenden({
+    required int vollmachtId,
+    required String vorlage,
+    String empfaenger = '',
+    String betreff = '',
+    String text = '',
+    String cc = '',
+  }) =>
+      _kkVollmacht({
+        'action': 'mail_senden', 'vollmacht_id': vollmachtId, 'vorlage': vorlage,
+        if (empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+        if (betreff.isNotEmpty) 'betreff': betreff,
+        if (text.isNotEmpty) 'text': text,
+        if (cc.isNotEmpty) 'cc': cc,
+      }, timeout: const Duration(seconds: 60));
+
+  /// Dieselbe Fassung per Fax.
+  ///
+  /// ⚠️ Erfolg heißt „an sipgate übergeben", NICHT „zugestellt".
+  ///
+  /// ⚠️ Viele Kassen nehmen die Vollmacht überhaupt nur per Post oder über
+  /// ihr eigenes Portal an — geprüft an den Formularen von TK, AOK, BARMER
+  /// und IKK classic. Schlägt das hier fehl, weil keine Nummer hinterlegt
+  /// ist, ist das oft kein Fehler, sondern die Lage.
+  Future<Map<String, dynamic>> kkVollmachtFaxSenden({
+    required int vollmachtId,
+    String empfaenger = '',
+  }) =>
+      _kkVollmacht({
+        'action': 'fax_senden', 'vollmacht_id': vollmachtId,
+        if (empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+      }, timeout: const Duration(seconds: 60));
+
+  /// Einer der beiden SMS-Links an das Mitglied — `lesen` oder `signieren`.
+  ///
+  /// ⚠️ Zuerst LESEN, dann UNTERSCHREIBEN. Unterschrieben wird die deutsche
+  /// Fassung; das Leseexemplar in der Sprache des Mitglieds trägt gar kein
+  /// Unterschriftsfeld.
+  Future<Map<String, dynamic>> kkVollmachtLinkSenden({
+    required int vollmachtId,
+    required String zweck,
+  }) =>
+      _kkVollmacht({'action': 'link_senden', 'vollmacht_id': vollmachtId, 'zweck': zweck});
+
+  /// Eine von Hand gegangene Sendung eintragen — Chat, Post, persönlich.
+  ///
+  /// ⚠️ Erst aufrufen, NACHDEM der Server den Empfang bestätigt hat. Eine
+  /// Zeile, die eine Sendung behauptet, die nie ankam, ist genau die, auf die
+  /// sich später jemand verlässt.
+  ///
+  /// ⚠️ Bei den Kassen ist `post` der Regelfall, nicht die Ausnahme.
+  Future<Map<String, dynamic>> kkVollmachtVersandEintragen({
+    required int vollmachtId,
+    required String empfaenger,
+    String weg = 'persoenlich',
+    String fassung = 'original',
+    String sprache = 'de',
+    String notiz = '',
+  }) =>
+      _kkVollmacht({
+        'action': 'versand_eintragen', 'vollmacht_id': vollmachtId,
+        'empfaenger': empfaenger, 'weg': weg, 'fassung': fassung, 'sprache': sprache,
+        if (notiz.isNotEmpty) 'notiz': notiz,
+      });
+
+  /// Das Versandprotokoll — jede Sendung, plus die Links an das Mitglied.
+  Future<Map<String, dynamic>> kkVollmachtVersandListe(int vollmachtId) =>
+      _kkVollmacht({'action': 'versand_list', 'vollmacht_id': vollmachtId});
+
   // ── Landratsamt-Vollmacht: dieselben Wege, eigener Endpunkt ────────────
   //
   // ⚠️ Ein eigener Endpunkt und nicht ein Modul-Parameter am Jobcenter-Pfad.
