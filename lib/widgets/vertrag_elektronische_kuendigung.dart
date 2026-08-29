@@ -264,7 +264,10 @@ class _VertragElektronischeKuendigungState
     if (!mounted) return;
     final nr = _nummer.text.trim().replaceAll(RegExp(r'[^A-Za-z0-9-]'), '');
     await FileViewerDialog.showFromBytes(
-        context, bytes, 'Kuendigung${nr.isEmpty ? '' : '_$nr'}.pdf');
+      context,
+      bytes,
+      'Kuendigung${nr.isEmpty ? '' : '_$nr'}.pdf',
+    );
   }
 
   // ================= Versand =================
@@ -303,6 +306,13 @@ class _VertragElektronischeKuendigungState
     final d = _daten;
     var ok = false;
     String zeile;
+    // ⚠️ Die Message-ID ist der einzige Faden zwischen „abgeschickt" und
+    // „angekommen". `sendMail` mit success:true heisst nur, dass UNSER
+    // Server die Nachricht genommen hat; was die Gegenseite geantwortet
+    // hat, steht Sekunden später im Postfix-Log und ist ausschliesslich
+    // über diese Kennung auffindbar. Wird sie hier weggeworfen, ist der
+    // Zustellstatus dieses Vorgangs für immer verloren.
+    var messageId = '';
     try {
       if (weg == 'fax') {
         final pdf = await _alsPdf();
@@ -328,9 +338,13 @@ class _VertragElektronischeKuendigungState
           requestReceipt: true,
         );
         ok = res['success'] == true;
+        messageId = res['message_id']?.toString() ?? '';
+        // „vom Mailserver angenommen", nicht „abgeschickt": der Unterschied
+        // gehört ins Protokoll, sonst liest ihn später jemand als Beleg für
+        // den Zugang beim Empfänger.
         zeile =
             'E-Mail an $ziel: '
-            '${ok ? 'abgeschickt' : (res['message'] ?? 'fehlgeschlagen')}';
+            '${ok ? 'vom Mailserver angenommen' : (res['message'] ?? 'fehlgeschlagen')}';
       }
     } catch (e) {
       zeile = weg == 'fax' ? 'Fax an $ziel: $e' : 'E-Mail an $ziel: $e';
@@ -347,7 +361,7 @@ class _VertragElektronischeKuendigungState
       // raus ist, während der Vertrag noch als ungekündigt dasteht, ist
       // beim nächsten Öffnen ein Rätsel — und beim übernächsten ein
       // zweites Schreiben.
-      await _inKorrespondenz(weg, ziel);
+      await _inKorrespondenz(weg, ziel, messageId);
       await _amVertragFesthalten(weg);
       widget.onChanged?.call();
     } else {
@@ -355,7 +369,11 @@ class _VertragElektronischeKuendigungState
     }
   }
 
-  Future<void> _inKorrespondenz(String weg, String ziel) async {
+  Future<void> _inKorrespondenz(
+    String weg,
+    String ziel,
+    String messageId,
+  ) async {
     final d = _daten;
     final notiz = StringBuffer()
       ..writeln(weg == 'fax' ? 'Per Fax an $ziel' : 'Per E-Mail an $ziel')
@@ -364,6 +382,15 @@ class _VertragElektronischeKuendigungState
         'Kündigung.',
       )
       ..writeln();
+    if (weg != 'fax') {
+      notiz
+        ..writeln(
+          '⚠️ „Vom Mailserver angenommen" heisst NICHT „beim Empfänger '
+          'angekommen". Was die Gegenseite geantwortet hat, zeigt der '
+          'Zustellstatus an diesem Eintrag.',
+        )
+        ..writeln();
+    }
     if (weg == 'fax') {
       // Gehört an den Vorgang, nicht nur auf den Bildschirm: wer den
       // Eintrag später liest, soll nicht glauben, der Zugang sei belegt.
@@ -385,6 +412,7 @@ class _VertragElektronischeKuendigungState
         'datum': DateTime.now().toIso8601String().substring(0, 10),
         'betreff': kuendigungBetreff(d),
         'notiz': notiz.toString(),
+        if (messageId.isNotEmpty) 'message_id': messageId,
       });
     } catch (_) {
       _melden(

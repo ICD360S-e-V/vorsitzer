@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
@@ -7,6 +8,8 @@ import '../services/global_chat_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/mobilfunk_anbieter.dart';
 import '../utils/kuendigung_autofill.dart';
+import '../models/mail_models.dart' show MailDelivery, MailDeliveryState;
+import 'mail_delivery_indicator.dart';
 import '../utils/kuendigung_schreiben.dart' show kuendigungNummerLabel;
 import '../screens/webview_screen.dart';
 import 'file_viewer_dialog.dart';
@@ -993,6 +996,15 @@ class _KorrTabState extends State<VertragKorrTab> {
   List<Map<String, dynamic>> _items = [];
   bool _loaded = false;
 
+  /// message_id → tatsächlicher Zustellstatus aus dem Postfix-Log.
+  ///
+  /// ⚠️ Das ist die einzige Stelle, die sagt, ob die Gegenseite die Mail
+  /// ANGENOMMEN hat. Die Sendeantwort sagt nur, dass unser eigener Server
+  /// sie genommen hat — ein grüner Haken darauf wäre eine Falschaussage
+  /// über genau das, worauf es ankommt.
+  Map<String, MailDelivery> _zustellung = {};
+  bool _holtZustellung = false;
+
   @override
   void initState() {
     super.initState();
@@ -1006,6 +1018,40 @@ class _KorrTabState extends State<VertragKorrTab> {
       _items = (r['success'] == true && r['data'] is List) ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
       _loaded = true;
     });
+    unawaited(_zustellungLaden());
+  }
+
+  /// ⚠️ Darf niemals das Laden der Korrespondenz aufhalten oder scheitern
+  /// lassen. Die Einträge stehen in UNSERER Tabelle und sind das Wichtige;
+  /// der Zustellstatus ist eine Zutat, die auch fehlen darf.
+  Future<void> _zustellungLaden() async {
+    final hatIds = _items.any((k) =>
+        (k['message_id']?.toString() ?? '').isNotEmpty);
+    if (!hatIds) return;
+    if (mounted) setState(() => _holtZustellung = true);
+    try {
+      final r = await widget.apiService.getVertragKorrDelivery(widget.vertragId);
+      if (!mounted) return;
+      final roh = r['success'] == true && r['delivery'] is Map
+          ? Map<String, dynamic>.from(r['delivery'] as Map)
+          : <String, dynamic>{};
+      setState(() {
+        _zustellung = {
+          for (final e in roh.entries)
+            if (e.value is Map)
+              e.key: MailDelivery.fromJson(Map<String, dynamic>.from(e.value as Map)),
+        };
+      });
+    } catch (_) {
+      // siehe oben
+    } finally {
+      if (mounted) setState(() => _holtZustellung = false);
+    }
+  }
+
+  MailDelivery? _zustellungVon(Map<String, dynamic> k) {
+    final id = k['message_id']?.toString() ?? '';
+    return id.isEmpty ? null : _zustellung[id];
   }
 
   @override
@@ -1016,6 +1062,22 @@ class _KorrTabState extends State<VertragKorrTab> {
         padding: const EdgeInsets.all(12),
         child: Row(children: [
           Expanded(child: Text('${_items.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
+          // ⚠️ Der Zustellstatus braucht einen Knopf, keinen Zeitgeber. Eine
+          // Mail steht oft erst Sekunden bis Minuten später als zugestellt im
+          // Log, ein „deferred" auch mal Stunden — ein Dialog, der auf das
+          // Endergebnis wartet, wartet umsonst. Wer wissen will, wie es steht,
+          // fragt nach.
+          if (_items.any((k) => (k['message_id']?.toString() ?? '').isNotEmpty))
+            IconButton(
+              icon: _holtZustellung
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.refresh, size: 16),
+              tooltip: 'Zustellstatus beim Server nachfragen',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+              onPressed: _holtZustellung ? null : _zustellungLaden,
+            ),
+          const SizedBox(width: 4),
           FilledButton.icon(
             icon: const Icon(Icons.call_received, size: 14),
             label: const Text('Eingang', style: TextStyle(fontSize: 11)),
@@ -1063,6 +1125,10 @@ class _KorrTabState extends State<VertragKorrTab> {
                           if ((k['notiz']?.toString() ?? '').isNotEmpty)
                             Text(k['notiz'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700), fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
                         ])),
+                        if (_zustellungVon(k) case final d?) ...[
+                          MailDeliveryIndicator(delivery: d),
+                          const SizedBox(width: 4),
+                        ],
                         Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
                       ]),
                     ),
@@ -1105,6 +1171,34 @@ class _KorrTabState extends State<VertragKorrTab> {
                 Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
               ]),
             ),
+            if (_zustellungVon(k) case final d?) ...[
+              const SizedBox(height: 12),
+              Text('Zustellung', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 600))),
+              const SizedBox(height: 4),
+              MailDeliveryIndicator(delivery: d, showLabel: true),
+              // ⚠️ Der Wortlaut der Serverantwort, nicht nur ein Symbol. Ein
+              // rotes Kreuz sagt „ging nicht"; „554 5.5.4 Your IP address …
+              // has a bad reputation" sagt, was zu tun ist. Genau dieser Satz
+              // hat den Fall bfz.de aufgeklärt.
+              if (d.smtpResponse.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                SelectableText(d.smtpResponse,
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
+              ],
+              if (d.relay.isNotEmpty)
+                Text('über ${d.relay}',
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+              if (d.state == MailDeliveryState.queued ||
+                  d.state == MailDeliveryState.deferred)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                      'Noch keine endgültige Antwort des Empfängers. Das ist '
+                      'normal und kann Minuten bis Stunden dauern — oben '
+                      'nachfragen.',
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+                ),
+            ],
             const SizedBox(height: 16),
             Text('Betreff', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 600))),
             const SizedBox(height: 4),
