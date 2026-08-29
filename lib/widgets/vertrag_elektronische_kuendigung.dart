@@ -313,6 +313,7 @@ class _VertragElektronischeKuendigungState
     // über diese Kennung auffindbar. Wird sie hier weggeworfen, ist der
     // Zustellstatus dieses Vorgangs für immer verloren.
     var messageId = '';
+    var faxId = 0;
     try {
       if (weg == 'fax') {
         final pdf = await _alsPdf();
@@ -322,11 +323,24 @@ class _VertragElektronischeKuendigungState
           'empfaenger_name': d.empfaengerName,
           'dateiname': 'Kuendigung.pdf',
           'inhalt_b64': base64Encode(pdf),
+          // Der Bezug haengt das Fax an den Vertrag — dieselbe Mechanik, die
+          // schon die Jobcenter-Faxe benutzen. Ohne ihn steht das Fax im
+          // Fax-Archiv ohne Zusammenhang da.
+          'bezug_typ': 'vertrag_kuendigung',
+          'bezug_id': widget.vertragId,
         });
         ok = res['success'] == true;
+        // ⚠️ Beim Fax ist die id aus `sipgate_faxe` das, was die Message-ID
+        // bei der Mail ist: der einzige Faden zum Zustellbericht. Den Status
+        // selbst holt der Cron sipgate_fax_status.php alle fuenf Minuten —
+        // wir muessen nur wissen, WELCHES Fax zu diesem Schreiben gehoert.
+        faxId = int.tryParse(res['id']?.toString() ?? '') ?? 0;
+        // „an sipgate uebergeben", nicht „abgeschickt": zu diesem Zeitpunkt
+        // hat die Gegenstelle noch nichts gesehen. Die Zustellung steht
+        // Minuten spaeter im Status.
         zeile =
             'Fax an $ziel: '
-            '${ok ? 'abgeschickt' : (res['message'] ?? 'fehlgeschlagen')}';
+            '${ok ? 'an sipgate übergeben' : (res['message'] ?? 'fehlgeschlagen')}';
       } else {
         final res = await widget.apiService.sendMail(
           to: ziel,
@@ -361,7 +375,7 @@ class _VertragElektronischeKuendigungState
       // raus ist, während der Vertrag noch als ungekündigt dasteht, ist
       // beim nächsten Öffnen ein Rätsel — und beim übernächsten ein
       // zweites Schreiben.
-      await _inKorrespondenz(weg, ziel, messageId);
+      await _inKorrespondenz(weg, ziel, messageId, faxId);
       await _amVertragFesthalten(weg);
       widget.onChanged?.call();
     } else {
@@ -373,6 +387,7 @@ class _VertragElektronischeKuendigungState
     String weg,
     String ziel,
     String messageId,
+    int faxId,
   ) async {
     final d = _daten;
     final notiz = StringBuffer()
@@ -413,6 +428,7 @@ class _VertragElektronischeKuendigungState
         'betreff': kuendigungBetreff(d),
         'notiz': notiz.toString(),
         if (messageId.isNotEmpty) 'message_id': messageId,
+        if (faxId > 0) 'fax_id': faxId,
       });
     } catch (_) {
       _melden(

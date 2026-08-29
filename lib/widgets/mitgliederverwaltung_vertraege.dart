@@ -1003,6 +1003,16 @@ class _KorrTabState extends State<VertragKorrTab> {
   /// sie genommen hat — ein grüner Haken darauf wäre eine Falschaussage
   /// über genau das, worauf es ankommt.
   Map<String, MailDelivery> _zustellung = {};
+
+  /// fax_id → Stand aus `sipgate_faxe`, gehalten vom Cron
+  /// sipgate_fax_status.php (alle fünf Minuten).
+  ///
+  /// ⚠️ „zugestellt" heisst hier: die Gegenstelle hat das Dokument
+  /// vollständig entgegengenommen. Nach der Rechtsprechung des BGH ist der
+  /// „OK"-Vermerk eines Sendeberichts trotzdem KEIN Anscheinsbeweis für den
+  /// Zugang — der Satz steht deshalb an der Anzeige, nicht nur in einem
+  /// Kommentar.
+  Map<String, Map<String, dynamic>> _faxstand = {};
   bool _holtZustellung = false;
 
   @override
@@ -1026,7 +1036,8 @@ class _KorrTabState extends State<VertragKorrTab> {
   /// der Zustellstatus ist eine Zutat, die auch fehlen darf.
   Future<void> _zustellungLaden() async {
     final hatIds = _items.any((k) =>
-        (k['message_id']?.toString() ?? '').isNotEmpty);
+        (k['message_id']?.toString() ?? '').isNotEmpty ||
+        (int.tryParse(k['fax_id']?.toString() ?? '') ?? 0) > 0);
     if (!hatIds) return;
     if (mounted) setState(() => _holtZustellung = true);
     try {
@@ -1035,11 +1046,18 @@ class _KorrTabState extends State<VertragKorrTab> {
       final roh = r['success'] == true && r['delivery'] is Map
           ? Map<String, dynamic>.from(r['delivery'] as Map)
           : <String, dynamic>{};
+      final froh = r['fax'] is Map
+          ? Map<String, dynamic>.from(r['fax'] as Map)
+          : <String, dynamic>{};
       setState(() {
         _zustellung = {
           for (final e in roh.entries)
             if (e.value is Map)
               e.key: MailDelivery.fromJson(Map<String, dynamic>.from(e.value as Map)),
+        };
+        _faxstand = {
+          for (final e in froh.entries)
+            if (e.value is Map) e.key: Map<String, dynamic>.from(e.value as Map),
         };
       });
     } catch (_) {
@@ -1053,6 +1071,22 @@ class _KorrTabState extends State<VertragKorrTab> {
     final id = k['message_id']?.toString() ?? '';
     return id.isEmpty ? null : _zustellung[id];
   }
+
+  Map<String, dynamic>? _faxVon(Map<String, dynamic> k) {
+    final id = int.tryParse(k['fax_id']?.toString() ?? '') ?? 0;
+    return id <= 0 ? null : _faxstand['$id'];
+  }
+
+  /// Symbol, Farbe und Wortlaut zu einem Fax-Status.
+  static (IconData, MaterialColor, String) _faxAnzeige(String status) =>
+      switch (status) {
+        'zugestellt' => (Icons.fax, Colors.green, 'Fax zugestellt'),
+        'in_zustellung' => (Icons.schedule, Colors.orange, 'Fax unterwegs'),
+        'vorbereitet' => (Icons.schedule, Colors.grey, 'Fax vorbereitet'),
+        'fehlgeschlagen' => (Icons.error_outline, Colors.red, 'Fax fehlgeschlagen'),
+        'storniert' => (Icons.cancel, Colors.grey, 'Fax storniert'),
+        _ => (Icons.help_outline, Colors.grey, 'Fax-Stand unbekannt'),
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -1129,6 +1163,16 @@ class _KorrTabState extends State<VertragKorrTab> {
                           MailDeliveryIndicator(delivery: d),
                           const SizedBox(width: 4),
                         ],
+                        if (_faxVon(k) case final fx?) ...[
+                          Builder(builder: (_) {
+                            final (ic, fb, txt) =
+                                _faxAnzeige(fx['status']?.toString() ?? '');
+                            return Tooltip(
+                                message: txt,
+                                child: Icon(ic, size: 16, color: F.h(fb, 700)));
+                          }),
+                          const SizedBox(width: 4),
+                        ],
                         Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
                       ]),
                     ),
@@ -1198,6 +1242,38 @@ class _KorrTabState extends State<VertragKorrTab> {
                       'nachfragen.',
                       style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 ),
+            ],
+            if (_faxVon(k) case final fx?) ...[
+              const SizedBox(height: 12),
+              Text('Fax-Zustellung', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 600))),
+              const SizedBox(height: 4),
+              Builder(builder: (_) {
+                final (ic, fb, txt) = _faxAnzeige(fx['status']?.toString() ?? '');
+                return Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(ic, size: 18, color: F.h(fb, 700)),
+                  const SizedBox(width: 6),
+                  Text(txt, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(fb, 800))),
+                ]);
+              }),
+              if ((fx['zugestellt_am']?.toString() ?? '').isNotEmpty)
+                Text('Zugestellt: ${fx['zugestellt_am']}',
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
+              if ((fx['seiten']?.toString() ?? '').isNotEmpty)
+                Text('${fx['seiten']} Seite(n)',
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+              if ((fx['fehler']?.toString() ?? '').isNotEmpty)
+                SelectableText(fx['fehler'].toString(),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.red, 700))),
+              // ⚠️ Gehört an den Vorgang, nicht nur in einen Kommentar: wer
+              // den Eintrag später liest, soll nicht glauben, der Zugang sei
+              // damit bewiesen.
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                    'Der „OK"-Vermerk eines Sendeberichts ist nach der '
+                    'Rechtsprechung des BGH kein Anscheinsbeweis für den Zugang.',
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+              ),
             ],
             const SizedBox(height: 16),
             Text('Betreff', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 600))),
