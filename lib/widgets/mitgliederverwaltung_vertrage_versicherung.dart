@@ -3,6 +3,7 @@ import 'faltbare_kopfleiste.dart';
 import 'phone_link.dart';
 import '../services/api_service.dart';
 import 'mitgliederverwaltung_vertraege.dart' show VertragDokTab, VertragKorrTab;
+import 'vertrag_elektronische_kuendigung.dart';
 import '../utils/app_farben.dart';
 
 // ============================================================
@@ -790,8 +791,12 @@ class _MitgliederverwaltungVertraegeVersicherungState
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.all(20),
+        // ⚠️ Nicht mehr fix 760 breit. Gemessen: die fünf Reiter brauchen
+        // mehr; bei 760 lag „E-Kündigung" ausserhalb und war nur durch
+        // Wischen an der Reiterleiste erreichbar — also praktisch unsichtbar.
         child: SizedBox(
-          width: 760, height: 640,
+          width: MediaQuery.sizeOf(ctx).width.clamp(320.0, 1060.0),
+          height: 640,
           child: _VersicherungDetailView(
             apiService: widget.apiService,
             userId: widget.userId,
@@ -834,8 +839,11 @@ class _VersicherungDetailView extends StatelessWidget {
   Widget build(BuildContext context) {
     final sparte = _versicherungSparten[vertrag['tarif']?.toString() ?? ''] ?? '';
     final aktiv = vertrag['is_active'] == 1 || vertrag['is_active'] == true || vertrag['is_active'] == '1';
+    // ⚠️ Muss zur Zahl der Tabs unten passen. Eine Abweichung ist keine
+    // Analysemeldung, sondern eine Zusicherung zur Laufzeit — der Vertrag
+    // liesse sich dann gar nicht mehr öffnen.
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Column(children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -862,9 +870,13 @@ class _VersicherungDetailView extends StatelessWidget {
           indicatorColor: Colors.green.shade700,
           tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
-            Tab(icon: Icon(Icons.description, size: 18), text: 'Versicherungsschein'),
+            // „Police" statt „Versicherungsschein": spart gemessene 183 px
+            // in der Reiterleiste, ist der übliche Fachausdruck und meint
+            // dasselbe. Der Reiterinhalt heisst weiter Versicherungsschein.
+            Tab(icon: Icon(Icons.description, size: 18), text: 'Police'),
             Tab(icon: Icon(Icons.mail_outline, size: 18), text: 'Korrespondenz'),
             Tab(icon: Icon(Icons.cancel, size: 18), text: 'Kündigung'),
+            Tab(icon: Icon(Icons.send_and_archive, size: 18), text: 'E-Kündigung'),
           ],
         ),
         Expanded(child: TabBarView(children: [
@@ -872,6 +884,16 @@ class _VersicherungDetailView extends StatelessWidget {
           VertragDokTab(apiService: apiService, vertragId: vertragId, kategorie: 'versicherungsschein', label: 'Versicherungsschein'),
           VertragKorrTab(apiService: apiService, vertragId: vertragId),
           VertragDokTab(apiService: apiService, vertragId: vertragId, kategorie: 'kuendigung', label: 'Kündigung'),
+          // ⚠️ Der Versicherungsteil hat seinen EIGENEN Vertragsdialog —
+          // `_VersicherungDetailView` hier, nicht `_VertragDetailView` in
+          // mitgliederverwaltung_vertraege.dart. Wer einen Reiter nur dort
+          // ergänzt, sieht ihn über Versicherung → Sparte → Vertrag nie.
+          VertragElektronischeKuendigung(
+            apiService: apiService,
+            vertragId: vertragId,
+            userId: userId,
+            vertrag: vertrag,
+          ),
         ])),
       ]),
     );
