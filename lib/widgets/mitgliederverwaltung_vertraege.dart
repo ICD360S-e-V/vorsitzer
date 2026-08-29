@@ -843,7 +843,7 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
             Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
             Tab(icon: Icon(Icons.receipt, size: 18), text: 'Rechnung'),
             Tab(icon: Icon(Icons.cancel, size: 18), text: 'Kündigung'),
-            Tab(icon: Icon(Icons.send_and_archive, size: 18), text: 'Elektronische Kündigung'),
+            Tab(icon: Icon(Icons.send_and_archive, size: 18), text: 'E-Kündigung'),
             Tab(icon: Icon(Icons.gavel, size: 18), text: 'Inkasso'),
           ],
         ),
