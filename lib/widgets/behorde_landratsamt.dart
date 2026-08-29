@@ -832,7 +832,11 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
   /// Message-ID, und „noch keine Rückmeldung" wäre dort eine Aussage über
   /// etwas, das gar nicht stattgefunden hat.
   Widget _zustellzeile(Map<String, dynamic> k) {
-    if ((k['mail_message_id'] ?? '').toString().isEmpty) return const SizedBox.shrink();
+    if ((k['mail_message_id'] ?? '').toString().isEmpty) {
+      return (k['fax_id'] ?? '').toString().isEmpty
+          ? const SizedBox.shrink()
+          : _faxzeile(k);
+    }
     final stand = (k['mail_status'] ?? '').toString();
     final (IconData ikone, Color farbe, String wort) = switch (stand) {
       'sent'     => (Icons.mark_email_read, F.h(Colors.green, 700), 'zugestellt'),
@@ -852,6 +856,41 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
         Expanded(child: Text(
           'E-Mail: $wort${wann.isEmpty ? '' : ' ($wann)'}'
           '${antwort.isEmpty ? '' : '\n$antwort'}',
+          style: TextStyle(fontSize: 10, color: farbe))),
+      ]));
+  }
+
+  /// Dasselbe fürs Fax — der Stand kommt aus `sipgate_faxe`.
+  ///
+  /// ⚠️ Anders als bei der Post fragt hier NIEMAND auf Knopfdruck nach: ein
+  /// Cron gleicht den Stand im Fünfminutentakt mit sipgate ab. Der Knopf oben
+  /// lädt die Liste neu und holt damit auch das Fax auf den letzten Stand —
+  /// er stößt die Abfrage aber nicht an, sondern liest, was der Cron schon
+  /// geschrieben hat.
+  ///
+  /// ⚠️ **Kein Fehlertext.** `sipgate_faxe.fehler` liegt unter dem Schlüssel
+  /// des Fax-Moduls; ihn hier zu entschlüsseln hieße, einen fremden Schlüssel
+  /// in dieses Modul zu holen. Bei einem Fehlschlag steht deshalb der Verweis
+  /// auf den Faxbildschirm — dort gehört der Wortlaut hin.
+  Widget _faxzeile(Map<String, dynamic> k) {
+    final stand = (k['fax_status'] ?? '').toString();
+    final (IconData ikone, Color farbe, String wort) = switch (stand) {
+      'zugestellt'     => (Icons.check_circle_outline, F.h(Colors.green, 700), 'zugestellt'),
+      'in_zustellung'  => (Icons.schedule, F.h(Colors.orange, 700), 'in Zustellung'),
+      'vorbereitet'    => (Icons.hourglass_empty, F.h(Colors.grey, 600), 'vorbereitet'),
+      'fehlgeschlagen' => (Icons.error_outline, F.h(Colors.red, 700), 'fehlgeschlagen'),
+      'storniert'      => (Icons.block, F.h(Colors.grey, 700), 'storniert'),
+      ''               => (Icons.hourglass_empty, F.h(Colors.grey, 600), 'noch keine Rückmeldung'),
+      _                => (Icons.info_outline, F.h(Colors.grey, 700), stand),
+    };
+    final wann = (k['fax_zugestellt_am'] ?? '').toString();
+    return Padding(padding: const EdgeInsets.only(top: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(ikone, size: 13, color: farbe),
+        const SizedBox(width: 4),
+        Expanded(child: Text(
+          'Fax: $wort${wann.isEmpty ? '' : ' ($wann)'}'
+          '${stand == 'fehlgeschlagen' ? '\nGrund steht im Fax-Bildschirm' : ''}',
           style: TextStyle(fontSize: 10, color: farbe))),
       ]));
   }
