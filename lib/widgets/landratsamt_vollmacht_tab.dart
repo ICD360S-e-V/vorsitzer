@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -43,6 +44,19 @@ Map<String, String> vollmachtFeldAlsKatalog(dynamic v) {
 /// Eine Liste von Texten aus der Serverantwort.
 List<String> vollmachtFeldAlsTexte(dynamic v) =>
     v is List ? v.map((e) => e.toString()).toList() : const [];
+
+/// Eine Liste von Objekten aus der Serverantwort — etwa die Unterzeichner.
+///
+/// 🔴 Dieselbe Falle wie bei [vollmachtFeldAlsKatalog], nur andersherum: eine
+/// Gruppe ohne Zeilen kommt als `[]` an, eine Serverfassung ohne das Feld gar
+/// nicht, und `as List` wirft in beiden Fällen statt `null` zu geben — im
+/// Release-Build eine graue Fläche ohne Meldung. Der Fall ist kein Randfall:
+/// solange niemand „Zur Unterschrift stellen" gedrückt hat, ist die Liste leer.
+///
+/// Einträge, die keine Karte sind, fallen heraus statt alles mitzureißen.
+List<Map<String, dynamic>> vollmachtFeldAlsZeilen(dynamic v) => v is List
+    ? v.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+    : const [];
 
 /// Vollmacht gegenüber dem Landratsamt — je Vorfall eine.
 ///
@@ -642,6 +656,41 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
       _sagen('Unterzeichner nicht ermittelbar — bitte neu laden', Colors.red);
       return;
     }
+
+    // ⚠️ Ein zweiter Auftrag ersetzt den ersten NICHT — er legt eine zweite
+    // Gruppe daneben, und beide leben weiter. Vor der Reparatur vom
+    // 29.08.2026 bestimmte dann die ÄLTERE den angezeigten Stand: drei
+    // Gruppen, nur die letzte unterschrieben, Anzeige „0 von 2", Versand
+    // gesperrt. Der Server nimmt jetzt die richtige — aber ein zweites
+    // Bündel Unterschriftsaufforderungen an dieselben zwei Menschen zu
+    // schicken bleibt trotzdem falsch, solange das erste noch offen ist.
+    final standGilt = _laufendeUnterschriften(id);
+    final wieViele   = (_ziele['noetig'] ?? 0) as int;
+    final wieWeit    = (_ziele['unterschrieben'] ?? 0) as int;
+    final schonFertig = standGilt && wieViele > 0 && wieWeit >= wieViele;
+    final schonOffen  = standGilt && wieViele > 0 && !schonFertig;
+    if (schonFertig || schonOffen) {
+      final weiter = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+        title: Text(schonFertig ? 'Es ist schon unterschrieben' : 'Es läuft schon eine Anforderung',
+            style: const TextStyle(fontSize: 15)),
+        content: Text(
+          schonFertig
+              ? 'Zu dieser Vollmacht liegen bereits alle Unterschriften vor.\n\n'
+                'Eine neue Anforderung hebt sie nicht auf — sie stellt beiden '
+                'dasselbe Blatt ein zweites Mal zu. Nur sinnvoll, wenn die '
+                'vorhandene Unterschrift nicht mehr gelten soll; dann die '
+                'Vollmacht widerrufen und eine neue erzeugen.'
+              : 'Beide sind bereits aufgefordert, es fehlt nur noch eine '
+                'Unterschrift.\n\nEine zweite Aufforderung ersetzt die erste '
+                'nicht — sie kommt daneben an, mit einem zweiten Code.',
+          style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+          TextButton(onPressed: () => Navigator.pop(c, true),
+              child: const Text('Trotzdem erneut stellen')),
+        ]));
+      if (weiter != true || !mounted) return;
+    }
     final los = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
       title: const Text('Zur Unterschrift stellen?'),
       content: const Text(
@@ -809,6 +858,104 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
     if (gut) await _laden0();
   }
 
+  /// Die Unterzeichner der Gruppe, die der Server als massgeblich gewaehlt hat.
+  ///
+  /// ⚠️ Tolerant gelesen: `unterzeichner` fehlt in der Antwort einer aelteren
+  /// Serverfassung ganz, und ein leeres PHP-Array kommt als Liste `[]` an.
+  /// Vgl. den Kopf von [vollmachtFeldAlsKatalog] — dasselbe Muster hat schon
+  /// einen Bildschirm grau werden lassen.
+  List<Map<String, dynamic>> _unterzeichner() =>
+      vollmachtFeldAlsZeilen(_ziele['unterzeichner']);
+
+  /// Gehoert der geladene Stand zu genau dieser Vollmacht?
+  ///
+  /// [_ziele] wird nachgeladen; solange das laeuft, gehoeren die Zahlen darin
+  /// noch zur vorigen Auswahl. Eine Warnung „ist schon unterschrieben", die
+  /// sich auf eine andere Vollmacht bezieht, waere schlimmer als keine.
+  bool _laufendeUnterschriften(int id) => _zieleFuer == id && _ziele.isNotEmpty;
+
+  /// Eine Zeile je Person: Name, in welcher Eigenschaft, wann.
+  Widget _unterzeichnerZeile(Map<String, dynamic> u) {
+    final status = (u['status'] ?? '').toString();
+    final (IconData icon, MaterialColor farbe) = switch (status) {
+      'signiert'   => (Icons.check_circle, Colors.green),
+      'abgelehnt'  => (Icons.cancel, Colors.red),
+      'widerrufen' => (Icons.block, Colors.red),
+      'abgelaufen' => (Icons.timer_off, Colors.grey),
+      _            => (Icons.pending_outlined, Colors.orange),
+    };
+    // Die Rolle beschreibt, ALS WAS jemand unterschreibt — nicht seine Rolle
+    // im Verein. Der Vorsitzende zeichnet hier als Bevollmächtigter.
+    final rolle = switch ((u['rolle'] ?? '').toString()) {
+      'vollmachtgeber'    => 'Vollmachtgeber (Mitglied)',
+      'bevollmaechtigter' => 'Bevollmächtigter (Vorstand)',
+      final r             => r.isEmpty ? '' : r,
+    };
+    final name = (u['name'] ?? '').toString().trim();
+    final wann = (u['signiert_am'] ?? '').toString().trim();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 15, color: F.h(farbe, 600)),
+        const SizedBox(width: 6),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Ein geloeschtes Konto laesst den Namen leer — die Zeile bleibt
+          // trotzdem stehen, sonst sähe es aus, als fehlte der Unterzeichner.
+          Text(name.isEmpty ? '(Name nicht mehr hinterlegt)' : name,
+              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+          Text(
+            rolle.isEmpty ? status : '$rolle · ${status == 'signiert' ? 'unterschrieben' : status}'
+                '${wann.isEmpty ? '' : ' am $wann'}',
+            style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
+        ])),
+      ]),
+    );
+  }
+
+  /// Oeffnet die Fassung, auf der die Unterschriften stehen.
+  ///
+  /// ⚠️ „Noch nicht gesiegelt" und „fehlgeschlagen" sind zwei verschiedene
+  /// Dinge: gesiegelt wird in einem eigenen Lauf im Minutentakt. Wer beides
+  /// als Fehler meldet, sagt „kaputt", wo „einen Moment noch" richtig waere.
+  Future<void> _signiertesOeffnen(int signaturId, Map<String, dynamic> vm) async {
+    if (widget.adminMitgliedernummer.isEmpty) {
+      _sagen('Ohne Anmeldung als Vorstand nicht abrufbar', Colors.red);
+      return;
+    }
+    final name = 'vollmacht_${vm['id']}_unterschrieben.pdf';
+    final gesiegelt = await SignaturService().herunterladenMitGrund(
+      callerMitgliedernummer: widget.adminMitgliedernummer,
+      signaturId: signaturId, welche: 'signiert');
+    if (!mounted) return;
+    if (gesiegelt.bytes != null) {
+      await FileViewerDialog.showFromBytes(
+          context, Uint8List.fromList(gesiegelt.bytes!), name);
+      return;
+    }
+    final weiter = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+      title: const Text('Siegel noch nicht fertig', style: TextStyle(fontSize: 15)),
+      content: Text(
+        '${gesiegelt.hinweis ?? 'Die gesiegelte Fassung wird noch erstellt.'}\n\n'
+        'Solange lässt sich die Fassung öffnen, die den Unterzeichnern vorlag — '
+        'ohne Siegel und ohne Zeitstempel.',
+        style: const TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Original öffnen')),
+      ]));
+    if (weiter != true || !mounted) return;
+    final orig = await SignaturService().herunterladenMitGrund(
+      callerMitgliedernummer: widget.adminMitgliedernummer,
+      signaturId: signaturId, welche: 'original');
+    if (!mounted) return;
+    if (orig.bytes == null) {
+      _sagen(orig.hinweis ?? 'Dokument konnte nicht geladen werden', Colors.red);
+      return;
+    }
+    await FileViewerDialog.showFromBytes(
+        context, Uint8List.fromList(orig.bytes!), 'vollmacht_${vm['id']}_original.pdf');
+  }
+
   Future<void> _zieleLaden(int id) async {
     final z = await widget.apiService.landratsamtVollmachtVorlagen(id);
     final p = await widget.apiService.landratsamtVollmachtVersandListe(id);
@@ -841,6 +988,12 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
     final bereit = _ziele['bereit'] == true;
     final noetig = (_ziele['noetig'] ?? 0) as int;
     final fertig = (_ziele['unterschrieben'] ?? 0) as int;
+    // ⚠️ Zwei verschiedene Dinge, die vorher eins waren: `vollstaendig` heisst
+    // „beide haben unterschrieben", `bereit` heisst „die gesiegelte Fassung
+    // liegt auf der Platte". Gesiegelt wird im Minutentakt, also gibt es ein
+    // Fenster, in dem das erste stimmt und das zweite noch nicht.
+    final vollstaendig = noetig > 0 && fertig >= noetig;
+    final signaturId = (_ziele['signatur_id'] ?? 0) as int;
     final laeuft = _beschaeftigt == id;
 
     return ListView(padding: const EdgeInsets.all(12), children: [
@@ -875,12 +1028,18 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
       else ...[
         _titel(Icons.verified_user, 'Unterschrift'),
         Text(
-          bereit
-              ? 'Beide Unterschriften liegen vor.'
+          vollstaendig
+              ? (bereit
+                  ? 'Beide Unterschriften liegen vor.'
+                  : 'Beide haben unterschrieben — die gesiegelte Fassung wird noch erstellt.')
               : (noetig > 0
                   ? '$fertig von $noetig Unterschriften liegen vor.'
                   : 'Noch nicht zur Unterschrift gestellt.'),
           style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
+        // Wer unterschrieben hat, mit Namen und Uhrzeit. Eine Zahl allein sagt
+        // nicht, auf WEN noch gewartet wird — und beim Nachfragen ist genau
+        // das die einzige Auskunft, die gebraucht wird.
+        ..._unterzeichner().map(_unterzeichnerZeile),
         const SizedBox(height: 6),
         Wrap(spacing: 8, runSpacing: 6, children: [
           ElevatedButton.icon(
@@ -893,6 +1052,15 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
                 backgroundColor: F.h(Colors.green, 700), foregroundColor: Colors.white),
             onPressed: laeuft ? null : () => _zurUnterschrift(vm),
           ),
+          // ⚠️ NICHT dasselbe wie „Öffnen (DE)" im Reiter Historie: der Knopf
+          // dort holt das ERZEUGTE Blatt mit den leeren Linien. Hier kommt die
+          // Fassung, auf der die beiden Unterschriften stehen.
+          if (signaturId > 0 && vollstaendig)
+            OutlinedButton.icon(
+              icon: const Icon(Icons.verified, size: 15),
+              label: const Text('Unterschriebene Fassung', style: TextStyle(fontSize: 11)),
+              onPressed: laeuft ? null : () => _signiertesOeffnen(signaturId, vm),
+            ),
           OutlinedButton.icon(
             icon: const Icon(Icons.chat_outlined, size: 15),
             label: const Text('In den Chat', style: TextStyle(fontSize: 11)),
@@ -918,8 +1086,11 @@ class _LandratsamtVollmachtTabState extends State<LandratsamtVollmachtTab>
         _titel(Icons.outbox, 'An das Landratsamt'),
         if (!bereit)
           Text(
-            'Erst unterschreiben lassen, dann senden — eine unvollständige '
-            'Vollmacht kostet nur eine Rückfrage.',
+            vollstaendig
+                ? 'Beide haben unterschrieben. Die gesiegelte Fassung entsteht '
+                  'im Minutentakt — gleich noch einmal öffnen, dann geht der Versand.'
+                : 'Erst unterschreiben lassen, dann senden — eine unvollständige '
+                  'Vollmacht kostet nur eine Rückfrage.',
             style: TextStyle(fontSize: 11.5, color: F.h(Colors.orange, 800)))
         else ...[
           if ((_ziele['stelle'] ?? '').toString().isNotEmpty)
