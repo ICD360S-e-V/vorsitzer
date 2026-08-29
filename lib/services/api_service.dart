@@ -6396,6 +6396,32 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Zustellstatus der aus der Korrespondenz eines Vertrages verschickten
+  /// Mails - aus dem Postfix-Log, nicht aus der Sendeantwort.
+  ///
+  /// WARNUNG: Eigener Endpunkt, nicht `getMailDelivery`. Jener filtert
+  /// `mail_delivery_status` auf das Postfach des ANGEMELDETEN Benutzers; eine
+  /// Kuendigung liegt aber in der Akte des Vereins. Beim zweiten Vorsitzenden
+  /// zeigte `delivery.php` sonst "noch keine Rueckmeldung", obwohl die Mail
+  /// laengst zugestellt ist - und zwar ohne Fehlermeldung.
+  ///
+  /// WARNUNG: Der Status kommt aus der Datenbank und ueberlebt damit beides:
+  /// die Rotation des Postfix-Logs UND das Loeschen der Mail im Ausgang des
+  /// Mailclients. Auf dem Server an einer Nachricht nachgemessen, die in
+  /// keinem Ordner mehr liegt: liefert weiterhin `sent` samt SMTP-Antwort.
+  Future<Map<String, dynamic>> getVertragKorrDelivery(int vertragId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/vertraege_korr_delivery.php'),
+      headers: _headers,
+      body: jsonEncode({'vertrag_id': vertragId}),
+    ).timeout(const Duration(seconds: 40));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Unerwartete Antwort vom Server'};
+    }
+  }
+
   Future<Map<String, dynamic>> deleteVertraegeKorrespondenz(int id) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/vertraege_korr_manage.php'),
