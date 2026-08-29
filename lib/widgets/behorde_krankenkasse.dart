@@ -20,6 +20,7 @@ import '../utils/cloud_picker_helper.dart';
 import '../widgets/responsive_layout.dart';
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
+import 'krankenkasse_vollmacht.dart';
 
 class BehordeKrankenkasseContent extends StatefulWidget {
   final ApiService apiService;
@@ -98,6 +99,12 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   // shown in the tab title so the operator sees at a glance whether
   // the member has open KG cases.
   int _krankengeldCount = 0;
+  /// Wie viele Vollmachten es gibt — nur für die Zahl am Reiter.
+  ///
+  /// ⚠️ Der Reiter lädt seine Liste selbst und meldet den Stand zurück;
+  /// dieser Zähler ist eine Anzeige, keine zweite Quelle. Bis der Reiter
+  /// einmal geladen hat, steht hier 0.
+  int _vollmachtCount = 0;
   List<Map<String, dynamic>> _termine = [];
 
   bool _stammdatenLoaded = false;
@@ -637,7 +644,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     _initControllers(data);
 
     return DefaultTabController(
-      length: 8,
+      length: 9,
       child: Column(
         children: [
           TabBar(
@@ -649,6 +656,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.local_hospital, size: 16), const SizedBox(width: 4), const Text('Zuständige Krankenkasse')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _getTermineListe(data).isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.calendar_month, size: 16), const SizedBox(width: 4), const Text('Termine')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _kkKorrespondenz.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.mail, size: 16), const SizedBox(width: 4), const Text('Korrespondenz')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _vollmachtCount > 0 ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.assignment_ind, size: 16), const SizedBox(width: 4), Text('Vollmacht${_vollmachtCount > 0 ? " ($_vollmachtCount)" : ""}')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['pflegegrad']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.elderly, size: 16), const SizedBox(width: 4), const Text('Pflegegrad')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['versicherungsart']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.shield, size: 16), const SizedBox(width: 4), const Text('Versicherung')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['kvnr']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.credit_card, size: 16), const SizedBox(width: 4), const Text('Versicherungskarte')])),
@@ -662,6 +670,15 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 _buildKrankenkasseTab(data),
                 _buildTermineTab(data),
                 _buildKorrespondenzTab(data),
+                KrankenkasseVollmachtTab(
+                  apiService: widget.apiService,
+                  user: widget.user,
+                  adminMitgliedernummer: widget.adminMitgliedernummer,
+                  onCountChanged: (n) {
+                    if (mounted && n != _vollmachtCount) {
+                      setState(() => _vollmachtCount = n);
+                    }
+                  }),
                 _buildPflegegradTab(data),
                 _buildVersicherungTab(data),
                 _buildVersicherungskarteTab(data),
