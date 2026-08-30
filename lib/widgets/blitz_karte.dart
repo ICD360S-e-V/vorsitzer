@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../models/blitz_nachricht.dart';
 import '../utils/app_farben.dart';
+import '../utils/auto_korrektur.dart';
+import 'wort_vorschlaege.dart';
 
 /// Die Karte selbst — Absender, was er geschrieben hat, und ein Feld zum
 /// Antworten. Wird an zwei Stellen gezeigt und ist deshalb bewusst dumm:
@@ -65,6 +67,17 @@ class _BlitzKarteState extends State<BlitzKarte> {
   }
 
   Future<void> _senden() async {
+    // ⚠️ Auch hier aufräumen, mit derselben Funktion wie im Chat-Schreibfeld.
+    // Dem letzten Wort folgt kein Trennzeichen mehr, es liefe sonst als
+    // einziges ungeprüft raus — und im Blitz ist die Nachricht oft nur ein
+    // Wort lang, also GENAU dieses.
+    final aufgeraeumt = autoKorrigiert(_eingabe.text);
+    if (aufgeraeumt != _eingabe.text) {
+      _eingabe.value = TextEditingValue(
+        text: aufgeraeumt,
+        selection: TextSelection.collapsed(offset: aufgeraeumt.length),
+      );
+    }
     final text = _eingabe.text.trim();
     if (text.isEmpty || _sendet) return;
     setState(() {
@@ -273,7 +286,9 @@ class _BlitzKarteState extends State<BlitzKarte> {
   Widget _fuss(bool gross) {
     return Padding(
       padding: EdgeInsets.fromLTRB(gross ? 24 : 8, 2, gross ? 24 : 8, gross ? 24 : 8),
-      child: Row(
+      child: WortVorschlaege(
+        controller: _eingabe,
+        bauen: (_) => Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (widget.onImChatOeffnen != null)
@@ -349,6 +364,7 @@ class _BlitzKarteState extends State<BlitzKarte> {
                   onPressed: _senden,
                 ),
         ],
+        ),
       ),
     );
   }

@@ -3,6 +3,8 @@ import 'dart:convert' show jsonDecode;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/utils/diakritika.dart';
+import 'package:icd360sev_vorsitzer/services/wortliste_service.dart';
+import 'package:icd360sev_vorsitzer/utils/auto_korrektur.dart';
 import 'package:icd360sev_vorsitzer/utils/tippfehler.dart';
 import 'package:icd360sev_vorsitzer/utils/wort_vervollstaendigung.dart';
 
@@ -125,11 +127,15 @@ void main() {
       // gibt es ohnehin keinen Vorschlag, der Test bestünde also auch dann,
       // wenn die Sicherung ganz fehlte. Diese Wörter HABEN einen Vorschlag —
       // gerettet werden sie allein durch den großen Buchstaben.
+      // ⚠️ „Termin" und „Formular" standen hier einmal mit: seit [kennt]
+      // auch klein nachschlägt, gelten sie als Wörter — 》termin《 und
+      // 》formular《 sind rumänisch. Sie sind damit schon durch die ERSTE
+      // Sicherung geschützt, nicht erst durch den großen Buchstaben. Dass
+      // die deutschen Fachwörter dieses Vereins so oft rumänische Zwillinge
+      // haben, war nicht geplant, hilft aber.
       const gefaehrlich = {
-        'Termin': 'terminat',
         'Radu': 'radule',
         'Padurean': 'pădurean',
-        'Formular': 'formularul',
       };
       gefaehrlich.forEach((wort, falsch) {
         expect(index.kennt(wort), isFalse, reason: wort);
@@ -226,7 +232,13 @@ void main() {
 
   group('Vertipper gegen die AUSGELIEFERTE Liste', () {
     late Tippfehler t;
-    setUpAll(() => t = Tippfehler.aufbauen(woerter));
+    late Diakritika regeln;
+    setUpAll(() async {
+      t = Tippfehler.aufbauen(woerter);
+      regeln = Diakritika.ausJson(jsonDecode(
+              await rootBundle.loadString('assets/woerterbuch/ro_kontext.json'))
+          as Map<String, dynamic>);
+    });
 
     test('repariert echte Vertipper', () {
       const faelle = {
@@ -242,16 +254,17 @@ void main() {
       });
     });
 
-    test('bei echter Mehrdeutigkeit bleibt es stehen', () {
-      // ⚠️ Das ist keine Lücke, sondern die Regel bei der Arbeit. Zu
-      // „cerrere" liegen ZWEI Wörter einen Schritt entfernt: „cerere" (ein
-      // Buchstabe zu viel) und „cernere" (ein Buchstabe daneben). Welches
-      // gemeint war, kann niemand wissen — also wird nichts geändert.
-      // Im Rumänischen mit seinen vielen Wortformen kommt das oft vor; das
-      // ist der Preis dafür, dass in der Messung 0 von 4.000 Korrekturen
-      // falsch waren.
-      expect(t.korrektur('cerrere'), isNull);
+    test('ein Gleichstand wird nur bei klarem Häufigkeitsabstand gelöst', () {
+      // Zu „cerrere" liegen ZWEI Wörter einen Schritt entfernt: „cerere"
+      // (ein Buchstabe zu viel) und „cernere" (ein Buchstabe daneben).
+      // Früher blieb das stehen. Weil „cerere" um ein Vielfaches häufiger
+      // ist, wird es jetzt aufgelöst — gemessen kostet das 0,08 Prozentpunkte
+      // Genauigkeit und bringt zwei Prozentpunkte mehr Treffer.
+      expect(t.korrektur('cerrere'), 'cerere');
+      // Wo die Häufigkeiten dicht beieinander liegen, bleibt es beim
+      // Nichtstun — und bei kurzen Wörtern immer.
       expect(t.korrektur('trimiter'), isNull);
+      expect(t.korrektur('nare'), isNull);
     });
 
     test('was die Vervollständigung kann, macht sie — nicht der Vertipper', () {
@@ -275,13 +288,23 @@ void main() {
       expect(angefasst, 0);
     });
 
-    test('fasst Fremdwörter und Namen kaum an', () {
-      const fremd = ['Duinea', 'Tanase', 'Menning', 'Anica', 'Vollmacht',
-        'Landratsamt', 'Jobcenter', 'Krankenkasse', 'Widerspruch',
-        'Pflegegrad', 'Bescheid', 'Termin', 'Antrag', 'Rente', 'Formular',
-        'WhatsApp', 'ICD360S', 'Ulm', 'Bayern'];
-      final getroffen = fremd.where((w) => t.korrektur(w) != null);
-      expect(getroffen, isEmpty, reason: 'getroffen: ${getroffen.toList()}');
+    test('fasst Fremdwörter und Namen im Satz nicht an', () {
+      // ⚠️ Für sich genommen greift der Vertipper bei „Bescheid" (》Deschid《
+      // ist einen Schritt entfernt) und bei „Padurean" (》pădurean《 ist ein
+      // rumänisches Wort). Was sie rettet, ist der große Anfangsbuchstabe
+      // mitten im Satz — deshalb wird hier der ECHTE Weg geprüft und nicht
+      // die Einzelteile.
+      const fremd = ['Duinea', 'Padurean', 'Tanase', 'Menning', 'Anica',
+        'Vollmacht', 'Landratsamt', 'Jobcenter', 'Krankenkasse',
+        'Widerspruch', 'Pflegegrad', 'Bescheid', 'Termin', 'Antrag',
+        'Rente', 'Formular', 'WhatsApp', 'ICD360S', 'Ulm', 'Bayern'];
+      WortlisteService.setzenFuerTest(index, regeln, t);
+      final getroffen = <String>[];
+      for (final w in fremd) {
+        final satz = 'am scris la $w';
+        if (autoKorrigiert(satz) != satz) getroffen.add(w);
+      }
+      expect(getroffen, isEmpty, reason: 'getroffen: $getroffen');
     });
 
     test('eine Korrektur bleibt unter 15 Millisekunden', () {
