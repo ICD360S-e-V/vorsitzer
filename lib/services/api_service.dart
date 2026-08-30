@@ -2576,6 +2576,26 @@ class ApiService {
   // sipgate — Anmeldedaten (als HA1, nie das Passwort), VoIP-Telefone und der
   // eigene Gesprächsverlauf. Kurzer Zeitrahmen: der Aufruf liegt zwischen
   // Klick und Klingeln, dort ist Warten teurer als ein zweiter Versuch.
+  /// Holt den Einmal-Schlüssel für die Spracherkennung auf dem Server.
+  ///
+  /// ⚠️ Eigener Endpunkt und keine Aktion von `sipgateAction`: der Schlüssel
+  /// wird nach GERÄTESCHLÜSSEL UND ANMELDUNG ausgestellt und ist 60 Sekunden
+  /// gültig, EINMAL. Der Erkenner selbst kann keine Kopfzeilen prüfen — ein
+  /// WebSocket schickt beim Verbinden keine, auf die man sich verlassen
+  /// könnte —, deshalb wird hier geprüft und dort nur der Nachweis vorgezeigt.
+  Future<Map<String, dynamic>> asrToken() async {
+    try {
+      final r = await _client
+          .post(Uri.parse('$baseUrl/sipgate/asr_token.php'), headers: _headers)
+          .timeout(const Duration(seconds: 8));
+      return jsonDecode(r.body) as Map<String, dynamic>;
+    } catch (e) {
+      // ⚠️ Nie werfen: ohne Schlüssel fällt die Mitschrift auf das Modell im
+      // Gerät zurück. Ein Fehler hier darf das Gespräch nicht stören.
+      return {'success': false, 'message': '$e'};
+    }
+  }
+
   Future<Map<String, dynamic>> sipgateAction(Map<String, dynamic> data) async {
     final response = await _client.post(Uri.parse('$baseUrl/sipgate/sipgate_manage.php'),
       headers: _headers, body: jsonEncode(data)).timeout(const Duration(seconds: 12));

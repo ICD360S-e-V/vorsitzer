@@ -91,6 +91,22 @@ class Untertitel(private val ctx: Context) {
 
     private var modell: Model? = null
     private var erkenner: Recognizer? = null
+
+    /**
+     * Wohin der Ton geht.
+     *
+     * `false` = wie bisher: das kleine Modell erkennt HIER auf dem Geraet.
+     * `true`  = der Ton wird nur weitergereicht; erkannt wird auf unserem
+     *           Server mit dem grossen Modell.
+     *
+     * ⚠️ Am Telefonband gemessen (300–3400 Hz, µ-law hin und zurueck): das
+     * kleine Modell 17,6 % Wortfehler, das grosse 0,0 %. Das grosse braucht
+     * 4,4 GB Arbeitsspeicher — auf diesem Geraet unmoeglich.
+     *
+     * ⚠️ Im Strommodus wird der Erkenner GAR NICHT angelegt: das spart dem
+     * Tablet nicht nur den Speicher, sondern auch die Rechenzeit.
+     */
+    private var strommodus = false
     private var sink: AudioTrackSink? = null
     private var spur: AudioTrack? = null
     private var pumpe: Thread? = null
@@ -118,9 +134,13 @@ class Untertitel(private val ctx: Context) {
         "brauchtGoogle" to false,
     )
 
-    fun starten(spurId: String, unused: String): Map<String, Any?> {
+    fun starten(spurId: String, unused: String, strom: Boolean = false): Map<String, Any?> {
         if (laeuft.get()) return mapOf("ok" to true, "hinweis" to "laeuft schon")
-        if (!modellDa(ctx)) {
+        strommodus = strom
+        // ⚠️ Das Modell wird nur im lokalen Betrieb gebraucht. Im Strommodus
+        // danach zu fragen hiesse, die bessere Erkennung an einer Datei
+        // scheitern zu lassen, die dafuer gar nicht noetig ist.
+        if (!strom && !modellDa(ctx)) {
             return mapOf("ok" to false, "grund" to
                     "Das deutsche Sprachmodell ist noch nicht auf dem Geraet.",
                 "modellFehlt" to true)
@@ -132,9 +152,11 @@ class Untertitel(private val ctx: Context) {
         }
 
         return try {
-            val m = Model(modellOrdner(ctx).absolutePath)
-            modell = m
-            erkenner = Recognizer(m, ZIEL_RATE.toFloat())
+            if (!strom) {
+                val m = Model(modellOrdner(ctx).absolutePath)
+                modell = m
+                erkenner = Recognizer(m, ZIEL_RATE.toFloat())
+            }
 
             laeuft.set(true)
             verworfen.set(0)
@@ -213,6 +235,20 @@ class Untertitel(private val ctx: Context) {
                 } catch (_: InterruptedException) {
                     null
                 } ?: continue
+                if (strommodus) {
+                    // ⚠️ Little-Endian: der Erkenner auf dem Server erwartet
+                    // 16-bit-PCM in genau dieser Reihenfolge. Andersherum
+                    // haetten beide Seiten Rauschen statt Sprache — und nichts
+                    // wuerde fehlschlagen, es kaeme nur nie ein Wort heraus.
+                    val roh = ByteArray(stueck.size * 2)
+                    for (i in stueck.indices) {
+                        val v = stueck[i].toInt()
+                        roh[i * 2] = (v and 0xFF).toByte()
+                        roh[i * 2 + 1] = ((v shr 8) and 0xFF).toByte()
+                    }
+                    melde("ton", mapOf("pcm" to roh))
+                    continue
+                }
                 val e = erkenner ?: break
                 try {
                     // `true` = der Erkenner hat einen Satz abgeschlossen.

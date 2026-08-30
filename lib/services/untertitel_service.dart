@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'logger_service.dart';
 import 'platform_service.dart';
+import 'untertitel_strom.dart';
 
 final _log = LoggerService();
 
@@ -115,6 +116,17 @@ class UntertitelService {
   /// während die Mitschrift läuft.
   Timer? _verfall;
 
+  /// Die Strecke zum Erkenner auf dem Server, wenn er benutzt wird.
+  UntertitelStrom? _serverStrom;
+
+  /// Läuft die Erkennung auf dem Server?
+  ///
+  /// ⚠️ Für den Bildschirm, nicht für die Technik: der Vorsitzende soll sehen
+  /// können, ob gerade das gute Modell arbeitet oder das kleine im Gerät —
+  /// sonst wundert er sich über plötzlich schlechteren Text und hat keine
+  /// Erklärung.
+  final ValueNotifier<bool> aufDemServer = ValueNotifier<bool>(false);
+
   bool get plattformFaehig => PlatformService.isAndroid;
 
   /// Was das Gerät kann. `null` = nicht Android.
@@ -144,7 +156,17 @@ class UntertitelService {
     if (spurId.isEmpty) {
       return 'Die Tonspur der Gegenstelle steht noch nicht — bitte kurz warten.';
     }
+    _letzteSpur = spurId;
     _lauschen();
+
+    // ⚠️ ZUERST DER SERVER, das Gerät als Rückfall. Am Telefonband gemessen:
+    // das Modell im Gerät 17,6 % Wortfehler, das grosse auf dem Server 0,0 %.
+    // Geht der Server nicht, läuft es weiter wie bisher — schlechterer Text
+    // ist besser als keiner.
+    final stromGrund = await _stromStarten(spurId);
+    if (stromGrund == null) return null;
+    _log.info('Untertitel: Server nicht nutzbar ($stromGrund) — '
+        'Modell im Gerät', tag: 'UNTERTITEL');
     try {
       final a = await _kanal.invokeMapMethod<String, dynamic>(
           'starten', {'spurId': spurId, 'sprache': sprache});
@@ -165,12 +187,81 @@ class UntertitelService {
     }
   }
 
+  /// Versucht die Erkennung auf dem Server. `null` heisst: sie läuft.
+  Future<String?> _stromStarten(String spurId) async {
+    final st = UntertitelStrom(
+      aufText: (art, text) {
+        // ⚠️ Dieselben Namen wie beim Erkennen im Gerät — die Anzeige muss
+        // nicht wissen, wo gerechnet wurde.
+        if (art == 'satz') {
+          _vorlaeufig = '';
+          final t = text.trim();
+          if (t.isNotEmpty) {
+            _saetze.add((satz: t, seit: DateTime.now()));
+            while (_saetze.length > _hoechstens) {
+              _saetze.removeAt(0);
+            }
+          }
+        } else {
+          _vorlaeufig = text.trim();
+        }
+        _zeigen();
+      },
+      aufAbbruch: (grund) {
+        // ⚠️ Nicht einfach still werden: reisst die Strecke mitten im Gespräch
+        // ab, wird auf das Gerät umgeschaltet. Sonst stünde der Text plötzlich
+        // und ohne Erklärung.
+        _log.warning('Untertitel: Serverstrecke abgerissen ($grund)',
+            tag: 'UNTERTITEL');
+        aufDemServer.value = false;
+        unawaited(_aufGeraetUmschalten());
+      },
+    );
+    final grund = await st.starten();
+    if (grund != null) return grund;
+
+    try {
+      final a = await _kanal.invokeMapMethod<String, dynamic>(
+          'starten', {'spurId': spurId, 'sprache': 'de', 'strom': true});
+      if (a?['ok'] != true) {
+        await st.beenden();
+        return '${a?['grund'] ?? 'Tonspur nicht nutzbar'}';
+      }
+    } catch (e) {
+      await st.beenden();
+      return '$e';
+    }
+    _serverStrom = st;
+    aktiv.value = true;
+    aufDemServer.value = true;
+    hindernis.value = null;
+    return null;
+  }
+
+  /// Reisst die Serverstrecke ab, wird auf das Modell im Gerät gewechselt.
+  Future<void> _aufGeraetUmschalten() async {
+    final spur = _letzteSpur;
+    await beenden();
+    if (spur == null || spur.isEmpty) return;
+    final grund = await starten(spur);
+    if (grund != null) {
+      hindernis.value = grund;
+    }
+  }
+
+  /// Die zuletzt benutzte Tonspur — für den Wechsel auf das Gerät.
+  String? _letzteSpur;
+
   Future<void> beenden() async {
     _horcher?.cancel();
     _horcher = null;
     aktiv.value = false;
     _verfall?.cancel();
     _verfall = null;
+    final st = _serverStrom;
+    _serverStrom = null;
+    aufDemServer.value = false;
+    if (st != null) await st.beenden();
     // ⚠️ Hier verschwindet der Text, und das ist der Zweck.
     _saetze.clear();
     _vorlaeufig = '';
@@ -188,6 +279,12 @@ class UntertitelService {
     _horcher ??= _strom.receiveBroadcastStream().listen((e) {
       if (e is! Map) return;
       switch ('${e['art']}') {
+        case 'ton':
+          // ⚠️ Im Strommodus erkennt das Gerät nicht mehr selbst, es reicht
+          // nur die Tonstücke durch (16-bit-PCM, 16 kHz, mono).
+          final pcm = e['pcm'];
+          if (pcm is List<int>) _serverStrom?.ton(pcm);
+          break;
         case 'teil':
           // Zwischenstand: der angefangene Satz, hinter den fertigen.
           _vorlaeufig = '${e['text'] ?? ''}'.trim();

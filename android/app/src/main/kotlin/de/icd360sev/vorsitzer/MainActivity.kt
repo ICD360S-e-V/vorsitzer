@@ -96,7 +96,8 @@ class MainActivity : FlutterActivity() {
                     "faehigkeiten" -> result.success(ut.faehig())
                     "starten" -> result.success(ut.starten(
                         call.argument<String>("spurId") ?: "",
-                        call.argument<String>("sprache") ?: "de-DE"))
+                        call.argument<String>("sprache") ?: "de-DE",
+                        call.argument<Boolean>("strom") ?: false))
                     "stoppen" -> result.success(ut.stoppen())
                     else -> result.notImplemented()
                 }
