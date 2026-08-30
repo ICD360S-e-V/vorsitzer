@@ -18,6 +18,62 @@ import '../utils/app_farben.dart';
 
 /// Die gemerkten Empfänger aus einem gespeicherten Entwurf.
 ///
+/// Die beiden Fristen eines Fax als ein Satz — oder null, wenn nichts zu
+/// sagen ist.
+///
+/// ⚠️ RECHNET NICHT. Beide Zahlen kommen fertig vom Server
+/// (`sipgateFaxFristen()` in sipgate_fax_lib.php), weil dort auch die Läufe
+/// stehen, die tatsächlich wegräumen und löschen. Eine zweite Kopie der Regel
+/// hier liefe beim ersten Ändern der Frist auseinander — und wäre dann genau
+/// da falsch, wo jemand sich darauf verlässt: „noch 30 Tage" auf einem Fax,
+/// das heute nacht wegfällt. Ein Selbsttest auf dem Server hält Anzeige und
+/// Läufe gegeneinander; er hat diese Abweichung schon einmal gefunden.
+///
+/// Gibt `(archiv, inhalt)` zurück; beide können leer sein.
+({String archiv, String inhalt}) faxFristTexte(Map<String, dynamic>? fristen) {
+  if (fristen == null) return (archiv: '', inhalt: '');
+
+  String tageText(int t) => switch (t) {
+        0 => 'heute',
+        1 => 'morgen',
+        < 0 => 'überfällig',
+        _ => 'in $t Tagen',
+      };
+
+  String datumDe(String? iso) {
+    if (iso == null || iso.length < 10) return '';
+    return '${iso.substring(8, 10)}.${iso.substring(5, 7)}.${iso.substring(0, 4)}';
+  }
+
+  final a = fristen['archiv'] as Map<String, dynamic>?;
+  final i = fristen['inhalt'] as Map<String, dynamic>?;
+
+  final aTage = (a?['tage'] as num?)?.toInt();
+  final aGrund = (a?['grund'] ?? '').toString();
+  final archiv = aTage != null
+      ? 'Archiv ${tageText(aTage)}'
+          '${aGrund.isEmpty ? '' : ' · $aGrund'}'
+      : aGrund;
+
+  final iTage = (i?['tage'] as num?)?.toInt();
+  final iGrund = (i?['grund'] ?? '').toString();
+  // ⚠️ Bei der Inhaltsfrist steht das DATUM vorn und die Tageszahl dahinter.
+  // „in 2316 Tagen" allein kann niemand einordnen; ein Datum schon. Umgekehrt
+  // ist die Tageszahl bei der Archivfrist das Nützlichere — dort sind es
+  // immer unter vierzehn.
+  //
+  // ⚠️ Beide Sätze kommen getrennt zurück und werden NICHT mit „·" verkettet.
+  // Beim Rendern auf 360 dp gesehen: aneinandergehängt ergaben sie einen
+  // Fließtext, der in vier von fünf Fällen mitten in einer Angabe umbrach
+  // („… noch 2316 / Tage"). Zwei kurze Zeilen liest man, einen umbrechenden
+  // Bandwurm überfliegt man.
+  final inhalt = iTage != null
+      ? 'Inhalt bis ${datumDe(i?['am'] as String?)} · noch $iTage Tage'
+      : iGrund;
+
+  return (archiv: archiv, inhalt: inhalt);
+}
+
 /// ⚠️ Frei stehend und nicht in der Zustandsklasse, damit sie ohne
 /// Bildschirm geprüft werden kann. Ein Entwurf kommt aus dem Speicher des
 /// Geräts, also aus einer Quelle, die eine ältere Fassung geschrieben haben
@@ -1729,6 +1785,76 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     await _laden();
   }
 
+  /// Die Löschsperre setzen oder aufheben.
+  ///
+  /// ⚠️ WOFÜR: nach sechs Jahren entfernt ein Fristlauf auf dem Server den
+  /// Inhalt — das Dokument geht, der Nachweis (Empfänger, Zeitpunkt, Seiten,
+  /// Ergebnis, Prüfsummen) bleibt. Art. 17 Abs. 3 lit. e DSGVO erlaubt es,
+  /// länger aufzubewahren, solange ein Verfahren läuft; nur weiß das niemand,
+  /// wenn es nirgends steht. Dieser Schalter ist die Stelle, an der es steht.
+  ///
+  /// ⚠️ Der Grund ist Pflicht, und zwar serverseitig. In fünf Jahren muss
+  /// jemand entscheiden können, ob die Sperre noch gilt — mit „gesperrt" allein
+  /// geht das nicht.
+  Future<void> _loeschsperre(Map<String, dynamic> f) async {
+    final an = f['nicht_loeschen'] != true;
+    final grund = TextEditingController();
+    final alt = (f['nicht_loeschen_grund'] ?? '').toString();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(an ? 'Nicht löschen?' : 'Sperre aufheben?'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            an
+                ? 'Nach sechs Jahren entfernt der Server das Dokument und kürzt '
+                  'den Sendebericht auf einen Auszug ohne Seitenbild. Empfänger, '
+                  'Zeitpunkt, Seitenzahl, Ergebnis und die Prüfsummen bleiben.\n\n'
+                  'Mit der Sperre passiert das nicht, solange sie steht — für '
+                  'Faxe, zu denen ein Verfahren läuft.'
+                : 'Danach gilt wieder die normale Frist: sechs Jahre ab '
+                  'Jahresende, dann geht der Inhalt.'
+                  '${alt.isEmpty ? '' : '\n\nBisheriger Grund: $alt'}',
+            style: const TextStyle(fontSize: 13, height: 1.4),
+          ),
+          if (an) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: grund,
+              autofocus: true,
+              maxLength: 200,
+              decoration: const InputDecoration(
+                labelText: 'Welches Verfahren?',
+                hintText: 'z. B. Klage SG Ulm, S 5 AS 123/26',
+                helperText: 'Kommt ins Protokoll',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: Text(an ? 'Sperren' : 'Aufheben')),
+        ],
+      ),
+    );
+    final text = grund.text.trim();
+    grund.dispose();
+    if (ok != true) return;
+
+    final r = await _api.sipgateFaxAction({
+      'action': 'loeschsperre',
+      'id': f['id'],
+      'sperren': an,
+      'grund': text,
+    });
+    _melde(r['message']?.toString() ?? '', fehler: r['success'] != true);
+    await _laden();
+  }
+
   /// Ein Fax ins Archiv legen — es wird NICHT mehr gelöscht.
   ///
   /// 🔴 Bis zum 23.08.2026 hieß dieser Knopf „Löschen" und tat das auch:
@@ -2700,6 +2826,17 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     // eine abgelaufene Frist (die keine hat), und man müsste jedes Mal ins
     // Protokoll schauen, um zu wissen, welche von beidem es war.
     final archivAuto = imArchiv && f['abgelegt_art'] == 'auto';
+    // Nach Ablauf der Aufbewahrungsfrist entfernt der Server das Dokument und
+    // kürzt den Sendebericht auf einen Auszug. `hat_dokument` wird dadurch von
+    // selbst falsch, die Knöpfe verschwinden also ohne Zutun — aber ohne einen
+    // Hinweis sähe das aus, als sei etwas verloren gegangen. Genau der
+    // Unterschied, den ein Nachweisarchiv benennen muss.
+    final inhaltWeg = (f['inhalt_geloescht_am'] ?? '').toString().isNotEmpty;
+    final gesperrt = f['nicht_loeschen'] == true;
+    // Fertig gerechnet vom Server — siehe faxFristTexte.
+    final fristen = faxFristTexte(f['fristen'] as Map<String, dynamic>?);
+    final fristArchiv = fristen.archiv;
+    final fristInhalt = fristen.inhalt;
     // Ob das Dokument, das rausging, ein Siegel trug. Zusammen mit der
     // Prüfsumme ist das die Aussage „was gesendet wurde, war das gesiegelte
     // Dokument, unverändert" — bei einer Vollmacht genau die Frage, die
@@ -2769,6 +2906,66 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               // in der Datenbank, ohne je angezeigt zu werden.
               '${gesendetVon.isNotEmpty ? ' · von $gesendetVon' : ''}',
               style: TextStyle(color: farbe, fontSize: 12)),
+          // ⚠️ Beide Uhren an jeder Karte, ausdrücklich gewünscht. Sie
+          // beantworten die zwei Fragen, die man sonst nur durch Nachzählen
+          // beantworten kann: „wann verschwindet das aus meiner Liste?" und
+          // „wie lange habe ich das Dokument noch?".
+          //
+          // ⚠️ Grau und klein: es ist Randinformation, kein Befund. Rot oder
+          // fett stünde neben einem fehlgeschlagenen Fax und zöge den Blick
+          // von der Zeile weg, auf die es ankommt.
+          if (fristArchiv.isNotEmpty || fristInhalt.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.schedule_outlined, size: 12, color: F.h(Colors.grey, 600)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final t in [fristArchiv, fristInhalt])
+                        if (t.isNotEmpty)
+                          Text(t,
+                              style: TextStyle(
+                                  fontSize: 11.5,
+                                  height: 1.35,
+                                  color: F.h(Colors.grey, 600))),
+                    ],
+                  ),
+                ),
+              ]),
+            ),
+          // ⚠️ MUSS DASTEHEN. Nach Ablauf der Frist fehlt das Dokument, und
+          // die Knöpfe dafür verschwinden von selbst — was von außen genauso
+          // aussieht wie ein Datenverlust. Ein Nachweisarchiv, das nicht sagt,
+          // warum etwas fehlt, sät genau den Zweifel, den es ausräumen soll.
+          if (inhaltWeg)
+            Row(children: [
+              Icon(Icons.auto_delete_outlined, size: 12, color: F.h(Colors.grey, 700)),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                    'Aufbewahrungsfrist abgelaufen — Dokument entfernt. '
+                    'Empfänger, Zeitpunkt, Seitenzahl, Ergebnis und die '
+                    'Prüfsummen bleiben; der Sendebericht liegt als Auszug vor.',
+                    style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
+              ),
+            ]),
+          // Eine Sperre ist eine Aussage über ein laufendes Verfahren. Sie
+          // gehört sichtbar an die Zeile — sonst fällt in fünf Jahren
+          // niemandem auf, dass sie noch steht.
+          if (gesperrt)
+            Row(children: [
+              Icon(Icons.gavel_outlined, size: 12, color: F.h(Colors.indigo, 700)),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                    'Nicht löschen — Verfahren läuft'
+                    '${(f['nicht_loeschen_grund'] ?? '').toString().isEmpty ? '' : ': ${f['nicht_loeschen_grund']}'}',
+                    style: TextStyle(fontSize: 11.5, color: F.h(Colors.indigo, 700))),
+              ),
+            ]),
           // ⚠️ Ein nachgetragenes Fax ist NICHT dasselbe wie eines aus
           // unserem Sendeweg: wir wissen davon nur, was sipgate erzählt —
           // kein Anlass, kein Bezug, keine Notiz. Das muss man ihm ansehen,
@@ -2918,6 +3115,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               'stand'    => _nachsehen(f),
               'weglegen'    => _weglegen(f),
               'zurueckholen'=> _zurueckholen(f),
+              'sperre'      => _loeschsperre(f),
               'mappe'       => _mappe(f),
               'protokoll'   => _fahrtenbuch(f),
               _          => null,
@@ -2998,6 +3196,22 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
                 const PopupMenuItem(value: 'weglegen',
                     child: ListTile(leading: Icon(Icons.archive_outlined),
                         title: Text('Ins Archiv legen'))),
+              // ⚠️ Nur solange es noch etwas zu schützen gibt. Auf einem
+              // bereits gelöschten Inhalt wäre die Sperre eine Zusage, die
+              // niemand mehr einlösen kann — der Server lehnt sie dort auch ab.
+              if (!inhaltWeg)
+                PopupMenuItem(
+                    value: 'sperre',
+                    child: ListTile(
+                        leading: Icon(gesperrt ? Icons.lock_open_outlined : Icons.gavel_outlined),
+                        title: Text(gesperrt
+                            ? 'Löschsperre aufheben'
+                            : 'Nicht löschen — Verfahren läuft'),
+                        subtitle: Text(
+                            gesperrt
+                                ? 'danach gilt wieder die normale Frist'
+                                : 'hält die Aufbewahrungsfrist an',
+                            style: const TextStyle(fontSize: 11)))),
             ],
           ),
         ]),
