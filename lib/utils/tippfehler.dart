@@ -28,6 +28,9 @@ class Tippfehler {
   /// Wörter nach Länge, innerhalb der Länge nach Häufigkeit.
   final Map<int, List<String>> _nachLaenge;
 
+  /// Rang jedes Wortes in der Häufigkeitsliste (0 = häufigstes).
+  final Map<String, int> _rang;
+
   /// Zu jedem Wort ein Bitmuster seiner Buchstaben — dieselbe Reihenfolge
   /// wie [_nachLaenge].
   ///
@@ -40,9 +43,16 @@ class Tippfehler {
   final Map<int, List<int>> _muster;
   final Set<String> _alle;
 
-  const Tippfehler._(this._nachLaenge, this._muster, this._alle);
+  const Tippfehler._(this._nachLaenge, this._rang, this._muster, this._alle);
 
-  static const Tippfehler leer = Tippfehler._({}, {}, {});
+  static const Tippfehler leer = Tippfehler._({}, {}, {}, {});
+
+  /// Ab welchem Verhältnis der Häufigkeiten ein Gleichstand doch entschieden
+  /// wird. ⚠️ Gemessen, nicht gewählt — siehe Klassenkopf.
+  static const rangFaktor = 10;
+
+  /// Erst ab dieser Länge darf die Häufigkeit einen Gleichstand auflösen.
+  static const mindestLaengeFuerRang = 6;
 
   bool get bereit => _alle.isNotEmpty;
 
@@ -51,14 +61,17 @@ class Tippfehler {
   factory Tippfehler.aufbauen(Iterable<String> woerter) {
     final nachLaenge = <int, List<String>>{};
     final muster = <int, List<int>>{};
+    final rang = <String, int>{};
     final alle = <String>{};
+    var n = 0;
     for (final w in woerter) {
+      rang[w] = n++;
       if (w.length < mindestLaenge) continue;
       (nachLaenge[w.length] ??= <String>[]).add(w);
       (muster[w.length] ??= <int>[]).add(bitmuster(w));
       alle.add(w);
     }
-    return Tippfehler._(nachLaenge, muster, alle);
+    return Tippfehler._(nachLaenge, rang, muster, alle);
   }
 
   /// Ein Bit je Buchstabe. Alles jenseits der 31 Klassen landet im letzten
@@ -92,8 +105,8 @@ class Tippfehler {
 
     final grenze = _erlaubterAbstand(klein.length);
     String? bester;
+    String? zweiter;
     var besterAbstand = grenze + 1;
-    var mehrdeutig = false;
 
     final eigenes = bitmuster(klein);
     for (var l = klein.length - grenze; l <= klein.length + grenze; l++) {
@@ -112,18 +125,35 @@ class Tippfehler {
         if (a == null || a > besterAbstand) continue;
         if (a < besterAbstand) {
           besterAbstand = a;
+          zweiter = null;
           bester = kandidat;
-          mehrdeutig = false;
         } else if (a == besterAbstand && kandidat != bester) {
-          // ⚠️ Gleich weit weg heißt: man weiß es nicht. Die Häufigkeit
-          // entscheiden zu lassen wäre bequem und falsch — „care" und „mare"
-          // sind beide einen Schritt von „sare" entfernt, und welches gemeint
-          // war, steht in keiner Häufigkeitsliste.
-          mehrdeutig = true;
+          // Der beste Zweitplatzierte reicht — er entscheidet unten, ob der
+          // Gleichstand aufgelöst werden darf.
+          if (zweiter == null ||
+              (_rang[kandidat] ?? 1 << 30) < (_rang[zweiter] ?? 1 << 30)) {
+            zweiter = kandidat;
+          }
         }
       }
     }
-    if (bester == null || mehrdeutig) return null;
+    if (bester == null) return null;
+    if (zweiter != null) {
+      // ⚠️ Gleicher Abstand heißt fast immer: man weiß es nicht. Fast —
+      // denn „scurtte" liegt einen Schritt von „scurte" UND von „scurtate",
+      // und da ist die Sache eindeutig. Aufgelöst wird deshalb nur bei einem
+      // deutlichen Abstand in der Häufigkeit; bei „nare" (mare/care) liegen
+      // die Ränge dicht beieinander und es bleibt beim Nichtstun.
+      // ⚠️ NUR bei langen Wörtern. Gemessen: mit dieser Auflösung auch für
+      // kurze stiegen die falschen Korrekturen von 0 auf 18 — und zwar
+      // ausnahmslos dort: „nmai" wurde „mai" statt „numai", „dmn" wurde
+      // „din" statt „domn". Bei drei, vier Buchstaben ist ein sehr häufiges
+      // Wort fast immer der nächste Nachbar, ohne dass es gemeint wäre.
+      if (klein.length < mindestLaengeFuerRang) return null;
+      final r1 = _rang[bester] ?? 1 << 30;
+      final r2 = _rang[zweiter] ?? 1 << 30;
+      if (r1 == 0 || r2 < r1 * rangFaktor) return null;
+    }
     return WortIndex.schreibungUebernehmen(wort, bester);
   }
 

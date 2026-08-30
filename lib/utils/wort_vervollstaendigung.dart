@@ -85,16 +85,26 @@ class WortIndex {
     if (fach == null) return const [];
 
     final treffer = <String>[];
+    String? gleicheLaenge;
     for (final wort in fach) {
       // Was schon zeichengleich dasteht, ist kein Vorschlag. Die Fassung
       // OHNE Häkchen bleibt dagegen einer — sie ist ja gerade der Gewinn.
       if (wort == angefangen) continue;
       if (!ohneDiakritika(wort).startsWith(gesucht)) continue;
+      // ⚠️ Ein Wort gleicher Länge unterscheidet sich NUR in den Häkchen —
+      // es ist also dasselbe Wort, richtig geschrieben, und nicht bloß eines,
+      // das genauso anfängt. An echten Nachrichten aufgefallen: „numar" wurde
+      // „numărul" statt „număr", weil die längere Form häufiger ist.
+      gleicheLaenge ??= wort.length == angefangen.length ? wort : null;
       treffer.add(wort);
       // Das Fach ist nach Häufigkeit sortiert, also sind die ersten Treffer
       // die besten — hier abzubrechen kostet nichts und spart bei „de" oder
       // „co" den Durchlauf durch Zehntausende Einträge.
       if (treffer.length >= hoechstens) break;
+    }
+    if (gleicheLaenge != null && treffer.first != gleicheLaenge) {
+      treffer.remove(gleicheLaenge);
+      treffer.insert(0, gleicheLaenge);
     }
     return treffer;
   }
@@ -104,7 +114,13 @@ class WortIndex {
   /// ⚠️ Zeichengleich, also MIT Häkchen. Genau darauf beruht die Regel für
   /// die Eingabetaste: „multumesc" ist kein Wort der Liste (nur „mulțumesc"
   /// ist eines), deshalb wird dort vervollständigt statt gesendet.
-  bool kennt(String wort) => wort.length >= 2 && _alle.contains(wort);
+  /// ⚠️ Auch klein geschrieben nachschlagen. Die Liste führt „acceptă" und
+  /// „bună", nicht „Acceptă" und „Bună" — am Satzanfang gilt sonst ein völlig
+  /// richtiges Wort als unbekannt und wird „verbessert". An echten
+  /// Nachrichten aufgefallen: aus „Acceptă-l cu bucurie." wurde „Accepta-l".
+  bool kennt(String wort) =>
+      wort.length >= 2 &&
+      (_alle.contains(wort) || _alle.contains(wort.toLowerCase()));
 
   /// Überträgt die Groß-/Kleinschreibung des Getippten auf den Vorschlag.
   /// Wer „Multu" schreibt, will „Mulțumesc", nicht „mulțumesc".

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show LogicalKeyboardKey;
 
 import '../services/wortliste_service.dart';
 import '../utils/app_farben.dart';
+import '../utils/auto_korrektur.dart';
 import '../utils/wort_vervollstaendigung.dart';
 
 /// Zeigt über dem Schreibfeld Vorschläge zum angefangenen Wort und übernimmt
@@ -312,42 +313,16 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
   /// großgeschriebener Eigenname mitten im Satz bleiben unangetastet.
   void vorDemSenden() {
     if (!widget.aktiv || !mounted) return;
-    final d = WortlisteService.diakritika;
-    if (!d.bereit) return;
     final text = widget.controller.text;
-    if (text.isEmpty) return;
-
-    final letztes = AngefangenesWort.ausEingabe(text, text.length);
-    if (letztes == null) return;
-    final davor = letztes.von > 0
-        ? AngefangenesWort.ausEingabe(text, letztes.von - 1)
-        : null;
-    final davorDavor = davor == null || davor.von == 0
-        ? null
-        : AngefangenesWort.ausEingabe(text, davor.von - 1);
-
-    final neu = _erlaubt(letztes, text)
-        ? (d.korrektur(letztes.text, links: davor?.text) ??
-            WortlisteService.tippfehler.korrektur(letztes.text))
-        : null;
-    final neuDavor = davor != null && _erlaubt(davor, text)
-        ? d.korrektur(davor.text, links: davorDavor?.text, rechts: letztes.text)
-        : null;
-    if (neu == null && neuDavor == null) return;
-
-    var ergebnis = text;
-    if (neu != null) {
-      ergebnis = ergebnis.replaceRange(letztes.von, letztes.bis, neu);
-    }
-    if (neuDavor != null) {
-      ergebnis = ergebnis.replaceRange(davor!.von, davor.bis, neuDavor);
-    }
-    if (ergebnis == text) return;
-    _letzterText = ergebnis;
+    // ⚠️ Dieselbe Funktion wie im Blitz — siehe [autoKorrigiert]. Zwei
+    // Fassungen derselben Regel wären zwei Fassungen, die auseinanderlaufen.
+    final neu = autoKorrigiert(text, inRuheLassen: _inRuheLassen);
+    if (neu == text) return;
+    _letzterText = neu;
     _rueckgaengig = null;
     widget.controller.value = TextEditingValue(
-      text: ergebnis,
-      selection: TextSelection.collapsed(offset: ergebnis.length),
+      text: neu,
+      selection: TextSelection.collapsed(offset: neu.length),
     );
   }
 
