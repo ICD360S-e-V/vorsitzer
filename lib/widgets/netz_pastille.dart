@@ -51,7 +51,11 @@ class _LogoState extends State<_Logo> {
   Widget build(BuildContext context) {
     final svg = netzlogoSpeicher[widget.schluessel];
     if (svg == null) {
-      return Text(widget.ersatz, style: const TextStyle(fontSize: 10));
+      // Leerer Ersatz heisst: der Name steht ohnehin daneben. Ihn ein zweites
+      // Mal zu setzen wäre nur Lärm.
+      return widget.ersatz.isEmpty
+          ? const SizedBox.shrink()
+          : Text(widget.ersatz, style: const TextStyle(fontSize: 10));
     }
     return SvgPicture.string(svg, height: 12);
   }
@@ -94,14 +98,27 @@ class NetzPastille extends StatelessWidget {
 
     final teile = <Widget>[];
 
-    if (logo != null && netz != null) {
-      teile.add(_netzZeichen(context, logo, netz, hinweis));
+    // ⚠️ DER NAME STEHT IMMER DA, DAS ZEICHEN KOMMT DAZU.
+    //
+    // Vorher erschien bei den vier grossen Netzen nur das Logo und bei allen
+    // anderen nur ein Name — das las sich, als fehle mal das eine, mal das
+    // andere. Es sind aber 102 Zuteilungsinhaber im Verzeichnis der
+    // Bundesnetzagentur; für 98 davon haben wir kein Zeichen, und eines zu
+    // erfinden hiesse, Zugehörigkeiten zu behaupten, die nirgends stehen.
+    //
+    // Also: der Name ist die Auskunft, das Logo ist Beiwerk. Eine Zeile ohne
+    // Logo sieht damit nicht mehr nach fehlender Auskunft aus.
+    final zuteilung = e['zuteilung'] as String?;
+    if (zuteilung != null || netz != null) {
+      teile.add(_netzZeichen(
+        context,
+        logo,
+        netz ?? _kurz(zuteilung!),
+        hinweis,
+        istMobil: art == 'mobil',
+      ));
     } else if (art == 'mobil') {
-      // Kein Logo heisst nicht „unbekannt": bei den MVNO steht der
-      // Zuteilungsinhaber sehr wohl fest, nur sein Netz nicht.
-      final zuteilung = e['zuteilung'] as String?;
-      teile.add(_text(context, zuteilung == null ? 'Mobilfunk' : _kurz(zuteilung),
-          Icons.smartphone, Colors.blueGrey, hinweis));
+      teile.add(_text(context, 'Mobilfunk', Icons.smartphone, Colors.blueGrey, null));
     }
 
     if (ort != null) {
@@ -128,9 +145,10 @@ class NetzPastille extends StatelessWidget {
     return ohneKlammer.length > 28 ? '${ohneKlammer.substring(0, 27)}…' : ohneKlammer;
   }
 
-  Widget _netzZeichen(BuildContext ctx, String logo, String netz, String? hinweis) {
+  Widget _netzZeichen(BuildContext ctx, String? logo, String name, String? hinweis,
+      {bool istMobil = false}) {
     return Tooltip(
-      message: hinweis ?? netz,
+      message: hinweis ?? name,
       child: InkWell(
         // Auf dem Telefon gibt es keinen Zeiger, der über einem Tooltip stehen
         // bleibt — deshalb zusätzlich antippbar.
@@ -139,7 +157,7 @@ class NetzPastille extends StatelessWidget {
             : () => showDialog<void>(
                   context: ctx,
                   builder: (c) => AlertDialog(
-                    title: Text('Netz: $netz'),
+                    title: Text((istMobil ? 'Mobilfunk: ' : 'Festnetz: ') + name),
                     content: Text(hinweis),
                     actions: [
                       TextButton(
@@ -155,7 +173,13 @@ class NetzPastille extends StatelessWidget {
             borderRadius: BorderRadius.circular(6),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            _Logo(schluessel: logo, ersatz: netz),
+            // Das Zeichen NUR, wenn wir eines haben — und nie an seiner Stelle
+            // eine Lücke: der Name kommt gleich danach.
+            if (logo != null) ...[
+              _Logo(schluessel: logo, ersatz: ''),
+              const SizedBox(width: 4),
+            ],
+            Text(name, style: const TextStyle(fontSize: 10)),
             if (!kompakt) ...[
               const SizedBox(width: 5),
               // „Block", nicht „Anbieter" — der Unterschied ist der ganze Punkt.

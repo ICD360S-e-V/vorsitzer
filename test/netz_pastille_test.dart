@@ -41,9 +41,9 @@ void main() {
     });
     expect(find.text('Block'), findsOneWidget);
     expect(find.text('Anbieter'), findsNothing);
-    // Das Logo lädt im Test nicht (kein Netz) — der Rückfall muss den Namen
-    // zeigen, statt eine Lücke zu lassen, die wie eine fehlende Auskunft
-    // aussieht.
+    // ⚠️ Der Name steht IMMER da, mit oder ohne Logo. Vorher erschien bei den
+    // vier grossen Netzen nur das Zeichen und bei allen anderen nur ein Name —
+    // das las sich, als fehle mal das eine, mal das andere.
     expect(find.text('Telekom'), findsOneWidget);
   });
 
@@ -75,6 +75,22 @@ void main() {
     expect(find.textContaining('kostenpflichtig'), findsOneWidget);
   });
 
+  testWidgets('Festnetz nennt jetzt auch den Anbieter', (t) async {
+    // ⚠️ Das stand vorher nicht da: aus dem Verzeichnis der Bundesnetzagentur
+    // wurden nur die 5.200 Ort-Paare gelesen und die Spalte
+    // `KurznameAnbieter` weggeworfen — obwohl sie je TAUSENDERblock dasteht,
+    // also genauer als im Mobilfunk.
+    await zeige(t, {
+      'art': 'festnetz', 'art_text': 'Festnetz', 'ort': 'Ulm Donau',
+      'zuteilung': 'Netzquadrat', 'netz': null, 'logo': null,
+      'hinweis': 'Rufnummernblock zugeteilt an Netzquadrat — kann portiert sein',
+    });
+    expect(find.text('Ulm Donau'), findsOneWidget);
+    expect(find.text('Netzquadrat'), findsOneWidget);
+    // Auch beim Festnetz wird portiert — innerhalb desselben Ortsnetzes.
+    expect(find.text('Block'), findsOneWidget);
+  });
+
   testWidgets('MVNO ohne Netz: der Zuteilungsinhaber statt einer Lücke', (t) async {
     // `netz` ist leer, weil in DIESEN Daten nicht steht, in wessen Netz Lycatel
     // funkt. Der Zuteilungsinhaber steht aber fest.
@@ -97,8 +113,8 @@ void main() {
     });
     await t.pumpAndSettle();
     expect(find.byType(SvgPicture), findsOneWidget);
-    // Der Name weicht dem Bild — aber „Block" bleibt, das ist die Aussage.
-    expect(find.text('Telekom'), findsNothing);
+    // Das Zeichen kommt DAZU, es ersetzt den Namen nicht.
+    expect(find.text('Telekom'), findsOneWidget);
     expect(find.text('Block'), findsOneWidget);
   });
 
