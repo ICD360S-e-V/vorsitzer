@@ -200,11 +200,22 @@ void main() {
       expect(satz('documentele pana maine'), contains('până'));
     });
 
-    test('was NICHT abgedeckt ist, bleibt unangetastet — kein Raten', () {
-      // ⚠️ Die Regeln greifen bei rund 40 % der fehlenden Häkchen. Der Rest
-      // bleibt stehen, und das ist gewollt: eine geratene Korrektur wäre
-      // schlimmer als eine fehlende, weil sie den Sinn verdreht.
-      expect(satz('stiu ca nu a venit'), 'stiu ca nu a venit');
+    test('die häufigsten Wendungen sind abgedeckt', () {
+      // ⚠️ Diese Zeile hielt einmal das Gegenteil fest — 》stiu ca《 blieb
+      // stehen. Gemeldet aus dem Betrieb: 》sa《 und 》ca《 würden nicht
+      // korrigiert. Ursache war der Korpusfilter: beide SIND rumänische
+      // Wörter, ein Satz mit ihnen fiel also nicht auf und verdarb das
+      // Verhältnis. Seit nur noch Sätze zählen, die selbst Häkchen tragen,
+      // stieg die Trefferquote von 39,7 % auf 71,3 %.
+      expect(satz('stiu ca nu a venit'), 'stiu că nu a venit');
+      expect(satz('trebuie sa rezolv'), contains('să'));
+      expect(satz('vrei sa ma vezi'), 'vrei să mă vezi');
+    });
+
+    test('was weiterhin NICHT abgedeckt ist, bleibt unangetastet', () {
+      // Ein knappes Drittel bleibt stehen, und das ist gewollt: eine
+      // geratene Korrektur wäre schlimmer als eine fehlende.
+      expect(satz('o pana de curent'), 'o pana de curent');
     });
 
     test('lässt richtiges Futur in Ruhe', () {

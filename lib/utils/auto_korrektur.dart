@@ -33,9 +33,22 @@ String autoKorrigiert(String text, {Set<String> inRuheLassen = const {}}) {
         !AngefangenesWort.istSatzanfang(text, w.von)) {
       return null;
     }
-    return WortlisteService.diakritika
+    final aus = WortlisteService.diakritika
             .korrektur(w.text, links: links, rechts: rechts) ??
         WortlisteService.tippfehler.korrektur(w.text);
+    if (aus != null) return aus;
+
+    // ⚠️ Auch die Vervollständigung, aber NUR wo sie gleich lang ist.
+    // „marti" wird so noch zu „marți" — es fehlten ja bloß die Häkchen.
+    // Ein längerer Vorschlag ist hier verboten: wer mitten im Wort auf
+    // Senden drückt, hat „mult" geschrieben und nicht „mulțumesc" gemeint.
+    if (WortlisteService.index.kennt(w.text)) return null;
+    for (final v in WortlisteService.index.vorschlaege(w.text)) {
+      if (v.length == w.text.length) {
+        return WortIndex.schreibungUebernehmen(w.text, v);
+      }
+    }
+    return null;
   }
 
   final neu = pruefen(letztes, links: davor?.text);
