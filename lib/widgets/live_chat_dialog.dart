@@ -1690,7 +1690,17 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
           isUploading: _isUploading,
           onRemove: (file) => setState(() => _selectedFiles.remove(file)),
         ),
-        Row(
+        // ⚠️ Die Vorschlagsleiste umschließt die ganze Zeile, nicht nur das
+        // Textfeld. Sonst käme der Sendeknopf nicht an [vorDemSenden] vorbei.
+        WortVorschlaege(
+          controller: _messageController,
+          bauen: (vorDemSenden) {
+            void senden() {
+              vorDemSenden();
+              _sendMessage();
+            }
+
+            return Row(
           children: [
             // Attachment button
             IconButton(
@@ -1707,11 +1717,9 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
             Expanded(
               child: PasteImageDetector(
                 onPaste: _pasteFromClipboard,
-                child: WortVorschlaege(
-                  controller: _messageController,
-                  bauen: (_) => EingabeTasten(
-                  onSend: _sendMessage,
-                  bauen: (senden) => TextField(
+                child: EingabeTasten(
+                  onSend: senden,
+                  bauen: (abgesichert) => TextField(
                   controller: _messageController,
                   onChanged: (text) {
                     _onTyping();
@@ -1719,7 +1727,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
                   },
                   // Beide Wege auf dieselbe abgesicherte Funktion — siehe
                   // [EingabeTasten].
-                  onSubmitted: (_) => senden(),
+                  onSubmitted: (_) => abgesichert(),
                   // Gboard schickt Bilder und GIFs direkt aus der Tastatur.
                   // Ohne Handler zeigt Android nur „Feld unterstützt das nicht".
                   contentInsertionConfiguration: ContentInsertionConfiguration(
@@ -1739,7 +1747,6 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
                   enabled: !_isLoading,
                 ),
                 ),
-                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -1756,10 +1763,12 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
                         ),
                       )
                     : const Icon(Icons.send, color: Colors.white, size: 20),
-                onPressed: _isSending ? null : _sendMessage,
+                onPressed: _isSending ? null : senden,
               ),
             ),
           ],
+        );
+          },
         ),
       ],
     );

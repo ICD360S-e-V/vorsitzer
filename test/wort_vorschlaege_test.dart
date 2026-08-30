@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/services/wortliste_service.dart';
+import 'package:icd360sev_vorsitzer/utils/diakritika.dart';
+import 'package:icd360sev_vorsitzer/utils/tippfehler.dart';
 import 'package:icd360sev_vorsitzer/utils/wort_vervollstaendigung.dart';
 import 'package:icd360sev_vorsitzer/widgets/eingabe_tasten.dart';
 import 'package:icd360sev_vorsitzer/widgets/wort_vorschlaege.dart';
@@ -17,6 +19,15 @@ void main() {
         // Genau die Wörter, an denen der echte Test gescheitert ist.
         'terminat', 'radule', 'pădurean', 'formularul',
       ],
+    ), Diakritika.ausJson(const {
+      'kurz': {'si': 'și', 'in': 'în'},
+      'kontext': {
+        'sa': {'să': {'r': ['trimit', 'faca'], 'l': ['ajunge']}},
+        'va': {'vă': {'r': ['rog', 'trimit'], 'l': []}},
+        'pana': {'până': {'r': ['in'], 'l': []}},
+      },
+    }), Tippfehler.aufbauen(
+      ['document', 'trimiteți', 'mulțumesc', 'bine', 'care', 'mare'],
     ));
     c = TextEditingController();
     gesendet = 0;
@@ -29,8 +40,11 @@ void main() {
       home: Scaffold(
         body: WortVorschlaege(
           controller: c,
-          bauen: (_) => EingabeTasten(
-            onSend: () => gesendet++,
+          bauen: (vorDemSenden) => EingabeTasten(
+            onSend: () {
+              vorDemSenden();
+              gesendet++;
+            },
             bauen: (senden) => TextField(
               controller: c,
               autofocus: true,
@@ -143,6 +157,202 @@ void main() {
       anhaengen(' ');
       await t.pump();
       expect(c.text, 'mulțumesc  ');
+    });
+  });
+
+  group('Häkchen aus dem Kontext', () {
+    testWidgets('das eben getippte Wort, aus dem linken Nachbarn', (t) async {
+      await aufbauen(t);
+      tippen('ajunge sa');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'ajunge să ');
+    });
+
+    testWidgets('das Wort DAVOR, sobald der rechte Nachbar dasteht',
+        (t) async {
+      // ⚠️ Der wichtigste Fall: „va rog". Die Regel kann erst greifen, wenn
+      // „rog" getippt ist — also beim Leerzeichen NACH „rog", nicht davor.
+      await aufbauen(t);
+      tippen('va rog');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'vă rog ');
+    });
+
+    testWidgets('kurze Nicht-Wörter brauchen keinen Nachbarn', (t) async {
+      await aufbauen(t);
+      tippen('si');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'și ');
+    });
+
+    testWidgets('„va mai" ist Futur und bleibt', (t) async {
+      await aufbauen(t);
+      tippen('va mai');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'va mai ');
+    });
+
+    testWidgets('die Eingabetaste sendet — und räumt vorher auf', (t) async {
+      // Sie vervollständigt weiterhin NICHTS (das ist Sache der Leertaste),
+      // aber sie lässt das letzte Wort nicht mehr ungeprüft rausgehen.
+      await aufbauen(t);
+      tippen('va rog');
+      await t.pump();
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);
+      await t.pump();
+      expect(gesendet, 1);
+      expect(c.text, 'vă rog');
+    });
+
+    testWidgets('Rücktaste nimmt auch die Häkchen zurück', (t) async {
+      await aufbauen(t);
+      tippen('va rog');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'vă rog ');
+
+      final i = c.selection.baseOffset;
+      c.value = TextEditingValue(
+        text: c.text.substring(0, i - 1) + c.text.substring(i),
+        selection: TextSelection.collapsed(offset: i - 1),
+      );
+      await t.pump();
+      expect(c.text, 'va rog ', reason: 'wieder genau das Getippte');
+    });
+  });
+
+  group('Vertippt', () {
+    testWidgets('ein Anschlag daneben wird repariert', (t) async {
+      // „dovument" ist der Anfang von gar nichts — die Vorschlagsliste
+      // kennt dazu nichts, der Abstand zum gemeinten Wort schon.
+      await aufbauen(t);
+      tippen('dovument');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'document ');
+    });
+
+    testWidgets('auch vor dem Senden', (t) async {
+      await aufbauen(t);
+      tippen('va trimit dovument');
+      await t.pump();
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);
+      await t.pump();
+      expect(c.text, 'va trimit document');
+      expect(gesendet, 1);
+    });
+
+    testWidgets('bei Gleichstand bleibt es stehen', (t) async {
+      // „nare" ist von „mare" und „care" gleich weit entfernt.
+      await aufbauen(t);
+      tippen('nare');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'nare ');
+    });
+
+    testWidgets('ein Eigenname mitten im Satz bleibt', (t) async {
+      await aufbauen(t);
+      tippen('scris la Documint');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'scris la Documint ');
+    });
+
+    testWidgets('die Rücktaste nimmt auch das zurück', (t) async {
+      await aufbauen(t);
+      tippen('dovument');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'document ');
+      final i = c.selection.baseOffset;
+      c.value = TextEditingValue(
+        text: c.text.substring(0, i - 1) + c.text.substring(i),
+        selection: TextSelection.collapsed(offset: i - 1),
+      );
+      await t.pump();
+      expect(c.text, 'dovument ');
+    });
+  });
+
+  group('Wann korrigiert wird', () {
+    testWidgets('auch ein Punkt schließt das Wort ab', (t) async {
+      // ⚠️ Anfangs löste nur das Leerzeichen aus — „va rog." blieb stehen,
+      // und Satzenden sind gerade die Stellen, an denen viel steht.
+      await aufbauen(t);
+      tippen('va rog');
+      await t.pump();
+      anhaengen('.');
+      await t.pump();
+      expect(c.text, 'vă rog.');
+    });
+
+    testWidgets('ein Fragezeichen ebenso', (t) async {
+      await aufbauen(t);
+      tippen('ajunge sa');
+      await t.pump();
+      anhaengen('?');
+      await t.pump();
+      expect(c.text, 'ajunge să?');
+    });
+
+    testWidgets('vor dem Senden wird das LETZTE Wort noch geprüft',
+        (t) async {
+      // ⚠️ Der wichtigste Fall: dem letzten Wort folgt kein Leerzeichen
+      // mehr. Ohne diesen Weg ginge es in JEDER Nachricht ungeprüft raus.
+      await aufbauen(t);
+      tippen('va rog');
+      await t.pump();
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);
+      await t.pump();
+      expect(c.text, 'vă rog', reason: 'korrigiert, bevor es rausgeht');
+      expect(gesendet, 1);
+    });
+
+    testWidgets('der Sendeknopf geht denselben Weg', (t) async {
+      await aufbauen(t);
+      tippen('si');
+      await t.pump();
+      // In der App hängt der Knopf an derselben Funktion; hier steht sie
+      // über die Eingabetaste zur Verfügung.
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);
+      await t.pump();
+      expect(c.text, 'și');
+      expect(gesendet, 1);
+    });
+
+    testWidgets('vor dem Senden bleibt ein Eigenname unangetastet',
+        (t) async {
+      await aufbauen(t);
+      tippen('am vorbit cu Radu');
+      await t.pump();
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);
+      await t.pump();
+      expect(c.text, 'am vorbit cu Radu');
+      expect(gesendet, 1);
+    });
+
+    testWidgets('ein richtiges Wort wird auch beim Senden nicht angefasst',
+        (t) async {
+      await aufbauen(t);
+      tippen('totul este bine');
+      await t.pump();
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);
+      await t.pump();
+      expect(c.text, 'totul este bine');
     });
   });
 

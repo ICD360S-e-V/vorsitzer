@@ -45,7 +45,9 @@ class WortVorschlaege extends StatefulWidget {
   /// Testfälle). Aus heißt: das Feld verhält sich exakt wie vorher.
   final bool aktiv;
 
-  final WidgetBuilder bauen;
+  /// Bekommt die Funktion, die vor dem Senden noch einmal aufräumt. Der
+  /// Sendeweg MUSS sie aufrufen, sonst geht das letzte Wort ungeprüft raus.
+  final Widget Function(VoidCallback vorDemSenden) bauen;
 
   const WortVorschlaege({
     super.key,
@@ -59,6 +61,9 @@ class WortVorschlaege extends StatefulWidget {
 }
 
 class _WortVorschlaegeState extends State<WortVorschlaege> {
+  /// Zeichen, nach denen ein Wort als fertig gilt.
+  static const _abschluss = ' \n\t.,;:!?)]}»…';
+
   List<String> _vorschlaege = const [];
   AngefangenesWort? _wort;
 
@@ -119,7 +124,7 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
     _letzterText = text;
 
     if (_ruecknahmeVersucht(text, vorher)) return;
-    if (_leertasteVersucht(text, vorher)) return;
+    if (_abschlussVersucht(text, vorher)) return;
 
     // Jede andere Änderung beendet das Zeitfenster der Rücktaste.
     _rueckgaengig = null;
@@ -137,6 +142,17 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
     }
     _rueckgaengig = null;
     _inRuheLassen.add(r.original);
+    final ganz = r.ganzerTextVorher;
+    if (ganz != null) {
+      // Häkchen-Korrektur: sie kann zwei Wörter berührt haben.
+      _letzterText = ganz;
+      widget.controller.value = TextEditingValue(
+        text: ganz,
+        selection: TextSelection.collapsed(offset: ganz.length),
+      );
+      _neuRechnen();
+      return true;
+    }
     final wieder = '${text.substring(0, r.von)}${r.original}'
         '${text.substring(r.von + r.eingesetzt.length)}';
     _letzterText = wieder;
@@ -148,9 +164,13 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
     return true;
   }
 
-  /// Wurde am Ende eines vorgeschlagenen Wortes ein Leerzeichen getippt?
-  bool _leertasteVersucht(String text, String vorher) {
-    if (_vorschlaege.isEmpty) return false;
+  /// Wurde ein Wort gerade abgeschlossen — durch Leerzeichen ODER
+  /// Satzzeichen?
+  ///
+  /// ⚠️ Anfangs nur das Leerzeichen. Damit blieb „va rog." unkorrigiert,
+  /// weil dort ein Punkt steht und kein Leerzeichen — und Satzenden sind
+  /// gerade die Stellen, an denen ein Wort besonders oft steht.
+  bool _abschlussVersucht(String text, String vorher) {
     final wort = _wort;
     if (wort == null) return false;
     if (text.length != vorher.length + 1) return false;
@@ -158,10 +178,25 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
     final cursor = widget.controller.selection.baseOffset;
     // Das neue Zeichen muss ein Leerzeichen genau hinter dem Wort sein.
     if (cursor != wort.bis + 1) return false;
-    if (cursor > text.length || text[cursor - 1] != ' ') return false;
+    if (cursor > text.length || !_abschluss.contains(text[cursor - 1])) {
+      return false;
+    }
     if (text.substring(0, cursor - 1) != vorher.substring(0, cursor - 1)) {
       return false;
     }
+    // Häkchen-Korrektur zuerst: sie greift GERADE dort, wo das Wort selbst
+    // eines ist („sa", „ca", „va") — also vor Sicherung 1, die genau das
+    // sonst abfängt. Was hier passiert, entscheidet der Nachbar, nicht die
+    // Häufigkeit. Siehe [Diakritika].
+    if (_haekchenGesetzt(text, wort, cursor)) return true;
+
+    // Ohne Vorschlag bleibt noch der Vertipper: „dovument" ist der Anfang
+    // von gar nichts, also kennt die Liste dazu nichts — gemeint ist aber
+    // „document". Siehe [Tippfehler].
+    if (_vorschlaege.isEmpty) {
+      return _tippfehlerGesetzt(text, wort, cursor);
+    }
+
     // Sicherung 1: ein richtiges Wort wird nicht angefasst.
     if (WortlisteService.index.kennt(wort.text)) return false;
     // Sicherung 2: einmal zurückgenommen heißt in Ruhe lassen.
@@ -191,6 +226,136 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
     _neuRechnen();
     return true;
   }
+
+  /// Ersetzt ein vertipptes Wort durch das gemeinte.
+  bool _tippfehlerGesetzt(String text, AngefangenesWort wort, int cursor) {
+    if (!_erlaubt(wort, text)) return false;
+    final neu = WortlisteService.tippfehler.korrektur(wort.text);
+    if (neu == null) return false;
+    final ergebnis = text.replaceRange(wort.von, wort.bis, neu);
+    _rueckgaengig = _Ersetzung(
+      von: wort.von,
+      original: wort.text,
+      eingesetzt: neu,
+      nachher: ergebnis,
+      ganzerTextVorher: text,
+    );
+    _letzterText = ergebnis;
+    widget.controller.value = TextEditingValue(
+      text: ergebnis,
+      selection: TextSelection.collapsed(
+          offset: cursor + neu.length - wort.text.length),
+    );
+    _neuRechnen();
+    return true;
+  }
+
+  /// Setzt die Häkchen im eben getippten Wort UND im Wort davor.
+  ///
+  /// ⚠️ Beide, und das ist keine Bequemlichkeit: eine Regel wie
+  /// `va` + rechter Nachbar `rog` kann erst greifen, wenn „rog" dasteht —
+  /// also erst beim Leerzeichen NACH „rog". Wer nur das eben getippte Wort
+  /// ansieht, verliert alle Regeln, die nach rechts schauen. Und das sind
+  /// die wichtigsten: „vă rog", „până în", „faptul că".
+  bool _haekchenGesetzt(String text, AngefangenesWort wort, int cursor) {
+    final d = WortlisteService.diakritika;
+    if (!d.bereit) return false;
+
+    final davor = AngefangenesWort.ausEingabe(text, wort.von > 0 ? wort.von - 1 : 0);
+    final davorDavor = davor == null || davor.von == 0
+        ? null
+        : AngefangenesWort.ausEingabe(text, davor.von - 1);
+
+    // Von hinten nach vorn ersetzen, damit die Stellen der vorderen Wörter
+    // gültig bleiben.
+    final neu = d.korrektur(wort.text, links: davor?.text);
+    final neuDavor = davor == null
+        ? null
+        : d.korrektur(davor.text, links: davorDavor?.text, rechts: wort.text);
+    if (neu == null && neuDavor == null) return false;
+
+    var ergebnis = text;
+    var verschoben = 0;
+    if (neu != null && !_inRuheLassen.contains(wort.text)) {
+      ergebnis = ergebnis.replaceRange(wort.von, wort.bis, neu);
+      verschoben += neu.length - wort.text.length;
+    }
+    if (neuDavor != null && !_inRuheLassen.contains(davor!.text)) {
+      ergebnis = ergebnis.replaceRange(davor.von, davor.bis, neuDavor);
+      verschoben += neuDavor.length - davor.text.length;
+    }
+    if (ergebnis == text) return false;
+
+    _rueckgaengig = _Ersetzung(
+      von: wort.von,
+      original: wort.text,
+      eingesetzt: neu ?? wort.text,
+      nachher: ergebnis,
+      ganzerTextVorher: text,
+    );
+    _letzterText = ergebnis;
+    widget.controller.value = TextEditingValue(
+      text: ergebnis,
+      selection: TextSelection.collapsed(offset: cursor + verschoben),
+    );
+    _neuRechnen();
+    return true;
+  }
+
+  /// Korrigiert das LETZTE Wort, bevor die Nachricht rausgeht.
+  ///
+  /// ⚠️ Ohne das blieb das letzte Wort jeder Nachricht immer unkorrigiert —
+  /// es folgt ihm ja kein Leerzeichen mehr. Bei „va rog" ist das ausgerechnet
+  /// das Wort, um das es geht.
+  ///
+  /// Es gelten dieselben Sicherungen wie sonst: ein richtiges Wort und ein
+  /// großgeschriebener Eigenname mitten im Satz bleiben unangetastet.
+  void vorDemSenden() {
+    if (!widget.aktiv || !mounted) return;
+    final d = WortlisteService.diakritika;
+    if (!d.bereit) return;
+    final text = widget.controller.text;
+    if (text.isEmpty) return;
+
+    final letztes = AngefangenesWort.ausEingabe(text, text.length);
+    if (letztes == null) return;
+    final davor = letztes.von > 0
+        ? AngefangenesWort.ausEingabe(text, letztes.von - 1)
+        : null;
+    final davorDavor = davor == null || davor.von == 0
+        ? null
+        : AngefangenesWort.ausEingabe(text, davor.von - 1);
+
+    final neu = _erlaubt(letztes, text)
+        ? (d.korrektur(letztes.text, links: davor?.text) ??
+            WortlisteService.tippfehler.korrektur(letztes.text))
+        : null;
+    final neuDavor = davor != null && _erlaubt(davor, text)
+        ? d.korrektur(davor.text, links: davorDavor?.text, rechts: letztes.text)
+        : null;
+    if (neu == null && neuDavor == null) return;
+
+    var ergebnis = text;
+    if (neu != null) {
+      ergebnis = ergebnis.replaceRange(letztes.von, letztes.bis, neu);
+    }
+    if (neuDavor != null) {
+      ergebnis = ergebnis.replaceRange(davor!.von, davor.bis, neuDavor);
+    }
+    if (ergebnis == text) return;
+    _letzterText = ergebnis;
+    _rueckgaengig = null;
+    widget.controller.value = TextEditingValue(
+      text: ergebnis,
+      selection: TextSelection.collapsed(offset: ergebnis.length),
+    );
+  }
+
+  /// Dieselben Sicherungen wie beim Tippen.
+  bool _erlaubt(AngefangenesWort w, String text) =>
+      !_inRuheLassen.contains(w.text) &&
+      !(AngefangenesWort.grossGeschrieben(w.text) &&
+          !AngefangenesWort.istSatzanfang(text, w.von));
 
   void _neuRechnen() {
     final wahl = widget.controller.selection;
@@ -255,7 +420,7 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
                 onInvoke: (_) => _uebernehmen(),
               ),
             },
-            child: Builder(builder: widget.bauen),
+            child: widget.bauen(vorDemSenden),
           ),
         ),
       ],
@@ -317,10 +482,16 @@ class _Ersetzung {
   /// war die Rücktaste wirklich der nächste Anschlag.
   final String nachher;
 
+  /// Bei der Häkchen-Korrektur der volle Text DAVOR — dort können zwei Wörter
+  /// auf einmal geändert worden sein, und dann ist das Zurücksetzen des
+  /// ganzen Textes die einzige Fassung, die stimmt.
+  final String? ganzerTextVorher;
+
   const _Ersetzung({
     required this.von,
     required this.original,
     required this.eingesetzt,
     required this.nachher,
+    this.ganzerTextVorher,
   });
 }

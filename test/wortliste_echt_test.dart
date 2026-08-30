@@ -1,5 +1,9 @@
+import 'dart:convert' show jsonDecode;
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:icd360sev_vorsitzer/utils/diakritika.dart';
+import 'package:icd360sev_vorsitzer/utils/tippfehler.dart';
 import 'package:icd360sev_vorsitzer/utils/wort_vervollstaendigung.dart';
 
 /// Prüft die AUSGELIEFERTE Wortliste, nicht eine erfundene.
@@ -149,6 +153,147 @@ void main() {
       ]) {
         expect(wuerdeErsetzen(satz), isNull, reason: satz);
       }
+    });
+  });
+
+  group('die AUSGELIEFERTEN Kontextregeln', () {
+    late Diakritika d;
+    setUpAll(() async {
+      d = Diakritika.ausJson(jsonDecode(
+          await rootBundle.loadString('assets/woerterbuch/ro_kontext.json'))
+          as Map<String, dynamic>);
+    });
+
+    /// Ganzen Satz korrigieren, wie es das Schreibfeld Wort für Wort tut.
+    String satz(String s) {
+      final w = s.split(' ');
+      final aus = List<String>.from(w);
+      for (var i = 0; i < w.length; i++) {
+        aus[i] = d.korrektur(w[i],
+                links: i > 0 ? w[i - 1] : null,
+                rechts: i + 1 < w.length ? w[i + 1] : null) ??
+            w[i];
+      }
+      return aus.join(' ');
+    }
+
+    test('die Regeln sind da', () {
+      expect(d.bereit, isTrue);
+      expect(d.kontext.length, greaterThan(200));
+      expect(d.kurz, containsPair('si', 'și'));
+      expect(d.kurz, containsPair('in', 'în'));
+    });
+
+    // ⚠️ Genau die Sätze, wegen derer das hier gebaut wurde — an ihnen hat
+    // der eigene Übersetzungsweg messbar danebengegriffen.
+    test('repariert echte Sätze', () {
+      expect(satz('va rog sa imi trimiteti hotararea'),
+          startsWith('vă rog să'));
+      expect(satz('am asteptat pana in luna mai'), contains('până în'));
+      expect(satz('banuiesc ca nu a venit'), contains('că'));
+      expect(satz('documentele pana maine'), contains('până'));
+    });
+
+    test('was NICHT abgedeckt ist, bleibt unangetastet — kein Raten', () {
+      // ⚠️ Die Regeln greifen bei rund 40 % der fehlenden Häkchen. Der Rest
+      // bleibt stehen, und das ist gewollt: eine geratene Korrektur wäre
+      // schlimmer als eine fehlende, weil sie den Sinn verdreht.
+      expect(satz('stiu ca nu a venit'), 'stiu ca nu a venit');
+    });
+
+    test('lässt richtiges Futur in Ruhe', () {
+      // „va" ist hier Hilfsverb, nicht Pronomen.
+      expect(satz('el va mai veni'), 'el va mai veni');
+      expect(satz('va place foarte mult'), 'va place foarte mult');
+    });
+
+    test('fasst Eigennamen nicht an', () {
+      for (final n in ['Duinea', 'Padurean', 'Vollmacht', 'Landratsamt']) {
+        expect(d.korrektur(n, links: 'la', rechts: 'rog'), isNull, reason: n);
+      }
+    });
+
+    test('eine Korrektur kommt in unter einer Millisekunde', () {
+      final uhr = Stopwatch()..start();
+      for (var i = 0; i < 2000; i++) {
+        d.korrektur('sa', links: 'ajunge', rechts: 'faca');
+        d.korrektur('necunoscut', links: 'a', rechts: 'b');
+      }
+      uhr.stop();
+      expect(uhr.elapsedMicroseconds / 4000, lessThan(1000));
+    });
+  });
+
+  group('Vertipper gegen die AUSGELIEFERTE Liste', () {
+    late Tippfehler t;
+    setUpAll(() => t = Tippfehler.aufbauen(woerter));
+
+    test('repariert echte Vertipper', () {
+      const faelle = {
+        'dovumentul': 'documentul',   // falsche Taste
+        'documnetul': 'documentul',   // vertauscht
+        'multumesk': 'mulțumesc',     // daneben, dazu Häkchen
+        'adeverinta': 'adeverința',
+        'buletim': 'buletin',
+        'membrii': null,              // ist selbst ein Wort
+      };
+      faelle.forEach((falsch, richtig) {
+        expect(t.korrektur(falsch), richtig, reason: falsch);
+      });
+    });
+
+    test('bei echter Mehrdeutigkeit bleibt es stehen', () {
+      // ⚠️ Das ist keine Lücke, sondern die Regel bei der Arbeit. Zu
+      // „cerrere" liegen ZWEI Wörter einen Schritt entfernt: „cerere" (ein
+      // Buchstabe zu viel) und „cernere" (ein Buchstabe daneben). Welches
+      // gemeint war, kann niemand wissen — also wird nichts geändert.
+      // Im Rumänischen mit seinen vielen Wortformen kommt das oft vor; das
+      // ist der Preis dafür, dass in der Messung 0 von 4.000 Korrekturen
+      // falsch waren.
+      expect(t.korrektur('cerrere'), isNull);
+      expect(t.korrektur('trimiter'), isNull);
+    });
+
+    test('was die Vervollständigung kann, macht sie — nicht der Vertipper', () {
+      // ⚠️ „trimiteti" und „sedinta" liefern hier null, und das ist richtig:
+      // sie sind Wortanfänge von „trimiteți" und „ședința" und werden von
+      // [WortIndex] abgedeckt. Der Vertipper ist nur für das zuständig, was
+      // Anfang von gar nichts ist.
+      expect(t.korrektur('trimiteti'), isNull);
+      expect(t.korrektur('sedinta'), isNull);
+      expect(index.vorschlaege('trimiteti'), contains('trimiteți'));
+      expect(index.vorschlaege('sedinta'), contains('ședința'));
+    });
+
+    test('fasst KEIN richtiges Wort an', () {
+      // ⚠️ Die Gegenprobe, die zählt. Gemessen über die 4.000 häufigsten
+      // Wörter: null Eingriffe.
+      var angefasst = 0;
+      for (final w in woerter.take(4000)) {
+        if (t.korrektur(w) != null) angefasst++;
+      }
+      expect(angefasst, 0);
+    });
+
+    test('fasst Fremdwörter und Namen kaum an', () {
+      const fremd = ['Duinea', 'Tanase', 'Menning', 'Anica', 'Vollmacht',
+        'Landratsamt', 'Jobcenter', 'Krankenkasse', 'Widerspruch',
+        'Pflegegrad', 'Bescheid', 'Termin', 'Antrag', 'Rente', 'Formular',
+        'WhatsApp', 'ICD360S', 'Ulm', 'Bayern'];
+      final getroffen = fremd.where((w) => t.korrektur(w) != null);
+      expect(getroffen, isEmpty, reason: 'getroffen: ${getroffen.toList()}');
+    });
+
+    test('eine Korrektur bleibt unter 15 Millisekunden', () {
+      // Sie läuft einmal je Wortende, nicht je Tastendruck. Gemessen über
+      // 4.000 Wörter: 2,97 ms im Schnitt; der teuerste Fall ist ein langes
+      // Wort ohne jede Ähnlichkeit, weil dort nichts früh abbricht.
+      final uhr = Stopwatch()..start();
+      for (final w in ['dovument', 'cerrere', 'xyzabcdef', 'trimiter']) {
+        t.korrektur(w);
+      }
+      uhr.stop();
+      expect(uhr.elapsedMicroseconds / 4, lessThan(15000));
     });
   });
 
