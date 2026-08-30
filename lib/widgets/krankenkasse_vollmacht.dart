@@ -16,6 +16,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -143,6 +144,10 @@ class KrankenkasseVollmachtTab extends StatefulWidget {
   @visibleForTesting
   final List<Map<String, dynamic>>? vorschauListe;
 
+  /// Vorgeladene Unterschriftsvorgänge — nur zum Ansehen der Seite.
+  @visibleForTesting
+  final Map<int, List<Signaturvorgang>>? vorschauSignaturen;
+
   const KrankenkasseVollmachtTab({
     super.key,
     required this.apiService,
@@ -151,6 +156,7 @@ class KrankenkasseVollmachtTab extends StatefulWidget {
     this.onCountChanged,
     this.vorschauDaten,
     this.vorschauListe,
+    this.vorschauSignaturen,
   });
 
   @override
@@ -164,6 +170,20 @@ class _KrankenkasseVollmachtTabState extends State<KrankenkasseVollmachtTab> {
   String? _fehler;
   Map<String, dynamic> _daten = {};
   List<Map<String, dynamic>> _liste = [];
+
+  /// Unterschriftsvorgänge je Vollmacht-Id.
+  ///
+  /// 🔴 Ohne sie zeigte die Karte NICHTS über die Unterschriften — nicht wer
+  /// unterschrieben hat, nicht wann, und es gab keinen Weg, die gesiegelte
+  /// Fassung zu öffnen. Am 30.08.2026 hatten beide Seiten eine Vollmacht
+  /// unterschrieben und gesiegelt, und auf dem Schirm war davon nichts zu
+  /// sehen.
+  ///
+  /// ⚠️ Gezählt wird über die GRUPPE, nicht über die gelieferten Zeilen:
+  /// `SignaturService.liste` steht unter EINEM Mitglied, die Zeile des
+  /// Vorstands trägt eine andere `user_id`. Über die Zeilen gezählt käme
+  /// „1 von 1" heraus, wo zwei angefordert sind.
+  Map<int, List<Signaturvorgang>> _signaturen = {};
 
   // Ankreuzungen der Erstellung.
   final Map<String, bool> _handeln = {for (final b in kKkBereiche) b: false};
@@ -200,6 +220,7 @@ class _KrankenkasseVollmachtTabState extends State<KrankenkasseVollmachtTab> {
       setState(() {
         _daten = Map<String, dynamic>.from(vorschau);
         _liste = widget.vorschauListe ?? const [];
+        _signaturen = widget.vorschauSignaturen ?? const {};
         _laedt = false;
       });
       return;
@@ -213,12 +234,25 @@ class _KrankenkasseVollmachtTabState extends State<KrankenkasseVollmachtTab> {
         setState(() { _laedt = false; _fehler = (d['message'] ?? 'Daten nicht abrufbar').toString(); });
         return;
       }
+      // ⚠️ Die Mitgliedsnummer des Anfordernden ist der Identitätsnachweis.
+      // Fehlt sie, bleibt die Liste ohne Unterschriftsstand — lieber keine
+      // Angabe als eine erfundene.
+      final sigs = <int, List<Signaturvorgang>>{};
+      final anf = widget.adminMitgliedernummer.trim();
+      if (anf.isNotEmpty) {
+        for (final s in await SignaturService()
+            .liste(callerMitgliedernummer: anf, userId: widget.user.id)) {
+          if (s.quelleTabelle != 'member_vollmachten' || s.quelleId == null) continue;
+          sigs.putIfAbsent(s.quelleId!, () => []).add(s);
+        }
+      }
       final roh = (l['vollmachten'] ?? l['items'] ?? const []);
       setState(() {
         _daten = Map<String, dynamic>.from(d);
         _liste = roh is List
             ? roh.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
             : <Map<String, dynamic>>[];
+        _signaturen = sigs;
         _laedt = false;
       });
       widget.onCountChanged?.call(_liste.length);
@@ -582,12 +616,24 @@ class _KrankenkasseVollmachtTabState extends State<KrankenkasseVollmachtTab> {
 
   Widget _karte(Map<String, dynamic> v) {
     final id = _vid(v['id']);
-    final status = '${v['status'] ?? ''}';
+    var status = '${v['status'] ?? ''}';
     final widerrufen = status == 'revoked';
     final sprache = '${v['translation_language'] ?? ''}'.trim();
     final hatLeseexemplar = sprache.isNotEmpty
         && '${v['pdf_translation_filename'] ?? ''}'.trim().isNotEmpty;
 
+    // 🔴 Die Plakette kommt aus `status`, die Zeile darunter aus der
+    // Unterschriftsgruppe. Stimmen sie nicht überein, sagt die Karte zwei
+    // entgegengesetzte Dinge — auf der gerenderten Seite stand oben „wartet
+    // auf Unterschrift" und darunter „Von beiden unterschrieben".
+    //
+    // Maßgeblich ist die GRUPPE: sie ist der jüngere Stand. `status` zieht
+    // erst nach, wenn jemand ihn neu berechnet, und `quelleAlsUnterzeichnet-
+    // Merken` rührt eine Zeile gar nicht an, die schon weitergewandert ist.
+    final gruppeFertig = _signiertVerfuegbar(id) != null;
+    if (gruppeFertig && (status == 'draft' || status == 'wartet_unterschriften')) {
+      status = 'unterzeichnet';
+    }
     final (Color ton, String wort) = switch (status) {
       'aktiv'        => (Colors.green.shade700,  'aktiv'),
       'eingereicht'  => (Colors.blue.shade700,   'eingereicht'),
@@ -618,6 +664,7 @@ class _KrankenkasseVollmachtTabState extends State<KrankenkasseVollmachtTab> {
                '${_ausIso(v['valid_until']).isEmpty
                     ? ' · bis auf Widerruf' : ' bis ${_ausIso(v['valid_until'])}'}',
             style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
+          _unterschriftsstand(id),
           if (widerrufen && '${v['revoked_reason'] ?? ''}'.isNotEmpty)
             Padding(padding: const EdgeInsets.only(top: 4), child: Text(
               'Grund: ${v['revoked_reason']}',
@@ -632,6 +679,11 @@ class _KrankenkasseVollmachtTabState extends State<KrankenkasseVollmachtTab> {
             if (hatLeseexemplar)
               _knopf('Leseexemplar (${sprache.toUpperCase()})', Icons.translate,
                      () => _pdf(id, typ: 'translation')),
+            // ⚠️ Nur, wenn es sie WIRKLICH gibt. Ein Knopf, der nichts tun
+            // kann, ist schlimmer als keiner.
+            if (_signiertVerfuegbar(id) != null)
+              _knopf('Unterschriebene Fassung', Icons.verified,
+                     () => _signiertOeffnen(id)),
           ]),
 
           const SizedBox(height: 10),
@@ -695,6 +747,65 @@ class _KrankenkasseVollmachtTabState extends State<KrankenkasseVollmachtTab> {
           ],
         ])),
     );
+  }
+
+  /// Wie weit die Unterschriften sind — als Zeile auf der Karte.
+  ///
+  /// ⚠️ Über die GRUPPE gezählt (`gruppeSigniert`/`gruppeGesamt`), nicht über
+  /// die gelieferten Zeilen. Die Zeile des Vorstands trägt eine andere
+  /// `user_id` und ist beim Zählen über das Mitglied gar nicht dabei.
+  Widget _unterschriftsstand(int id) {
+    final vg = _signaturen[id] ?? const <Signaturvorgang>[];
+    if (vg.isEmpty) return const SizedBox.shrink();
+    final abgelehnt = vg.any((x) => x.status == 'abgelehnt');
+    final fertig = vg.first.gruppeSigniert, gesamt = vg.first.gruppeGesamt;
+    final alle = vg.first.gruppeVollstaendig;
+    final ton = abgelehnt
+        ? F.h(Colors.red, 700)
+        : (alle ? F.h(Colors.green, 700) : F.h(Colors.orange, 800));
+    return Padding(padding: const EdgeInsets.only(top: 4), child:
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(abgelehnt ? Icons.block
+                       : (alle ? Icons.verified : Icons.hourglass_bottom),
+             size: 14, color: ton),
+        const SizedBox(width: 5),
+        Expanded(child: Text(
+          abgelehnt
+              ? 'Unterschrift abgelehnt'
+              : (alle
+                  ? (gesamt > 1 ? 'Von beiden unterschrieben' : 'Unterschrieben')
+                  : '$fertig von $gesamt unterschrieben'),
+          style: TextStyle(fontSize: 11.5, color: ton))),
+      ]));
+  }
+
+  /// Die gesiegelte Fassung — erst, wenn die ganze Gruppe unterschrieben hat.
+  ///
+  /// ⚠️ Ebenfalls über die Gruppe. Im Anwaltszweig hat genau dieser blinde
+  /// Fleck dazu geführt, dass eine bereits unterschriebene Vollmacht
+  /// widerrufen wurde, weil es aussah, als sei nichts geschehen.
+  Signaturvorgang? _signiertVerfuegbar(int id) {
+    final vg = _signaturen[id] ?? const <Signaturvorgang>[];
+    if (vg.isEmpty || !vg.first.gruppeVollstaendig) return null;
+    return vg.firstWhere((x) => x.istSigniert, orElse: () => vg.first);
+  }
+
+  Future<void> _signiertOeffnen(int id) async {
+    final vorgang = _signiertVerfuegbar(id);
+    if (vorgang == null) return;
+    final bytes = await SignaturService().herunterladen(
+      callerMitgliedernummer: widget.adminMitgliedernummer.trim(),
+      signaturId: vorgang.id, welche: 'signiert');
+    if (!mounted) return;
+    if (bytes == null) {
+      // Der Siegel-Cron läuft jede Minute. „Noch nicht da" ist kein Fehler,
+      // aber es muss dastehen — sonst sucht jemand an der falschen Stelle.
+      _melden('Die unterschriebene Fassung ist noch nicht gesiegelt — das '
+              'geschieht wenige Minuten nach der letzten Unterschrift', Colors.orange);
+      return;
+    }
+    await FileViewerDialog.showFromBytes(
+        context, Uint8List.fromList(bytes), 'vollmacht_unterschrieben_$id.pdf');
   }
 
   Widget _knopf(String text, IconData symbol, VoidCallback? aktion) => OutlinedButton.icon(
