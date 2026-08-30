@@ -53,15 +53,33 @@ class RemoteControlService {
 
   final _stateController = StreamController<RemoteControlState>.broadcast();
   final _remoteStreamController = StreamController<MediaStream?>.broadcast();
+  final _zielSteuerbarController = StreamController<bool>.broadcast();
   RemoteControlState _state = RemoteControlState.idle;
   RemoteControlEnd _lastEnd = RemoteControlEnd.none;
 
   Stream<RemoteControlState> get stateStream => _stateController.stream;
   Stream<MediaStream?> get remoteStreamStream => _remoteStreamController.stream;
+
+  /// Feuert, sobald das Mitglied gemeldet hat, ob gesteuert werden kann.
+  Stream<bool> get zielSteuerbarStream => _zielSteuerbarController.stream;
   RemoteControlState get state => _state;
   RemoteControlEnd get lastEnd => _lastEnd;
   MediaStream? get remoteStream => _remoteStream;
   bool get canSendInput => _inputChannel != null && _inputOpen;
+
+  /// Plattform des Mitglieds, sobald es geantwortet hat (`android`, `windows`,
+  /// `linux`, `macos`, `ios`) — vorher null.
+  String? get zielPlattform => _zielPlattform;
+
+  /// Kann auf dem Gerät des Mitglieds gesteuert werden?
+  ///
+  /// ⚠️ Das weiß nur das Mitglied, und es sagt es erst mit der Antwort. Bis
+  /// dahin false — lieber „Ansicht" anzeigen und sich korrigieren, als
+  /// Steuerung zu versprechen und Klicks ins Leere gehen zu lassen.
+  bool get zielSteuerbar => _zielSteuerbar;
+
+  String? _zielPlattform;
+  bool _zielSteuerbar = false;
 
   void _setState(RemoteControlState s) {
     _state = s;
@@ -161,7 +179,10 @@ class RemoteControlService {
         action: 'start',
         targetMitgliedernummer: targetUserId,
         conversationId: conversationId,
-        controlAllowed: true,
+        // Beim Start ist noch nichts bekannt: die Anfrage ist raus, das
+        // Mitglied hat weder zugestimmt noch geantwortet. Der Wert wird beim
+        // 'active'-Schritt nachgetragen, wenn er belegt ist.
+        controlAllowed: false,
       ).then((r) {
         final id = r?['session_id'];
         if (id is int) {
@@ -235,6 +256,14 @@ class RemoteControlService {
   void sendKey({required int hid, String? character, required bool down}) =>
       _sendInput({'t': 'k', 'hid': hid, 'ch': character, 'down': down});
 
+  /// Systemtaste ohne Koordinaten: `back`, `home`, `recents`, `notifications`.
+  ///
+  /// Auf einem Telefon gibt es diese Ziele nicht als Fläche, die man anklicken
+  /// könnte — die Gesten-Navigation hat keine Knöpfe mehr. Ohne diesen Rahmen
+  /// käme der Vorsitz aus jeder App, die er öffnet, nicht wieder heraus.
+  /// Ältere Mitglieds-Apps kennen `g` nicht und übergehen es stumm.
+  void sendSystemAktion(String aktion) => _sendInput({'t': 'g', 'a': aktion});
+
   // ─── Internals ────────────────────────────────────────────────────────────
 
   Future<void> _createPeerConnection() async {
@@ -284,10 +313,24 @@ class RemoteControlService {
         await _pc!.setRemoteDescription(RTCSessionDescription(e.sdp, e.sdpType));
         _remoteDescriptionSet = true;
         await _flushQueuedIce();
+        // Was das Mitglied über sich meldet, gilt — wir können es nicht wissen.
+        _zielPlattform = e.plattform;
+        _zielSteuerbar = e.steuerung;
+        if (!_zielSteuerbarController.isClosed) {
+          _zielSteuerbarController.add(e.steuerung);
+        }
         // Audit: the member answered → consented and the session is live.
         if (_controllerMnr != null && _sessionId != null) {
           ApiService().remoteSession(
-            mitgliedernummer: _controllerMnr!, action: 'active', sessionId: _sessionId);
+            mitgliedernummer: _controllerMnr!,
+            action: 'active',
+            sessionId: _sessionId,
+            // ⚠️ Erst HIER ist beides bekannt. Beim Start stand fest
+            // `controlAllowed: true` im Protokoll — eine Behauptung über ein
+            // Gerät, das der Vorsitz noch gar nicht erreicht hatte.
+            controlAllowed: e.steuerung,
+            memberPlatform: e.plattform,
+          );
         }
       } catch (err) {
         _log.error('RemoteControl: setRemoteDescription(answer) failed: $err', tag: 'REMOTE');
@@ -352,5 +395,7 @@ class RemoteControlService {
     _conversationId = null;
     _sessionId = null;
     _controllerMnr = null;
+    _zielPlattform = null;
+    _zielSteuerbar = false;
   }
 }
