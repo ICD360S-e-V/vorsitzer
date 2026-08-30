@@ -145,12 +145,16 @@ class NtfyService {
 
         if (response.statusCode == 200) {
           try {
-            final body = jsonDecode(response.body);
-            if (body['success'] == true && body['ntfy_token'] != null) {
-              _ntfyToken = body['ntfy_token'] as String;
+            // ⚠️ `antwort`, nicht `body`: das ist die Antwort des Servers auf die
+            // Token-Anfrage, NICHT der Text einer Benachrichtigung. Unter demselben
+            // Namen war beim Aufräumen der Protokolle nicht zu unterscheiden,
+            // welches der beiden hier steht.
+            final antwort = jsonDecode(response.body);
+            if (antwort['success'] == true && antwort['ntfy_token'] != null) {
+              _ntfyToken = antwort['ntfy_token'] as String;
               _log.info('ntfy: Token fetched', tag: 'NTFY');
             } else {
-              _log.error('ntfy: Token fetch failed: ${body['message'] ?? 'unknown'}', tag: 'NTFY');
+              _log.error('ntfy: Token fetch failed: ${antwort['message'] ?? 'unknown'}', tag: 'NTFY');
               _scheduleReconnect();
               return;
             }
@@ -281,7 +285,26 @@ class NtfyService {
       final title = data['title'] as String? ?? 'ICD360S e.V';
       final body = data['message'] as String? ?? '';
 
-      _log.info('ntfy: Notification: $title - $body', tag: 'NTFY');
+      // 🔴 HIER STAND `'ntfy: Notification: $title - $body'` — ALSO DER VOLLE
+      // WORTLAUT JEDER CHAT-NACHRICHT SAMT NAMEN DES ABSENDERS.
+      //
+      // `LoggerService` lädt die Protokollzeilen zum Server hoch, und dort
+      // lagen sie unter `logs/vorsitzer/*.json`. Gemessen am 30.08.2026:
+      // 10.824 solcher Zeilen, 566 MB, vom 22.07. bis dahin — darunter
+      // Gesundheitsangaben von Mitgliedern. Und dieser Pfad war über HTTPS
+      // OHNE ANMELDUNG abrufbar: ein einzelner GET lieferte 8,2 MB.
+      // (Die nginx-Sperre aus dem Juli griff nach ENDUNG — `.log`, `.sql`,
+      // `.bak` —, die Dateien heissen aber `.json`.)
+      //
+      // ⚠️ Protokolliert wird ab jetzt NUR, DASS etwas kam, und wie lang es
+      // war. Kein Wortlaut, kein Name, kein Betreff. Für die Frage, die dieses
+      // Protokoll beantworten soll — „kam die Benachrichtigung an?" — reicht
+      // das vollständig; für alles andere ist es das falsche Werkzeug.
+      _log.info(
+        'ntfy: Benachrichtigung erhalten '
+        '(Titel ${title.length} Z., Text ${body.length} Z.)',
+        tag: 'NTFY',
+      );
 
       angezeigteMeldungen++;
       NotificationService().show(title: title, body: body);

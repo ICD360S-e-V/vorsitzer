@@ -644,7 +644,10 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         });
 
         if (messageExists) {
-          _log.debug('Chat: Skipping duplicate message (id: ${message.id}, sender: ${message.senderName})', tag: 'CHAT');
+          // ⚠️ Ohne Absendernamen; die Nachrichtennummer identifiziert die
+          // Zeile eindeutig.
+          _log.debug('Chat: doppelte Nachricht übersprungen (id: ${message.id})',
+              tag: 'CHAT');
           return;
         }
 

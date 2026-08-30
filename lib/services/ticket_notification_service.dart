@@ -209,7 +209,13 @@ class TicketNotificationService {
         duration: const Duration(seconds: 8),
       );
 
-      _log.info('Notification angezeigt: "$title" - Ticket #$ticketId', tag: 'TICKET_NOTIF');
+      // ⚠️ Ohne den Betreff: in einem Ticket steht das Anliegen eines
+      // Mitglieds. Die Nummer genügt, um den Weg nachzuvollziehen.
+      _log.info(
+        'Benachrichtigung angezeigt (Ticket #$ticketId, '
+        'Titel ${title.length} Z.)',
+        tag: 'TICKET_NOTIF',
+      );
     } catch (e) {
       _log.error('Fehler beim Anzeigen der Benachrichtigung: $e', tag: 'TICKET_NOTIF');
     }

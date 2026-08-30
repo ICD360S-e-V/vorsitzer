@@ -18,6 +18,7 @@ import 'platform_service.dart';
 import 'qualitaets_sonde.dart';
 import 'secure_store.dart';
 import 'signatur_gateway_service.dart';
+import 'untertitel_modell.dart';
 import 'untertitel_service.dart';
 import 'voice_call_service.dart' show iceServerEintraege;
 
@@ -1869,6 +1870,15 @@ class SipgateService {
           if (spuren.isNotEmpty) {
             gegenstelleSpurId = spuren.first.id;
             _log.info('sipgate: Tonspur der Gegenstelle steht', tag: 'SIPGATE');
+            // ⚠️ HIER und nicht bei `CONFIRMED`: vorher gibt es die Spur noch
+            // nicht, und ohne sie meldet die native Seite nur „Tonspur der
+            // Gegenstelle nicht gefunden".
+            //
+            // ⚠️ Und bei JEDEM solchen Ereignis, nicht nur beim ersten: eine
+            // Neuverhandlung ersetzt die Spur, und eine laufende Mitschrift
+            // hinge danach an einer, die niemand mehr füttert — sie würde
+            // einfach still, ohne Fehler und ohne Hinweis.
+            unawaited(_mitschriftAufNeueSpur());
           }
         }
         break;
@@ -2472,6 +2482,106 @@ class SipgateService {
   /// fehlen im Verlauf des Anbieters.
   ///
   /// Wirft nie: ein Protokolleintrag darf ein laufendes Gespräch nicht stören.
+  /// Die Kennung der Tonspur, die die Verbindung GERADE führt.
+  ///
+  /// 🔴 WARUM NICHT [gegenstelleSpurId] ALLEIN. Jene wird bei
+  /// `CallStateEnum.STREAM` gesetzt — aber ein Gespräch bekommt mehr als ein
+  /// solches Ereignis: im Protokoll vom 30.08.2026 stehen zwei davon binnen
+  /// 37 Sekunden im selben Anruf (21:08:07 und 21:08:44). Das ist eine
+  /// Neuverhandlung (re-INVITE, etwa nach Halten), und dabei bekommt die
+  /// Gegenstelle eine NEUE Spur mit neuer Kennung.
+  ///
+  /// Die gespeicherte Kennung zeigt dann ins Leere. Auf der nativen Seite
+  /// sucht `getRemoteTrack()` sowohl in den registrierten Spuren als auch in
+  /// den Transceivern — findet aber nichts, weil die alte Kennung nirgends
+  /// mehr vorkommt. Auf dem Schirm steht „Tonspur der Gegenstelle nicht
+  /// gefunden", und es sieht aus, als sei die Mitschrift kaputt.
+  ///
+  /// ⚠️ Deshalb wird gefragt, nicht erinnert: `getReceivers()` liefert, was die
+  /// Verbindung in diesem Augenblick empfängt. Die gespeicherte Kennung bleibt
+  /// als Rückfall — sie ist richtig, solange nicht neu verhandelt wurde.
+  Future<String?> gegenstelleSpurAktuell() async {
+    try {
+      final pc = _aktiverRuf?.peerConnection;
+      if (pc == null) return gegenstelleSpurId;
+      for (final e in await pc.getReceivers()) {
+        final t = e.track;
+        if (t != null && t.kind == 'audio' && (t.id ?? '').isNotEmpty) {
+          return t.id;
+        }
+      }
+    } catch (e) {
+      _log.warning('sipgate: Tonspur nicht abfragbar ($e)', tag: 'SIPGATE');
+    }
+    return gegenstelleSpurId;
+  }
+
+  /// Schaltet die Mitschrift von selbst ein, sobald die Tonspur steht.
+  ///
+  /// Wer schlecht hört, soll nicht erst einen Knopf suchen, während die
+  /// Gegenstelle schon redet — die ersten Sätze eines Anrufs sind meistens die,
+  /// die sagen, worum es geht.
+  ///
+  /// ⚠️ NUR WENN DAS MODELL SCHON DA IST. Sonst hiesse „von selbst", dass ein
+  /// angenommener Anruf 46 MB über die Mobilfunkleitung zieht, ohne dass jemand
+  /// das wollte. Fehlt es, bleibt der Knopf im Bildschirm — dort wird das Holen
+  /// angeboten und erklärt.
+  ///
+  /// ⚠️ NICHT in der Konferenz: die Mitschrift hängt an der Spur von Bein A,
+  /// bei zwei Gesprächspartnern läse man den einen und hielte es für beide.
+  ///
+  /// ⚠️ KEIN gespeicherter Schalter. Wer sie für EIN Gespräch nicht will,
+  /// schaltet sie im Bildschirm ab; beim nächsten Anruf ist sie wieder da. Ein
+  /// gemerktes „aus" wäre die schlechtere Falle: man schaltet einmal ab, und
+  /// Monate später fehlt die Mitschrift, ohne dass noch jemand weiss, warum.
+  /// Nach einer Neuverhandlung die laufende Mitschrift auf die neue Spur
+  /// setzen — und sonst die Automatik anstossen.
+  Future<void> _mitschriftAufNeueSpur() async {
+    final u = UntertitelService();
+    if (!u.aktiv.value) return _mitschriftVonSelbst();
+    final id = await gegenstelleSpurAktuell();
+    if (id == null || id.isEmpty) return;
+    // ⚠️ Neu anhängen heisst hier: erst lösen, dann binden. Der Sink hängt
+    // nativ an der ALTEN Spur; ohne das Lösen liefe er weiter ins Leere und
+    // hielte nebenbei eine Spur fest, die niemand mehr braucht.
+    await u.beenden();
+    final grund = await u.starten(id);
+    if (grund != null) {
+      _log.warning('sipgate: Mitschrift nach Neuverhandlung nicht wieder '
+          'gestartet ($grund)', tag: 'SIPGATE');
+    } else {
+      _log.info('sipgate: Mitschrift auf die neue Tonspur gesetzt',
+          tag: 'SIPGATE');
+    }
+  }
+
+  Future<void> _mitschriftVonSelbst() async {
+    final u = UntertitelService();
+    if (!u.plattformFaehig || u.aktiv.value) return;
+    if (zustand.value.konferenz) return;
+    final id = await gegenstelleSpurAktuell();
+    if (id == null || id.isEmpty) return;
+    try {
+      if (!await UntertitelModell().vorhanden()) {
+        _log.info('sipgate: Mitschrift nicht von selbst — Modell fehlt noch',
+            tag: 'SIPGATE');
+        return;
+      }
+      final grund = await u.starten(id);
+      if (grund != null) {
+        // ⚠️ Nur ins Protokoll. Von selbst gestartet heisst: der Vorsitzende
+        // hat nicht danach gefragt — ihm dafür eine Fehlermeldung über den
+        // Bildschirm zu legen, während er gerade abhebt, wäre schlimmer als
+        // keine Mitschrift.
+        _log.warning('sipgate: Mitschrift startete nicht von selbst ($grund)',
+            tag: 'SIPGATE');
+      }
+    } catch (e) {
+      _log.warning('sipgate: Mitschrift von selbst fehlgeschlagen ($e)',
+          tag: 'SIPGATE');
+    }
+  }
+
   /// Beginnt die Güte-Messung des laufenden Gesprächs.
   ///
   /// ⚠️ Der erste Takt liefert nichts, und das ist richtig so: alle Zähler

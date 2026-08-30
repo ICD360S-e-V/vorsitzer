@@ -1561,7 +1561,10 @@ class WeatherService {
         title: title,
         body: body,
       );
-      _log.info('Weather: Notification sent - $title', tag: 'WEATHER');
+      // Der Titel einer Wetterwarnung ist kein Personendatum — er steht hier
+      // trotzdem nicht mehr, damit die Regel „kein Wortlaut im Protokoll"
+      // ohne Ausnahme gilt und niemand die Ausnahme ausweitet.
+      _log.info('Weather: Warnung angezeigt', tag: 'WEATHER');
     } else {
       // Reset when weather clears
       _lastNotifiedWeatherCode = weather.weatherCode;
