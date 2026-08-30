@@ -15,6 +15,7 @@ import 'device_key_service.dart';
 import 'logger_service.dart';
 import 'notification_service.dart';
 import 'platform_service.dart';
+import 'qualitaets_sonde.dart';
 import 'secure_store.dart';
 import 'signatur_gateway_service.dart';
 import 'untertitel_service.dart';
@@ -425,6 +426,23 @@ class SipgateService {
   /// Der aktuelle Zustand — Registrierung und, falls eines läuft, das Gespräch.
   final ValueNotifier<SipgateZustand> zustand =
       ValueNotifier<SipgateZustand>(const SipgateZustand());
+
+  /// Die zuletzt gemessene Güte des laufenden Gesprächs, oder `null`.
+  ///
+  /// ⚠️ Eigener Melder statt eines Feldes in [zustand]: die Güte kommt im
+  /// eigenen Takt und geht nur ein einziges Fähnchen an; hinge sie am
+  /// Gesamtzustand, würde alle drei Sekunden der ganze Gesprächsschirm neu
+  /// gebaut — genau die Last, wegen der der Sekundentakt weiter unten
+  /// abgeschafft wurde.
+  final ValueNotifier<QualitaetsProbe?> guete =
+      ValueNotifier<QualitaetsProbe?>(null);
+
+  /// Die Bilanz des laufenden Gesprächs. Wird am Ende ins Protokoll geschrieben.
+  final QualitaetsBilanz gueteBilanz = QualitaetsBilanz();
+
+  final QualitaetsSonde _sonde = QualitaetsSonde();
+  Timer? _gueteTakt;
+  bool _gueteGemeldet = false;
 
   /// Die beiden Gesprächsbeine. `A` ist das erste, `B` das hinzugewählte.
   Call? _rufA;
@@ -1725,11 +1743,31 @@ class SipgateService {
           _anrufProtokoll(anrufId: _protokollId(seite), status: 'verbunden');
         }
         _laufendesGespraechMelden();
+        _gueteStarten();
         break;
 
       case CallStateEnum.FAILED:
       case CallStateEnum.ENDED:
         _klingelnBeenden();
+        // ⚠️ NUR WENN DAS LETZTE BEIN GEHT. Legt in einer Konferenz einer der
+        // beiden auf, läuft das andere Gespräch weiter — die Messung dort
+        // mitzubeenden wäre derselbe Fehler, vor dem die Zeilen weiter unten
+        // beim Abräumen warnen, nur stiller: der Bildschirm zeigte für den
+        // Rest des Gesprächs „wird gemessen …", und im Protokoll stünde nichts.
+        //
+        // ⚠️ Und die Bilanz gehört zur VERBINDUNG, nicht zum Bein. Bleibt eines
+        // übrig, wird frisch begonnen statt weitergezählt — sonst trüge das
+        // verbleibende Gespräch die Aussetzer eines anderen, und zwar
+        // unauffällig.
+        final letztesBein = (seite == 'A' ? _rufB : _rufA) == null;
+        final gueteKarte = letztesBein ? gueteBilanz.alsKarte() : null;
+        _gueteTakt?.cancel();
+        _gueteTakt = null;
+        if (letztesBein) {
+          _gueteStoppen();
+        } else {
+          _gueteStarten();
+        }
         final beendet = _bein(seite);
         final dauer = beendet?.dauerSekunden ?? 0;
         final warEingehendUnbeantwortet = beendet != null &&
@@ -1758,6 +1796,7 @@ class SipgateService {
           status: status,
           dauerS: dauer,
           fehler: fehlertext,
+          guete: gueteKarte,
         );
 
         final wen = beendet == null ? '' : ' (${beendet.anzeige})';
@@ -2433,6 +2472,46 @@ class SipgateService {
   /// fehlen im Verlauf des Anbieters.
   ///
   /// Wirft nie: ein Protokolleintrag darf ein laufendes Gespräch nicht stören.
+  /// Beginnt die Güte-Messung des laufenden Gesprächs.
+  ///
+  /// ⚠️ Der erste Takt liefert nichts, und das ist richtig so: alle Zähler
+  /// sind kumulativ, es braucht also zwei Abfragen, bevor ein Wert entsteht.
+  /// Siehe [QualitaetsSonde].
+  void _gueteStarten() {
+    if (_gueteTakt != null) return;
+    _sonde.zuruecksetzen();
+    gueteBilanz.leeren();
+    guete.value = null;
+    _gueteGemeldet = false;
+    _gueteTakt = Timer.periodic(kQualitaetTakt, (_) => _gueteAbfragen());
+    _gueteAbfragen();
+  }
+
+  void _gueteStoppen() {
+    _gueteTakt?.cancel();
+    _gueteTakt = null;
+    guete.value = null;
+  }
+
+  Future<void> _gueteAbfragen() async {
+    final pc = _aktiverRuf?.peerConnection;
+    if (pc == null) return;
+    try {
+      final probe = _sonde.auswerten(await pc.getStats());
+      if (probe == null) return;
+      gueteBilanz.hinzu(probe);
+      guete.value = probe;
+    } catch (e) {
+      // ⚠️ Einmal melden, dann still weiterlaufen — und den Takt NICHT
+      // abbrechen. Die Güte ist Beiwerk; ein Gespräch darf nie daran
+      // scheitern, dass eine Kennzahl nicht zu holen war.
+      if (!_gueteGemeldet) {
+        _gueteGemeldet = true;
+        _log.warning('sipgate: Güte nicht messbar ($e)', tag: 'SIPGATE');
+      }
+    }
+  }
+
   Future<int?> _anrufProtokoll({
     int? anrufId,
     String? richtung,
@@ -2441,6 +2520,7 @@ class SipgateService {
     required String status,
     int? dauerS,
     String? fehler,
+    Map<String, dynamic>? guete,
   }) async {
     if (anrufId == null && richtung == null) return null;
     try {
@@ -2453,6 +2533,7 @@ class SipgateService {
         'status': status,
         if (dauerS != null) 'dauer_s': dauerS,
         if (fehler != null) 'fehler': fehler,
+        if (guete != null) 'guete': guete,
         if (_sipId != null) 'sip_id': _sipId,
         if (DeviceKeyService().deviceId != null) 'device_id': DeviceKeyService().deviceId,
       });

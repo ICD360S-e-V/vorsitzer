@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -10,6 +11,8 @@ import '../services/untertitel_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/sipgate_anruf_overlay.dart';
 import '../widgets/sekunden_takt.dart';
+import '../services/qualitaets_sonde.dart';
+import '../widgets/guete_anzeige.dart';
 import '../widgets/netz_pastille.dart';
 import '../widgets/sipgate_waehltastatur.dart';
 import 'sipgate_kontakte_screen.dart';
@@ -39,6 +42,9 @@ class _SipgateScreenState extends State<SipgateScreen> {
   String _gesendeteToene = '';
   bool _ladeVerlauf = true;
   List<Map<String, dynamic>> _verlauf = const [];
+
+  /// Die Güte über die letzten 90 Tage. `null`, solange nicht geladen.
+  Map<String, dynamic>? _gueteStatistik;
 
   /// Was sipgate ueber das VoIP-Telefon sagt — `null`, solange nicht geholt.
   Map<String, dynamic>? _telefonZustand;
@@ -110,6 +116,92 @@ class _SipgateScreenState extends State<SipgateScreen> {
     ]);
   }
 
+  Future<void> _gueteStatistikLaden() async {
+    try {
+      final a = await ApiService()
+          .sipgateAction({'action': 'guete_statistik', 'tage': 90});
+      final st = a['guete_statistik'];
+      if (mounted && st is Map) {
+        setState(() => _gueteStatistik = Map<String, dynamic>.from(st));
+      }
+    } catch (_) {
+      // Still. Ohne Statistik fehlt eine Zeile, nicht der Verlauf.
+    }
+  }
+
+  /// Die Güte über viele Gespräche.
+  ///
+  /// ⚠️ DAS IST DIE ZAHL, MIT DER MAN ARGUMENTIERT. Ein einzelnes schlechtes
+  /// Gespräch beweist nichts — jeder kennt einen Anruf, der schlecht war. Was
+  /// zählt, ist wie oft. Dieselbe Lehre wie beim Speedtest, wo der Anteil der
+  /// schlechten Tage die Beschwerde trägt und nicht der schlimmste Einzelwert.
+  Widget _gueteUeberblick() {
+    final st = _gueteStatistik;
+    if (st == null) return const SizedBox.shrink();
+    final n = (st['gespraeche'] as num?)?.toInt() ?? 0;
+    if (n == 0) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          'Für die Güte gibt es noch keine Messwerte — sie entstehen ab dem '
+          'nächsten Gespräch.',
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
+        ),
+      );
+    }
+    final median = (st['mos_median'] as num?)?.toDouble() ?? 0;
+    final anteil = (st['anteil_schlecht'] as num?)?.toDouble() ?? 0;
+    final schlecht = (st['schlecht'] as num?)?.toInt() ?? 0;
+    final eingebrochen = (st['eingebrochen'] as num?)?.toInt() ?? 0;
+    final minuten = (st['minuten'] as num?)?.toInt() ?? 0;
+    final stufe = gueteStufeAusMos(median);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: gueteFarbe(stufe).withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: gueteFarbe(stufe).withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.graphic_eq, size: 16, color: gueteFarbe(stufe)),
+            const SizedBox(width: 6),
+            Text('Verbindungsgüte, 90 Tage',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: gueteFarbe(stufe))),
+          ]),
+          const SizedBox(height: 4),
+          Text(
+            '$n Gespräche · $minuten Minuten gemessen · '
+            'Median MOS ${median.toStringAsFixed(2)} (${gueteStufeText(stufe)})',
+            style: const TextStyle(fontSize: 12),
+          ),
+          Text(
+            '$schlecht davon unter „brauchbar" '
+            '(${anteil.toStringAsFixed(0)} %)'
+            // ⚠️ Getrennt ausgewiesen: ein Gespräch, dessen Median in Ordnung
+            // war und das trotzdem zeitweise einbrach, fällt aus jeder
+            // Durchschnittsbetrachtung heraus — und ist doch genau das, was
+            // man am Telefon erlebt hat.
+            '${eingebrochen > 0 ? ' · $eingebrochen weitere brachen zeitweise ein' : ''}',
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            '⚠️ Gemessen wird die Strecke bis sipgate, nicht das ganze '
+            'Gespräch — und nur, was dieses Gerät mitbekommen hat.',
+            style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _verlaufLaden() async {
     try {
       final a = await ApiService().sipgateAction({'action': 'list_anrufe', 'limit': 40});
@@ -118,6 +210,9 @@ class _SipgateScreenState extends State<SipgateScreen> {
       // Die Antwort bringt die Zahl schon mit — eine zweite Anfrage nur fuers
       // Abzeichen waere Arbeit fuer nichts.
       AnrufBadgeService().uebernehmen(a);
+      // ⚠️ Getrennte Anfrage, und ein Fehlschlag darf den Verlauf nicht
+      // mitnehmen: die Statistik ist Beiwerk, die Liste ist der Zweck.
+      unawaited(_gueteStatistikLaden());
       if (mounted) {
         setState(() {
           _verlauf = liste is List ? liste.cast<Map<String, dynamic>>() : const [];
@@ -902,6 +997,8 @@ class _SipgateScreenState extends State<SipgateScreen> {
 
             if (z.verbundeneBeine > 0) ...[
               const Divider(height: 20),
+              _gueteFeld(),
+              const Divider(height: 20),
               Text('Tastentöne (DTMF)',
                   style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 6),
@@ -925,6 +1022,59 @@ class _SipgateScreenState extends State<SipgateScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Die Güte des laufenden Gesprächs: zugeklappt eine Zeile, aufgeklappt
+  /// alles Gemessene.
+  ///
+  /// ⚠️ Zugeklappt als Vorgabe. Wer telefoniert, will den Auflegen-Knopf
+  /// sehen, nicht zwanzig Kennzahlen — die braucht man erst, wenn etwas nicht
+  /// stimmt, und dann sofort vollständig.
+  Widget _gueteFeld() {
+    return ValueListenableBuilder<QualitaetsProbe?>(
+      valueListenable: _dienst.guete,
+      builder: (_, probe, __) {
+        if (probe == null) {
+          return Row(children: [
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: F.h(Colors.grey, 500)),
+            ),
+            const SizedBox(width: 8),
+            Text('Verbindungsgüte wird gemessen …',
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
+          ]);
+        }
+        return Theme(
+          // Ohne das zieht ExpansionTile eine Linie quer durch die Karte.
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsets.only(bottom: 8),
+            dense: true,
+            leading: Icon(Icons.graphic_eq, color: gueteFarbe(probe.stufe)),
+            title: Text(
+              'Verbindung ${gueteStufeText(probe.stufe)}',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: gueteFarbe(probe.stufe)),
+            ),
+            subtitle: Text(
+              'MOS ${probe.mos.toStringAsFixed(2)} · '
+              'Verlust ${probe.verlustProzent.toStringAsFixed(1)} %'
+              '${probe.rttMs == null ? '' : ' · ${probe.rttMs!.round()} ms'}',
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
+            ),
+            children: [
+              GueteTafel(probe: probe, bilanz: _dienst.gueteBilanz),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1479,6 +1629,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
               ],
             ),
             const SizedBox(height: 10),
+            _gueteUeberblick(),
             if (_ladeVerlauf)
               const Center(child: Padding(
                 padding: EdgeInsets.all(12),
@@ -1573,6 +1724,45 @@ class _SipgateScreenState extends State<SipgateScreen> {
     if (offen) await _abhaken(a);
   }
 
+  /// Eine Zeile mit der gespeicherten Güte eines beendeten Gesprächs.
+  Widget _gueteZeile(Map<String, dynamic> a) {
+    final mos = (a['guete_mos'] as num).toDouble();
+    final min = a['guete_min'] is num ? (a['guete_min'] as num).toDouble() : null;
+    final d = a['guete'] is Map ? Map<String, dynamic>.from(a['guete'] as Map) : null;
+    final stufe = gueteStufeAusMos(mos);
+    final teile = <String>[
+      'MOS ${mos.toStringAsFixed(2)}',
+      // ⚠️ Der schlechteste Wert gehört DANEBEN, nicht anstelle des Medians.
+      // Ein Gespräch mit einem einzigen Aussetzer ist etwas anderes als eines,
+      // das durchgehend schlecht war — und nur beide Zahlen zusammen
+      // unterscheiden das.
+      if (min != null && min < mos - 0.3) 'zeitweise ${min.toStringAsFixed(2)}',
+      if (d?['anteil_schlecht'] is num && (d!['anteil_schlecht'] as num) > 0)
+        '${(d['anteil_schlecht'] as num).toStringAsFixed(0)} % schlecht',
+      if (d?['verlust_max'] is num && (d!['verlust_max'] as num) > 0)
+        'Verlust bis ${(d['verlust_max'] as num).toStringAsFixed(1)} %',
+      if (d?['weg'] == 'relay') 'über TURN',
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Tooltip(
+        message: 'Güte der Strecke bis sipgate — nicht des ganzen Gesprächs. '
+            'Geschätzt nach einem für WebRTC abgewandelten E-Modell.',
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.graphic_eq, size: 12, color: gueteFarbe(stufe)),
+          const SizedBox(width: 3),
+          Flexible(
+            child: Text(
+              '${gueteStufeText(stufe)} · ${teile.join(' · ')}',
+              style: TextStyle(fontSize: 10, color: gueteFarbe(stufe)),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
   Widget _verlaufszeile(Map<String, dynamic> a) {
     final ein = a['richtung'] == 'ein';
     final status = '${a['status']}';
@@ -1630,6 +1820,10 @@ class _SipgateScreenState extends State<SipgateScreen> {
           // rechnet es aus den Verzeichnissen der Bundesnetzagentur; siehe
           // [NetzPastille], warum das Netz nur „Block" heisst und nicht
           // „Anbieter".
+          // Die am Gesprächsende festgehaltene Güte. ⚠️ `null` heisst „nicht
+          // gemessen" (alte Zeilen, oder das Gespräch endete vor der zweiten
+          // Abfrage) — dann steht hier nichts, statt eine Null zu behaupten.
+          if (a['guete_mos'] is num) _gueteZeile(a),
           if (a['einordnung'] is Map)
             Padding(
               padding: const EdgeInsets.only(top: 2),
