@@ -2670,8 +2670,17 @@ class ApiService {
       final request = http.MultipartRequest('POST', uri);
 
       // Add headers
-      request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
-      request.headers['X-Device-Key'] = deviceKey;
+      // ⚠️ addAll(_headers) statt zwei Kopfzeilen von Hand: nur so geht auch
+      // 'Authorization: Bearer …' mit. Ohne das kann der Endpunkt die ROLLE
+      // nicht pruefen -- ein Geraeteschluessel weist ein Geraet aus, keine
+      // Person. Genau daran scheiterte am 30.08.2026 der Versuch,
+      // platform/korrespondenz_create.php mit requireAdminRole() abzusichern:
+      // der Aufruf kam ohne Token an und lief auf 401.
+      //
+      // Der Content-Type aus _headers stoert nicht -- MultipartRequest setzt
+      // ihn beim Absenden selbst neu (so machen es die ~130 anderen Uploads
+      // in dieser Datei auch).
+      request.headers.addAll(_headers);
 
       // Add fields
       request.fields['conversation_id'] = conversationId.toString();
@@ -2728,8 +2737,17 @@ class ApiService {
         return {'success': false, 'message': 'Device not registered'};
       }
       final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/chat/upload.php'));
-      request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
-      request.headers['X-Device-Key'] = deviceKey;
+      // ⚠️ addAll(_headers) statt zwei Kopfzeilen von Hand: nur so geht auch
+      // 'Authorization: Bearer …' mit. Ohne das kann der Endpunkt die ROLLE
+      // nicht pruefen -- ein Geraeteschluessel weist ein Geraet aus, keine
+      // Person. Genau daran scheiterte am 30.08.2026 der Versuch,
+      // platform/korrespondenz_create.php mit requireAdminRole() abzusichern:
+      // der Aufruf kam ohne Token an und lief auf 401.
+      //
+      // Der Content-Type aus _headers stoert nicht -- MultipartRequest setzt
+      // ihn beim Absenden selbst neu (so machen es die ~130 anderen Uploads
+      // in dieser Datei auch).
+      request.headers.addAll(_headers);
       request.fields['conversation_id'] = conversationId.toString();
       request.fields['mitgliedernummer'] = mitgliedernummer;
       if (message != null && message.isNotEmpty) {
@@ -2916,8 +2934,17 @@ class ApiService {
       if (deviceKey == null) return {'success': false, 'message': 'Device not registered'};
       final request =
           http.MultipartRequest('POST', Uri.parse('$baseUrl/member/cloud_upload.php'));
-      request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
-      request.headers['X-Device-Key'] = deviceKey;
+      // ⚠️ addAll(_headers) statt zwei Kopfzeilen von Hand: nur so geht auch
+      // 'Authorization: Bearer …' mit. Ohne das kann der Endpunkt die ROLLE
+      // nicht pruefen -- ein Geraeteschluessel weist ein Geraet aus, keine
+      // Person. Genau daran scheiterte am 30.08.2026 der Versuch,
+      // platform/korrespondenz_create.php mit requireAdminRole() abzusichern:
+      // der Aufruf kam ohne Token an und lief auf 401.
+      //
+      // Der Content-Type aus _headers stoert nicht -- MultipartRequest setzt
+      // ihn beim Absenden selbst neu (so machen es die ~130 anderen Uploads
+      // in dieser Datei auch).
+      request.headers.addAll(_headers);
       request.fields['mitgliedernummer'] = mitgliedernummer;
       request.fields['member_id'] = memberId.toString();
       request.fields['filename'] = filename;
@@ -3010,8 +3037,17 @@ class ApiService {
       if (deviceKey == null) return {'success': false, 'message': 'Device not registered'};
       final uri = Uri.parse('$baseUrl/admin/cloud_upload.php');
       final request = http.MultipartRequest('POST', uri);
-      request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
-      request.headers['X-Device-Key'] = deviceKey;
+      // ⚠️ addAll(_headers) statt zwei Kopfzeilen von Hand: nur so geht auch
+      // 'Authorization: Bearer …' mit. Ohne das kann der Endpunkt die ROLLE
+      // nicht pruefen -- ein Geraeteschluessel weist ein Geraet aus, keine
+      // Person. Genau daran scheiterte am 30.08.2026 der Versuch,
+      // platform/korrespondenz_create.php mit requireAdminRole() abzusichern:
+      // der Aufruf kam ohne Token an und lief auf 401.
+      //
+      // Der Content-Type aus _headers stoert nicht -- MultipartRequest setzt
+      // ihn beim Absenden selbst neu (so machen es die ~130 anderen Uploads
+      // in dieser Datei auch).
+      request.headers.addAll(_headers);
       request.fields['mitgliedernummer'] = mitgliedernummer;
       request.fields['meta_enc'] = metaEnc;
       request.fields['source'] = source;
@@ -3293,8 +3329,17 @@ class ApiService {
 
       final uri = Uri.parse('$baseUrl/platform/korrespondenz_create.php');
       final request = http.MultipartRequest('POST', uri);
-      request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
-      request.headers['X-Device-Key'] = deviceKey;
+      // ⚠️ addAll(_headers) statt zwei Kopfzeilen von Hand: nur so geht auch
+      // 'Authorization: Bearer …' mit. Ohne das kann der Endpunkt die ROLLE
+      // nicht pruefen -- ein Geraeteschluessel weist ein Geraet aus, keine
+      // Person. Genau daran scheiterte am 30.08.2026 der Versuch,
+      // platform/korrespondenz_create.php mit requireAdminRole() abzusichern:
+      // der Aufruf kam ohne Token an und lief auf 401.
+      //
+      // Der Content-Type aus _headers stoert nicht -- MultipartRequest setzt
+      // ihn beim Absenden selbst neu (so machen es die ~130 anderen Uploads
+      // in dieser Datei auch).
+      request.headers.addAll(_headers);
 
       request.fields['platform'] = platform;
       request.fields['direction'] = direction;
