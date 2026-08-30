@@ -9,7 +9,12 @@ import 'logger_service.dart';
 final _log = LoggerService();
 
 /// Lifecycle of a Fernwartung session on the CONTROLLER (Vorsitzer) side.
-enum RemoteControlState { idle, calling, connected, ended }
+/// ⚠️ `antwort` liegt zwischen `calling` und `connected`, weil genau dieser
+/// Schritt bisher unsichtbar war: der Bildschirm sagte bis zum Verbinden
+/// „Warten auf Zustimmung von …", obwohl das Mitglied laengst zugestimmt hatte
+/// und seinen Bildschirm teilte. Blieb ICE haengen, zeigte der Vorsitz auf den
+/// falschen Schritt und wartete auf etwas, das schon passiert war.
+enum RemoteControlState { idle, calling, antwort, connected, ended }
 
 /// Why a session ended / failed, so the UI can explain it.
 enum RemoteControlEnd { declined, memberStopped, disconnected, error, timeout, none }
@@ -34,6 +39,7 @@ class RemoteControlService {
   RTCDataChannel? _inputChannel;
   bool _inputOpen = false;
   MediaStream? _remoteStream;
+  MediaStream? _mikroStream;
 
   int? _conversationId;
   bool _remoteDescriptionSet = false;
@@ -153,6 +159,26 @@ class RemoteControlService {
         init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
       );
 
+      // Sprechen waehrend der Sitzung — in BEIDE Richtungen.
+      //
+      // ⚠️ Das eigene Mikrofon muss VOR createOffer angelegt sein, sonst steht
+      // kein Ton im Angebot und es waere eine Neuverhandlung noetig. Wird es
+      // abgelehnt, laeuft die Sitzung ohne Ton weiter; dafuer ist der
+      // Chatstreifen da.
+      _mikroStream = await _mikrofonHolen();
+      if (_mikroStream != null) {
+        for (final track in _mikroStream!.getTracks()) {
+          await _pc!.addTrack(track, _mikroStream!);
+        }
+      } else {
+        // Ohne eigenes Mikrofon trotzdem ZUHOEREN koennen: sonst gaebe es gar
+        // keine Tonspur und das Mitglied redete ins Leere.
+        await _pc!.addTransceiver(
+          kind: RTCRtpMediaType.RTCRtpMediaTypeAudio,
+          init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
+        );
+      }
+
       final offer = await _pc!.createOffer();
       await _pc!.setLocalDescription(offer);
       _chat.sendRemoteOffer(
@@ -242,6 +268,37 @@ class RemoteControlService {
     }
   }
 
+  /// Mikrofon des Vorsitzes. Null heisst „stumm zuhoeren", nicht „Fehler".
+  Future<MediaStream?> _mikrofonHolen() async {
+    try {
+      // ⚠️ Kein permission_handler: `getUserMedia` mit Ton fragt RECORD_AUDIO
+      // auf Android SELBST ab (GetUserMediaImpl.requestPermissions), und diese
+      // Anwendung hat das Paket gar nicht. Lehnt der Mensch ab, wirft der
+      // Aufruf und wir landen im catch — die Sitzung laeuft ohne Ton weiter.
+      return await navigator.mediaDevices.getUserMedia(<String, dynamic>{
+        'audio': {
+          'echoCancellation': true,
+          'noiseSuppression': true,
+          'autoGainControl': true,
+        },
+        'video': false,
+      });
+    } catch (e) {
+      _log.warning('RemoteControl: kein Mikrofon ($e) — Sitzung ohne Ton', tag: 'REMOTE');
+      return null;
+    }
+  }
+
+  /// Eigenes Mikrofon stummschalten, ohne die Sitzung zu beenden.
+  void mikrofonStumm(bool stumm) {
+    for (final t in _mikroStream?.getAudioTracks() ?? const <MediaStreamTrack>[]) {
+      t.enabled = !stumm;
+    }
+  }
+
+  /// Hat der Vorsitz ein eigenes Mikrofon in der Sitzung?
+  bool get hatMikrofon => _mikroStream != null;
+
   // ─── Input senders (normalized 0..1 coords; member denormalizes) ────────────
 
   void _sendInput(Map<String, dynamic> event) {
@@ -312,6 +369,10 @@ class RemoteControlService {
       try {
         await _pc!.setRemoteDescription(RTCSessionDescription(e.sdp, e.sdpType));
         _remoteDescriptionSet = true;
+        // Zustimmung ist da. Ab hier haengt es nur noch an der Verbindung.
+        if (_state == RemoteControlState.calling) {
+          _setState(RemoteControlState.antwort);
+        }
         await _flushQueuedIce();
         // Was das Mitglied über sich meldet, gilt — wir können es nicht wissen.
         _zielPlattform = e.plattform;
@@ -389,6 +450,11 @@ class RemoteControlService {
     } catch (_) {}
     _pc = null;
     _remoteStream = null;
+    try {
+      _mikroStream?.getTracks().forEach((t) => t.stop());
+      _mikroStream?.dispose();
+    } catch (_) {}
+    _mikroStream = null;
     if (!_remoteStreamController.isClosed) _remoteStreamController.add(null);
     _remoteDescriptionSet = false;
     _queuedIce.clear();
