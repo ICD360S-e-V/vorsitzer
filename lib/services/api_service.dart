@@ -339,6 +339,61 @@ class ApiService {
     };
   }
 
+  /// Angaben zum Offline-Sprachmodell: Grösse und Prüfsumme.
+  ///
+  /// ⚠️ VOR dem Herunterladen abfragen. Es sind 46 MB, und die gehen über die
+  /// Mobilfunkleitung des Vereins — wer das auslöst, soll vorher sehen, was auf
+  /// ihn zukommt.
+  Future<Map<String, dynamic>> sprachmodellAngaben(String sprache) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/sipgate/sprachmodell.php?sprache=$sprache&nur_angaben=1'),
+      headers: _headers,
+    );
+    if (r.statusCode != 200) {
+      return {'success': false, 'message': 'HTTP ${r.statusCode}'};
+    }
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Lädt das Sprachmodell — als Strom, nicht am Stück.
+  ///
+  /// ⚠️ `get()` würde 46 MB in den Speicher legen, bevor die erste Zeile davon
+  /// gebraucht wird. Auf einem Tablet mit offenem Gespräch ist das genau der
+  /// falsche Moment für eine Speicherspitze.
+  Future<http.StreamedResponse> sprachmodellStrom(String sprache) {
+    final anfrage = http.Request(
+        'GET', Uri.parse('$baseUrl/sipgate/sprachmodell.php?sprache=$sprache'))
+      ..headers.addAll(_headers);
+    return _client.send(anfrage);
+  }
+
+  /// Holt das Logo eines Mobilfunknetzes als SVG-Quelltext.
+  ///
+  /// ⚠️ EINMAL HOLEN, NICHT JE ZEILE. Der erste Entwurf hing ein
+  /// `SvgPicture.network` in jede Verlaufszeile — bei 50 Zeilen also 50
+  /// Anfragen für vier immer gleiche Dateien, jede mit eigener Fehlerbehandlung
+  /// im Widget. Hier kommt der Quelltext einmal an, der Aufrufer hält ihn, und
+  /// gezeichnet wird aus dem Speicher.
+  ///
+  /// Gibt `null` zurück, statt zu werfen: ein fehlendes Logo ist kein Grund,
+  /// eine Liste nicht anzuzeigen.
+  Future<String?> netzlogoSvg(String schluessel) async {
+    try {
+      final r = await _client.get(
+        Uri.parse('$baseUrl/sipgate/netzlogo.php?netz=$schluessel'),
+        headers: _headers,
+      );
+      if (r.statusCode != 200) return null;
+      // Gegenprobe, auch wenn der Server schon prüft: was hier ankommt, wird
+      // gleich gezeichnet. Eine Fehlerseite mit Status 200 gäbe sonst ein
+      // „Invalid SVG data" mitten im Bildschirmaufbau.
+      final t = r.body;
+      return t.contains('<svg') ? t : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // Login (Vorsitzer Portal - Admin roles only)
   Future<Map<String, dynamic>> login(String mitgliedernummer, String password) async {
     final deviceKey = _deviceKeyService.deviceKey;

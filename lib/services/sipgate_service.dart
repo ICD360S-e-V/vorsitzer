@@ -16,6 +16,8 @@ import 'logger_service.dart';
 import 'notification_service.dart';
 import 'platform_service.dart';
 import 'secure_store.dart';
+import 'signatur_gateway_service.dart';
+import 'untertitel_service.dart';
 import 'voice_call_service.dart' show iceServerEintraege;
 
 final _log = LoggerService();
@@ -234,7 +236,31 @@ SipgateTelefonLage sipgateTelefonLage({
 /// ⚠️ `abgelehnt` gehoert NICHT dazu: einen Anruf wegzudruecken ist eine
 /// Entscheidung, kein Versaeumnis. `klingelt` dagegen schon — drei Zeilen
 /// stehen dauerhaft darauf, weil die App mitten im Laeuten abgeraeumt wurde.
+///
+/// ⚠️ DIE ANTWORT KOMMT VOM SERVER, WENN ER SIE MITSCHICKT — und das ist keine
+/// Bequemlichkeit. Dieselbe Frage beantwortet `sipgateVerpasstZaehlen()` in SQL,
+/// und dort gilt zusaetzlich eine Altersgrenze: `klingelt` zaehlt erst nach
+/// fuenf Minuten, sonst spraenge das Abzeichen an, waehrend das Telefon noch
+/// laeutet. Hier stand diese Grenze nicht — die beiden gaben also fuer eine
+/// Zeile, die GERADE klingelt, verschiedene Antworten.
+///
+/// Nachrechnen kann der Client sie auch nicht: `begonnen_am` schreibt MySQL,
+/// und MySQL laeuft auf diesem Server in Europe/Berlin, waehrend PHP auf UTC
+/// steht (nachgemessen am 30.08.2026: `NOW()` = 10:04 CEST, `date()` = 08:04
+/// UTC). Eine zweite Rechnung gegen die Geraeteuhr waere nicht bloss doppelt,
+/// sondern in einer anderen Zeitrechnung — und faellt niemandem auf, weil sie
+/// auf einem Berliner Geraet zufaellig stimmt.
+///
+/// Der Rueckfall bleibt trotzdem stehen: eine aeltere Serverfassung kennt
+/// `verpasst_offen` nicht, und dann ist die alte Regel besser als gar keine
+/// Hervorhebung.
 bool sipgateVerpasstOffen(Map<String, dynamic> zeile) {
+  final vomServer = zeile['verpasst_offen'];
+  // ⚠️ `num` mitnehmen, nicht nur `bool`: ob PHP `true` oder `1` schickt, haengt
+  // daran, wie der Wert entstanden ist — hier kommt er aus einem SQL-Ausdruck.
+  if (vomServer is bool) return vomServer;
+  if (vomServer is num) return vomServer != 0;
+
   if (zeile['richtung'] != 'ein') return false;
   if (zeile['gesehen'] == true) return false;
   final status = '${zeile['status']}';
@@ -432,6 +458,18 @@ class SipgateService {
   String? _sipId;
   bool _startetGerade = false;
 
+  /// Die Tonspur der GEGENSTELLE, für die Live-Untertitel.
+  ///
+  /// ⚠️ Kommt aus `CallStateEnum.STREAM` mit `originator == remote` — der
+  /// einzigen Stelle, an der `sip_ua` den entfernten Strom herausgibt. Ohne
+  /// diese Kennung findet die native Seite die Spur nicht: sie fragt damit
+  /// `FlutterWebRTCPlugin.getRemoteTrack(id)`.
+  ///
+  /// ⚠️ Nur die des ERSTEN Beins. Bei zwei Gesprächen ist nicht entscheidbar,
+  /// wen der Vorsitzende gerade mitlesen will — und zwei Untertitelspuren
+  /// übereinander wären unlesbar.
+  String? gegenstelleSpurId;
+
   /// Läuft die Wiederanmeldung. Siehe die Begründung bei [sipgateWartezeit].
   Timer? _erneutTakt;
 
@@ -584,6 +622,8 @@ class SipgateService {
         annehmen();
       } else if (e == 'sipgate-aktion:${NotificationService.aktionAblehnen}') {
         ablehnen();
+      } else if (e == 'sipgate-aktion:${NotificationService.aktionAuflegen}') {
+        auflegen();
       }
     });
   }
@@ -667,6 +707,12 @@ class SipgateService {
         _log.info('sipgate: kein eigenes VoIP-Telefon (${cfg.sipId} gehoert einem '
             'anderen Geraet) — es wird nicht angemeldet', tag: 'SIPGATE');
         _wiederholungAbbrechen();
+        // Kein eigenes Telefon heisst: hier wird nie eine Anmeldung gehalten.
+        // Also darf dieses Geraet auch keinen Vordergrunddienst dafuer
+        // hochziehen — sonst traegt ausgerechnet der RDP-Kiosk eine
+        // Dauerbenachrichtigung fuer eine Registrierung, die er nie eingeht.
+        SignaturGatewayService.sipgateHaeltRegistrierung = false;
+        unawaited(SignaturGatewayService.stoppenWennUnnoetig());
         _setz(
           stand: SipgateStand.fremdesTelefon,
           sipId: cfg.sipId,
@@ -750,6 +796,31 @@ class SipgateService {
         meldung: 'Melde an …',
       );
 
+      // ⚠️ DER VORDERGRUNDDIENST IST DIE LEBENSVERSICHERUNG DIESER ANMELDUNG.
+      //
+      // `sip_ua` laeuft im Haupt-Isolat, und ein Haupt-Isolat ohne
+      // Vordergrunddienst darf Android einfrieren oder abraeumen. Dann
+      // scheitert die Erneuerung nach 295 s, es klingelt nichts mehr, und das
+      // einzige Zeichen ist ein rotes Symbol, das jemandem auffallen muss.
+      //
+      // Bis zum 30.08.2026 hat diesen Dienst NIEMAND fuer die Telefonie
+      // gestartet: er haengt an `TerminSmsGatewayService` und
+      // `AnrufGatewayService`. Dass es trotzdem lief, war Zufall — dasselbe
+      // Tablet traegt auch das SMS-Gateway. Wer diesen Schalter umlegte, haette
+      // ohne es zu merken die Telefonie mit abgeschaltet.
+      //
+      // ⚠️ HIER und nicht schon bei `_gewollt = true`: erst ab dieser Zeile
+      // steht fest, dass dieses Geraet ein EIGENES VoIP-Telefon hat. Die
+      // Grenze, die das offen laesst, sei genannt: scheitert schon das Holen
+      // der Zugangsdaten (frisches Geraet, kein Netz, kein Zwischenspeicher),
+      // haelt niemand den Prozess, und der eingeplante Anlauf koennte
+      // eingefroren werden. Das heilt beim naechsten Oeffnen der App von
+      // selbst — im Vordergrund friert nichts ein. Die haeufige
+      // Wiederholung (abgelehntes REGISTER auf stehender Verbindung) laeuft
+      // ohnehin erst, nachdem diese Zeile einmal durch war.
+      SignaturGatewayService.sipgateHaeltRegistrierung = true;
+      await SignaturGatewayService.starten();
+
       await _helper.start(settings);
       _uaGebaut = true;
       _log.info('sipgate: Anmeldung gestartet für ${cfg.sipId}', tag: 'SIPGATE');
@@ -774,6 +845,29 @@ class SipgateService {
     _gewollt = false;
     _wiederholungAbbrechen();
     _klingelnBeenden();
+    // Wir halten ab jetzt keine Anmeldung mehr — der Dienst faellt weg, sofern
+    // ihn nicht SMS-Gateway oder Fernwahl weiter brauchen.
+    SignaturGatewayService.sipgateHaeltRegistrierung = false;
+    gegenstelleSpurId = null;
+    unawaited(UntertitelService().beenden());
+    unawaited(NotificationService().cancelOngoingCall().catchError((Object e) =>
+        _log.warning('sipgate: Gesprächsmeldung nicht entfernt ($e)',
+            tag: 'SIPGATE')));
+    // ⚠️ ERST die offenen Beine abschliessen, DANN die Merker leeren.
+    //
+    // Bis zum 30.08.2026 stand hier nur das Leeren. Wer die Telefonie waehrend
+    // eines Gespraechs abschaltete, liess damit eine Verlaufszeile auf
+    // `verbunden` stehen — fuer immer: `_helper.stop()` beendet zwar die
+    // Sitzung, aber das darauf folgende `ENDED` findet `_anrufIdA` bereits auf
+    // `null` und `_anrufProtokoll()` steigt in seiner Waechterzeile aus. Am
+    // 30.08.2026 lagen 13 solcher Zeilen in der Datenbank, die aelteste vom
+    // 13.08.; im Verlauf lasen sie sich als Gespraeche, die seit Wochen laufen.
+    //
+    // Der Prozesstod bleibt unheilbar — wer abgeraeumt wird, schreibt nichts
+    // mehr; dafuer raeumt der Server nach zwoelf Stunden auf
+    // (`sipgateVerwaisteSchliessen`). Aber DIESER Fall ist kein Prozesstod,
+    // sondern ein Knopfdruck, und der kann sauber aufraeumen.
+    await _offeneBeineSchliessen();
     _rufA = null;
     _rufB = null;
     _aktiv = 'A';
@@ -785,6 +879,52 @@ class SipgateService {
       _log.warning('sipgate: Abmelden meldete $e', tag: 'SIPGATE');
     }
     _setz(stand: SipgateStand.aus, meldung: null, gespraech: null, loescheGespraech: true);
+    await SignaturGatewayService.stoppenWennUnnoetig();
+  }
+
+  /// Legt auf und schreibt zu Ende, was beim Abschalten noch laeuft.
+  ///
+  /// ⚠️ Der Status ist nicht immer `beendet`. Ein eingehender Anruf, der noch
+  /// klingelte, wurde nicht gefuehrt — er ist `verpasst`, dieselbe Regel wie im
+  /// `ENDED`-Zweig von [_gespraech]. Ihn als `beendet` zu buchen hiesse, ihn aus
+  /// dem Abzeichen zu nehmen, ohne dass jemand rangegangen ist.
+  ///
+  /// ⚠️ Die Dauer wird VOR dem Auflegen genommen. Danach ist `verbundenSeit`
+  /// zwar noch da, aber die Zeile koennte schon vom `ENDED`-Ereignis
+  /// ueberschrieben sein — und dann stuende dort die Dauer von jetzt statt die
+  /// des Gespraechs.
+  ///
+  /// Wirft nie: ein Protokolleintrag darf das Abschalten nicht aufhalten.
+  Future<void> _offeneBeineSchliessen() async {
+    for (final seite in const ['A', 'B']) {
+      final ruf = seite == 'A' ? _rufA : _rufB;
+      final g = _bein(seite);
+      final id = _protokollId(seite);
+      if (ruf == null && id == null) continue;
+
+      if (id != null) {
+        final verpasst = g != null &&
+            g.eingehend &&
+            g.stand != SipgateGespraechStand.verbunden;
+        await _anrufProtokoll(
+          anrufId: id,
+          status: verpasst ? 'verpasst' : 'beendet',
+          dauerS: g?.dauerSekunden ?? 0,
+          // Steht als Notiz in der Zeile, nicht als Fehler: der Anruf ist nicht
+          // gescheitert, er wurde von uns beendet. Ohne den Satz saehe ein
+          // Gespraech von drei Sekunden aus wie ein Verbindungsabbruch.
+          fehler: 'Telefonie wurde während des Gesprächs abgeschaltet',
+        );
+      }
+      try {
+        ruf?.hangup();
+      } catch (e) {
+        // Die Sitzung kann in derselben Sekunde schon weg sein — kein Grund,
+        // das Abschalten daran scheitern zu lassen.
+        _log.warning('sipgate: Bein $seite liess sich nicht auflegen: $e',
+            tag: 'SIPGATE');
+      }
+    }
   }
 
   /// ICE-Server aus unserem **eigenen** coturn.
@@ -1095,6 +1235,7 @@ class SipgateService {
     // Sitzung, die gerade endet, würde sonst als Ausnahme durchschlagen.
     if (!_steuercode(ruf, an ? '*3' : '#')) return;
     _setzBein(_aktiv, (g) => g.kopie(gehalten: an));
+    _laufendesGespraechMelden();
   }
 
   /// Wechselt zwischen den beiden Beinen (`*4`).
@@ -1583,6 +1724,7 @@ class SipgateService {
           );
           _anrufProtokoll(anrufId: _protokollId(seite), status: 'verbunden');
         }
+        _laufendesGespraechMelden();
         break;
 
       case CallStateEnum.FAILED:
@@ -1641,6 +1783,11 @@ class SipgateService {
           _anrufIdB = null;
         }
         _setzeBein(seite, null);
+        if (seite == 'A') {
+          gegenstelleSpurId = null;
+          // ⚠️ Und damit ist der Text weg. Gespeichert wird nichts.
+          unawaited(UntertitelService().beenden());
+        }
 
         // Bleibt genau ein Bein übrig, ist es das aktive und keine Konferenz
         // mehr. Bleibt keines, hört die Uhr auf.
@@ -1655,14 +1802,41 @@ class SipgateService {
           // Anzeige auf „in der Warteschleife", während man miteinander redet.
           _setzBein(_aktiv, (g) => g.kopie(gehalten: false));
         }
+        _laufendesGespraechMelden();
+        break;
+
+      // ⚠️ NUR die Gegenseite. Halten wir selbst, geht das über den
+      // Steuercode `*3` an die sipgate-Anlage und [halten] hat das Feld schon
+      // gesetzt — hier käme dieselbe Aussage ein zweites Mal an und würde die
+      // beiden Richtungen vermischen.
+      case CallStateEnum.HOLD:
+      case CallStateEnum.UNHOLD:
+        if (state.originator == Originator.remote) {
+          final gehalten = state.state == CallStateEnum.HOLD;
+          _setzBein(seite, (g) => g.kopie(vonGegenseiteGehalten: gehalten));
+          _log.info(
+              'sipgate: Gegenseite hat Bein $seite '
+              '${gehalten ? 'in die Warteschleife gestellt' : 'zurückgeholt'}',
+              tag: 'SIPGATE');
+          _laufendesGespraechMelden();
+        }
+        break;
+
+      // Die Tonspur der Gegenstelle merken — mehr passiert hier nicht. Ob
+      // mitgeschrieben wird, entscheidet der Vorsitzende im Bildschirm.
+      case CallStateEnum.STREAM:
+        if (state.originator == Originator.remote && seite == 'A') {
+          final spuren = state.stream?.getAudioTracks() ?? const [];
+          if (spuren.isNotEmpty) {
+            gegenstelleSpurId = spuren.first.id;
+            _log.info('sipgate: Tonspur der Gegenstelle steht', tag: 'SIPGATE');
+          }
+        }
         break;
 
       case CallStateEnum.MUTED:
       case CallStateEnum.UNMUTED:
       case CallStateEnum.CONNECTING:
-      case CallStateEnum.STREAM:
-      case CallStateEnum.HOLD:
-      case CallStateEnum.UNHOLD:
       case CallStateEnum.REFER:
       case CallStateEnum.NONE:
         break;
@@ -1713,8 +1887,9 @@ class SipgateService {
   /// Holt die Benachrichtigungsfreigabe und merkt sich das Ergebnis.
   ///
   /// ⚠️ `POST_NOTIFICATIONS` ist seit Android 13 eine Laufzeitberechtigung und
-  /// wurde in diesem Projekt nie abgefragt — die App hat `targetSdk = 34`, also
-  /// zeigt Android den Dialog auch nicht mehr von selbst. Ohne die Freigabe
+  /// wurde in diesem Projekt nie abgefragt — die App zielt auf `targetSdk = 37`
+  /// (`android/app/build.gradle.kts`), also zeigt Android den Dialog nicht von
+  /// selbst; das tat es nur bei Apps unter Ziel-33. Ohne die Freigabe
   /// erscheint bei einem Anruf gar nichts, geräuschlos: eine verworfene
   /// Benachrichtigung wirft nicht. Es klingelt dann, aber wer anruft steht
   /// nirgends — und genau das war die Beschwerde.
@@ -1870,6 +2045,7 @@ class SipgateService {
         verbundenSeit: g.verbundenSeit,
         stumm: g.stumm,
         gehalten: g.gehalten,
+        vonGegenseiteGehalten: g.vonGegenseiteGehalten,
       ),
     );
     _anrufProtokoll(anrufId: _protokollId(seite), status: g.stand == SipgateGespraechStand.klingelt ? 'klingelt' : 'verbunden', bezeichnung: name);
@@ -1882,6 +2058,52 @@ class SipgateService {
         mitKnoepfen: true,
       ));
     }
+  }
+
+  /// Zeigt oder entfernt die Dauerbenachrichtigung fürs laufende Gespräch.
+  ///
+  /// ⚠️ WOFÜR — DIE SCHWEBENDE KARTE HÖRT AN DER APP AUF.
+  /// [SipgateAnrufOverlay] hängt im Navigator-Overlay: wer während des
+  /// Gesprächs in einen Browser wechselt oder den Bildschirm sperrt, hat weder
+  /// Dauer noch Auflegen-Knopf mehr vor sich. Auf Android ist die
+  /// Dauerbenachrichtigung mit `category: call` die eingeführte Form dafür.
+  ///
+  /// ⚠️ Nur bei **verbunden**. Beim Klingeln steht schon die Anruf-
+  /// Benachrichtigung mit Annehmen/Ablehnen da; zwei Einträge nebeneinander,
+  /// von denen einer „Auflegen" anbietet, bevor überhaupt jemand dran ist,
+  /// wären eine Falle. Beim Wählen ebenso: da ist noch nichts zu beenden
+  /// ausser dem eigenen Versuch, und dafür steht die Karte auf dem Schirm.
+  ///
+  /// Wirft nie: eine Benachrichtigung darf kein Gespräch stören.
+  void _laufendesGespraechMelden() {
+    if (!PlatformService.isAndroid) return;
+    final z = zustand.value;
+    final beine = z.beine
+        .where((g) => g.stand == SipgateGespraechStand.verbunden)
+        .toList();
+
+    if (beine.isEmpty) {
+      unawaited(NotificationService().cancelOngoingCall().catchError((Object e) =>
+          _log.warning('sipgate: Gesprächsmeldung nicht entfernt ($e)',
+              tag: 'SIPGATE')));
+      return;
+    }
+
+    final wer = beine.map((g) => g.anzeige).join(' + ');
+    // Was gerade gilt, in der Reihenfolge, in der es den Nutzer betrifft: dass
+    // die Gegenseite uns parkt, erklärt die Stille — das gehört zuerst hin.
+    final zustandstext = z.konferenz
+        ? 'Konferenz läuft'
+        : beine.any((g) => g.vonGegenseiteGehalten)
+            ? 'In der Warteschleife der Gegenseite'
+            : beine.any((g) => g.gehalten)
+                ? 'Gespräch gehalten'
+                : 'Gespräch läuft';
+
+    unawaited(NotificationService()
+        .showOngoingCall(wer: wer, zustand: zustandstext)
+        .catchError((Object e) => _log.warning(
+            'sipgate: Gesprächsmeldung fehlgeschlagen ($e)', tag: 'SIPGATE')));
   }
 
   /// Klingeln und Benachrichtigung mit dem Anrufer.
@@ -1926,6 +2148,17 @@ class SipgateService {
     try {
       FlutterRingtonePlayer().stop();
     } catch (_) {/* nichts zu retten, und kein Grund, hier zu werfen */}
+    // ⚠️ Auch die Benachrichtigung, nicht nur der Ton. Bis zum 30.08.2026 stand
+    // hier nur `stop()`, und „<Name> ruft an..." blieb danach in der Leiste
+    // stehen — während des Gesprächs und lange danach, bis jemand sie
+    // wegwischte. Beim nächsten Anruf wurde derselbe Eintrag nur überschrieben,
+    // also fiel nie auf, dass ihn niemand zurücknimmt.
+    //
+    // Diese Methode läuft an allen drei richtigen Stellen: beim Annehmen, beim
+    // Ablehnen und wenn das Gespräch endet.
+    unawaited(NotificationService().cancelIncomingCall().catchError((Object e) =>
+        _log.warning('sipgate: Anruf-Benachrichtigung nicht zurückgenommen ($e)',
+            tag: 'SIPGATE')));
   }
 
   /// Stellt die Audio-Sitzung auf **Gespräch** um, BEVOR Medien anfangen.
@@ -2256,8 +2489,57 @@ class _SipgateHorcher implements SipUaHelperListener {
   @override
   void onNewNotify(Notify ntf) {}
 
+  /// ⚠️ EIN re-INVITE MUSS BEANTWORTET WERDEN — SONST BEANTWORTET IHN NIEMAND.
+  ///
+  /// Diese Methode war leer, und das ist nicht dasselbe wie „ignorieren".
+  /// Nachgesehen in `sip_ua-1.1.0/lib/src/rtc_session.dart:2041`:
+  /// `emit(EventReInvite(… callback: acceptReInvite …))` ist die **letzte
+  /// Anweisung** von `_receiveReinvite`, danach kommt die schliessende
+  /// Klammer. Es gibt keinen Rueckfall. Der Gegensatz steht dreissig Zeilen
+  /// tiefer: `_receiveUpdate` antwortet nach dem `emit` selbst (`sendAnswer`).
+  /// Wer `accept` also nicht ruft, laesst eine SIP-Anfrage ohne Endantwort.
+  ///
+  /// ⚠️ WAS DABEI GEMESSEN WURDE, UND WAS NICHT.
+  /// Die naheliegende Sorge waren die Session-Timer (RFC 4028): waere sipgate
+  /// der Erneuerer und erneuerte per re-INVITE, liefe unser eigener Timer ab
+  /// und `_runSessionTimer()` beendete das Gespraech mit `408 Session Timer
+  /// Expired`. Das passiert NICHT — am 30.08.2026 an 336 echten Zeilen
+  /// nachgezaehlt: **kein einziges 408**, dafuer 95 Gespraeche ueber 90 s
+  /// (`SESSION_EXPIRES`) und das laengste ueber 82 Minuten, alle sauber
+  /// beendet. Erneuert wird also per UPDATE, und das beantwortet `sip_ua`
+  /// selbst.
+  ///
+  /// Bleibt der Fall, fuer den es keine Messung gibt, weil er sich nicht aus
+  /// dem Verlauf ablesen laesst: **die Gegenseite stellt uns in die
+  /// Warteschleife.** Das laeuft ueber `_processInDialogSdpOffer`, also ueber
+  /// genau diesen re-INVITE — „bleiben Sie bitte in der Leitung" bei einem Amt.
+  /// Ob sipgate das durchreicht, ist unerprobt. Eine unbeantwortete Anfrage ist
+  /// aber in keinem Fall richtig, und die Antwort kostet eine Zeile.
+  ///
+  /// Angenommen wird bedingungslos: `acceptReInvite` schickt die Antwort, die
+  /// `_processInDialogSdpOffer` ausgehandelt hat. Unsere Verbindung ist
+  /// ohnehin nur Ton — ein Video-Angebot kann darin gar nicht zustande kommen,
+  /// es muss also auch nicht abgelehnt werden.
   @override
-  void onNewReinvite(ReInvite event) {}
+  void onNewReinvite(ReInvite event) {
+    final annehmen = event.accept;
+    if (annehmen == null) {
+      _log.warning('sipgate: re-INVITE ohne Annahmeweg — unbeantwortet',
+          tag: 'SIPGATE');
+      return;
+    }
+    // Nicht abgewartet: `callStateChanged` und die Anzeige duerfen nicht auf
+    // einer SDP-Aushandlung stehen. Fehler landen im Protokoll statt im
+    // Gespraechsablauf.
+    annehmen(const <String, dynamic>{}).then(
+      (ok) => _log.info(
+          'sipgate: re-INVITE beantwortet (Ton=${event.hasAudio}, '
+          'Video=${event.hasVideo}, angenommen=$ok)',
+          tag: 'SIPGATE'),
+      onError: (Object e) => _log.warning(
+          'sipgate: re-INVITE nicht beantwortet: $e', tag: 'SIPGATE'),
+    );
+  }
 }
 
 class SipgateKonfig {
@@ -2448,6 +2730,7 @@ class SipgateGespraech {
     this.verbundenSeit,
     this.stumm = false,
     this.gehalten = false,
+    this.vonGegenseiteGehalten = false,
   });
 
   final String nummer;
@@ -2457,8 +2740,20 @@ class SipgateGespraech {
   final DateTime? verbundenSeit;
   final bool stumm;
 
-  /// In der Warteschleife der sipgate-Anlage (`*3`).
+  /// In der Warteschleife der sipgate-Anlage (`*3`) — von UNS gesetzt.
   final bool gehalten;
+
+  /// Die GEGENSEITE hat uns in die Warteschleife gestellt.
+  ///
+  /// ⚠️ Ein eigenes Feld, nicht dasselbe wie [gehalten]. Die beiden bedeuten
+  /// Entgegengesetztes: dort warten die anderen auf uns, hier warten wir auf
+  /// sie. Zusammengelegt stünde bei „Bitte bleiben Sie in der Leitung" auf dem
+  /// Schirm, WIR hätten jemanden geparkt.
+  ///
+  /// Kam bisher nirgends an: `CallStateEnum.HOLD`/`UNHOLD` standen mit leerem
+  /// Rumpf im `switch`. Die plötzliche Stille war damit von einer Störung
+  /// nicht zu unterscheiden.
+  final bool vonGegenseiteGehalten;
 
   int get dauerSekunden => verbundenSeit == null
       ? 0
@@ -2469,6 +2764,7 @@ class SipgateGespraech {
     DateTime? verbundenSeit,
     bool? stumm,
     bool? gehalten,
+    bool? vonGegenseiteGehalten,
   }) =>
       SipgateGespraech(
         nummer: nummer,
@@ -2478,6 +2774,8 @@ class SipgateGespraech {
         verbundenSeit: verbundenSeit ?? this.verbundenSeit,
         stumm: stumm ?? this.stumm,
         gehalten: gehalten ?? this.gehalten,
+        vonGegenseiteGehalten:
+            vonGegenseiteGehalten ?? this.vonGegenseiteGehalten,
       );
 
   /// Das, was auf dem Bildschirm steht.

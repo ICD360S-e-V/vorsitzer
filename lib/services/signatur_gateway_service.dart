@@ -158,6 +158,43 @@ class SignaturGatewayService {
     await FlutterForegroundTask.stopService();
     _log.info('Signatur-Gateway-Dienst gestoppt', tag: 'SIG_GW');
   }
+
+  /// Ob die sipgate-Anmeldung diesen Prozess braucht.
+  ///
+  /// ⚠️ WARUM EIN GESETZTES FELD UND NICHT `SipgateService.autoAktiv()`.
+  /// Der Schalter steht auf Android **voreingestellt an** — auch auf einem
+  /// Gerät, das gar kein eigenes VoIP-Telefon hat und deshalb nie eine
+  /// Anmeldung hält (Zustand `fremdesTelefon`). Würde hier der Schalter
+  /// gelesen, zöge ausgerechnet der RDP-Kiosk eine Dauerbenachrichtigung samt
+  /// Wachdienst hoch, für eine Registrierung, die er nie eingeht.
+  /// [SipgateService] setzt das Feld deshalb genau dann, wenn es wirklich
+  /// registriert — und nimmt es zurück, sobald nicht mehr.
+  ///
+  /// Nebenbei bleibt dieser Dienst damit frei von einem Import auf
+  /// `sipgate_service.dart`, der einen Kreis schlösse.
+  static bool sipgateHaeltRegistrierung = false;
+
+  /// Braucht ihn überhaupt noch jemand?
+  ///
+  /// ⚠️ DIESE FRAGE STAND BIS ZUM 30.08.2026 AN ZWEI STELLEN, UND BEIDE
+  /// KANNTEN NUR DIE JEWEILS ANDERE HÄLFTE: `AnrufGatewayService` fragte nur
+  /// nach dem SMS-Gateway, `TerminSmsGatewayService` nur nach der Fernwahl.
+  /// Solange es zwei Gründe gab, ging das auf. Mit dem dritten — der
+  /// sipgate-Anmeldung, die im Haupt-Isolat lebt und ohne diesen Dienst von
+  /// Android eingefroren werden darf — hätte jede der beiden Stellen den
+  /// Wachdienst gestoppt, während der dritte ihn noch braucht. Sichtbar wäre
+  /// davon nur gewesen, dass es irgendwann nicht mehr klingelt.
+  static Future<bool> nochGebraucht() async =>
+      sipgateHaeltRegistrierung ||
+      await TerminSmsGatewayService.isEnabled() ||
+      await AnrufGatewayService.isEnabled();
+
+  /// Stoppt den Dienst — aber nur, wenn ihn niemand mehr braucht.
+  static Future<void> stoppenWennUnnoetig() async {
+    if (!istUnterstuetzt) return;
+    if (await nochGebraucht()) return;
+    await stoppen();
+  }
 }
 
 /// Einstiegspunkt des Dienst-Isolates. Muss oberste Ebene sein.

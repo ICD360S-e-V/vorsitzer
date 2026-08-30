@@ -233,6 +233,14 @@ class _Karte extends StatelessWidget {
                                   ? ' · hält: ${z.zweites!.anzeige}'
                                   : ' · 2 Gespräche')
                               : '';
+                          // ⚠️ Zuerst, und mit eigenem Wortlaut: „die
+                          // Gegenseite hat uns geparkt" erklärt die plötzliche
+                          // Stille. Ohne den Satz ist sie von einer Störung
+                          // nicht zu unterscheiden — und man legt auf, während
+                          // das Amt gerade jemanden holt.
+                          if (g.vonGegenseiteGehalten) {
+                            return 'In der Warteschleife · ${zeile()}$anderes';
+                          }
                           final nr = SipgateService.anruferAnzeige(g.nummer);
                           if (verbunden && g.anzeige != nr) {
                             return '${zeile()} · $nr$anderes';

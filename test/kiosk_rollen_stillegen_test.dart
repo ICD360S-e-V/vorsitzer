@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-/// Der Kiosk legt beim Aufbau vier Dauerdienste still: Fernwahl, SMS-Gateway,
-/// Speedtest, Wachdienst.
+/// Der Kiosk legt beim Aufbau fünf Dauerdienste still: Fernwahl, SMS-Gateway,
+/// Speedtest, sipgate und den Wachdienst.
 ///
 /// ⚠️ Bis 24.08.2026 standen alle vier in EINEM `try`. Wirft der erste — und
 /// `AnrufGatewayService.setEnabled(false)` greift über einen MethodChannel nach

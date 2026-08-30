@@ -5,9 +5,12 @@ import '../services/api_service.dart';
 import '../services/anruf_badge_service.dart';
 import '../services/phone_call_service.dart';
 import '../services/sipgate_service.dart';
+import '../services/untertitel_modell.dart';
+import '../services/untertitel_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/sipgate_anruf_overlay.dart';
 import '../widgets/sekunden_takt.dart';
+import '../widgets/netz_pastille.dart';
 import '../widgets/sipgate_waehltastatur.dart';
 import 'sipgate_kontakte_screen.dart';
 import '../utils/app_farben.dart';
@@ -284,12 +287,71 @@ class _SipgateScreenState extends State<SipgateScreen> {
   Future<void> _anrufen() async {
     final roh = _nummer.text.trim();
     if (roh.isEmpty) return;
+
+    // ⚠️ NOTRUFE: die Absage allein war zu wenig.
+    // `SipgateService.anrufen()` weist 110/112 zu Recht ab — im sipgate-Konto
+    // steht die Adresse zwar VERIFIZIERT und am Telefon, aber ihr
+    // `emergencyState` ist `NONE`; der Ruf landete also im besten Fall bei der
+    // falschen Leitstelle. Bisher stand danach nur ein roter Satz auf dem
+    // Schirm, der auf „das Telefon mit SIM-Karte" verwies — und genau das
+    // Gerät hält man in der Hand.
+    //
+    // ⚠️ Es wird NICHTS von selbst gewählt. `PhoneCallService` erkennt
+    // Notrufnummern und öffnet für sie ausschliesslich die Telefon-App
+    // (`emergency_dialer`); den Anruf löst ein Mensch aus. Eine App darf einen
+    // Notruf nicht selbst absetzen, und ein versehentlicher 112-Anruf bindet
+    // eine Leitstelle, die jemand anderes gerade braucht.
+    if (SipgateService.istNotruf(roh)) {
+      await _notrufWeg(roh);
+      return;
+    }
+
     final meldung = await _dienst.anrufen(roh);
     if (meldung != null) {
       _melde(meldung, fehler: true);
     } else {
       _nummer.clear();
     }
+  }
+
+  /// Zeigt, warum ein Notruf nicht über sipgate geht — und bietet den Weg an,
+  /// der funktioniert.
+  Future<void> _notrufWeg(String nummer) async {
+    final hatSim = _dienst.plattformFaehig; // Android = das Gerät mit SIM
+    final weiter = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.emergency_share, color: Colors.red, size: 32),
+        title: Text('Notruf $nummer'),
+        content: Text(
+          hatSim
+              ? 'Notrufe gehen nicht über sipgate: dafür fehlt im Konto ein '
+                  'freigeschalteter Notrufstandort, der Ruf käme sonst bei der '
+                  'falschen Leitstelle an.\n\n'
+                  'Über die SIM-Karte funktioniert er — und zwar auch dann, '
+                  'wenn gerade kein Internet da ist.\n\n'
+                  'Es wird nichts automatisch gewählt: die Telefon-App geht '
+                  'auf, den Anruf lösen Sie dort selbst aus.'
+              : 'Notrufe gehen weder über sipgate noch über diesen Rechner.\n\n'
+                  'Bitte ein Telefon mit SIM-Karte benutzen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          if (hatSim)
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              icon: const Icon(Icons.phone_in_talk),
+              label: const Text('Telefon-App öffnen'),
+            ),
+        ],
+      ),
+    );
+    if (weiter != true || !mounted) return;
+    await PhoneCallService.call(context, nummer);
   }
 
   /// Kontaktliste öffnen und die gewählte Nummer ins Wählfeld holen.
@@ -959,6 +1021,21 @@ class _SipgateScreenState extends State<SipgateScreen> {
                   if (m != null) _melde(m, fehler: true);
                 },
               ),
+            if (z.verbundeneBeine > 0)
+              ValueListenableBuilder<bool>(
+                valueListenable: UntertitelService().aktiv,
+                builder: (_, an, __) => OutlinedButton.icon(
+                  icon: Icon(an ? Icons.closed_caption : Icons.closed_caption_off),
+                  label: Text(an ? 'Mitschrift aus' : 'Mitschrift'),
+                  onPressed: _untertitelUmschalten,
+                ),
+              ),
+            if (z.verbundeneBeine > 0)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.phone_forwarded),
+                label: const Text('Weiterverbinden'),
+                onPressed: _weiterverbinden,
+              ),
             OutlinedButton.icon(
               icon: Icon(aktiv?.stumm == true ? Icons.mic_off : Icons.mic),
               label: Text(aktiv?.stumm == true ? 'Stumm' : 'Mikrofon an'),
@@ -968,6 +1045,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
             ),
           ],
         ),
+        _untertitelFeld(),
         if (_dienst.kannHinzuwaehlen) ...[
           const SizedBox(height: 8),
           Text(
@@ -978,6 +1056,214 @@ class _SipgateScreenState extends State<SipgateScreen> {
         ],
       ],
     );
+  }
+
+  /// Schaltet die Mitschrift dessen ein, was die Gegenstelle sagt.
+  ///
+  /// ⚠️ Es wird NICHTS aufgezeichnet und NICHTS gespeichert — weder Ton noch
+  /// Text. Die Wörter stehen da, solange gesprochen wird, und sind mit dem
+  /// Gespräch weg. Siehe [UntertitelService].
+  Future<void> _untertitelUmschalten() async {
+    final u = UntertitelService();
+    if (u.aktiv.value) {
+      await u.beenden();
+      return;
+    }
+    final grund = await u.starten(_dienst.gegenstelleSpurId ?? '');
+    if (!mounted) return;
+    if (grund == null) return;
+
+    // Fehlt nur das Sprachmodell, ist das kein Fehler, sondern ein fehlender
+    // Schritt — und der gehört angeboten, nicht bloss gemeldet.
+    if (u.modellFehlt.value) {
+      await _modellHolen();
+      return;
+    }
+    _melde(grund, fehler: true);
+  }
+
+  /// Holt das Offline-Sprachmodell auf das Gerät.
+  ///
+  /// ⚠️ Mit ausdrücklicher Frage vorher. Es sind 46 MB, und sie gehen über die
+  /// Mobilfunkleitung des Vereins — das löst man nicht nebenbei aus, weil man
+  /// einen Knopf gedrückt hat, der „Mitschrift" heisst.
+  Future<void> _modellHolen() async {
+    final angaben = await ApiService().sprachmodellAngaben('de');
+    if (!mounted) return;
+    final mb = ((angaben['groesse'] as num?)?.toInt() ?? 0) / 1048576;
+    final los = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sprachmodell holen'),
+        content: Text(
+          'Für die Mitschrift braucht das Tablet ein deutsches Sprachmodell. '
+          'Es wird einmal geholt und bleibt dann auf dem Gerät.\n\n'
+          '${mb < 1 ? 'Grösse unbekannt' : '${mb.toStringAsFixed(0)} MB'} — '
+          'am besten im WLAN.\n\n'
+          'Danach läuft die Erkennung vollständig auf dem Tablet: kein Ton und '
+          'kein Text verlassen das Gerät.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Später')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Jetzt holen')),
+        ],
+      ),
+    );
+    if (los != true || !mounted) return;
+    _melde('Sprachmodell wird geholt …');
+    final fehler = await UntertitelModell().holen();
+    if (!mounted) return;
+    _melde(fehler ?? 'Sprachmodell ist da — Mitschrift kann starten.',
+        fehler: fehler != null);
+  }
+
+  /// Die Mitschrift selbst. Gross, weil sie zum Lesen da ist.
+  Widget _untertitelFeld() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: UntertitelService().aktiv,
+      builder: (ctx, an, __) {
+        if (!an) return const SizedBox.shrink();
+        return ValueListenableBuilder<String>(
+          valueListenable: UntertitelService().text,
+          builder: (ctx, text, __) => Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: F.h(Colors.blueGrey, 900),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.closed_caption, size: 15, color: Colors.white70),
+                  const SizedBox(width: 6),
+                  Text('Mitschrift — wird nicht gespeichert',
+                      style: TextStyle(fontSize: 11, color: Colors.white70)),
+                ]),
+                const SizedBox(height: 6),
+                Text(
+                  text.isEmpty ? '…' : text,
+                  // ⚠️ Gross und mit Luft zwischen den Zeilen: das hier liest
+                  // jemand, der schlecht hört, WÄHREND er spricht — nebenbei,
+                  // aus einem Meter Abstand.
+                  style: const TextStyle(
+                      fontSize: 19, height: 1.45, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Gibt das laufende Gespräch an jemand anderen weiter.
+  ///
+  /// ⚠️ ÜBER DIE ANLAGE, NICHT ÜBER SIP. `sip_ua` kann zwar `Call.refer()`,
+  /// aber nur BLIND — und sein `EventReferFailed`-Zweig ist leer: eine von der
+  /// Gegenstelle abgelehnte Übergabe sagt dort gar nichts, der Vorsitzer hielte
+  /// sie für geglückt und legte auf. Über `POST /calls/{id}/transfer` kommt ein
+  /// HTTP-Status zurück, den man hinschreiben kann — und es gibt die Übergabe
+  /// MIT ANSAGE, die der SIP-Weg überhaupt nicht kennt.
+  ///
+  /// ⚠️ Die Kennung kommt von der Anlage (`pbx-…`), nicht von `sip_ua`. Die
+  /// beiden führen verschiedene Nummern; nur mit der der Anlage lässt sich
+  /// übergeben.
+  Future<void> _weiterverbinden() async {
+    final laufend = await ApiService().sipgateAction({'action': 'laufende_gespraeche'});
+    if (!mounted) return;
+    final liste = (laufend['gespraeche'] as List?) ?? const [];
+    if (laufend['success'] != true || liste.isEmpty) {
+      _melde(
+          liste.isEmpty && laufend['success'] == true
+              ? 'Die Anlage meldet gerade kein laufendes Gespräch.'
+              : '${laufend['message'] ?? 'Laufende Gespräche nicht abrufbar'}',
+          fehler: true);
+      return;
+    }
+    final callId = '${(liste.first as Map)['call_id'] ?? ''}';
+    if (callId.isEmpty) {
+      _melde('Die Anlage nennt keine Gesprächskennung.', fehler: true);
+      return;
+    }
+
+    final feld = TextEditingController();
+    var mitAnsage = true;
+    final los = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setzen) => AlertDialog(
+          title: const Text('Weiterverbinden'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: feld,
+              autofocus: true,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Zielrufnummer',
+                hintText: '+49 731 1234567',
+              ),
+            ),
+            const SizedBox(height: 12),
+            // ⚠️ Mit Ansage ist die Voreinstellung, und das ist eine
+            // Entscheidung: bei der blinden Übergabe ist der Anrufer verloren,
+            // wenn drüben niemand abnimmt. Wer das will, muss es wählen.
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(
+                    value: true,
+                    icon: Icon(Icons.record_voice_over),
+                    label: Text('Mit Ansage')),
+                ButtonSegment(
+                    value: false,
+                    icon: Icon(Icons.fast_forward),
+                    label: Text('Blind')),
+              ],
+              selected: {mitAnsage},
+              onSelectionChanged: (v) => setzen(() => mitAnsage = v.first),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              mitAnsage
+                  ? 'Erst wird das Ziel angerufen; zusammengeschaltet wird, '
+                      'nachdem dort jemand abgenommen hat.'
+                  : 'Sofort weg. Nimmt dort niemand ab, ist der Anruf verloren.',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Abbrechen')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Verbinden')),
+          ],
+        ),
+      ),
+    );
+    if (los != true || !mounted) return;
+
+    final a = await ApiService().sipgateAction({
+      'action': 'weiterverbinden',
+      'call_id': callId,
+      'nummer': feld.text.trim(),
+      'mit_ansage': mitAnsage,
+    });
+    if (!mounted) return;
+    if (a['success'] == true) {
+      _melde(mitAnsage
+          ? 'Das Ziel wird angerufen — zusammengeschaltet wird nach dem Abheben.'
+          : 'Übergeben.');
+    } else {
+      _melde('${a['message'] ?? 'Weiterverbinden fehlgeschlagen'}', fehler: true);
+    }
   }
 
   Widget _waehlfeld(bool schmal) {
@@ -1298,6 +1584,13 @@ class _SipgateScreenState extends State<SipgateScreen> {
       'verbunden' => (Colors.green.shade600, Icons.call),
       'verpasst' => (Colors.orange.shade700, Icons.call_missed),
       'abgelehnt' => (Colors.grey.shade600, Icons.call_end),
+      // ⚠️ Grau und ein Fragezeichen, NICHT rot: `unklar` heisst „das Ende
+      // wurde nie protokolliert", nicht „der Anruf ist gescheitert". Der
+      // Server vergibt es, wenn eine Zeile zwoelf Stunden lang unfertig
+      // liegenblieb — meistens, weil Android die App waehrend des Gespraechs
+      // abgeraeumt hat. Rot wuerde behaupten, etwas sei kaputt gewesen; das
+      // Warum steht ohnehin daneben, es kommt im Feld `fehler` mit.
+      'unklar' => (Colors.grey.shade600, Icons.help_outline),
       'fehler' => (Colors.red.shade700, Icons.error_outline),
       _ => (Colors.blue.shade600, Icons.call_made),
     };
@@ -1320,14 +1613,32 @@ class _SipgateScreenState extends State<SipgateScreen> {
             : SipgateService.anruferAnzeige(nummer),
         style: const TextStyle(fontSize: 13),
       ),
-      subtitle: Text(
-        [
-          '${a['begonnen_am'] ?? ''}',
-          status,
-          if (dauer > 0) SipgateService.dauerLesbar(dauer),
-          if (fehler.isNotEmpty) fehler,
-        ].join(' · '),
-        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            [
+              '${a['begonnen_am'] ?? ''}',
+              status,
+              if (dauer > 0) SipgateService.dauerLesbar(dauer),
+              if (fehler.isNotEmpty) fehler,
+            ].join(' · '),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
+          ),
+          // Art, Ort und — bei Mobilnummern — das zugeteilte Netz. Der Server
+          // rechnet es aus den Verzeichnissen der Bundesnetzagentur; siehe
+          // [NetzPastille], warum das Netz nur „Block" heisst und nicht
+          // „Anbieter".
+          if (a['einordnung'] is Map)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: NetzPastille(
+                einordnung: Map<String, dynamic>.from(a['einordnung'] as Map),
+                kompakt: true,
+              ),
+            ),
+        ],
       ),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
         if (offen)

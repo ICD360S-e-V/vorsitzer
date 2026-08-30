@@ -11,7 +11,6 @@ import 'logger_service.dart';
 import 'ntfy_service.dart';
 import 'signatur_gateway_service.dart';
 import 'sipgate_service.dart';
-import 'termin_sms_gateway_service.dart';
 
 final _log = LoggerService();
 
@@ -150,12 +149,12 @@ class AnrufGatewayService {
       await SignaturGatewayService.taktAnpassen();
     } else {
       stoppeVordergrundTakt();
-      // Den Dienst nur stoppen, wenn ihn auch das SMS-Gateway nicht braucht.
-      if (!await TerminSmsGatewayService.isEnabled()) {
-        await SignaturGatewayService.stoppen();
-      } else {
-        await SignaturGatewayService.taktAnpassen();
-      }
+      // ⚠️ Nicht mehr selbst entscheiden: die Frage „braucht ihn noch jemand?"
+      // steht in [SignaturGatewayService.nochGebraucht] und kennt inzwischen
+      // DREI Gründe. Hier stand vorher nur die Frage nach dem SMS-Gateway —
+      // die sipgate-Anmeldung wäre stillschweigend mit abgeschaltet worden.
+      await SignaturGatewayService.stoppenWennUnnoetig();
+      await SignaturGatewayService.taktAnpassen();
     }
     _log.info('Anruf-Gateway ${value ? 'ein' : 'aus'}geschaltet', tag: 'ANRUF_GW');
   }
