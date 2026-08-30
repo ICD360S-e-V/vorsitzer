@@ -98,6 +98,32 @@ class NetzPastille extends StatelessWidget {
 
     final teile = <Widget>[];
 
+    // ⚠️ ZUERST, UND IN ROT. Steht die Nummer auf der Massnahmenliste der
+    // Bundesnetzagentur, ist das die wichtigste Auskunft über sie — wichtiger
+    // als Ort oder Netz.
+    //
+    // ⚠️ Der Wortlaut ist mit Bedacht gewählt: „amtlich aufgefallen", nicht
+    // „Betrug". Ein Eintrag heisst, dass die Behörde gegen diese Nummer
+    // vorgegangen ist; er ist ein Hinweis, kein Urteil. Und das FEHLEN eines
+    // Eintrags heisst gar nichts — die meisten Betrugsanrufe kommen mit
+    // gefälschter Absenderkennung, und die steht in keiner Liste. Deshalb gibt
+    // es hier auch kein grünes Gegenstück: „nicht gelistet" darf nie wie eine
+    // Unbedenklichkeitsbescheinigung aussehen.
+    final missbrauch = e['missbrauch'] as String?;
+    if (missbrauch != null && missbrauch.isNotEmpty) {
+      teile.add(_text(
+        context,
+        'amtlich aufgefallen',
+        Icons.gpp_maybe,
+        Colors.red,
+        'Die Bundesnetzagentur ist gegen diese Rufnummer wegen '
+        'Rufnummernmissbrauchs vorgegangen ($missbrauch).\n\n'
+        'Das ist ein Hinweis, kein Urteil — und dass eine Nummer NICHT auf der '
+        'Liste steht, sagt nichts: die meisten Betrugsanrufe kommen mit '
+        'gefälschter Absenderkennung.',
+      ));
+    }
+
     // ⚠️ DER NAME STEHT IMMER DA, DAS ZEICHEN KOMMT DAZU.
     //
     // Vorher erschien bei den vier grossen Netzen nur das Logo und bei allen
