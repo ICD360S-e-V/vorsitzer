@@ -18,6 +18,62 @@ import '../utils/app_farben.dart';
 
 /// Die gemerkten Empfänger aus einem gespeicherten Entwurf.
 ///
+/// Die beiden Fristen eines Fax als ein Satz — oder null, wenn nichts zu
+/// sagen ist.
+///
+/// ⚠️ RECHNET NICHT. Beide Zahlen kommen fertig vom Server
+/// (`sipgateFaxFristen()` in sipgate_fax_lib.php), weil dort auch die Läufe
+/// stehen, die tatsächlich wegräumen und löschen. Eine zweite Kopie der Regel
+/// hier liefe beim ersten Ändern der Frist auseinander — und wäre dann genau
+/// da falsch, wo jemand sich darauf verlässt: „noch 30 Tage" auf einem Fax,
+/// das heute nacht wegfällt. Ein Selbsttest auf dem Server hält Anzeige und
+/// Läufe gegeneinander; er hat diese Abweichung schon einmal gefunden.
+///
+/// Gibt `(archiv, inhalt)` zurück; beide können leer sein.
+({String archiv, String inhalt}) faxFristTexte(Map<String, dynamic>? fristen) {
+  if (fristen == null) return (archiv: '', inhalt: '');
+
+  String tageText(int t) => switch (t) {
+        0 => 'heute',
+        1 => 'morgen',
+        < 0 => 'überfällig',
+        _ => 'in $t Tagen',
+      };
+
+  String datumDe(String? iso) {
+    if (iso == null || iso.length < 10) return '';
+    return '${iso.substring(8, 10)}.${iso.substring(5, 7)}.${iso.substring(0, 4)}';
+  }
+
+  final a = fristen['archiv'] as Map<String, dynamic>?;
+  final i = fristen['inhalt'] as Map<String, dynamic>?;
+
+  final aTage = (a?['tage'] as num?)?.toInt();
+  final aGrund = (a?['grund'] ?? '').toString();
+  final archiv = aTage != null
+      ? 'Archiv ${tageText(aTage)}'
+          '${aGrund.isEmpty ? '' : ' · $aGrund'}'
+      : aGrund;
+
+  final iTage = (i?['tage'] as num?)?.toInt();
+  final iGrund = (i?['grund'] ?? '').toString();
+  // ⚠️ Bei der Inhaltsfrist steht das DATUM vorn und die Tageszahl dahinter.
+  // „in 2316 Tagen" allein kann niemand einordnen; ein Datum schon. Umgekehrt
+  // ist die Tageszahl bei der Archivfrist das Nützlichere — dort sind es
+  // immer unter vierzehn.
+  //
+  // ⚠️ Beide Sätze kommen getrennt zurück und werden NICHT mit „·" verkettet.
+  // Beim Rendern auf 360 dp gesehen: aneinandergehängt ergaben sie einen
+  // Fließtext, der in vier von fünf Fällen mitten in einer Angabe umbrach
+  // („… noch 2316 / Tage"). Zwei kurze Zeilen liest man, einen umbrechenden
+  // Bandwurm überfliegt man.
+  final inhalt = iTage != null
+      ? 'Inhalt bis ${datumDe(i?['am'] as String?)} · noch $iTage Tage'
+      : iGrund;
+
+  return (archiv: archiv, inhalt: inhalt);
+}
+
 /// ⚠️ Frei stehend und nicht in der Zustandsklasse, damit sie ohne
 /// Bildschirm geprüft werden kann. Ein Entwurf kommt aus dem Speicher des
 /// Geräts, also aus einer Quelle, die eine ältere Fassung geschrieben haben
@@ -2777,6 +2833,10 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     // Unterschied, den ein Nachweisarchiv benennen muss.
     final inhaltWeg = (f['inhalt_geloescht_am'] ?? '').toString().isNotEmpty;
     final gesperrt = f['nicht_loeschen'] == true;
+    // Fertig gerechnet vom Server — siehe faxFristTexte.
+    final fristen = faxFristTexte(f['fristen'] as Map<String, dynamic>?);
+    final fristArchiv = fristen.archiv;
+    final fristInhalt = fristen.inhalt;
     // Ob das Dokument, das rausging, ein Siegel trug. Zusammen mit der
     // Prüfsumme ist das die Aussage „was gesendet wurde, war das gesiegelte
     // Dokument, unverändert" — bei einer Vollmacht genau die Frage, die
@@ -2846,6 +2906,36 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               // in der Datenbank, ohne je angezeigt zu werden.
               '${gesendetVon.isNotEmpty ? ' · von $gesendetVon' : ''}',
               style: TextStyle(color: farbe, fontSize: 12)),
+          // ⚠️ Beide Uhren an jeder Karte, ausdrücklich gewünscht. Sie
+          // beantworten die zwei Fragen, die man sonst nur durch Nachzählen
+          // beantworten kann: „wann verschwindet das aus meiner Liste?" und
+          // „wie lange habe ich das Dokument noch?".
+          //
+          // ⚠️ Grau und klein: es ist Randinformation, kein Befund. Rot oder
+          // fett stünde neben einem fehlgeschlagenen Fax und zöge den Blick
+          // von der Zeile weg, auf die es ankommt.
+          if (fristArchiv.isNotEmpty || fristInhalt.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.schedule_outlined, size: 12, color: F.h(Colors.grey, 600)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final t in [fristArchiv, fristInhalt])
+                        if (t.isNotEmpty)
+                          Text(t,
+                              style: TextStyle(
+                                  fontSize: 11.5,
+                                  height: 1.35,
+                                  color: F.h(Colors.grey, 600))),
+                    ],
+                  ),
+                ),
+              ]),
+            ),
           // ⚠️ MUSS DASTEHEN. Nach Ablauf der Frist fehlt das Dokument, und
           // die Knöpfe dafür verschwinden von selbst — was von außen genauso
           // aussieht wie ein Datenverlust. Ein Nachweisarchiv, das nicht sagt,
