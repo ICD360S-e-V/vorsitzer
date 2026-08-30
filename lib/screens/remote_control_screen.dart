@@ -49,6 +49,9 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
   bool _steuerbar = false;
   bool _stumm = false;
 
+  StreamSubscription<BildBefund>? _bildSub;
+  BildBefund? _befund;
+
   // Chatstreifen neben dem Bild. Bewusst schmal und ohne Anhänge: er soll
   // „schauen Sie mal oben rechts" ermöglichen, nicht den Chatdialog ersetzen.
   StreamSubscription<ChatMessage>? _nachrichtSub;
@@ -83,6 +86,9 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
 
     _steuerSub = _svc.zielSteuerbarStream.listen((frei) {
       if (mounted) setState(() => _steuerbar = frei);
+    });
+    _bildSub = _svc.bildBefundStream.listen((b) {
+      if (mounted) setState(() => _befund = b);
     });
     _nachrichtSub = ChatService().messageStream.listen((m) {
       if (!mounted || m.conversationId != widget.conversationId) return;
@@ -146,6 +152,7 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
     _stateSub?.cancel();
     _streamSub?.cancel();
     _steuerSub?.cancel();
+    _bildSub?.cancel();
     _nachrichtSub?.cancel();
     _eingabe.dispose();
     _focus.dispose();
@@ -456,6 +463,7 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
                         objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
                       ),
                     if (connecting) _statusOverlay(),
+                    if (!connecting) _bildZeile(),
                   ],
                 ),
               ),
@@ -463,6 +471,57 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
           },
         ),
       );
+  }
+
+  /// Was am Bild ankommt — unten links, klein.
+  ///
+  /// ⚠️ Diese Zeile gibt es, weil „schwarzer Bildschirm" drei völlig
+  /// verschiedene Ursachen hat, die alle gleich aussehen: es kommt nichts an,
+  /// es kommt an und wird nicht dekodiert, oder die Bilder SIND schwarz (auf
+  /// Android ist das FLAG_SECURE auf der Gegenseite). Ohne die Rohzahlen wird
+  /// jedes Mal geraten.
+  Widget _bildZeile() {
+    final b = _befund;
+    if (b == null) return const SizedBox.shrink();
+    final String hinweis;
+    final Color farbe;
+    if (b.stumm) {
+      hinweis = 'Es kommt kein Bild an — Verbindung oder Spur.';
+      farbe = Colors.redAccent;
+    } else if (b.nichtDekodiert) {
+      hinweis = 'Bilder kommen an, werden hier aber nicht dekodiert (Codec).';
+      farbe = Colors.orangeAccent;
+    } else if (!_svc.zielBildFrei) {
+      hinweis = 'Das Gerät konnte seinen Kopierschutz nicht abschalten — '
+          'das Bild ist deshalb schwarz.';
+      farbe = Colors.orangeAccent;
+    } else {
+      hinweis = '';
+      farbe = Colors.white54;
+    }
+    return Positioned(
+      left: 10,
+      bottom: 10,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(b.kurz, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            if (hinweis.isNotEmpty)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Text(hinweis, style: TextStyle(color: farbe, fontSize: 11)),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _statusOverlay() {

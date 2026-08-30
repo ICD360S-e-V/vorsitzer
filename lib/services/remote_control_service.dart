@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'api_service.dart';
@@ -68,6 +69,16 @@ class RemoteControlService {
 
   /// Feuert, sobald das Mitglied gemeldet hat, ob gesteuert werden kann.
   Stream<bool> get zielSteuerbarStream => _zielSteuerbarController.stream;
+
+  /// Was wirklich am Bild ankommt. Ohne diese Zahlen ist „schwarz" nicht von
+  /// „nichts empfangen" und nicht von „empfangen, aber nicht dekodiert" zu
+  /// unterscheiden — drei völlig verschiedene Ursachen, die alle gleich
+  /// aussehen.
+  Stream<BildBefund> get bildBefundStream => _bildController.stream;
+  final _bildController = StreamController<BildBefund>.broadcast();
+  Timer? _bildUhr;
+  BildBefund? _letzterBefund;
+  BildBefund? get letzterBefund => _letzterBefund;
   RemoteControlState get state => _state;
   RemoteControlEnd get lastEnd => _lastEnd;
   MediaStream? get remoteStream => _remoteStream;
@@ -83,6 +94,13 @@ class RemoteControlService {
   /// dahin false — lieber „Ansicht" anzeigen und sich korrigieren, als
   /// Steuerung zu versprechen und Klicks ins Leere gehen zu lassen.
   bool get zielSteuerbar => _zielSteuerbar;
+
+  /// Meldet das Mitglied, dass es seinen Kopierschutz (FLAG_SECURE) abschalten
+  /// konnte? Bei false ist das Bild schwarz, und zwar auf der Gegenseite —
+  /// nicht unterwegs. Ältere Mitglieds-Apps schicken das Feld nicht; dann wird
+  /// nichts behauptet und der Wert bleibt true.
+  bool get zielBildFrei => _zielBildFrei;
+  bool _zielBildFrei = true;
 
   String? _zielPlattform;
   bool _zielSteuerbar = false;
@@ -170,6 +188,7 @@ class RemoteControlService {
         for (final track in _mikroStream!.getTracks()) {
           await _pc!.addTrack(track, _mikroStream!);
         }
+        _tonwegSetzen();
       } else {
         // Ohne eigenes Mikrofon trotzdem ZUHOEREN koennen: sonst gaebe es gar
         // keine Tonspur und das Mitglied redete ins Leere.
@@ -289,6 +308,28 @@ class RemoteControlService {
     }
   }
 
+  /// Ton auf eine angeschlossene Kopfhörergarnitur legen, sonst Lautsprecher.
+  ///
+  /// ⚠️ `setSpeakerphoneOn(true)` ERZWINGT den Lautsprecher und geht an einer
+  /// verbundenen Bluetooth-Garnitur vorbei — derselbe Fehler, den
+  /// `voice_call_service._applyAudioRoute` schon einmal hatte. Auf dem
+  /// Schreibtisch ist es ein Nichtstun; dort entscheidet das Betriebssystem.
+  ///
+  /// ⚠️ Nach `getUserMedia`, sonst steht der AudioManager noch nicht auf
+  /// MODE_IN_COMMUNICATION und die Umleitung verpufft.
+  void _tonwegSetzen() {
+    try {
+      if (Platform.isAndroid) {
+        Helper.setSpeakerphoneOnButPreferBluetooth();
+      } else if (Platform.isIOS) {
+        Helper.setSpeakerphoneOn(true);
+      }
+      _log.info('RemoteControl: Tonweg gesetzt (Kopfhörer bevorzugt)', tag: 'REMOTE');
+    } catch (e) {
+      _log.warning('RemoteControl: Tonweg nicht setzbar: $e', tag: 'REMOTE');
+    }
+  }
+
   /// Eigenes Mikrofon stummschalten, ohne die Sitzung zu beenden.
   void mikrofonStumm(bool stumm) {
     for (final t in _mikroStream?.getAudioTracks() ?? const <MediaStreamTrack>[]) {
@@ -354,6 +395,7 @@ class RemoteControlService {
       _log.info('RemoteControl: PC state $s', tag: 'REMOTE');
       if (s == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         _setState(RemoteControlState.connected);
+        _bildUhrStarten();
       } else if (s == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
           s == RTCPeerConnectionState.RTCPeerConnectionStateClosed ||
           s == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
@@ -377,6 +419,7 @@ class RemoteControlService {
         // Was das Mitglied über sich meldet, gilt — wir können es nicht wissen.
         _zielPlattform = e.plattform;
         _zielSteuerbar = e.steuerung;
+        _zielBildFrei = e.bildFrei;
         if (!_zielSteuerbarController.isClosed) {
           _zielSteuerbarController.add(e.steuerung);
         }
@@ -421,6 +464,50 @@ class RemoteControlService {
     });
   }
 
+  /// Liest alle zwei Sekunden `inbound-rtp` und meldet, was ankommt.
+  ///
+  /// ⚠️ `framesDecoded` ist die Zahl, an der sich alles entscheidet:
+  ///   empfangen 0            → es kommt nichts an (Transport/Spur)
+  ///   empfangen >0, dekodiert 0 → der Codec wird hier nicht dekodiert
+  ///   dekodiert >0, trotzdem schwarz → die Bilder SIND schwarz (FLAG_SECURE
+  ///                              auf der Gegenseite) oder die Anzeige malt nicht
+  void _bildUhrStarten() {
+    _bildUhr?.cancel();
+    _bildUhr = Timer.periodic(const Duration(seconds: 2), (_) async {
+      final pc = _pc;
+      if (pc == null) return;
+      try {
+        var empfangen = 0, dekodiert = 0, bytes = 0, breite = 0, hoehe = 0;
+        String? codec;
+        for (final bericht in await pc.getStats()) {
+          final w = bericht.values;
+          if (bericht.type == 'inbound-rtp' && w['kind'] == 'video') {
+            empfangen = (w['framesReceived'] as num?)?.toInt() ?? empfangen;
+            dekodiert = (w['framesDecoded'] as num?)?.toInt() ?? dekodiert;
+            bytes = (w['bytesReceived'] as num?)?.toInt() ?? bytes;
+            breite = (w['frameWidth'] as num?)?.toInt() ?? breite;
+            hoehe = (w['frameHeight'] as num?)?.toInt() ?? hoehe;
+          } else if (bericht.type == 'codec' && w['mimeType'] is String) {
+            final m = w['mimeType'] as String;
+            if (m.startsWith('video/')) codec = m.split('/').last;
+          }
+        }
+        final befund = BildBefund(
+          empfangen: empfangen,
+          dekodiert: dekodiert,
+          bytes: bytes,
+          breite: breite,
+          hoehe: hoehe,
+          codec: codec,
+        );
+        _letzterBefund = befund;
+        if (!_bildController.isClosed) _bildController.add(befund);
+      } catch (e) {
+        _log.warning('RemoteControl: Bildbefund nicht lesbar: $e', tag: 'REMOTE');
+      }
+    });
+  }
+
   Future<void> _flushQueuedIce() async {
     for (final c in _queuedIce) {
       try {
@@ -431,6 +518,9 @@ class RemoteControlService {
   }
 
   void _cleanup() {
+    _bildUhr?.cancel();
+    _bildUhr = null;
+    _letzterBefund = null;
     _answerTimeout?.cancel();
     _answerTimeout = null;
     _answerSub?.cancel();
@@ -463,5 +553,41 @@ class RemoteControlService {
     _controllerMnr = null;
     _zielPlattform = null;
     _zielSteuerbar = false;
+    _zielBildFrei = true;
+  }
+}
+
+
+/// Was tatsächlich am Bild ankommt — die Zahlen, die „schwarzer Bildschirm"
+/// von „nichts empfangen" trennen.
+class BildBefund {
+  final int empfangen;
+  final int dekodiert;
+  final int bytes;
+  final int breite;
+  final int hoehe;
+  final String? codec;
+
+  const BildBefund({
+    required this.empfangen,
+    required this.dekodiert,
+    required this.bytes,
+    required this.breite,
+    required this.hoehe,
+    this.codec,
+  });
+
+  /// Nichts kommt an — Transport oder Spur.
+  bool get stumm => empfangen == 0 && bytes == 0;
+
+  /// Es kommt etwas an, wird aber nicht dekodiert — Codec-Problem.
+  bool get nichtDekodiert => empfangen > 0 && dekodiert == 0;
+
+  /// Kurzfassung für den Bildschirm. Bewusst mit Rohzahlen: eine Deutung ohne
+  /// die Zahl daneben kann man nicht nachprüfen.
+  String get kurz {
+    final grad = (breite > 0 && hoehe > 0) ? ' · $breite×$hoehe' : '';
+    final c = codec != null ? ' · $codec' : '';
+    return '$dekodiert/$empfangen Bilder · ${(bytes / 1024).round()} kB$grad$c';
   }
 }

@@ -926,6 +926,9 @@ class ChatService {
             sdpType: json['sdp_type'] ?? 'answer',
             plattform: json['plattform']?.toString(),
             steuerung: json['steuerung'] == true,
+            // Fehlt das Feld (ältere Mitglieds-App), wird NICHTS behauptet:
+            // true heißt hier „kein Grund bekannt", nicht „geprüft".
+            bildFrei: json['bild_frei'] != false,
           ));
           break;
 
@@ -1214,6 +1217,11 @@ class RemoteAnswerEvent {
   /// gegen ein Telefon, auf dem gar keine möglich war.
   final bool steuerung;
 
+  /// Konnte das Mitglied seinen Kopierschutz (FLAG_SECURE) abschalten?
+  /// false = das geteilte Bild ist schwarz, und der Grund liegt auf dem Gerät
+  /// des Mitglieds, nicht in der Leitung.
+  final bool bildFrei;
+
   RemoteAnswerEvent({
     required this.conversationId,
     required this.answererId,
@@ -1221,6 +1229,7 @@ class RemoteAnswerEvent {
     required this.sdpType,
     this.plattform,
     this.steuerung = false,
+    this.bildFrei = true,
   });
 }
 
