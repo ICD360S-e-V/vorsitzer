@@ -43,9 +43,57 @@ void main() {
   });
 
   test('nur rumänische Buchstaben, nichts Zerlesenes', () {
-    final schlecht =
-        woerter.where((w) => !RegExp(r'^[a-zA-ZăâîșțĂÂÎȘȚ]{2,}$').hasMatch(w));
+    // ⚠️ Der Bindestrich ist erlaubt, aber nur INNEN: „mi-aș", „s-a",
+    // „într-o" sind je EIN Wort. Am Rand wäre er ein Zerlesungsrest.
+    final schlecht = woerter.where((w) => !RegExp(
+            r'^[a-zA-ZăâîșțĂÂÎȘȚ]+(?:-[a-zA-ZăâîșțĂÂÎȘȚ]+)*$')
+        .hasMatch(w) || w.length < 2);
     expect(schlecht, isEmpty, reason: 'gefunden: ${schlecht.take(5).toList()}');
+  });
+
+  group('Formen mit Bindestrich', () {
+    // ⚠️ Sie fehlten ganz: die erste Fassung der Liste verwarf jedes Wort
+    // mit Bindestrich. Im Rumänischen hängen dort aber die häufigsten
+    // kurzen Wörter zusammen — „s-a" steht auf Platz 14 der ganzen Sprache.
+    test('die häufigen stehen drin', () {
+      for (final w in ['s-a', 'într-o', 'să-l', 'mi-a', 'nu-i', 'n-am',
+                       'm-am', 'l-am', 'ne-am', 'te-am', 'dintr-un']) {
+        expect(woerter, contains(w), reason: w);
+      }
+    });
+
+    test('ohne Bindestrich getippt findet die richtige Form', () {
+      // Beim schnellen Schreiben fällt der Strich weg. Gemeldet aus dem
+      // Betrieb: 》mias《 sollte 》mi-aș《 werden.
+      const faelle = {
+        'mias': 'mi-aș',
+        'nui': 'nu-i',
+        'intro': 'într-o',
+        'dintrun': 'dintr-un',
+        'nam': 'n-am',
+        'mam': 'm-am',
+        'lam': 'l-am',
+        'sasi': 'să-și',
+      };
+      faelle.forEach((getippt, erwartet) {
+        expect(index.vorschlaege(getippt, hoechstens: 3), contains(erwartet),
+            reason: getippt);
+      });
+    });
+
+    test('der Bindestrich trennt kein Wort', () {
+      // Sonst bliebe beim Tippen von „mi-aș" nur „aș" übrig.
+      final w = AngefangenesWort.ausEingabe('vreau mi-aș', 11);
+      expect(w?.text, 'mi-aș');
+    });
+
+    test('was für sich ein Wort ist, bleibt geschützt', () {
+      // „neam", „team", „sai" sind echte rumänische Wörter — sie dürfen
+      // nicht stillschweigend zu „ne-am", „te-am", „să-i" werden.
+      for (final w in ['neam', 'team', 'sai', 'sal', 'sa']) {
+        expect(index.kennt(w), isTrue, reason: w);
+      }
+    });
   });
 
   test('nach Häufigkeit sortiert, nicht alphabetisch', () {

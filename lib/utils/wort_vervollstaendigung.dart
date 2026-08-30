@@ -46,6 +46,12 @@ class WortIndex {
   ///
   /// ⚠️ Auch die Cedille-Formen ş/ţ, weil manche Tastaturen sie liefern —
   /// sonst fände jemand, der mit der falschen Belegung tippt, gar nichts.
+  ///
+  /// ⚠️ UND DER BINDESTRICH FÄLLT WEG. Im Rumänischen hängen die kurzen
+  /// Wörter mit Bindestrich zusammen — „mi-aș", „s-a", „într-o", „nu-i" —
+  /// und beim schnellen Tippen bleibt er weg. Wer 》mias《 schreibt, meint
+  /// 》mi-aș《; ohne diese Zeile fände er dazu nichts, weil die Liste den
+  /// Strich führt und die Eingabe nicht.
   static String ohneDiakritika(String s) {
     final b = StringBuffer();
     for (final z in s.toLowerCase().split('')) {
@@ -61,6 +67,8 @@ class WortIndex {
         case 'ț':
         case 'ţ':
           b.write('t');
+        case '-':
+          break;
         default:
           b.write(z);
       }
@@ -150,7 +158,11 @@ class AngefangenesWort {
 
   const AngefangenesWort(this.text, this.von, this.bis);
 
-  static const _trenner = ' \t\n\r.,;:!?()[]{}"\'„“”«»/\\-–—… ';
+  /// ⚠️ Der Bindestrich ist KEIN Trenner. „mi-aș" ist ein Wort, kein
+  /// Wortpaar — würde er trennen, bliebe beim Tippen nur noch „aș"
+  /// übrig und die ganze Form wäre nicht mehr zu finden. Gedankenstrich
+  /// und Halbgeviertstrich trennen weiterhin.
+  static const _trenner = ' \t\n\r.,;:!?()[]{}"\'„“”«»/\\–—… ';
 
   /// Steht das Wort am Satzanfang?
   ///
