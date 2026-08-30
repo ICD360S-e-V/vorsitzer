@@ -45,7 +45,9 @@ class WortVorschlaege extends StatefulWidget {
   /// Testfälle). Aus heißt: das Feld verhält sich exakt wie vorher.
   final bool aktiv;
 
-  final WidgetBuilder bauen;
+  /// Bekommt die Funktion, die vor dem Senden noch einmal aufräumt. Der
+  /// Sendeweg MUSS sie aufrufen, sonst geht das letzte Wort ungeprüft raus.
+  final Widget Function(VoidCallback vorDemSenden) bauen;
 
   const WortVorschlaege({
     super.key,
@@ -59,6 +61,9 @@ class WortVorschlaege extends StatefulWidget {
 }
 
 class _WortVorschlaegeState extends State<WortVorschlaege> {
+  /// Zeichen, nach denen ein Wort als fertig gilt.
+  static const _abschluss = ' \n\t.,;:!?)]}»…';
+
   List<String> _vorschlaege = const [];
   AngefangenesWort? _wort;
 
@@ -119,7 +124,7 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
     _letzterText = text;
 
     if (_ruecknahmeVersucht(text, vorher)) return;
-    if (_leertasteVersucht(text, vorher)) return;
+    if (_abschlussVersucht(text, vorher)) return;
 
     // Jede andere Änderung beendet das Zeitfenster der Rücktaste.
     _rueckgaengig = null;
@@ -159,8 +164,13 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
     return true;
   }
 
-  /// Wurde am Ende eines vorgeschlagenen Wortes ein Leerzeichen getippt?
-  bool _leertasteVersucht(String text, String vorher) {
+  /// Wurde ein Wort gerade abgeschlossen — durch Leerzeichen ODER
+  /// Satzzeichen?
+  ///
+  /// ⚠️ Anfangs nur das Leerzeichen. Damit blieb „va rog." unkorrigiert,
+  /// weil dort ein Punkt steht und kein Leerzeichen — und Satzenden sind
+  /// gerade die Stellen, an denen ein Wort besonders oft steht.
+  bool _abschlussVersucht(String text, String vorher) {
     final wort = _wort;
     if (wort == null) return false;
     if (text.length != vorher.length + 1) return false;
@@ -168,7 +178,9 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
     final cursor = widget.controller.selection.baseOffset;
     // Das neue Zeichen muss ein Leerzeichen genau hinter dem Wort sein.
     if (cursor != wort.bis + 1) return false;
-    if (cursor > text.length || text[cursor - 1] != ' ') return false;
+    if (cursor > text.length || !_abschluss.contains(text[cursor - 1])) {
+      return false;
+    }
     if (text.substring(0, cursor - 1) != vorher.substring(0, cursor - 1)) {
       return false;
     }
@@ -267,6 +279,60 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
     return true;
   }
 
+  /// Korrigiert das LETZTE Wort, bevor die Nachricht rausgeht.
+  ///
+  /// ⚠️ Ohne das blieb das letzte Wort jeder Nachricht immer unkorrigiert —
+  /// es folgt ihm ja kein Leerzeichen mehr. Bei „va rog" ist das ausgerechnet
+  /// das Wort, um das es geht.
+  ///
+  /// Es gelten dieselben Sicherungen wie sonst: ein richtiges Wort und ein
+  /// großgeschriebener Eigenname mitten im Satz bleiben unangetastet.
+  void vorDemSenden() {
+    if (!widget.aktiv || !mounted) return;
+    final d = WortlisteService.diakritika;
+    if (!d.bereit) return;
+    final text = widget.controller.text;
+    if (text.isEmpty) return;
+
+    final letztes = AngefangenesWort.ausEingabe(text, text.length);
+    if (letztes == null) return;
+    final davor = letztes.von > 0
+        ? AngefangenesWort.ausEingabe(text, letztes.von - 1)
+        : null;
+    final davorDavor = davor == null || davor.von == 0
+        ? null
+        : AngefangenesWort.ausEingabe(text, davor.von - 1);
+
+    final neu = _erlaubt(letztes, text)
+        ? d.korrektur(letztes.text, links: davor?.text)
+        : null;
+    final neuDavor = davor != null && _erlaubt(davor, text)
+        ? d.korrektur(davor.text, links: davorDavor?.text, rechts: letztes.text)
+        : null;
+    if (neu == null && neuDavor == null) return;
+
+    var ergebnis = text;
+    if (neu != null) {
+      ergebnis = ergebnis.replaceRange(letztes.von, letztes.bis, neu);
+    }
+    if (neuDavor != null) {
+      ergebnis = ergebnis.replaceRange(davor!.von, davor.bis, neuDavor);
+    }
+    if (ergebnis == text) return;
+    _letzterText = ergebnis;
+    _rueckgaengig = null;
+    widget.controller.value = TextEditingValue(
+      text: ergebnis,
+      selection: TextSelection.collapsed(offset: ergebnis.length),
+    );
+  }
+
+  /// Dieselben Sicherungen wie beim Tippen.
+  bool _erlaubt(AngefangenesWort w, String text) =>
+      !_inRuheLassen.contains(w.text) &&
+      !(AngefangenesWort.grossGeschrieben(w.text) &&
+          !AngefangenesWort.istSatzanfang(text, w.von));
+
   void _neuRechnen() {
     final wahl = widget.controller.selection;
     // Bei einer Auswahl über mehrere Zeichen gibt es kein „angefangenes"
@@ -330,7 +396,7 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
                 onInvoke: (_) => _uebernehmen(),
               ),
             },
-            child: Builder(builder: widget.bauen),
+            child: widget.bauen(vorDemSenden),
           ),
         ),
       ],

@@ -71,13 +71,25 @@ class ChatInputArea extends StatelessWidget {
               isUploading: isUploading,
               onRemove: onRemovePending!,
             ),
-          _buildRow(context),
+          // ⚠️ Die Vorschlagsleiste umschließt die ganze Zeile, nicht nur
+          // das Textfeld. Sonst käme der Sendeknopf nicht an
+          // [vorDemSenden] vorbei — und genau über ihn geht auf dem
+          // Telefon fast jede Nachricht raus.
+          WortVorschlaege(
+            controller: controller,
+            bauen: (vorDemSenden) => _buildRow(context, vorDemSenden),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildRow(BuildContext context) {
+  Widget _buildRow(BuildContext context, VoidCallback vorDemSenden) {
+    void senden() {
+      vorDemSenden();
+      onSend();
+    }
+
     // Büroklammer, URGENT-Chip und Sendeknopf sind rund 195 dp fest. Auf einem
     // Telefon blieben dem Textfeld damit knapp 180 dp. Der Chip trägt seine
     // Beschriftung deshalb nur, wo Platz ist — das Warndreieck bleibt immer.
@@ -102,17 +114,15 @@ class ChatInputArea extends StatelessWidget {
             child: PasteImageDetector(
               enabled: onPasteImage != null,
               onPaste: onPasteImage ?? () {},
-              child: WortVorschlaege(
-                controller: controller,
-                bauen: (_) => EingabeTasten(
-                onSend: onSend,
-                bauen: (senden) => TextField(
+              child: EingabeTasten(
+                onSend: senden,
+                bauen: (abgesichert) => TextField(
               controller: controller,
               // BEIDE Wege gehen auf dieselbe abgesicherte Funktion: die
               // Eingabetaste einer echten Tastatur und der Senden-Knopf der
               // Bildschirmtastatur. [EingabeTasten] lässt einen doppelten
               // Aufruf fallen, also kann nichts zweimal rausgehen.
-              onSubmitted: (_) => senden(),
+              onSubmitted: (_) => abgesichert(),
               onTap: onFocus,
               onChanged: onChanged,
               contentInsertionConfiguration: onKeyboardContent == null
@@ -130,7 +140,6 @@ class ChatInputArea extends StatelessWidget {
                   horizontal: 16,
                   vertical: 12,
                 ),
-              ),
               ),
               ),
               ),
@@ -195,7 +204,7 @@ class ChatInputArea extends StatelessWidget {
                       ),
                     )
                   : const Icon(Icons.send, color: Colors.white, size: 20),
-              onPressed: isSending ? null : onSend,
+              onPressed: isSending ? null : senden,
             ),
           ),
         ],
