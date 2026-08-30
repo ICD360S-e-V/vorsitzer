@@ -88,6 +88,59 @@ void main() {
     });
   });
 
+  group('Wer muss unterschreiben', () {
+    // 🔴 Der Fehler, den diese Gruppe festhält: `vollmacht_list.php` lieferte
+    // `unterschrift_felder` bis zum 30.08.2026 gar nicht mit. Der Wert war
+    // immer leer — und wer daraus „kein Vorstand" schloss, stellte die
+    // Vollmacht nur dem Mitglied zur Unterschrift, während dessen Zeile auf
+    // dem Blatt gedruckt stand. Keine Meldung, kein Fehler: die Vollmacht
+    // wurde nur nie fertig.
+
+    test('unterschrift_felder mit bevollmaechtigter -> Vorstand nötig', () {
+      expect(kkBrauchtVorstand({
+        'unterschrift_felder': '{"vollmachtgeber":{},"bevollmaechtigter":{}}',
+      }), isTrue);
+    });
+
+    test('unterschrift_felder ohne bevollmaechtigter -> nicht nötig', () {
+      expect(kkBrauchtVorstand({
+        'unterschrift_felder': '{"vollmachtgeber":{}}',
+      }), isFalse);
+    });
+
+    test('Feld fehlt -> die Ankreuzung aus options_json entscheidet', () {
+      expect(kkBrauchtVorstand({
+        'options_json': '{"unterschriften":{"vorstand":true}}',
+      }), isTrue);
+      expect(kkBrauchtVorstand({
+        'options_json': '{"unterschriften":{"vorstand":false}}',
+      }), isFalse);
+    });
+
+    test('options_json auch als bereits geparste Map', () {
+      // Je nach Endpunkt kommt die Spalte als Text oder schon zerlegt.
+      expect(kkBrauchtVorstand({
+        'options_json': {'unterschriften': {'vorstand': false}},
+      }), isFalse);
+    });
+
+    test('gar keine Angabe -> die alte Regel, zwei Unterschriften', () {
+      // ⚠️ Alte Zeilen aus der Zeit vor diesem Reiter. Nichts darf durch diese
+      // Funktion leichter fertig werden als vorher.
+      expect(kkBrauchtVorstand({}), isTrue);
+      expect(kkBrauchtVorstand({'unterschrift_felder': '', 'options_json': ''}), isTrue);
+    });
+
+    test('unterschrift_felder schlägt options_json', () {
+      // Das Blatt ist erzeugt; was darauf steht, gilt — nicht, was jemand
+      // beim Erzeugen angekreuzt hatte.
+      expect(kkBrauchtVorstand({
+        'unterschrift_felder': '{"vollmachtgeber":{}}',
+        'options_json': '{"unterschriften":{"vorstand":true}}',
+      }), isFalse);
+    });
+  });
+
   group('Ein Bereich steht in genau einer Spalte', () {
     late Map<String, bool> handeln;
     late Map<String, bool> auskunft;

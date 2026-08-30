@@ -14,6 +14,7 @@
 /// kein Sozialleistungsträger; § 13 SGB X und § 73 Abs. 2 SGG greifen nicht.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -45,6 +46,45 @@ const String kKkBehoerde = 'krankenkasse';
 /// — nur wiederfinden lässt er sich nicht mehr unter dem Namen, unter dem ihn
 /// jemand sucht.
 const String kKkDokumentTyp = 'krankenkasse_vollmacht';
+
+/// Trägt das PDF dieser Vollmacht eine Zeile für den Vorstand?
+///
+/// 🔴 Erste Quelle ist `unterschrift_felder` — sie beschreibt das ERZEUGTE
+/// Blatt, geschrieben während des Zeichnens. Zweite Quelle ist die Ankreuzung
+/// in `options_json`, aus der die Zeile überhaupt entstanden ist.
+///
+/// ⚠️ Bis zum 30.08.2026 lieferte `vollmacht_list.php` `unterschrift_felder`
+/// gar nicht mit. Der Wert war immer leer, und wer daraus „kein Vorstand"
+/// schloss, stellte die Vollmacht nur dem Mitglied zur Unterschrift —
+/// während dessen Zeile auf dem Blatt gedruckt stand. Kein Fehler, keine
+/// Meldung, die Vollmacht wurde nur nie fertig. Deshalb hat diese Funktion
+/// zwei Quellen und keinen stillen Rückfall.
+///
+/// ⚠️ Fehlen beide (Zeilen aus der Zeit vor diesem Reiter), gilt die bisherige
+/// Regel: zwei Unterschriften. Nichts darf hierdurch leichter fertig werden
+/// als vorher.
+bool kkBrauchtVorstand(Map<String, dynamic> v) {
+  final felder = '${v['unterschrift_felder'] ?? ''}'.trim();
+  if (felder.isNotEmpty) return felder.contains('bevollmaechtigter');
+  // ⚠️ `jsonDecode('')` wirft eine FormatException — und eine Funktion, die
+  // entscheidet, WER unterschreiben muss, darf nicht abstürzen, sondern muss
+  // auf die vorsichtige Antwort fallen. Vom Test gefunden, nicht im Betrieb.
+  Map opt = const {};
+  final roh = v['options_json'];
+  if (roh is Map) {
+    opt = roh;
+  } else if (roh is String && roh.trim().isNotEmpty) {
+    try {
+      final d = jsonDecode(roh);
+      if (d is Map) opt = d;
+    } on FormatException {
+      return true;
+    }
+  }
+  final u = opt['unterschriften'];
+  if (u is Map && u.containsKey('vorstand')) return u['vorstand'] == true;
+  return true;
+}
 
 /// Ein Bereich steht in GENAU EINER der beiden Spalten.
 ///
@@ -776,8 +816,21 @@ class _KrankenkasseVollmachtTabState extends State<KrankenkasseVollmachtTab> {
       _melden('Unterzeichner nicht ermittelbar — bitte die Liste neu laden', Colors.red);
       return;
     }
-    final felder = '${v['unterschrift_felder'] ?? ''}';
-    final mitVorstand = felder.contains('bevollmaechtigter') && vorsitzerId > 0;
+    // 🔴 WER unterschreiben muss, steht in `unterschrift_felder` — der
+    // Erzeuger schreibt dort während des Zeichnens hinein, welche
+    // Unterschriftsfelder das PDF wirklich trägt.
+    //
+    // ⚠️ Bis zum 30.08.2026 lieferte `vollmacht_list.php` diese Spalte gar
+    // nicht mit. Der Wert war immer leer, `mitVorstand` immer false — und
+    // damit wurde die Vollmacht nur dem Mitglied zur Unterschrift gestellt,
+    // während die Zeile des Vorstands auf dem Blatt stand. Keine Meldung,
+    // kein Fehler: die Vollmacht wurde einfach nie fertig.
+    //
+    // ⚠️ Deshalb wird hier NICHT mehr stillschweigend auf „nur das Mitglied"
+    // zurückgefallen. Fehlt das Feld, entscheidet die Ankreuzung aus
+    // `options_json` — dieselbe, aus der der Erzeuger die zweite Zeile
+    // gedruckt hat.
+    final mitVorstand = kkBrauchtVorstand(v) && vorsitzerId > 0;
 
     final los = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
       title: const Text('Zur Unterschrift stellen?', style: TextStyle(fontSize: 16)),
