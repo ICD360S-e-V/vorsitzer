@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/widgets/terminanfrage_versand_dialog.dart';
+import 'package:icd360sev_vorsitzer/widgets/terminanfrage_zustellung.dart';
 
 /// Woher der Zustellstand seine Message-ID nimmt.
 ///
@@ -20,6 +21,7 @@ import 'package:icd360sev_vorsitzer/widgets/terminanfrage_versand_dialog.dart';
 /// eine, verschwindet der Zustellstatus lautlos: die Notiz bleibt lesbar, nur
 /// findet sie niemand mehr. Dieser Test ist die Stelle, an der das auffällt.
 void main() {
+  _faxstand();
   group('Message-ID aus den Notizen des Arzt-Termins', () {
     test('wird hinter der Marke gefunden', () {
       final notiz = [
@@ -60,6 +62,56 @@ void main() {
         terminZustellungMessageId('   $kMessageIdMarke  m@x.de   '),
         'm@x.de',
       );
+    });
+  });
+}
+
+/// ─────────────────────────────────────────────────────────────────────
+/// Der Faxstand an der Korrespondenzzeile (seit 30.08.2026).
+///
+/// Vorher zeigte die Zeile nur bei E-Mail etwas an; ein fehlgeschlagenes Fax
+/// sah aus wie ein zugestelltes.
+void _faxstand() {
+  /// ⚠️ Wörtliche Kopie von `sipgateFaxEndgueltig()` aus
+  /// `api/sipgate/sipgate_fax_lib.php`. Das PHP liegt in keinem Repo.
+  ///
+  /// Wird die Liste dort erweitert, ohne dass es hier ankommt, fragt die App
+  /// einen längst fertigen Vorgang bei JEDEM Öffnen der Korrespondenz erneut
+  /// bei sipgate nach — ein Fremdaufruf, der nichts mehr ändern kann.
+  const serverEndgueltig = {'zugestellt', 'fehlgeschlagen', 'storniert'};
+
+  /// ⚠️ Wörtliche Kopie von `sipgateFaxStatus()` — die Werte, die überhaupt
+  /// ankommen können.
+  const serverStatus = {
+    'zugestellt',
+    'fehlgeschlagen',
+    'in_zustellung',
+    'vorbereitet',
+  };
+
+  group('Faxstand', () {
+    test('die Endgültig-Liste stimmt mit dem Server überein', () {
+      expect(kFaxEndgueltig, serverEndgueltig);
+    });
+
+    test('jeder Serverwert hat eine Beschriftung', () {
+      // Sonst stünde an der Zeile der rohe Schlüssel — „in_zustellung".
+      for (final s in {...serverStatus, ...serverEndgueltig, 'verfallen'}) {
+        expect(kFaxStandLabel.containsKey(s), isTrue, reason: 'ohne Text: $s');
+      }
+    });
+
+    test('„unterwegs" ist NICHT endgültig', () {
+      // 🔴 Der Kern des Nachfassens: wäre `in_zustellung` endgültig, bliebe
+      // jedes Fax für immer auf „Unterwegs" stehen — und genau die Auskunft,
+      // für die die Zeile da ist, käme nie.
+      expect(kFaxEndgueltig, isNot(contains('in_zustellung')));
+      expect(kFaxEndgueltig, isNot(contains('vorbereitet')));
+    });
+
+    test('„vorbereitet" und „in_zustellung" sind unterscheidbar beschriftet', () {
+      expect(kFaxStandLabel['vorbereitet'],
+          isNot(equals(kFaxStandLabel['in_zustellung'])));
     });
   });
 }

@@ -495,6 +495,12 @@ class _SchreibenDialogState extends State<_SchreibenDialog> {
       String empfaenger;
       String gesendet;
       String sitzung = '';
+      // ⚠️ Die Kennungen des Versands. Ohne sie ist an der
+      // Korrespondenzzeile spaeter nicht mehr feststellbar, ob die Nachricht
+      // je angekommen ist — „gesendet" heisst nur, dass unser Server sie
+      // uebernommen hat.
+      String messageId = '';
+      int faxId = 0;
 
       if (alsFax) {
         final pdf =
@@ -522,6 +528,10 @@ class _SchreibenDialogState extends State<_SchreibenDialog> {
         // hier abgelegt wird, ist der Inhalt des versandten PDFs.
         gesendet = briefText;
         sitzung = res['session_id']?.toString() ?? '';
+        // ⚠️ `id` ist unsere Faxzeile, NICHT die sipgate-Sitzung. Nur mit ihr
+        // lässt sich der Stand später nachfassen; die Sitzungsnummer steht
+        // bloß im Sendebericht.
+        faxId = (res['id'] as num?)?.toInt() ?? 0;
       } else {
         gesendet =
             _signatur.trim().isEmpty ? briefText : '$briefText\n$_signatur';
@@ -533,6 +543,7 @@ class _SchreibenDialogState extends State<_SchreibenDialog> {
           return;
         }
         empfaenger = _mail;
+        messageId = res['message_id']?.toString() ?? '';
       }
 
       await _ablegen(
@@ -541,6 +552,8 @@ class _SchreibenDialogState extends State<_SchreibenDialog> {
         text: gesendet,
         empfaenger: empfaenger,
         sitzung: sitzung,
+        messageId: messageId,
+        faxId: faxId,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -572,6 +585,8 @@ class _SchreibenDialogState extends State<_SchreibenDialog> {
     required String text,
     required String empfaenger,
     required String sitzung,
+    required String messageId,
+    required int faxId,
   }) async {
     final heute = DateTime.now();
     final datum = '${heute.year}-${heute.month.toString().padLeft(2, '0')}-'
@@ -599,6 +614,19 @@ class _SchreibenDialogState extends State<_SchreibenDialog> {
         'betreff': betreff,
         'inhalt': text,
         if (sitzung.isNotEmpty) 'sitzung_id': sitzung,
+        // ⚠️ Die Kennung reist AN DER ZEILE mit, nicht in den Notizen des
+        // Termins. Die Terminanfrage legt sie dort ab, weil ihre Terminzeile
+        // feste Spalten hat — aber ein Termin kann mehrere Schreiben tragen,
+        // und mit einer Kennung in den Notizen bekämen alle den Stand des
+        // zuletzt versandten. Hier hängt jede Zeile an ihrem eigenen Versand.
+        if (messageId.isNotEmpty) 'message_id': messageId,
+        if (faxId > 0) 'fax_id': faxId,
+        // ⚠️ Der Stand IM AUGENBLICK des Versands, nicht das Ergebnis. sipgate
+        // hat das Fax übernommen, mehr weiß niemand. Er steht hier, damit die
+        // Zeile sofort „Unterwegs" zeigt statt einer Lücke, bis die Nachfrage
+        // zurück ist — und weil er NICHT endgültig ist, wird weiter
+        // nachgefasst, bis er es ist.
+        if (faxId > 0) 'fax_status': 'in_zustellung',
         'empfaenger': empfaenger,
       });
       widget.termin['korrespondenz'] = korr;

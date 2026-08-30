@@ -7168,11 +7168,21 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                                                         _terminDetailRow(Icons.calendar_today, 'Datum', k['datum'] ?? '-'),
                                                         _terminDetailRow(artIcons[k['art']] ?? Icons.mail, 'Art', artLabels[k['art']] ?? '-'),
                                                         _terminDetailRow(k['richtung'] == 'eingehend' ? Icons.call_received : Icons.call_made, 'Richtung', richtungLabels[k['richtung']] ?? '-'),
-                                                        // Zustellstand der Anfrage-Mail: „gesendet" heißt nur, dass
-                                                        // unser Server sie übernommen hat — ob der Zielserver sie
-                                                        // angenommen hat, steht erst danach im Postfix-Log.
+                                                        // Zustellstand: „gesendet" heißt nur, dass unser Server die
+                                                        // Nachricht übernommen hat — ob der Zielserver sie angenommen
+                                                        // hat, steht erst danach im Postfix-Log; beim Fax sagt es erst
+                                                        // der sipgate-Sendebericht.
+                                                        //
+                                                        // ⚠️ `messageId`/`faxId` kommen von DIESER Zeile, `notizen` nur
+                                                        // als Rückfall für die Terminanfrage, die ihre Kennung dort
+                                                        // ablegt. Ein Termin kann mehrere Schreiben tragen; ohne die
+                                                        // Kennung an der Zeile bekämen alle den Stand des zuletzt
+                                                        // versandten.
                                                         TerminanfrageZustellung(
                                                           notizen: termin['notizen']?.toString(),
+                                                          messageId: k['message_id']?.toString(),
+                                                          faxId: (k['fax_id'] as num?)?.toInt(),
+                                                          faxStatus: k['fax_status']?.toString(),
                                                           art: k['art']?.toString() ?? '',
                                                           richtung: k['richtung']?.toString() ?? '',
                                                           apiService: widget.apiService,
@@ -7196,19 +7206,41 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                                               );
                                             },
                                             leading: Icon(artIcons[k['art']] ?? Icons.mail, color: F.h(Colors.indigo, 600)),
-                                            title: Row(children: [
+                                            // ⚠️ `Wrap`, nicht `Row`. Die Zeile trägt Datum,
+                                            // Richtung, Art — und seit dem Zustellstand eine
+                                            // vierte Pastille. Gemessen lief sie damit auf einem
+                                            // 416-dp-Telefon um 4,6 px über, und `Flexible` half
+                                            // nichts: die Pastille kann nicht schmaler werden, ihr
+                                            // Text ist ein Wort. Dieselbe Lösung wie in der
+                                            // Kopfleiste der Terminliste ein paar Zeilen weiter.
+                                            title: Wrap(
+                                              spacing: 6,
+                                              runSpacing: 4,
+                                              crossAxisAlignment: WrapCrossAlignment.center,
+                                              children: [
                                               Text(k['datum'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                                              const SizedBox(width: 8),
                                               Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                                 decoration: BoxDecoration(color: k['richtung'] == 'eingehend' ? F.h(Colors.green, 100) : F.h(Colors.blue, 100), borderRadius: BorderRadius.circular(8)),
                                                 child: Text(richtungLabels[k['richtung']] ?? '', style: TextStyle(fontSize: 10, color: k['richtung'] == 'eingehend' ? F.h(Colors.green, 700) : F.h(Colors.blue, 700))),
                                               ),
-                                              const SizedBox(width: 6),
                                               Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                                 decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8)),
                                                 child: Text(artLabels[k['art']] ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
+                                              ),
+                                              // Der Zustellstand schon an der Zeile — sonst muss
+                                              // man jede einzeln aufmachen, um zu sehen, ob etwas
+                                              // überhaupt angekommen ist.
+                                              TerminanfrageZustellung(
+                                                kompakt: true,
+                                                notizen: termin['notizen']?.toString(),
+                                                messageId: k['message_id']?.toString(),
+                                                faxId: (k['fax_id'] as num?)?.toInt(),
+                                                faxStatus: k['fax_status']?.toString(),
+                                                art: k['art']?.toString() ?? '',
+                                                richtung: k['richtung']?.toString() ?? '',
+                                                apiService: widget.apiService,
                                               ),
                                             ]),
                                             subtitle: Column(
