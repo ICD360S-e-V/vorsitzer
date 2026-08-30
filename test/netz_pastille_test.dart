@@ -118,6 +118,27 @@ void main() {
     expect(find.text('Block'), findsOneWidget);
   });
 
+  testWidgets('eine amtlich aufgefallene Nummer wird gewarnt', (t) async {
+    await zeige(t, {
+      'art': 'mobil', 'art_text': 'Mobilfunk', 'netz': 'Telekom', 'logo': 'telekom',
+      'missbrauch': 'BNetzA 2025',
+    });
+    expect(find.text('amtlich aufgefallen'), findsOneWidget);
+  });
+
+  testWidgets('ohne Eintrag steht KEIN grünes Gegenstück da', (t) async {
+    // ⚠️ Das ist der Punkt. „Nicht auf der Liste" sagt nichts — die meisten
+    // Betrugsanrufe kommen mit gefälschter Absenderkennung. Ein Häkchen dort
+    // wäre eine Unbedenklichkeitsbescheinigung, die niemand ausgestellt hat.
+    await zeige(t, {
+      'art': 'mobil', 'art_text': 'Mobilfunk', 'netz': 'Telekom', 'logo': 'telekom',
+      'missbrauch': null,
+    });
+    expect(find.textContaining('unbedenklich'), findsNothing);
+    expect(find.textContaining('geprüft'), findsNothing);
+    expect(find.text('amtlich aufgefallen'), findsNothing);
+  });
+
   testWidgets('nichts bekannt heisst: nichts behaupten', (t) async {
     await zeige(t, null);
     expect(find.byType(Text), findsNothing);
