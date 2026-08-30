@@ -19,6 +19,7 @@ import 'chat_pending_attachments.dart';
 import 'linkified_text.dart';
 import 'eingabe_tasten.dart';
 import 'paste_image_detector.dart';
+import 'wort_vorschlaege.dart';
 import '../utils/app_farben.dart';
 
 final _log = LoggerService();
@@ -1706,7 +1707,9 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
             Expanded(
               child: PasteImageDetector(
                 onPaste: _pasteFromClipboard,
-                child: EingabeTasten(
+                child: WortVorschlaege(
+                  controller: _messageController,
+                  bauen: (_) => EingabeTasten(
                   onSend: _sendMessage,
                   bauen: (senden) => TextField(
                   controller: _messageController,
@@ -1734,6 +1737,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
                     ),
                   ),
                   enabled: !_isLoading,
+                ),
                 ),
                 ),
               ),
