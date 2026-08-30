@@ -47,6 +47,7 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
 
   StreamSubscription<bool>? _steuerSub;
   bool _steuerbar = false;
+  bool _stumm = false;
 
   // Chatstreifen neben dem Bild. Bewusst schmal und ohne Anhänge: er soll
   // „schauen Sie mal oben rechts" ermöglichen, nicht den Chatdialog ersetzen.
@@ -279,6 +280,18 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
             ),
             const SizedBox(width: 8),
           ],
+          // Sprechen waehrend der Sitzung. Ohne eigenes Mikrofon wird nur
+          // zugehoert — dann waere ein Stummschalter eine Luege.
+          if (_svc.hatMikrofon)
+            IconButton(
+              tooltip: _stumm ? 'Mikrofon einschalten' : 'Mikrofon stummschalten',
+              icon: Icon(_stumm ? Icons.mic_off : Icons.mic,
+                  color: _stumm ? Colors.redAccent : Colors.white),
+              onPressed: () {
+                _svc.mikrofonStumm(!_stumm);
+                setState(() => _stumm = !_stumm);
+              },
+            ),
           IconButton(
             tooltip: _chatOffen ? 'Chat ausblenden' : 'Chat einblenden',
             icon: Icon(_chatOffen ? Icons.chat : Icons.chat_bubble_outline,
@@ -465,10 +478,23 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
             Text(
               waiting
                   ? 'Warten auf Zustimmung von ${widget.targetName} …'
-                  : 'Bildschirm wird geladen …',
+                  : '${widget.targetName} hat zugestimmt und teilt den '
+                      'Bildschirm.\nVerbindung wird hergestellt …',
               style: const TextStyle(color: Colors.white, fontSize: 16),
               textAlign: TextAlign.center,
             ),
+            if (!waiting) ...[
+              const SizedBox(height: 12),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  'Bleibt es hier stehen, kommt kein Bild durch — nicht die '
+                  'Zustimmung fehlt, sondern die Medienverbindung.',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
           ],
         ),
       ),
