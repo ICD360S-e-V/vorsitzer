@@ -1,5 +1,8 @@
+import 'dart:convert' show jsonDecode;
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:icd360sev_vorsitzer/utils/diakritika.dart';
 import 'package:icd360sev_vorsitzer/utils/wort_vervollstaendigung.dart';
 
 /// Prüft die AUSGELIEFERTE Wortliste, nicht eine erfundene.
@@ -149,6 +152,74 @@ void main() {
       ]) {
         expect(wuerdeErsetzen(satz), isNull, reason: satz);
       }
+    });
+  });
+
+  group('die AUSGELIEFERTEN Kontextregeln', () {
+    late Diakritika d;
+    setUpAll(() async {
+      d = Diakritika.ausJson(jsonDecode(
+          await rootBundle.loadString('assets/woerterbuch/ro_kontext.json'))
+          as Map<String, dynamic>);
+    });
+
+    /// Ganzen Satz korrigieren, wie es das Schreibfeld Wort für Wort tut.
+    String satz(String s) {
+      final w = s.split(' ');
+      final aus = List<String>.from(w);
+      for (var i = 0; i < w.length; i++) {
+        aus[i] = d.korrektur(w[i],
+                links: i > 0 ? w[i - 1] : null,
+                rechts: i + 1 < w.length ? w[i + 1] : null) ??
+            w[i];
+      }
+      return aus.join(' ');
+    }
+
+    test('die Regeln sind da', () {
+      expect(d.bereit, isTrue);
+      expect(d.kontext.length, greaterThan(200));
+      expect(d.kurz, containsPair('si', 'și'));
+      expect(d.kurz, containsPair('in', 'în'));
+    });
+
+    // ⚠️ Genau die Sätze, wegen derer das hier gebaut wurde — an ihnen hat
+    // der eigene Übersetzungsweg messbar danebengegriffen.
+    test('repariert echte Sätze', () {
+      expect(satz('va rog sa imi trimiteti hotararea'),
+          startsWith('vă rog să'));
+      expect(satz('am asteptat pana in luna mai'), contains('până în'));
+      expect(satz('banuiesc ca nu a venit'), contains('că'));
+      expect(satz('documentele pana maine'), contains('până'));
+    });
+
+    test('was NICHT abgedeckt ist, bleibt unangetastet — kein Raten', () {
+      // ⚠️ Die Regeln greifen bei rund 40 % der fehlenden Häkchen. Der Rest
+      // bleibt stehen, und das ist gewollt: eine geratene Korrektur wäre
+      // schlimmer als eine fehlende, weil sie den Sinn verdreht.
+      expect(satz('stiu ca nu a venit'), 'stiu ca nu a venit');
+    });
+
+    test('lässt richtiges Futur in Ruhe', () {
+      // „va" ist hier Hilfsverb, nicht Pronomen.
+      expect(satz('el va mai veni'), 'el va mai veni');
+      expect(satz('va place foarte mult'), 'va place foarte mult');
+    });
+
+    test('fasst Eigennamen nicht an', () {
+      for (final n in ['Duinea', 'Padurean', 'Vollmacht', 'Landratsamt']) {
+        expect(d.korrektur(n, links: 'la', rechts: 'rog'), isNull, reason: n);
+      }
+    });
+
+    test('eine Korrektur kommt in unter einer Millisekunde', () {
+      final uhr = Stopwatch()..start();
+      for (var i = 0; i < 2000; i++) {
+        d.korrektur('sa', links: 'ajunge', rechts: 'faca');
+        d.korrektur('necunoscut', links: 'a', rechts: 'b');
+      }
+      uhr.stop();
+      expect(uhr.elapsedMicroseconds / 4000, lessThan(1000));
     });
   });
 
