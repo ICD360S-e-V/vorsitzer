@@ -18,6 +18,7 @@ import android.telephony.TelephonyManager
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.BufferedReader
 import java.io.File
@@ -30,6 +31,21 @@ class MainActivity : FlutterActivity() {
     private val POWER_CHANNEL = "de.icd360sev.vorsitzer/power"
     private val KEYGUARD_CHANNEL = "de.icd360sev.vorsitzer/keyguard"
     private val CLIPBOARD_CHANNEL = "de.icd360sev.vorsitzer/clipboard"
+
+    /**
+     * Live-Untertitel der Gegenstelle. Siehe [Untertitel].
+     *
+     * ⚠️ IM APP-MODUL UND NICHT IN EINEM PLUGIN, und das widerspricht der
+     * Regel von `icd_sms`/`icd_anruf` nur scheinbar. Jene gehoeren in Plugins,
+     * weil sie im HINTERGRUND-Isolat gebraucht werden, das nur registrierte
+     * Plugins kennt. Untertitel laufen ausschliesslich im Vordergrund,
+     * waehrend jemand auf den Schirm sieht — und sie brauchen Klassen aus
+     * `org.webrtc`, die `flutter_webrtc` nur `implementation` einbindet.
+     * Hier sind sie erreichbar, in einem eigenen Plugin nicht.
+     */
+    private val UNTERTITEL_CHANNEL = "de.icd360sev.vorsitzer/untertitel"
+    private val UNTERTITEL_STROM = "de.icd360sev.vorsitzer/untertitel_strom"
+    private var untertitel: Untertitel? = null
 
     /** Nummer, die nach dem Permission-Dialog gewählt werden soll. */
     private var pendingCallNumber: String? = null
@@ -44,6 +60,14 @@ class MainActivity : FlutterActivity() {
         )
     }
 
+    override fun onDestroy() {
+        // Ohne das bliebe der Sink an einer Tonspur haengen, die es nicht mehr
+        // gibt — und die Pipe offen.
+        untertitel?.stoppen()
+        untertitel = null
+        super.onDestroy()
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -54,6 +78,26 @@ class MainActivity : FlutterActivity() {
                         val threat = checkDeviceIntegrity()
                         result.success(threat) // null = clean, String = threat reason
                     }
+                    else -> result.notImplemented()
+                }
+            }
+
+        val ut = Untertitel(applicationContext)
+        untertitel = ut
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, UNTERTITEL_STROM)
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(args: Any?, senke: EventChannel.EventSink?) =
+                    ut.senkeSetzen(senke)
+                override fun onCancel(args: Any?) = ut.senkeSetzen(null)
+            })
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UNTERTITEL_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "faehigkeiten" -> result.success(ut.faehig())
+                    "starten" -> result.success(ut.starten(
+                        call.argument<String>("spurId") ?: "",
+                        call.argument<String>("sprache") ?: "de-DE"))
+                    "stoppen" -> result.success(ut.stoppen())
                     else -> result.notImplemented()
                 }
             }

@@ -10,6 +10,7 @@ import '../services/app_sperre_service.dart';
 import '../services/rdp_nur_modus.dart';
 import '../services/rdp_service.dart';
 import '../services/signatur_gateway_service.dart';
+import '../services/sipgate_service.dart';
 import '../services/speedtest_service.dart';
 import '../services/termin_sms_gateway_service.dart';
 import '../services/update_service.dart';
@@ -184,6 +185,17 @@ class _RdpOnlyScreenState extends State<RdpOnlyScreen> {
         () => TerminSmsGatewayService.setEnabled(false));
     await stillegen('Speedtest', SpeedtestService.autoAktiv,
         () => SpeedtestService.setzeAuto(false));
+    // ⚠️ Seit dem 30.08.2026 hält auch die sipgate-Anmeldung den Wachdienst am
+    // Leben — sie lebt im Haupt-Isolat und würde sonst von Android eingefroren.
+    // Damit ist sie ein FÜNFTER Grund, aus dem eine Dauerbenachrichtigung im
+    // Kiosk stehen bliebe, und der einzige, der sich von selbst wieder
+    // einschaltet: `starten()` plant nach jedem Fehlschlag den nächsten Anlauf.
+    // Die Zeile darunter allein genügt also nicht.
+    //
+    // Kein Verlust: das Pixel hat kein eigenes VoIP-Telefon, bekommt vom Server
+    // nur ein `geteilt`-Telefon und meldet sich deshalb ohnehin nie an.
+    await stillegen('sipgate', SipgateService().autoAktiv,
+        () => SipgateService().setAutoAktiv(false));
     // Gürtel und Hosenträger: nach einem Force Stop oder einem Neustart kann
     // der Dienst laufen, ohne dass ein Schalter davon weiß.
     await stillegen('Wachdienst', SignaturGatewayService.laeuft,

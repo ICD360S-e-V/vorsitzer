@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
-import 'anruf_gateway_service.dart';
 import 'api_service.dart';
 import 'device_key_service.dart';
 import 'logger_service.dart';
@@ -94,13 +93,13 @@ class TerminSmsGatewayService {
       await _cancelPeriodic();
       _vordergrundTimer?.cancel();
       _vordergrundTimer = null;
-      // Der Wachdienst bedient inzwischen zwei Warteschlangen. Ihn hier
-      // bedingungslos zu stoppen würde auf einem Gerät, das nur die Anrufe
-      // übernimmt, die Fernwahl still mit abschalten — sichtbar wäre nur,
-      // dass ein Klick am Rechner nichts mehr bewirkt.
-      if (!await AnrufGatewayService.isEnabled()) {
-        await SignaturGatewayService.stoppen();
-      }
+      // Der Wachdienst trägt inzwischen DREI Aufgaben: die beiden
+      // Warteschlangen und die sipgate-Anmeldung, die im Haupt-Isolat lebt.
+      // Ihn hier bedingungslos zu stoppen würde auf einem Gerät, das nur die
+      // Anrufe übernimmt, die Fernwahl still mit abschalten — und seit dem
+      // 30.08.2026 auch die Telefonie. Die Frage steht deshalb an einer
+      // Stelle.
+      await SignaturGatewayService.stoppenWennUnnoetig();
     }
     _log.info('SMS-Gateway ${value ? 'aktiviert' : 'deaktiviert'}', tag: 'SMS_GW');
   }

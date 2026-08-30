@@ -71,6 +71,15 @@ class NotificationService {
   /// getrennt von ÖPNV-Meldungen stummschalten, was er sonst nicht könnte.
   static const String channelIdAnruf = 'sipgate_anruf';
 
+  /// Das LAUFENDE Gespräch — ein anderer Kanal als [channelIdAnruf].
+  ///
+  /// ⚠️ Und zwar zwingend. `channelIdAnruf` steht auf `Importance.max` mit Ton,
+  /// weil es dort gerade klingelt. Dieselbe Einstufung für ein Gespräch, das
+  /// schon läuft, hiesse: es klingelt ein zweites Mal, mitten im Satz. Ein
+  /// Android-Kanal lässt sich nach dem Anlegen nicht mehr leiser stellen —
+  /// deshalb von Anfang an ein eigener.
+  static const String channelIdGespraech = 'sipgate_gespraech';
+
   /// Kanal für den Blitz — die Nachricht, die sich als Vollbild-Schirm mitten
   /// auf das Tablet legt.
   ///
@@ -85,6 +94,7 @@ class NotificationService {
   /// `sipgate-aktion:<id>` weitergereicht.
   static const String aktionAnnehmen = 'sipgate_annehmen';
   static const String aktionAblehnen = 'sipgate_ablehnen';
+  static const String aktionAuflegen = 'sipgate_auflegen';
 
   /// Chat-Dialog-Status setzen (von AdminChatDialog aufrufen)
   static void setChatDialogOpen(bool isOpen) {
@@ -197,12 +207,23 @@ class NotificationService {
       playSound: true,
       enableVibration: true,
     ));
-    // 4. Verkehrsstörungen (default — informative, can be muted without loss)
+    // 4. Eingehende Anrufe (max — es klingelt gerade, das ist der Sinn)
     await impl.createNotificationChannel(const AndroidNotificationChannel(
       channelIdAnruf,
       'Eingehende Anrufe',
       description: 'Klingelt und zeigt, wer über sipgate anruft.',
       importance: Importance.max,
+    ));
+
+    // 5. Laufendes Gespräch (low — es soll dastehen, nicht rufen)
+    await impl.createNotificationChannel(const AndroidNotificationChannel(
+      channelIdGespraech,
+      'Laufendes Gespräch',
+      description: 'Zeigt ein laufendes Telefonat und den Auflegen-Knopf, '
+          'solange die App nicht im Vordergrund ist.',
+      importance: Importance.low,
+      playSound: false,
+      enableVibration: false,
     ));
 
     await impl.createNotificationChannel(const AndroidNotificationChannel(
@@ -226,9 +247,15 @@ class NotificationService {
   ///
   /// ⚠️ DAS FEHLTE, UND DAMIT KONNTE JEDE BENACHRICHTIGUNG STILL AUSFALLEN.
   /// `POST_NOTIFICATIONS` ist seit Android 13 eine Laufzeitberechtigung. Sie
-  /// stand im Manifest, wurde aber nie abgefragt — und weil die App
-  /// `targetSdk = 34` hat, zeigt Android den Dialog auch nicht mehr von selbst
-  /// (das tat es nur bei Apps unter Ziel-33, beim ersten Anlegen eines Kanals).
+  /// stand im Manifest, wurde aber nie abgefragt — und weil die App ab Ziel-33
+  /// zielt (derzeit `targetSdk = 37`, siehe `android/app/build.gradle.kts`),
+  /// zeigt Android den Dialog nicht mehr von selbst (das tat es nur bei Apps
+  /// unter Ziel-33, beim ersten Anlegen eines Kanals).
+  ///
+  /// ⚠️ Die Zahl steht hier als Beleg, nicht als Bedingung: die Aussage haengt
+  /// an „>= 33", nicht an einem bestimmten Ziel. Sie stand zweimal als 34 im
+  /// Baum, nachdem das Ziel laengst weitergezogen war — wer sie anfasst, prueft
+  /// `build.gradle.kts`, statt die Zahl fortzuschreiben.
   ///
   /// Ohne die Freigabe erscheint **nichts**: kein eingehender sipgate-Anruf,
   /// keine Fernwahl-Benachrichtigung, keine ÖPNV-Erinnerung. Und zwar
@@ -371,6 +398,8 @@ class NotificationService {
     /// Overrides the default channel — for ÖPNV features which each own
     /// a dedicated Android channel (user can mute independently).
     String? androidChannelId,
+    /// Nicht wegwischbar. Siehe [show].
+    bool ongoing = false,
   }) {
     final chId = androidChannelId ?? _channelId;
     // Match name/description/importance to whatever we registered at boot.
@@ -398,6 +427,12 @@ class NotificationService {
         chDesc = 'Klingelt und zeigt, wer über sipgate anruft.';
         imp = Importance.max;
         break;
+      case channelIdGespraech:
+        chName = 'Laufendes Gespräch';
+        chDesc = 'Zeigt ein laufendes Telefonat und den Auflegen-Knopf, '
+            'solange die App nicht im Vordergrund ist.';
+        imp = Importance.low;
+        break;
       case channelIdBlitz:
         chName = 'Blitz-Nachrichten';
         chDesc = 'Legt eine eingehende Nachricht sofort auf den Bildschirm.';
@@ -416,10 +451,18 @@ class NotificationService {
         importance: imp,
         priority: imp == Importance.max ? Priority.max : Priority.high,
         fullScreenIntent: fullScreenIntent,
-        category: fullScreenIntent ? AndroidNotificationCategory.call : null,
         actions: actions,
-        playSound: playSound,
-        enableVibration: chId != channelIdOpnvStoerung,
+        ongoing: ongoing,
+        // ⚠️ Ein laufendes Gespräch ist eine Tätigkeit, keine Meldung: Android
+        // stellt `category: call` in der Leiste nach oben und behandelt sie im
+        // „Nicht stören"-Modus richtig. Der Vollbild-Fall braucht dieselbe
+        // Einstufung — deshalb beides hier.
+        category: (fullScreenIntent || chId == channelIdGespraech)
+            ? AndroidNotificationCategory.call
+            : null,
+        playSound: playSound && chId != channelIdGespraech,
+        enableVibration:
+            chId != channelIdOpnvStoerung && chId != channelIdGespraech,
         icon: '@mipmap/ic_launcher',
       ),
       iOS: DarwinNotificationDetails(
@@ -476,6 +519,12 @@ class NotificationService {
     /// [channelIdOpnvAlarm], [channelIdOpnvStoerung]. Null = default channel.
     /// Chosen channel controls importance + user-facing mute controls.
     String? androidChannelId,
+    /// Dauerbenachrichtigung: nicht wegwischbar, solange sie steht.
+    ///
+    /// ⚠️ Nur für etwas, das WIRKLICH läuft und das der Nutzer selbst beenden
+    /// kann — sonst ist es eine Meldung, die man nicht loswird. Bei uns genau
+    /// ein Fall: das laufende Gespräch, mit „Auflegen" daneben.
+    bool ongoing = false,
   }) async {
     if (eventTime != null) {
       final hint = WeatherService.instance.weatherHintAt(eventTime);
@@ -502,6 +551,7 @@ class NotificationService {
             androidChannelId: androidChannelId,
             fullScreenIntent: fullScreenIntent,
             actions: actions,
+            ongoing: ongoing,
           ),
           payload: payload,
         );
@@ -681,6 +731,63 @@ class NotificationService {
     }
 
     _log.info('Anruf-Benachrichtigung: $callerName', tag: 'NOTIF');
+  }
+
+  /// Zeigt das laufende Gespräch, solange die App nicht davor steht.
+  ///
+  /// ⚠️ WOFÜR — DIE SCHWEBENDE KARTE REICHT NICHT.
+  /// [SipgateAnrufOverlay] hängt im Navigator-Overlay dieser App. Wer während
+  /// des Gesprächs zum Browser wechselt oder den Bildschirm sperrt, hat weder
+  /// Dauer noch Auflegen-Knopf mehr vor sich — und auf Android ist die
+  /// Dauerbenachrichtigung die eingeführte Form dafür.
+  ///
+  /// ⚠️ OHNE UHRZEIT IM TEXT, UND DAS IST ABSICHT. Eine mitlaufende Dauer
+  /// müsste im Sekundentakt neu gesetzt werden; das sind rund 3.600
+  /// Neuzeichnungen je Stunde Gespräch für eine Zahl, die daneben ohnehin in
+  /// der Karte steht. `usesChronometer` wäre der richtige Weg, ist aber in
+  /// dieser Plugin-Fassung nicht durchgereicht — also lieber gar keine Zahl
+  /// als eine, die stehenbleibt und dabei falsch aussieht.
+  Future<void> showOngoingCall({
+    required String wer,
+    required String zustand,
+  }) async {
+    await show(
+      title: zustand,
+      body: wer,
+      payload: 'gespraech',
+      androidChannelId: channelIdGespraech,
+      ongoing: true,
+      actions: !Platform.isAndroid
+          ? null
+          : const <AndroidNotificationAction>[
+              // ⚠️ Mit Oberfläche, wie Annehmen/Ablehnen: auflegen tut der
+              // SIP-Stack, und der lebt im Haupt-Isolat. Ein Knopf ohne
+              // Oberfläche landete im Hintergrund-Isolat, wo es ihn nicht gibt.
+              AndroidNotificationAction(aktionAuflegen, 'Auflegen',
+                  showsUserInterface: true),
+            ],
+    );
+  }
+
+  Future<void> cancelOngoingCall() async {
+    await _notifications.cancel(id: _notificationIdFor('gespraech'));
+  }
+
+  /// Nimmt die Anruf-Benachrichtigung zurück.
+  ///
+  /// ⚠️ DAS GEGENSTÜCK ZU [showIncomingCall] HAT BIS ZUM 30.08.2026 GEFEHLT.
+  /// `SipgateService._klingelnBeenden()` stoppte nur den Klingelton — die
+  /// Benachrichtigung „`<Name>` ruft an..." blieb stehen: während des
+  /// Gesprächs, nach dem Auflegen, bis jemand sie wegwischte. Weil der
+  /// Nutzlast-Text `call:null` fest ist, ist auch die Kennung fest, und jeder
+  /// neue Anruf ersetzte nur den alten Text. Es stand also dauerhaft jemand
+  /// in der Leiste, der angeblich gerade anruft.
+  ///
+  /// [conversationId] muss derselbe Wert sein wie beim Anzeigen — die Kennung
+  /// wird aus der Nutzlast gerechnet. Für sipgate ist das `null`, für die
+  /// WebRTC-Gespräche die Gesprächsnummer.
+  Future<void> cancelIncomingCall({int? conversationId}) async {
+    await _notifications.cancel(id: _notificationIdFor('call:$conversationId'));
   }
 
   /// Show update available notification

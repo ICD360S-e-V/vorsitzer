@@ -118,6 +118,37 @@ android {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+
+    // ⚠️ NUR ZUM ÜBERSETZEN. Zur Laufzeit bringt `flutter_webrtc` dieselbe AAR
+    // schon mit; ein `implementation` hier hätte sie zweimal im Paket.
+    //
+    // Nötig, weil `flutter_webrtc` sie als `implementation` einbindet
+    // (android/build.gradle:78) und nicht als `api` — die Klassen aus
+    // `org.webrtc` stehen dem App-Modul deshalb NICHT von selbst zur
+    // Verfügung. Gebraucht werden sie für die Live-Untertitel: dort wird an
+    // die Tonspur der Gegenstelle ein `AudioTrackSink` gehängt.
+    //
+    // ⚠️ DIE FASSUNG MUSS DIE VON flutter_webrtc SEIN. Übersetzt man gegen
+    // eine andere als die, die zur Laufzeit geladen wird, fällt das erst auf
+    // dem Gerät auf — als NoSuchMethodError mitten im Gespräch. Steht in
+    // `flutter_webrtc-1.6.0/android/build.gradle`.
+    compileOnly("io.github.webrtc-sdk:android:144.7559.09")
+
+    // Offline-Spracherkennung für die Live-Mitschrift. Apache 2.0.
+    //
+    // ⚠️ WARUM NICHT ANDROIDS EIGENER ERKENNER.
+    // `SpeechRecognizer.createOnDeviceSpeechRecognizer()` bindet an den
+    // Systemdienst für Offline-Erkennung — und den stellt auf gewöhnlichen
+    // Geräten Googles „Android System Intelligence" (com.google.android.as).
+    // Ohne Google Play gibt es ihn nicht: auf GrapheneOS meldet
+    // `isOnDeviceRecognitionAvailable()` schlicht `false`, und im
+    // Fehlerverfolger des Projekts steht die Bitte um so einen Dienst als
+    // OFFENE Aufgabe (GrapheneOS/os-issue-tracker#1593).
+    //
+    // Auf dem Zielgerät — Pixel Fold mit GrapheneOS, ohne Play — wäre die
+    // Mitschrift damit nie angesprungen. Vosk bringt das Modell selbst mit und
+    // braucht nichts davon.
+    implementation("com.alphacephei:vosk-android:0.3.47")
 }
 
 flutter {
