@@ -18,6 +18,63 @@ import '../utils/app_farben.dart';
 
 /// Die gemerkten Empfänger aus einem gespeicherten Entwurf.
 ///
+/// Was mit den Seiten passiert ist — ein Satz, immer sichtbar.
+///
+/// ⚠️ IMMER, nicht nur im Fehlerfall. Bis zum 30.08.2026 stand an der Karte
+/// nur „5 S." — das ist der Umfang des Dokuments und sagt nichts darüber, was
+/// beim Empfänger ankam. Wer bei einer Frist nachsieht, will genau das
+/// bestätigt bekommen, und zwar ohne erst irgendwo hineintippen zu müssen.
+/// Ein Satz, der nur bei Verlust erscheint, beweist im Regelfall gar nichts:
+/// seine Abwesenheit könnte auch heißen, dass niemand nachgesehen hat.
+///
+/// Gibt Text und die Warnstufe zurück. `dringend` heißt: rot und fett, weil
+/// ein „zugestellt" mit fehlenden Seiten wie Erfolg aussieht.
+({String text, bool dringend}) faxSeitenText(Map<String, dynamic> f) {
+  final gesendet = (f['seiten'] as num?)?.toInt();
+  final an = (f['seiten_bestaetigt'] as num?)?.toInt();
+  final fehlen = f['seiten_fehlen'] == true;
+  final ein = (f['richtung'] ?? 'aus') == 'ein';
+  final status = (f['status'] ?? '').toString();
+
+  if (gesendet == null && an == null) return (text: '', dringend: false);
+
+  // Eingegangene Faxe: „angekommen" ergibt keinen Sinn, sipgate ist dort die
+  // einzige Quelle und es gibt nichts zu vergleichen.
+  if (ein) {
+    final n = gesendet ?? an;
+    return (text: '$n ${n == 1 ? 'Seite' : 'Seiten'} empfangen', dringend: false);
+  }
+
+  final n = gesendet ?? an;
+  if (fehlen && an != null) {
+    return (
+      text: 'nur $an von $n Seiten angekommen — bitte erneut senden',
+      dringend: true
+    );
+  }
+  if (an == null) {
+    // ⚠️ Zwei verschiedene Zustände, die nicht denselben Satz bekommen dürfen:
+    // gescheitert heißt „nichts ist rausgegangen", unterwegs heißt „wir wissen
+    // es noch nicht". Beides als „nicht bestätigt" zu zeigen hieße, einen
+    // abgeschlossenen Vorgang wie einen offenen aussehen zu lassen.
+    if (status == 'fehlgeschlagen' || status == 'storniert') {
+      return (text: '$n ${n == 1 ? 'Seite' : 'Seiten'} — nicht übertragen', dringend: false);
+    }
+    return (
+      text: '$n ${n == 1 ? 'Seite' : 'Seiten'} gesendet · Bestätigung steht aus',
+      dringend: false
+    );
+  }
+  return (
+    text: an == n
+        ? '$an von $n Seiten angekommen'
+        // Mehr bestätigt als gesendet: kommt nicht vor, wäre aber eine
+        // Abweichung und darf nicht als „alles gut" durchgehen.
+        : '$an Seiten bestätigt, $n gesendet',
+    dringend: false
+  );
+}
+
 /// Die beiden Fristen eines Fax als ein Satz — oder null, wenn nichts zu
 /// sagen ist.
 ///
@@ -2833,6 +2890,11 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     // Unterschied, den ein Nachweisarchiv benennen muss.
     final inhaltWeg = (f['inhalt_geloescht_am'] ?? '').toString().isNotEmpty;
     final gesperrt = f['nicht_loeschen'] == true;
+    // 🔴 Weniger Seiten angekommen als gesendet. Der Server zählt die Seiten
+    // jetzt selbst aus dem PDF, das hinausgeht, und vergleicht sie mit dem,
+    // was sipgate bestätigt — bis zum 30.08.2026 überschrieb sipgates Zahl
+    // einfach die eigene, und fehlende Seiten waren spurlos weg.
+    final seitenSatz = faxSeitenText(f);
     // Fertig gerechnet vom Server — siehe faxFristTexte.
     final fristen = faxFristTexte(f['fristen'] as Map<String, dynamic>?);
     final fristArchiv = fristen.archiv;
@@ -2932,6 +2994,36 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
                                   height: 1.35,
                                   color: F.h(Colors.grey, 600))),
                     ],
+                  ),
+                ),
+              ]),
+            ),
+          // Was mit den Seiten geschah — immer, nicht nur bei Verlust.
+          // Bei Verlust rot und fett: ein „zugestellt", dem Seiten fehlen,
+          // sieht aus wie Erfolg und ist das Gefährlichste im Bildschirm.
+          if (seitenSatz.text.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(
+                    seitenSatz.dringend
+                        ? Icons.report_problem_outlined
+                        : Icons.description_outlined,
+                    size: 13,
+                    color: seitenSatz.dringend
+                        ? F.h(Colors.red, 700)
+                        : F.h(Colors.grey, 600)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    seitenSatz.text,
+                    style: TextStyle(
+                        fontSize: seitenSatz.dringend ? 12 : 11.5,
+                        fontWeight:
+                            seitenSatz.dringend ? FontWeight.w600 : FontWeight.normal,
+                        color: seitenSatz.dringend
+                            ? F.h(Colors.red, 700)
+                            : F.h(Colors.grey, 600)),
                   ),
                 ),
               ]),
