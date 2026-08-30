@@ -137,6 +137,17 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
     }
     _rueckgaengig = null;
     _inRuheLassen.add(r.original);
+    final ganz = r.ganzerTextVorher;
+    if (ganz != null) {
+      // Häkchen-Korrektur: sie kann zwei Wörter berührt haben.
+      _letzterText = ganz;
+      widget.controller.value = TextEditingValue(
+        text: ganz,
+        selection: TextSelection.collapsed(offset: ganz.length),
+      );
+      _neuRechnen();
+      return true;
+    }
     final wieder = '${text.substring(0, r.von)}${r.original}'
         '${text.substring(r.von + r.eingesetzt.length)}';
     _letzterText = wieder;
@@ -150,7 +161,6 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
 
   /// Wurde am Ende eines vorgeschlagenen Wortes ein Leerzeichen getippt?
   bool _leertasteVersucht(String text, String vorher) {
-    if (_vorschlaege.isEmpty) return false;
     final wort = _wort;
     if (wort == null) return false;
     if (text.length != vorher.length + 1) return false;
@@ -162,6 +172,19 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
     if (text.substring(0, cursor - 1) != vorher.substring(0, cursor - 1)) {
       return false;
     }
+    // Häkchen-Korrektur zuerst: sie greift GERADE dort, wo das Wort selbst
+    // eines ist („sa", „ca", „va") — also vor Sicherung 1, die genau das
+    // sonst abfängt. Was hier passiert, entscheidet der Nachbar, nicht die
+    // Häufigkeit. Siehe [Diakritika].
+    if (_haekchenGesetzt(text, wort, cursor)) return true;
+
+    // Ab hier geht es um das Übernehmen eines Vorschlags — ohne einen gibt
+    // es nichts zu tun. ⚠️ Diese Prüfung darf NICHT vorne stehen: die
+    // Häkchen-Korrektur oben braucht keine Vorschlagsliste. „si" hat als
+    // Zweibuchstabenwort gar keine, und bei „va rog" hängt der Vorschlag am
+    // Wort „rog", während geändert werden muss, was davor steht.
+    if (_vorschlaege.isEmpty) return false;
+
     // Sicherung 1: ein richtiges Wort wird nicht angefasst.
     if (WortlisteService.index.kennt(wort.text)) return false;
     // Sicherung 2: einmal zurückgenommen heißt in Ruhe lassen.
@@ -187,6 +210,58 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
       text: neu,
       selection:
           TextSelection.collapsed(offset: wort.von + eingesetzt.length + 1),
+    );
+    _neuRechnen();
+    return true;
+  }
+
+  /// Setzt die Häkchen im eben getippten Wort UND im Wort davor.
+  ///
+  /// ⚠️ Beide, und das ist keine Bequemlichkeit: eine Regel wie
+  /// `va` + rechter Nachbar `rog` kann erst greifen, wenn „rog" dasteht —
+  /// also erst beim Leerzeichen NACH „rog". Wer nur das eben getippte Wort
+  /// ansieht, verliert alle Regeln, die nach rechts schauen. Und das sind
+  /// die wichtigsten: „vă rog", „până în", „faptul că".
+  bool _haekchenGesetzt(String text, AngefangenesWort wort, int cursor) {
+    final d = WortlisteService.diakritika;
+    if (!d.bereit) return false;
+
+    final davor = AngefangenesWort.ausEingabe(text, wort.von > 0 ? wort.von - 1 : 0);
+    final davorDavor = davor == null || davor.von == 0
+        ? null
+        : AngefangenesWort.ausEingabe(text, davor.von - 1);
+
+    // Von hinten nach vorn ersetzen, damit die Stellen der vorderen Wörter
+    // gültig bleiben.
+    final neu = d.korrektur(wort.text, links: davor?.text);
+    final neuDavor = davor == null
+        ? null
+        : d.korrektur(davor.text, links: davorDavor?.text, rechts: wort.text);
+    if (neu == null && neuDavor == null) return false;
+
+    var ergebnis = text;
+    var verschoben = 0;
+    if (neu != null && !_inRuheLassen.contains(wort.text)) {
+      ergebnis = ergebnis.replaceRange(wort.von, wort.bis, neu);
+      verschoben += neu.length - wort.text.length;
+    }
+    if (neuDavor != null && !_inRuheLassen.contains(davor!.text)) {
+      ergebnis = ergebnis.replaceRange(davor.von, davor.bis, neuDavor);
+      verschoben += neuDavor.length - davor.text.length;
+    }
+    if (ergebnis == text) return false;
+
+    _rueckgaengig = _Ersetzung(
+      von: wort.von,
+      original: wort.text,
+      eingesetzt: neu ?? wort.text,
+      nachher: ergebnis,
+      ganzerTextVorher: text,
+    );
+    _letzterText = ergebnis;
+    widget.controller.value = TextEditingValue(
+      text: ergebnis,
+      selection: TextSelection.collapsed(offset: cursor + verschoben),
     );
     _neuRechnen();
     return true;
@@ -317,10 +392,16 @@ class _Ersetzung {
   /// war die Rücktaste wirklich der nächste Anschlag.
   final String nachher;
 
+  /// Bei der Häkchen-Korrektur der volle Text DAVOR — dort können zwei Wörter
+  /// auf einmal geändert worden sein, und dann ist das Zurücksetzen des
+  /// ganzen Textes die einzige Fassung, die stimmt.
+  final String? ganzerTextVorher;
+
   const _Ersetzung({
     required this.von,
     required this.original,
     required this.eingesetzt,
     required this.nachher,
+    this.ganzerTextVorher,
   });
 }
