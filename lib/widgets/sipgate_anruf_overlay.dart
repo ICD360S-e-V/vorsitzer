@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+
 import '../screens/sipgate_screen.dart';
 import '../services/notification_service.dart';
 import '../services/sipgate_service.dart';
+import '../services/qualitaets_sonde.dart';
+import 'guete_anzeige.dart';
 import 'sekunden_takt.dart';
 
 /// Schwebende Gesprächskarte, sichtbar über jedem Bildschirm.
@@ -101,7 +104,11 @@ class _Karte extends StatelessWidget {
   final SipgateAnrufOverlay overlay;
 
   static const double _breite = 320;
-  static const double _hoehe = 92;
+  // ⚠️ 92 -> 108: mit der Güte-Zeile ist die Karte höher. Der Wert begrenzt
+  // NUR, wie weit sie sich ziehen lässt — bliebe er zu klein, liesse sich die
+  // Karte über den unteren Rand hinausschieben und der Auflegen-Knopf wäre
+  // nicht mehr erreichbar.
+  static const double _hoehe = 108;
 
   @override
   Widget build(BuildContext context) {
@@ -259,6 +266,18 @@ class _Karte extends StatelessWidget {
                         ),
                       ),
                       ),
+                      // Die gemessene Güte, sobald gesprochen wird.
+                      //
+                      // ⚠️ Eigener Melder, nicht der Gesamtzustand: sonst
+                      // würde die ganze Karte alle drei Sekunden neu gebaut —
+                      // genau die Last, wegen der der Sekundentakt im Dienst
+                      // abgeschafft wurde.
+                      if (verbunden)
+                        ValueListenableBuilder<QualitaetsProbe?>(
+                          valueListenable: SipgateService().guete,
+                          builder: (_, probe, __) =>
+                              GuetePunkt(probe: probe, hell: true),
+                        ),
                     ],
                   ),
                 ),
