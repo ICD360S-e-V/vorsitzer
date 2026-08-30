@@ -2833,6 +2833,12 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     // Unterschied, den ein Nachweisarchiv benennen muss.
     final inhaltWeg = (f['inhalt_geloescht_am'] ?? '').toString().isNotEmpty;
     final gesperrt = f['nicht_loeschen'] == true;
+    // 🔴 Weniger Seiten angekommen als gesendet. Der Server zählt die Seiten
+    // jetzt selbst aus dem PDF, das hinausgeht, und vergleicht sie mit dem,
+    // was sipgate bestätigt — bis zum 30.08.2026 überschrieb sipgates Zahl
+    // einfach die eigene, und fehlende Seiten waren spurlos weg.
+    final seitenFehlen = f['seiten_fehlen'] == true;
+    final seitenAn = (f['seiten_bestaetigt'] as num?)?.toInt();
     // Fertig gerechnet vom Server — siehe faxFristTexte.
     final fristen = faxFristTexte(f['fristen'] as Map<String, dynamic>?);
     final fristArchiv = fristen.archiv;
@@ -2897,6 +2903,11 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
         subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('${ein ? 'Empfangen von' : 'An'} $nummer'
               '${f['seiten'] != null ? ' · ${f['seiten']} S.' : ''}'
+              // ⚠️ Die angekommene Zahl steht direkt daneben, nicht in einer
+              // eigenen Zeile weiter unten: „7 S." allein liest sich wie eine
+              // Tatsache über die Sendung, dabei ist beim Empfänger etwas
+              // anderes angekommen. Der Widerspruch gehört an dieselbe Stelle.
+              '${seitenFehlen && seitenAn != null ? ' → nur $seitenAn angekommen' : ''}'
               '${f['deckblatt'] == true ? ' · mit Deckblatt' : ''}'),
           Text('${ungelesen ? 'Neu · ' : ''}'
               '${_statusText(status, roh)} · '
@@ -2932,6 +2943,29 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
                                   height: 1.35,
                                   color: F.h(Colors.grey, 600))),
                     ],
+                  ),
+                ),
+              ]),
+            ),
+          // 🔴 ROT, und nicht grau wie die Fristen. Ein „zugestellt", bei dem
+          // Seiten fehlen, ist die gefährlichste Meldung im ganzen Bildschirm:
+          // sie sieht aus wie Erfolg. Bei einem fristgebundenen Widerspruch
+          // fehlen dem Amt genau die Seiten, auf die es ankommt.
+          if (seitenFehlen)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.report_problem_outlined, size: 13, color: F.h(Colors.red, 700)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'Unvollständig übertragen: gesendet ${f['seiten'] ?? '?'} Seiten, '
+                    'angekommen ${seitenAn ?? '?'}. Bei einer Frist zählt nur, was '
+                    'angekommen ist — bitte erneut senden.',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: F.h(Colors.red, 700)),
                   ),
                 ),
               ]),
