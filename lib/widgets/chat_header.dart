@@ -25,6 +25,10 @@ class ConversationHeader extends StatelessWidget {
   final VoidCallback? onVideoCall;
   /// Start a Fernwartung (remote-support) session with this member.
   final VoidCallback? onRemoteControl;
+
+  /// Läuft gerade eine Fernwartung? Dann führt der Knopf zurück statt eine
+  /// neue zu starten — und sagt das auch, statt wie ein Startknopf auszusehen.
+  final bool fernwartungLaeuft;
   final VoidCallback onClose;
   final VoidCallback onMuteToggle;
   final VoidCallback? onScheduledSettings;
@@ -48,6 +52,7 @@ class ConversationHeader extends StatelessWidget {
     required this.onCall,
     this.onVideoCall,
     this.onRemoteControl,
+    this.fernwartungLaeuft = false,
     required this.onClose,
     this.isMuted = false,
     required this.onMuteToggle,
@@ -147,9 +152,15 @@ class ConversationHeader extends StatelessWidget {
       if (!isAnonymous && isOpen && onRemoteControl != null)
         _Kopfaktion(
           icon: Icons.screen_share,
-          farbe: Colors.lightBlueAccent,
-          label: 'Fernwartung (Bildschirm)',
+          farbe: fernwartungLaeuft ? Colors.greenAccent.shade400 : Colors.lightBlueAccent,
+          label: fernwartungLaeuft
+              ? 'Zurück zur laufenden Fernwartung'
+              : 'Fernwartung (Bildschirm)',
           onTap: onRemoteControl,
+          // Läuft eine Sitzung, darf der Rückweg nie im ⋮ verschwinden: der
+          // Bildschirm des Mitglieds ist dann geteilt, und nur der Vorsitz oder
+          // das Mitglied können das beenden.
+          wichtig: fernwartungLaeuft,
         ),
       // Bewusst NICHT `wichtig`: das weiße × schließt die Konversation, nicht
       // den Dialog. Neben einem echten Schließen-Kreuz wäre das eine Falle.

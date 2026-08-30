@@ -929,6 +929,14 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   /// Opens the viewer; the member must consent before any screen is shared.
   /// This is separate from voice calls and from the RDP office remote desktop.
   void _startFernwartung() {
+    // Läuft schon eine Sitzung, führt der Knopf ZURÜCK statt eine zweite zu
+    // beginnen. Seit der Betrachter die Sitzung beim Verlassen nicht mehr
+    // abreißt, ist das der Normalfall: hierher kommt man, um dem Mitglied zu
+    // schreiben oder es anzurufen, und will danach zurück ans Bild.
+    if (FernwartungRueckkehr.laeuft) {
+      FernwartungRueckkehr.zurueck(context);
+      return;
+    }
     if (_selectedConversation == null) return;
     final convId = _parseConvId(_selectedConversation!['id']);
     final memberName = (_selectedConversation!['member_name'] ?? 'Benutzer').toString();
@@ -3953,6 +3961,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           canCall: canCall,
           onVideoCall: () => _startCall(video: true),
           onRemoteControl: _startFernwartung,
+          fernwartungLaeuft: FernwartungRueckkehr.laeuft,
           isOpen: isOpen,
           isMuted: _selectedConversation!['is_muted'] == true,
           onCall: _startCall,

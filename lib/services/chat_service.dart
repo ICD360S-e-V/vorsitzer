@@ -383,6 +383,9 @@ class ChatService {
 
     // Disable auto-reconnect for manual disconnect
     _shouldReconnect = false;
+    // Hier will der Mensch weg; gemerkte Räume sollen eine spätere, neue
+    // Anmeldung nicht mehr belasten.
+    _raeume.clear();
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
 
@@ -466,9 +469,20 @@ class ChatService {
     }
   }
 
+  /// Räume, in denen dieses Gerät sein WILL.
+  ///
+  /// ⚠️ Der Beitritt hängt am SOCKET, nicht am Konto: nach einer
+  /// Wiederverbindung ist die Verbindung auf dem Server eine neue und in
+  /// keinem Raum mehr. Die Wiederverbindung gibt es hier seit langem, den
+  /// erneuten Beitritt gab es nicht — nach jedem Netzwechsel fielen
+  /// Anrufsignale, ICE-Kandidaten und Fernwartung stumm aus, während der
+  /// Bildschirm weiter „verbunden" zeigte.
+  final Set<int> _raeume = <int>{};
+
   /// Join a conversation room
   void joinConversation(int conversationId) {
     _log.info('Joining conversation $conversationId', tag: 'WS');
+    _raeume.add(conversationId);
     _send({
       'type': 'join',
       'conversation_id': conversationId,
@@ -477,10 +491,24 @@ class ChatService {
 
   /// Leave a conversation room
   void leaveConversation(int conversationId) {
+    _raeume.remove(conversationId);
     _send({
       'type': 'leave',
       'conversation_id': conversationId,
     });
+  }
+
+  /// Nach erfolgreicher Anmeldung alle gemerkten Räume erneut betreten.
+  ///
+  /// ⚠️ Erst nach `auth_success`, nicht schon beim Öffnen des Sockets: vor der
+  /// Anmeldung weist der Server jedes `join` mit „Not authenticated" ab, und
+  /// zwar lautlos.
+  void _raeumeWiederbetreten() {
+    if (_raeume.isEmpty) return;
+    _log.info('Wiederbetrete ${_raeume.length} Raum/Räume nach Anmeldung', tag: 'WS');
+    for (final id in _raeume) {
+      _send({'type': 'join', 'conversation_id': id});
+    }
   }
 
   /// Send a chat message
@@ -601,6 +629,12 @@ class ChatService {
     });
   }
 
+  /// Systemweite Aktion auf dem Gerät des Mitglieds (`back`, `home`,
+  /// `recents`, `notifications`). Geht über denselben Datenkanal wie Maus und
+  /// Tastatur; ältere Mitglieds-Apps kennen den Rahmen nicht und übergehen ihn.
+  /// Wird NICHT über das Signalisierungs-WebSocket geschickt — Eingaben gehören
+  /// in den Datenkanal, sonst liefen sie an der Ende-zu-Ende-Strecke vorbei.
+
   /// ICE candidate for the remote-control peer connection. Own frame type so it
   /// is never mixed with the voice-call ice_candidate stream.
   void sendRemoteIce(int conversationId, String candidate, String sdpMid, int sdpMLineIndex) {
@@ -654,6 +688,7 @@ class ChatService {
           _reconnectAttempts = 0; // Reset reconnect attempts on successful connection
           _currentUserId = json['user_id'] as int?;
           _connectionController.add(true);
+          _raeumeWiederbetreten();
           // Parse initial online users list if provided
           if (json['online_users'] != null) {
             final List<dynamic> onlineList = json['online_users'];
@@ -889,6 +924,8 @@ class ChatService {
             answererId: json['answerer_id']?.toString() ?? '',
             sdp: json['sdp'] ?? '',
             sdpType: json['sdp_type'] ?? 'answer',
+            plattform: json['plattform']?.toString(),
+            steuerung: json['steuerung'] == true,
           ));
           break;
 
@@ -1164,11 +1201,26 @@ class RemoteAnswerEvent {
   final String sdp;
   final String sdpType;
 
+  /// Plattform des Mitglieds (`android`, `windows`, `linux`, `macos`, `ios`).
+  /// Null bei einer älteren Mitglieds-App, die sie noch nicht mitschickt.
+  final String? plattform;
+
+  /// Kann auf diesem Gerät überhaupt gesteuert werden? Auf Android hängt das
+  /// daran, ob das Mitglied den Bedienungshilfen-Dienst eingeschaltet hat, auf
+  /// iOS ist es nie der Fall.
+  ///
+  /// ⚠️ Nur das Mitglied kann das wissen. Der Vorsitz trug hier bisher fest
+  /// „Steuerung erlaubt" ins Prüfprotokoll ein — auch für die zwölf Sitzungen
+  /// gegen ein Telefon, auf dem gar keine möglich war.
+  final bool steuerung;
+
   RemoteAnswerEvent({
     required this.conversationId,
     required this.answererId,
     required this.sdp,
     required this.sdpType,
+    this.plattform,
+    this.steuerung = false,
   });
 }
 

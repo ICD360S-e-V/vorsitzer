@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import '../services/chat_service.dart';
 import '../services/remote_control_service.dart';
 
 /// Fernwartung viewer (Vorsitzer side): shows the member's screen live and
@@ -44,6 +45,16 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
   bool _popped = false;
   int _downButton = 0; // remembered so pointer-up releases the right button
 
+  StreamSubscription<bool>? _steuerSub;
+  bool _steuerbar = false;
+
+  // Chatstreifen neben dem Bild. Bewusst schmal und ohne Anhänge: er soll
+  // „schauen Sie mal oben rechts" ermöglichen, nicht den Chatdialog ersetzen.
+  StreamSubscription<ChatMessage>? _nachrichtSub;
+  final TextEditingController _eingabe = TextEditingController();
+  final List<_Zeile> _zeilen = [];
+  bool _chatOffen = false;
+
   @override
   void initState() {
     super.initState();
@@ -63,8 +74,34 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
       if (!mounted) return;
       setState(() => _state = s);
       // Session over → leave the viewer and explain why.
-      if (s == RemoteControlState.idle) _leave(_endMessage(_svc.lastEnd));
+      if (s == RemoteControlState.idle) {
+        FernwartungRueckkehr.vergessen();
+        _leave(_endMessage(_svc.lastEnd));
+      }
     });
+
+    _steuerSub = _svc.zielSteuerbarStream.listen((frei) {
+      if (mounted) setState(() => _steuerbar = frei);
+    });
+    _nachrichtSub = ChatService().messageStream.listen((m) {
+      if (!mounted || m.conversationId != widget.conversationId) return;
+      setState(() => _zeilen.add(_Zeile(m.displayMessage, m.isAdmin)));
+    });
+    FernwartungRueckkehr.merken(widget);
+
+    // ⚠️ Schon eine Sitzung am Laufen? Dann NICHT neu starten, sondern
+    // andocken. `start()` gibt bei belegtem Dienst false zurück, und dieser
+    // Bildschirm hätte sich mit „Verbindung konnte nicht aufgebaut werden"
+    // sofort wieder verabschiedet — also genau beim Zurückkehren aus dem Chat.
+    if (_svc.state != RemoteControlState.idle) {
+      setState(() {
+        _state = _svc.state;
+        _steuerbar = _svc.zielSteuerbar;
+        _renderer.srcObject = _svc.remoteStream;
+        _hasVideo = _svc.remoteStream != null;
+      });
+      return;
+    }
 
     final ok = await _svc.start(
       conversationId: widget.conversationId,
@@ -107,13 +144,23 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
   void dispose() {
     _stateSub?.cancel();
     _streamSub?.cancel();
+    _steuerSub?.cancel();
+    _nachrichtSub?.cancel();
+    _eingabe.dispose();
     _focus.dispose();
     _renderer.srcObject = null;
     _renderer.dispose();
-    // Ensure the session is torn down if the user backed out of the screen.
-    if (_svc.state != RemoteControlState.idle) {
-      _svc.end(notifyPeer: true);
-    }
+    // ⚠️ Die Sitzung wird hier NICHT mehr beendet.
+    //
+    // Vorher stand hier `_svc.end(notifyPeer: true)`. Damit riss jeder Schritt
+    // zurück in den Chat die Fernwartung ab — genau der Schritt, den man tut,
+    // um dem Mitglied etwas zu schreiben oder es anzurufen. Beenden ist jetzt
+    // ausschließlich der rote Knopf oben, und der Dienst ist ein Singleton, der
+    // die Sitzung ohne diesen Bildschirm weiterträgt.
+    //
+    // Der Preis dafür ist ein Rückweg: [FernwartungRueckkehr] merkt sich, wie
+    // dieser Bildschirm zu öffnen war, damit eine laufende Sitzung nicht
+    // unerreichbar wird.
     super.dispose();
   }
 
@@ -169,6 +216,16 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
     }
   }
 
+  void _senden() {
+    final text = _eingabe.text.trim();
+    if (text.isEmpty) return;
+    ChatService().sendMessage(widget.conversationId, text);
+    setState(() {
+      _zeilen.add(_Zeile(text, true));
+      _eingabe.clear();
+    });
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (!_svc.canSendInput) return KeyEventResult.ignored;
     final isDown = event is KeyDownEvent || event is KeyRepeatEvent;
@@ -185,22 +242,180 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final connecting = _state != RemoteControlState.connected || !_hasVideo;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text('Fernwartung — ${widget.targetName}'),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text('Fernwartung — ${widget.targetName}',
+                  overflow: TextOverflow.ellipsis),
+            ),
+            const SizedBox(width: 10),
+            if (_state == RemoteControlState.connected) _steuerChip(),
+          ],
+        ),
         actions: [
+          // Systemtasten. Auf einem Telefon mit Gestennavigation gibt es keine
+          // Fläche, die man dafür anklicken könnte — ohne diese Knöpfe käme man
+          // aus jeder geöffneten App nicht mehr heraus.
+          if (_steuerbar && _istHandy) ...[
+            IconButton(
+              tooltip: 'Zurück',
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => _svc.sendSystemAktion('back'),
+            ),
+            IconButton(
+              tooltip: 'Startbildschirm',
+              icon: const Icon(Icons.home_outlined),
+              onPressed: () => _svc.sendSystemAktion('home'),
+            ),
+            IconButton(
+              tooltip: 'Übersicht',
+              icon: const Icon(Icons.crop_square_outlined),
+              onPressed: () => _svc.sendSystemAktion('recents'),
+            ),
+            const SizedBox(width: 8),
+          ],
+          IconButton(
+            tooltip: _chatOffen ? 'Chat ausblenden' : 'Chat einblenden',
+            icon: Icon(_chatOffen ? Icons.chat : Icons.chat_bubble_outline,
+                color: _chatOffen ? Colors.lightBlueAccent : Colors.white),
+            onPressed: () => setState(() => _chatOffen = !_chatOffen),
+          ),
           TextButton.icon(
-            onPressed: () => _svc.end(notifyPeer: true, reason: RemoteControlEnd.none),
+            onPressed: () {
+              FernwartungRueckkehr.vergessen();
+              _svc.end(notifyPeer: true, reason: RemoteControlEnd.none);
+            },
             icon: const Icon(Icons.call_end, color: Colors.redAccent),
             label: const Text('Beenden', style: TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
-      body: Focus(
+      body: Row(
+        children: [
+          Expanded(child: _bildbereich()),
+          if (_chatOffen) _chatStreifen(),
+        ],
+      ),
+    );
+  }
+
+  /// Android ohne eingeschalteten Bedienungshilfen-Dienst, iOS immer: der
+  /// Bildschirm kommt an, Klicks gehen ins Leere. Vorher stand nirgends etwas —
+  /// man klickte und nichts geschah, ununterscheidbar von einer hängenden
+  /// Leitung.
+  Widget _steuerChip() {
+    final an = _steuerbar;
+    final plattform = _svc.zielPlattform;
+    return Tooltip(
+      message: an
+          ? 'Tippen, Wischen und Zurück gehen an das Gerät.'
+          : (plattform == 'ios'
+              ? 'iOS lässt keine Fernsteuerung zu — nur Ansicht.'
+              : 'Nur Ansicht: ${widget.targetName} hat die Steuerung nicht '
+                  'freigegeben (Profil ▸ Fernwartung).'),
+      child: Chip(
+        visualDensity: VisualDensity.compact,
+        backgroundColor: an ? Colors.green.shade800 : Colors.orange.shade900,
+        side: BorderSide.none,
+        avatar: Icon(an ? Icons.touch_app : Icons.visibility,
+            size: 16, color: Colors.white),
+        label: Text(an ? 'Steuerung' : 'Nur Ansicht',
+            style: const TextStyle(color: Colors.white, fontSize: 12)),
+      ),
+    );
+  }
+
+  bool get _istHandy =>
+      _svc.zielPlattform == 'android' || _svc.zielPlattform == 'ios';
+
+  Widget _chatStreifen() {
+    return Container(
+      width: 300,
+      color: const Color(0xFF15151F),
+      child: Column(
+        children: [
+          Expanded(
+            child: _zeilen.isEmpty
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'Nachrichten aus dieser Sitzung erscheinen hier.\n'
+                        'Der ganze Verlauf steht im Chat.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.all(8),
+                    itemCount: _zeilen.length,
+                    itemBuilder: (_, i) {
+                      final z = _zeilen[_zeilen.length - 1 - i];
+                      return Align(
+                        alignment: z.eigen
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: z.eigen
+                                ? Colors.blue.shade700
+                                : const Color(0xFF2A2A3A),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(z.text,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 13)),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          const Divider(height: 1, color: Colors.white24),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _eingabe,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    // ⚠️ Eigener Fokus: der Bildbereich verschluckt sonst jede
+                    // Taste, weil er alle Tastendrücke an das Mitglied
+                    // weiterreicht und als „verarbeitet" meldet.
+                    onSubmitted: (_) => _senden(),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      hintText: 'Nachricht …',
+                      hintStyle: TextStyle(color: Colors.white38, fontSize: 13),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send, color: Colors.lightBlueAccent),
+                  onPressed: _senden,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bildbereich() {
+    final connecting = _state != RemoteControlState.connected || !_hasVideo;
+    return Focus(
         focusNode: _focus,
         autofocus: true,
         onKeyEvent: _onKey,
@@ -234,8 +449,7 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
             );
           },
         ),
-      ),
-    );
+      );
   }
 
   Widget _statusOverlay() {
@@ -259,5 +473,41 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
         ),
       ),
     );
+  }
+}
+
+
+class _Zeile {
+  final String text;
+  final bool eigen;
+  _Zeile(this.text, this.eigen);
+}
+
+/// Merkt sich, wie eine LAUFENDE Fernwartung wieder zu öffnen ist.
+///
+/// ⚠️ Nötig geworden durch die Reparatur nebenan: seit der Bildschirm die
+/// Sitzung beim Verlassen nicht mehr abreißt, kann man ihn schließen, ohne dass
+/// die Sitzung endet — und wäre ohne Rückweg mit einem geteilten Bildschirm
+/// allein, den niemand mehr sieht und den nur noch das Mitglied beenden kann.
+///
+/// Bewusst nur die Öffnungsdaten, kein Zustand: die Sitzung selbst lebt im
+/// [RemoteControlService], der ohnehin ein Singleton ist. Zwei Orte mit
+/// Sitzungszustand wären zwei Wahrheiten.
+class FernwartungRueckkehr {
+  static RemoteControlScreen? _offen;
+
+  static void merken(RemoteControlScreen s) => _offen = s;
+  static void vergessen() => _offen = null;
+
+  /// Läuft gerade eine Sitzung, zu der man zurückkehren kann?
+  static bool get laeuft =>
+      _offen != null && RemoteControlService().state != RemoteControlState.idle;
+
+  /// Öffnet den Betrachter der laufenden Sitzung erneut. Tut nichts, wenn keine
+  /// läuft.
+  static void zurueck(BuildContext context) {
+    final s = _offen;
+    if (s == null || !laeuft) return;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => s));
   }
 }
