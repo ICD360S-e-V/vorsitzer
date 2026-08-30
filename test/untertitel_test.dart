@@ -107,9 +107,31 @@ void main() {
     test('erst prüfen, dann entpacken', () {
       // Ein abgerissener Download ergäbe ein halbes Modell — Vosk lädt es dann
       // entweder gar nicht oder, schlimmer, mit fehlenden Teilen.
+      //
+      // ⚠️ GEMESSEN WIRD INNERHALB VON `holen()`, nicht über die ganze Datei.
+      // Die erste Fassung verglich die Stellen von `sha256` und `ZipDecoder`
+      // im gesamten Quelltext. Das hielt genau so lange, wie beides in
+      // derselben Methode stand: als das Entpacken am 30.08.2026 in eine
+      // Funktion auf Dateiebene wanderte (eigenes Isolat, siehe
+      // `untertitelArchivEntpacken`), stand `ZipDecoder` plötzlich WEITER OBEN
+      // als die Prüfsumme — und der Test schlug fehl, obwohl sich an der
+      // Reihenfolge zur Laufzeit nichts geändert hatte.
+      //
+      // Eine Prüfung über Zeichenpositionen misst die Anordnung im Text; hier
+      // gemeint ist die Reihenfolge im Ablauf. Deshalb wird jetzt der Rumpf
+      // von `holen()` ausgeschnitten und darin verglichen.
       final q = code(m);
       expect(q, contains('sha256'));
-      expect(q.indexOf('sha256'), lessThan(q.indexOf('ZipDecoder')),
+
+      final start = q.indexOf('Future<String?> holen(');
+      expect(start, isNot(-1), reason: 'holen() nicht gefunden');
+      final rumpf = q.substring(start);
+
+      final pruefung = rumpf.indexOf('sha256');
+      final entpacken = rumpf.indexOf('untertitelArchivEntpacken');
+      expect(pruefung, isNot(-1), reason: 'keine Prüfsumme in holen()');
+      expect(entpacken, isNot(-1), reason: 'kein Entpacken in holen()');
+      expect(pruefung, lessThan(entpacken),
           reason: 'die Prüfsumme muss VOR dem Entpacken drankommen');
     });
 
