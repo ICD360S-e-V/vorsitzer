@@ -37,8 +37,11 @@ void main() {
       home: Scaffold(
         body: WortVorschlaege(
           controller: c,
-          bauen: (_) => EingabeTasten(
-            onSend: () => gesendet++,
+          bauen: (vorDemSenden) => EingabeTasten(
+            onSend: () {
+              vorDemSenden();
+              gesendet++;
+            },
             bauen: (senden) => TextField(
               controller: c,
               autofocus: true,
@@ -194,14 +197,16 @@ void main() {
       expect(c.text, 'va mai ');
     });
 
-    testWidgets('die Eingabetaste sendet weiterhin', (t) async {
+    testWidgets('die Eingabetaste sendet — und räumt vorher auf', (t) async {
+      // Sie vervollständigt weiterhin NICHTS (das ist Sache der Leertaste),
+      // aber sie lässt das letzte Wort nicht mehr ungeprüft rausgehen.
       await aufbauen(t);
       tippen('va rog');
       await t.pump();
       await t.sendKeyEvent(LogicalKeyboardKey.enter);
       await t.pump();
       expect(gesendet, 1);
-      expect(c.text, 'va rog');
+      expect(c.text, 'vă rog');
     });
 
     testWidgets('Rücktaste nimmt auch die Häkchen zurück', (t) async {
@@ -219,6 +224,74 @@ void main() {
       );
       await t.pump();
       expect(c.text, 'va rog ', reason: 'wieder genau das Getippte');
+    });
+  });
+
+  group('Wann korrigiert wird', () {
+    testWidgets('auch ein Punkt schließt das Wort ab', (t) async {
+      // ⚠️ Anfangs löste nur das Leerzeichen aus — „va rog." blieb stehen,
+      // und Satzenden sind gerade die Stellen, an denen viel steht.
+      await aufbauen(t);
+      tippen('va rog');
+      await t.pump();
+      anhaengen('.');
+      await t.pump();
+      expect(c.text, 'vă rog.');
+    });
+
+    testWidgets('ein Fragezeichen ebenso', (t) async {
+      await aufbauen(t);
+      tippen('ajunge sa');
+      await t.pump();
+      anhaengen('?');
+      await t.pump();
+      expect(c.text, 'ajunge să?');
+    });
+
+    testWidgets('vor dem Senden wird das LETZTE Wort noch geprüft',
+        (t) async {
+      // ⚠️ Der wichtigste Fall: dem letzten Wort folgt kein Leerzeichen
+      // mehr. Ohne diesen Weg ginge es in JEDER Nachricht ungeprüft raus.
+      await aufbauen(t);
+      tippen('va rog');
+      await t.pump();
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);
+      await t.pump();
+      expect(c.text, 'vă rog', reason: 'korrigiert, bevor es rausgeht');
+      expect(gesendet, 1);
+    });
+
+    testWidgets('der Sendeknopf geht denselben Weg', (t) async {
+      await aufbauen(t);
+      tippen('si');
+      await t.pump();
+      // In der App hängt der Knopf an derselben Funktion; hier steht sie
+      // über die Eingabetaste zur Verfügung.
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);
+      await t.pump();
+      expect(c.text, 'și');
+      expect(gesendet, 1);
+    });
+
+    testWidgets('vor dem Senden bleibt ein Eigenname unangetastet',
+        (t) async {
+      await aufbauen(t);
+      tippen('am vorbit cu Radu');
+      await t.pump();
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);
+      await t.pump();
+      expect(c.text, 'am vorbit cu Radu');
+      expect(gesendet, 1);
+    });
+
+    testWidgets('ein richtiges Wort wird auch beim Senden nicht angefasst',
+        (t) async {
+      await aufbauen(t);
+      tippen('totul este bine');
+      await t.pump();
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);
+      await t.pump();
+      expect(c.text, 'totul este bine');
     });
   });
 
