@@ -5,6 +5,7 @@ import '../screens/sipgate_screen.dart';
 import '../services/notification_service.dart';
 import '../services/sipgate_service.dart';
 import '../services/qualitaets_sonde.dart';
+import '../services/untertitel_service.dart';
 import 'guete_anzeige.dart';
 import 'sekunden_takt.dart';
 
@@ -110,28 +111,48 @@ class _Karte extends StatelessWidget {
   // nicht mehr erreichbar.
   static const double _hoehe = 108;
 
+  /// Wie hoch das Mitschrift-Fenster in der Karte ist.
+  ///
+  /// ⚠️ FEST, nicht mitwachsend. Der Text sammelt sich über das ganze Gespräch;
+  /// eine Karte, die mit ihm wächst, deckt nach fünf Minuten den halben
+  /// Bildschirm zu — und sie schwebt über allem anderen. Drei Zeilen sind das,
+  /// was man im Vorbeigehen liest.
+  static const double _mitschriftHoehe = 58;
+
   @override
   Widget build(BuildContext context) {
     final flaeche = MediaQuery.of(context).size;
     // Auf Telefonbreite darf die Karte nicht breiter sein als der Bildschirm.
     final breite = _breite > flaeche.width - 16 ? flaeche.width - 16 : _breite;
-    final groesse = Size(breite, _hoehe);
-    final ort = overlay._position ?? overlay._standardOrt(flaeche, groesse);
+    // ⚠️ AUF `aktiv` HÖREN, nicht den Wert einmal ablesen. Die Höhe geht in den
+    // Anschlag beim Ziehen ein; wäre sie zu klein angesetzt, liesse sich die
+    // Karte über den unteren Rand hinausschieben und der Auflegen-Knopf wäre
+    // nicht mehr erreichbar. Genau das wäre passiert, wenn die Mitschrift
+    // eingeschaltet wird, WÄHREND die Karte schon steht — ein Zustand, der
+    // aussieht wie ein Zeichenfehler und einer der Bedienung ist.
+    return ValueListenableBuilder<bool>(
+      valueListenable: UntertitelService().aktiv,
+      builder: (ctx0, mitSchrift, __) {
+        final groesse =
+            Size(breite, _hoehe + (mitSchrift ? _mitschriftHoehe + 8 : 0));
+        final ort = overlay._position ?? overlay._standardOrt(flaeche, groesse);
 
-    return Positioned(
-      left: ort.dx,
-      top: ort.dy,
-      width: breite,
-      child: ValueListenableBuilder<SipgateZustand>(
-        valueListenable: SipgateService().zustand,
-        builder: (ctx, z, _) {
-          final g = z.gespraech;
-          // Zwischen dem Entfernen des Eintrags und dem letzten Neubau kann
-          // hier ein Takt liegen; dann lieber nichts zeichnen als werfen.
-          if (g == null) return const SizedBox.shrink();
-          return _inhalt(ctx, z, g, groesse);
-        },
-      ),
+        return Positioned(
+          left: ort.dx,
+          top: ort.dy,
+          width: breite,
+          child: ValueListenableBuilder<SipgateZustand>(
+            valueListenable: SipgateService().zustand,
+            builder: (ctx, z, _) {
+              final g = z.gespraech;
+              // Zwischen dem Entfernen des Eintrags und dem letzten Neubau kann
+              // hier ein Takt liegen; dann lieber nichts zeichnen als werfen.
+              if (g == null) return const SizedBox.shrink();
+              return _inhalt(ctx, z, g, groesse);
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -198,7 +219,8 @@ class _Karte extends StatelessWidget {
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
+            child: _mitKarte(
+              Row(
               children: [
                 Icon(symbol, color: Colors.white, size: 26),
                 const SizedBox(width: 10),
@@ -301,10 +323,87 @@ class _Karte extends StatelessWidget {
                       dienst.auflegen),
                 ],
               ],
+              ),
+              verbunden,
             ),
           ),
         ),
       ),
+    );
+  }
+
+  /// Die Karte: eine Zeile mit Namen, Uhr und Knöpfen — darunter, über die
+  /// ganze Breite, die Mitschrift.
+  ///
+  /// ⚠️ UNTER DER ZEILE, NICHT IN IHR. Die erste Fassung hängte den Block in
+  /// die mittlere Spalte. Gerendert und angesehen war das Ergebnis eindeutig:
+  /// der Text hatte nur ~185 der 296 verfügbaren Pixel, brauchte dadurch
+  /// deutlich mehr Zeilen, stand direkt an den Knöpfen — und die Knöpfe
+  /// rutschten auf die Mitte der nun hohen Karte, also weg von der Nummer, zu
+  /// der sie gehören. Nichts davon war im Quelltext zu sehen.
+  Widget _mitKarte(Widget zeile, bool verbunden) {
+    if (!verbunden) return zeile;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [zeile, _mitschrift()],
+    );
+  }
+
+  /// Die Mitschrift der Gegenstelle, direkt in der Gesprächskarte.
+  ///
+  /// ⚠️ WARUM HIER UND NICHT NUR IM VOLLBILD. Wer schlecht hört, liest MIT,
+  /// während er spricht — und die Karte ist das, was während des Gesprächs
+  /// über allem anderen steht. Im Vollbildschirm steht der Text schon; dorthin
+  /// zu wechseln heisst aber, das Fenster zu verlassen, in dem man gerade
+  /// arbeitet.
+  ///
+  /// ⚠️ `reverse: true` STATT EINES AUTOMATISCHEN SCROLLENS. Damit liegt der
+  /// Anker am ENDE des Textes: das Zuletztgesagte steht immer da, ohne
+  /// Controller, ohne Nachführen und ohne den Fall „neuer Satz kam an, während
+  /// der Bildschirm gerade neu gebaut wurde". Zurückblättern geht trotzdem.
+  ///
+  /// ⚠️ NICHT abschneiden und dann `TextOverflow.ellipsis`: das kürzt am ENDE,
+  /// also genau das Neueste — der einzige Teil, auf den es hier ankommt.
+  ///
+  /// ⚠️ Nicht in der Konferenz. Die Mitschrift hängt an der Tonspur von Bein A;
+  /// bei zwei Gesprächspartnern stünde dort der eine, und man läse es als
+  /// beide.
+  Widget _mitschrift() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: UntertitelService().aktiv,
+      builder: (ctx, an, __) {
+        if (!an) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Container(
+            width: double.infinity,
+            height: _mitschriftHoehe,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              // Dunkel auf der farbigen Karte: heller Text auf hellem Grund
+              // wäre bei Tageslicht auf einem Tablet nicht zu lesen.
+              color: Colors.black.withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: ValueListenableBuilder<String>(
+              valueListenable: UntertitelService().text,
+              builder: (ctx, text, __) => SingleChildScrollView(
+                reverse: true,
+                child: Text(
+                  text.isEmpty ? 'Mitschrift läuft …' : text,
+                  style: TextStyle(
+                    // Kleiner als im Vollbild (dort 19), aber mit derselben
+                    // Zeilenluft — hier sind nur drei Zeilen Platz.
+                    fontSize: 13,
+                    height: 1.35,
+                    color: text.isEmpty ? Colors.white60 : Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

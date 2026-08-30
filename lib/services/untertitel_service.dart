@@ -38,6 +38,36 @@ final _log = LoggerService();
 /// die mitgegebene Tonquelle nicht unterstützt — er schriebe dann den Raum mit
 /// statt das Gespräch, und sähe dabei aus, als ginge alles. Im Weg über Vosk
 /// kommt kein Mikrofon vor; der Fehler kann nicht auftreten.
+/// Wie lange ein fertiger Satz stehen bleibt.
+///
+/// ⚠️ Fünf Sekunden ist eine Entscheidung mit einem Preis, und der gehört
+/// benannt: wer langsam liest, verliert einen Satz, den er noch gebraucht
+/// hätte. Dafür bleibt das Fenster für das frei, was JETZT gesagt wird — und
+/// in einer Karte mit drei Zeilen ist das der Zweck. Wer es länger will,
+/// ändert die Zahl hier; im Vollbildschirm steht derselbe Text.
+const int kUntertitelHaltenSekunden = 5;
+
+/// Was zum Zeitpunkt [jetzt] auf dem Schirm stehen soll.
+///
+/// ⚠️ Eigene Funktion auf Dateiebene, damit sie ohne echte Uhr und ohne den
+/// Dienst prüfbar ist: der ist ein Singleton mit zwei Plattformkanälen, und
+/// eine Verfallsregel, die nur im laufenden Gespräch beobachtet werden kann,
+/// wird nie geprüft.
+String untertitelSichtbar(
+  List<({String satz, DateTime seit})> saetze,
+  String vorlaeufig,
+  DateTime jetzt,
+) {
+  final grenze = jetzt.subtract(const Duration(seconds: kUntertitelHaltenSekunden));
+  final teile = <String>[
+    for (final e in saetze)
+      if (!e.seit.isBefore(grenze)) e.satz,
+  ];
+  final v = vorlaeufig.trim();
+  if (v.isNotEmpty) teile.add(v);
+  return teile.join(' ');
+}
+
 class UntertitelService {
   UntertitelService._();
   static final UntertitelService _i = UntertitelService._();
@@ -62,8 +92,28 @@ class UntertitelService {
   /// ⚠️ Die letzten Sätze, NUR im Speicher und nur solange das Gespräch läuft.
   /// [beenden] leert sie. Eine Datei oder eine Tabelle gibt es dafür nicht und
   /// soll es nicht geben.
-  final List<String> _saetze = <String>[];
+  ///
+  /// ⚠️ UND SIE VERFALLEN VON SELBST, nach [kUntertitelHaltenSekunden]. Vorher
+  /// stand der ganze Gesprächsverlauf da (die letzten zwölf Sätze) und schob
+  /// sich im Fenster der Gesprächskarte nach oben. Das war zweierlei zu viel:
+  /// im Bild bleibt nur Platz für drei Zeilen, und ein Text, der ein ganzes
+  /// Telefonat mitführt, ist der Sache nach ein Protokoll — auch wenn er nur
+  /// im Speicher steht. Was gesagt wurde, macht Platz für das, was gerade
+  /// gesagt wird.
+  final List<({String satz, DateTime seit})> _saetze =
+      <({String satz, DateTime seit})>[];
+
+  /// Harte Obergrenze, unabhängig von der Zeit — falls jemand ohne Pause redet.
   static const int _hoechstens = 12;
+
+  /// Der angefangene Satz. ⚠️ Er verfällt NICHT: er ist das, was gerade
+  /// gesprochen wird.
+  String _vorlaeufig = '';
+
+  /// ⚠️ Ein eigener Takt, weil sonst nichts verschwindet, solange niemand
+  /// redet — und gerade dann soll das Fenster leer werden. Er läuft nur,
+  /// während die Mitschrift läuft.
+  Timer? _verfall;
 
   bool get plattformFaehig => PlatformService.isAndroid;
 
@@ -119,8 +169,11 @@ class UntertitelService {
     _horcher?.cancel();
     _horcher = null;
     aktiv.value = false;
+    _verfall?.cancel();
+    _verfall = null;
     // ⚠️ Hier verschwindet der Text, und das ist der Zweck.
     _saetze.clear();
+    _vorlaeufig = '';
     text.value = '';
     if (!plattformFaehig) return;
     try {
@@ -129,17 +182,24 @@ class UntertitelService {
   }
 
   void _lauschen() {
+    // ⚠️ NUR neu anlegen, wenn keiner läuft — sonst bliebe bei einem zweiten
+    // Start ein Takt ohne Besitzer zurück und liesse den Text flackern.
+    _verfall ??= Timer.periodic(const Duration(seconds: 1), (_) => _aufraeumen());
     _horcher ??= _strom.receiveBroadcastStream().listen((e) {
       if (e is! Map) return;
       switch ('${e['art']}') {
         case 'teil':
           // Zwischenstand: der angefangene Satz, hinter den fertigen.
-          _zeigen(vorlaeufig: '${e['text'] ?? ''}');
+          _vorlaeufig = '${e['text'] ?? ''}'.trim();
+          _zeigen();
           break;
         case 'satz':
           final s = '${e['text'] ?? ''}'.trim();
+          // ⚠️ Der angefangene Satz IST dieser Satz — er ist jetzt fertig.
+          // Bliebe er stehen, stünde er doppelt da.
+          _vorlaeufig = '';
           if (s.isNotEmpty) {
-            _saetze.add(s);
+            _saetze.add((satz: s, seit: DateTime.now()));
             while (_saetze.length > _hoechstens) {
               _saetze.removeAt(0);
             }
@@ -158,10 +218,23 @@ class UntertitelService {
     });
   }
 
-  void _zeigen({String? vorlaeufig}) {
-    final teile = <String>[..._saetze];
-    final v = (vorlaeufig ?? '').trim();
-    if (v.isNotEmpty) teile.add(v);
-    text.value = teile.join(' ');
+  /// Wirft ab, was zu alt ist.
+  ///
+  /// ⚠️ Nur neu zeichnen, wenn wirklich etwas weggefallen ist. Ein Takt, der
+  /// jede Sekunde denselben Text neu setzt, baut die Gesprächskarte jede
+  /// Sekunde neu auf — genau die Last, wegen der der Sekundentakt im
+  /// sipgate-Dienst abgeschafft wurde.
+  void _aufraeumen() {
+    final vorher = _saetze.length;
+    final grenze = DateTime.now()
+        .subtract(const Duration(seconds: kUntertitelHaltenSekunden));
+    _saetze.removeWhere((e) => e.seit.isBefore(grenze));
+    if (_saetze.length != vorher) _zeigen();
   }
+
+  // ⚠️ Auch beim Zeichnen gefiltert, nicht nur im Takt: zwischen zwei Takten
+  // liegt bis zu einer Sekunde, und in der Zeit stünde sonst ein abgelaufener
+  // Satz da.
+  void _zeigen() =>
+      text.value = untertitelSichtbar(_saetze, _vorlaeufig, DateTime.now());
 }
