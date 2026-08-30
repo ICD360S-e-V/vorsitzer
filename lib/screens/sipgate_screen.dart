@@ -1219,7 +1219,11 @@ class _SipgateScreenState extends State<SipgateScreen> {
       await u.beenden();
       return;
     }
-    final grund = await u.starten(_dienst.gegenstelleSpurId ?? '');
+    // ⚠️ Die LEBENDE Kennung, nicht die gemerkte: eine Neuverhandlung im
+    // Gespräch (Halten, Codecwechsel) ersetzt die Tonspur, und die gemerkte
+    // zeigt danach ins Leere — auf dem Schirm steht dann „Tonspur der
+    // Gegenstelle nicht gefunden", obwohl das Gespräch läuft.
+    final grund = await u.starten(await _dienst.gegenstelleSpurAktuell() ?? '');
     if (!mounted) return;
     if (grund == null) return;
 

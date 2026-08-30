@@ -557,7 +557,16 @@ class NotificationService {
         );
       }
 
-      _log.info('Notification angezeigt: "$title" - $body', tag: 'NOTIF');
+      // 🔴 HIER STAND `'... "$title" - $body'` — der volle Wortlaut JEDER
+      // angezeigten Benachrichtigung, also auch jeder Chat-Nachricht eines
+      // Mitglieds. `LoggerService` lädt die Protokollzeilen zum Server, und
+      // dort lagen sie bis zum 30.08.2026 unter einem Pfad, der über HTTPS
+      // ohne Anmeldung abrufbar war. Nur Länge, kein Wortlaut.
+      _log.info(
+        'Benachrichtigung angezeigt (Titel ${title.length} Z., '
+        'Text ${body.length} Z.)',
+        tag: 'NOTIF',
+      );
     } catch (e) {
       _log.error('Notification fehlgeschlagen: $e', tag: 'NOTIF');
     }
@@ -601,7 +610,9 @@ class NotificationService {
     int? conversationId,
   }) async {
     _log.info(
-        'Chat-Benachrichtigung: "$senderName" - $message (chatOffen=$_isChatDialogOpen)',
+        // 🔴 Hier standen Absendername UND voller Nachrichtentext.
+        'Chat-Benachrichtigung (Absender ${senderName.length} Z., '
+        'Text ${message.length} Z., chatOffen=$_isChatDialogOpen)',
         tag: 'NOTIF');
 
     // Nur benachrichtigen wenn Chat-Dialog NICHT geöffnet ist
@@ -688,7 +699,8 @@ class NotificationService {
       // geantwortet hat und die Nachricht noch offen ist.
       payload: 'blitz:$conversationId:$kanal',
     );
-    _log.info('Blitz-Vollbild: $senderName (conv=$conversationId)', tag: 'NOTIF');
+    // ⚠️ Ohne Namen: die Gesprächsnummer genügt, um den Weg zu verfolgen.
+      _log.info('Blitz-Vollbild angezeigt (conv=$conversationId)', tag: 'NOTIF');
   }
 
   /// Show an incoming call notification
@@ -827,7 +839,8 @@ class NotificationService {
       body: message,
       payload: 'error',
     );
-    _log.error('Fehler-Benachrichtigung: $message', tag: 'NOTIF');
+    _log.error('Fehler-Benachrichtigung angezeigt (${message.length} Z.)',
+          tag: 'NOTIF');
   }
 
   /// Show success notification
@@ -840,7 +853,13 @@ class NotificationService {
       body: message,
       payload: 'success',
     );
-    _log.info('Erfolg: $title - $message', tag: 'NOTIF');
+    // Auch hier kein Wortlaut: `showSuccess` wird mit Texten gerufen, in denen
+    // Namen und Vorgänge stehen.
+    _log.info(
+      'Erfolgsmeldung angezeigt (Titel ${title.length} Z., '
+      'Text ${message.length} Z.)',
+      tag: 'NOTIF',
+    );
   }
 
   /// Test notification

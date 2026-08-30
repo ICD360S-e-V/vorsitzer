@@ -515,7 +515,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         );
       });
       _log.info(
-        'New message from ${message.senderName} (conv ${message.conversationId}), unread total: $_unreadChatCount',
+        // ⚠️ Ohne Absendernamen — die Gesprächsnummer reicht zum
+        // Nachvollziehen, der Name ist ein Personendatum.
+        'Neue Nachricht (conv ${message.conversationId}), '
+        'ungelesen gesamt: $_unreadChatCount',
         tag: 'DASH',
       );
     });
