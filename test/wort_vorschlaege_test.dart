@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/services/wortliste_service.dart';
 import 'package:icd360sev_vorsitzer/utils/diakritika.dart';
+import 'package:icd360sev_vorsitzer/utils/tippfehler.dart';
 import 'package:icd360sev_vorsitzer/utils/wort_vervollstaendigung.dart';
 import 'package:icd360sev_vorsitzer/widgets/eingabe_tasten.dart';
 import 'package:icd360sev_vorsitzer/widgets/wort_vorschlaege.dart';
@@ -25,7 +26,9 @@ void main() {
         'va': {'vă': {'r': ['rog', 'trimit'], 'l': []}},
         'pana': {'până': {'r': ['in'], 'l': []}},
       },
-    }));
+    }), Tippfehler.aufbauen(
+      ['document', 'trimiteți', 'mulțumesc', 'bine', 'care', 'mare'],
+    ));
     c = TextEditingController();
     gesendet = 0;
   });
@@ -224,6 +227,64 @@ void main() {
       );
       await t.pump();
       expect(c.text, 'va rog ', reason: 'wieder genau das Getippte');
+    });
+  });
+
+  group('Vertippt', () {
+    testWidgets('ein Anschlag daneben wird repariert', (t) async {
+      // „dovument" ist der Anfang von gar nichts — die Vorschlagsliste
+      // kennt dazu nichts, der Abstand zum gemeinten Wort schon.
+      await aufbauen(t);
+      tippen('dovument');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'document ');
+    });
+
+    testWidgets('auch vor dem Senden', (t) async {
+      await aufbauen(t);
+      tippen('va trimit dovument');
+      await t.pump();
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);
+      await t.pump();
+      expect(c.text, 'va trimit document');
+      expect(gesendet, 1);
+    });
+
+    testWidgets('bei Gleichstand bleibt es stehen', (t) async {
+      // „nare" ist von „mare" und „care" gleich weit entfernt.
+      await aufbauen(t);
+      tippen('nare');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'nare ');
+    });
+
+    testWidgets('ein Eigenname mitten im Satz bleibt', (t) async {
+      await aufbauen(t);
+      tippen('scris la Documint');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'scris la Documint ');
+    });
+
+    testWidgets('die Rücktaste nimmt auch das zurück', (t) async {
+      await aufbauen(t);
+      tippen('dovument');
+      await t.pump();
+      anhaengen(' ');
+      await t.pump();
+      expect(c.text, 'document ');
+      final i = c.selection.baseOffset;
+      c.value = TextEditingValue(
+        text: c.text.substring(0, i - 1) + c.text.substring(i),
+        selection: TextSelection.collapsed(offset: i - 1),
+      );
+      await t.pump();
+      expect(c.text, 'dovument ');
     });
   });
 

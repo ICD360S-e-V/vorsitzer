@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../utils/diakritika.dart';
+import '../utils/tippfehler.dart';
 import '../utils/wort_vervollstaendigung.dart';
 
 /// Lädt die rumänische Wortliste einmal pro Programmlauf und hält den Index.
@@ -24,10 +25,12 @@ class WortlisteService {
 
   static WortIndex _index = WortIndex.leer;
   static Diakritika _diakritika = Diakritika.leer;
+  static Tippfehler _tippfehler = Tippfehler.leer;
   static Future<void>? _laeuft;
 
   static WortIndex get index => _index;
   static Diakritika get diakritika => _diakritika;
+  static Tippfehler get tippfehler => _tippfehler;
   static bool get bereit => _index.anzahl > 0;
 
   /// Mehrfach aufrufbar; der zweite Aufruf hängt sich an den ersten an.
@@ -50,6 +53,7 @@ class WortlisteService {
         }
       }
       _index = WortIndex.aufbauen(woerter);
+      _tippfehler = Tippfehler.aufbauen(woerter);
 
       // Die Kontextregeln sind winzig (44 kB) und werden im selben Zug
       // gelesen. ⚠️ In EIGENEM try: fehlen sie, sollen die Vorschläge
@@ -71,9 +75,10 @@ class WortlisteService {
   }
 
   @visibleForTesting
-  static void setzenFuerTest(WortIndex i, [Diakritika? d]) {
+  static void setzenFuerTest(WortIndex i, [Diakritika? d, Tippfehler? t]) {
     _index = i;
     if (d != null) _diakritika = d;
+    if (t != null) _tippfehler = t;
   }
 }
 

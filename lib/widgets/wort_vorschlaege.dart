@@ -190,12 +190,12 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
     // Häufigkeit. Siehe [Diakritika].
     if (_haekchenGesetzt(text, wort, cursor)) return true;
 
-    // Ab hier geht es um das Übernehmen eines Vorschlags — ohne einen gibt
-    // es nichts zu tun. ⚠️ Diese Prüfung darf NICHT vorne stehen: die
-    // Häkchen-Korrektur oben braucht keine Vorschlagsliste. „si" hat als
-    // Zweibuchstabenwort gar keine, und bei „va rog" hängt der Vorschlag am
-    // Wort „rog", während geändert werden muss, was davor steht.
-    if (_vorschlaege.isEmpty) return false;
+    // Ohne Vorschlag bleibt noch der Vertipper: „dovument" ist der Anfang
+    // von gar nichts, also kennt die Liste dazu nichts — gemeint ist aber
+    // „document". Siehe [Tippfehler].
+    if (_vorschlaege.isEmpty) {
+      return _tippfehlerGesetzt(text, wort, cursor);
+    }
 
     // Sicherung 1: ein richtiges Wort wird nicht angefasst.
     if (WortlisteService.index.kennt(wort.text)) return false;
@@ -222,6 +222,29 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
       text: neu,
       selection:
           TextSelection.collapsed(offset: wort.von + eingesetzt.length + 1),
+    );
+    _neuRechnen();
+    return true;
+  }
+
+  /// Ersetzt ein vertipptes Wort durch das gemeinte.
+  bool _tippfehlerGesetzt(String text, AngefangenesWort wort, int cursor) {
+    if (!_erlaubt(wort, text)) return false;
+    final neu = WortlisteService.tippfehler.korrektur(wort.text);
+    if (neu == null) return false;
+    final ergebnis = text.replaceRange(wort.von, wort.bis, neu);
+    _rueckgaengig = _Ersetzung(
+      von: wort.von,
+      original: wort.text,
+      eingesetzt: neu,
+      nachher: ergebnis,
+      ganzerTextVorher: text,
+    );
+    _letzterText = ergebnis;
+    widget.controller.value = TextEditingValue(
+      text: ergebnis,
+      selection: TextSelection.collapsed(
+          offset: cursor + neu.length - wort.text.length),
     );
     _neuRechnen();
     return true;
@@ -304,7 +327,8 @@ class _WortVorschlaegeState extends State<WortVorschlaege> {
         : AngefangenesWort.ausEingabe(text, davor.von - 1);
 
     final neu = _erlaubt(letztes, text)
-        ? d.korrektur(letztes.text, links: davor?.text)
+        ? (d.korrektur(letztes.text, links: davor?.text) ??
+            WortlisteService.tippfehler.korrektur(letztes.text))
         : null;
     final neuDavor = davor != null && _erlaubt(davor, text)
         ? d.korrektur(davor.text, links: davorDavor?.text, rechts: letztes.text)

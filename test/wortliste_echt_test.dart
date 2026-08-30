@@ -3,6 +3,7 @@ import 'dart:convert' show jsonDecode;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/utils/diakritika.dart';
+import 'package:icd360sev_vorsitzer/utils/tippfehler.dart';
 import 'package:icd360sev_vorsitzer/utils/wort_vervollstaendigung.dart';
 
 /// Prüft die AUSGELIEFERTE Wortliste, nicht eine erfundene.
@@ -220,6 +221,79 @@ void main() {
       }
       uhr.stop();
       expect(uhr.elapsedMicroseconds / 4000, lessThan(1000));
+    });
+  });
+
+  group('Vertipper gegen die AUSGELIEFERTE Liste', () {
+    late Tippfehler t;
+    setUpAll(() => t = Tippfehler.aufbauen(woerter));
+
+    test('repariert echte Vertipper', () {
+      const faelle = {
+        'dovumentul': 'documentul',   // falsche Taste
+        'documnetul': 'documentul',   // vertauscht
+        'multumesk': 'mulțumesc',     // daneben, dazu Häkchen
+        'adeverinta': 'adeverința',
+        'buletim': 'buletin',
+        'membrii': null,              // ist selbst ein Wort
+      };
+      faelle.forEach((falsch, richtig) {
+        expect(t.korrektur(falsch), richtig, reason: falsch);
+      });
+    });
+
+    test('bei echter Mehrdeutigkeit bleibt es stehen', () {
+      // ⚠️ Das ist keine Lücke, sondern die Regel bei der Arbeit. Zu
+      // „cerrere" liegen ZWEI Wörter einen Schritt entfernt: „cerere" (ein
+      // Buchstabe zu viel) und „cernere" (ein Buchstabe daneben). Welches
+      // gemeint war, kann niemand wissen — also wird nichts geändert.
+      // Im Rumänischen mit seinen vielen Wortformen kommt das oft vor; das
+      // ist der Preis dafür, dass in der Messung 0 von 4.000 Korrekturen
+      // falsch waren.
+      expect(t.korrektur('cerrere'), isNull);
+      expect(t.korrektur('trimiter'), isNull);
+    });
+
+    test('was die Vervollständigung kann, macht sie — nicht der Vertipper', () {
+      // ⚠️ „trimiteti" und „sedinta" liefern hier null, und das ist richtig:
+      // sie sind Wortanfänge von „trimiteți" und „ședința" und werden von
+      // [WortIndex] abgedeckt. Der Vertipper ist nur für das zuständig, was
+      // Anfang von gar nichts ist.
+      expect(t.korrektur('trimiteti'), isNull);
+      expect(t.korrektur('sedinta'), isNull);
+      expect(index.vorschlaege('trimiteti'), contains('trimiteți'));
+      expect(index.vorschlaege('sedinta'), contains('ședința'));
+    });
+
+    test('fasst KEIN richtiges Wort an', () {
+      // ⚠️ Die Gegenprobe, die zählt. Gemessen über die 4.000 häufigsten
+      // Wörter: null Eingriffe.
+      var angefasst = 0;
+      for (final w in woerter.take(4000)) {
+        if (t.korrektur(w) != null) angefasst++;
+      }
+      expect(angefasst, 0);
+    });
+
+    test('fasst Fremdwörter und Namen kaum an', () {
+      const fremd = ['Duinea', 'Tanase', 'Menning', 'Anica', 'Vollmacht',
+        'Landratsamt', 'Jobcenter', 'Krankenkasse', 'Widerspruch',
+        'Pflegegrad', 'Bescheid', 'Termin', 'Antrag', 'Rente', 'Formular',
+        'WhatsApp', 'ICD360S', 'Ulm', 'Bayern'];
+      final getroffen = fremd.where((w) => t.korrektur(w) != null);
+      expect(getroffen, isEmpty, reason: 'getroffen: ${getroffen.toList()}');
+    });
+
+    test('eine Korrektur bleibt unter 15 Millisekunden', () {
+      // Sie läuft einmal je Wortende, nicht je Tastendruck. Gemessen über
+      // 4.000 Wörter: 2,97 ms im Schnitt; der teuerste Fall ist ein langes
+      // Wort ohne jede Ähnlichkeit, weil dort nichts früh abbricht.
+      final uhr = Stopwatch()..start();
+      for (final w in ['dovument', 'cerrere', 'xyzabcdef', 'trimiter']) {
+        t.korrektur(w);
+      }
+      uhr.stop();
+      expect(uhr.elapsedMicroseconds / 4, lessThan(15000));
     });
   });
 
