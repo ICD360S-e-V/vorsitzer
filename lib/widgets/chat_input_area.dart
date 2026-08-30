@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../utils/clipboard_import.dart';
 import 'chat_pending_attachments.dart';
 import 'eingabe_tasten.dart';
+import 'wort_vorschlaege.dart';
 import 'paste_image_detector.dart';
 import '../utils/app_farben.dart';
 
@@ -101,7 +102,9 @@ class ChatInputArea extends StatelessWidget {
             child: PasteImageDetector(
               enabled: onPasteImage != null,
               onPaste: onPasteImage ?? () {},
-              child: EingabeTasten(
+              child: WortVorschlaege(
+                controller: controller,
+                bauen: (_) => EingabeTasten(
                 onSend: onSend,
                 bauen: (senden) => TextField(
               controller: controller,
@@ -127,6 +130,7 @@ class ChatInputArea extends StatelessWidget {
                   horizontal: 16,
                   vertical: 12,
                 ),
+              ),
               ),
               ),
               ),

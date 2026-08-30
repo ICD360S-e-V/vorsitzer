@@ -17,11 +17,16 @@ import 'package:flutter/services.dart';
 /// damit hing die Eingabetaste einer angeschlossenen Tastatur wieder allein am
 /// Standardverhalten des Feldes.
 ///
+/// ⚠️ DIESE TASTE SENDET, IMMER. Die Wortvervollständigung nimmt bewusst die
+/// Leertaste — siehe [WortVorschlaege]. Wer der Eingabetaste hier eine zweite
+/// Bedeutung gibt, sorgt dafür, dass irgendwann eine halbe Nachricht rausgeht.
+///
 /// Also BEIDE Wege, und dagegen eine Sperre: [senden] lässt einen zweiten
 /// Aufruf innerhalb von [_sperre] fallen. Sonst ginge dieselbe Nachricht bei
 /// einem Tastendruck zweimal raus.
 class EingabeTasten extends StatefulWidget {
   final VoidCallback onSend;
+
 
   /// Bekommt die abgesicherte Sende-Funktion. Das Feld muss sie in
   /// `onSubmitted` einhängen — dann sind beide Wege gedeckt.
