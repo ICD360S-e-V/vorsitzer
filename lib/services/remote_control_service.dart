@@ -384,6 +384,24 @@ class RemoteControlService {
     };
 
     _pc!.onTrack = (event) {
+      // 🔴 NUR die Videospur zählt für die Anzeige.
+      //
+      // Seit die Sitzung auch Ton überträgt, feuert `onTrack` ZWEIMAL, und das
+      // Mikrofon des Mitglieds kommt in einem EIGENEN Stream (es wird drüben
+      // mit `addTrack(track, _mikroStream)` angehängt, nicht am Bildschirm).
+      // Wer hier blind `streams[0]` nimmt, überschreibt den Bildschirm mit der
+      // Tonspur, sobald sie als zweite eintrifft — der Renderer hängt dann an
+      // einem Stream OHNE Video und zeigt SCHWARZ.
+      //
+      // Genau das war der schwarze Bildschirm nach dem Einbau des Mikrofons:
+      // im coturn-Log flossen ~180 Byte je Paket in beide Richtungen, also
+      // Ton, während vom Bild praktisch nichts ankam. Eine Regression, die
+      // erst durch den Ton entstanden ist — vorher gab es nur eine Spur.
+      if (event.track.kind != 'video') {
+        _log.info('RemoteControl: Tonspur empfangen (nicht für die Anzeige)',
+            tag: 'REMOTE');
+        return;
+      }
       if (event.streams.isNotEmpty) {
         _remoteStream = event.streams[0];
         if (!_remoteStreamController.isClosed) _remoteStreamController.add(_remoteStream);
