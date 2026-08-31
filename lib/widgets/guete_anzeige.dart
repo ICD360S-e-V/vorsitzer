@@ -21,6 +21,53 @@ Color gueteFarbe(QualitaetsStufe s) => switch (s) {
   QualitaetsStufe.unbekannt => Colors.grey,
 };
 
+/// Dieselben Stufen, aber für den FARBIGEN Grund der Gesprächskarte.
+///
+/// 🔴 WARUM EIGENE FARBEN. Die Karte ist im Gespräch grün (`#2E7D32`).
+/// Nachgerechnet gegen diesen Grund: `#C62828` (das Rot von oben) kommt auf
+/// **1,47:1**, ein sattes `#FF5252` auf 1,61:1 — WCAG 1.4.11 verlangt 3:1 für
+/// Bedienelemente. Rot und Dunkelgrün liegen einfach zu nah beieinander.
+///
+/// Deshalb sitzt die Anzeige auf einer dunklen Pille (Schwarz 40 % über der
+/// Karte, `#1C4B1E`). Dagegen gemessen:
+///
+///     gut          #69F0AE   7,07:1
+///     brauchbar    #FFD54F   7,17:1
+///     schlecht     #FF9800   4,70:1
+///     kaum verst.  #FF5252   3,17:1
+///     Text weiss   #FFFFFF  10,12:1
+///
+/// ⚠️ Wer eine dieser Farben ändert, rechnet nach. Die Zahlen hier sind
+/// gemessen, nicht geschätzt.
+Color gueteFarbeHell(QualitaetsStufe s) => switch (s) {
+  QualitaetsStufe.gut => const Color(0xFF69F0AE),
+  QualitaetsStufe.brauchbar => const Color(0xFFFFD54F),
+  QualitaetsStufe.schlecht => const Color(0xFFFF9800),
+  QualitaetsStufe.unbrauchbar => const Color(0xFFFF5252),
+  QualitaetsStufe.unbekannt => Colors.white70,
+};
+
+/// Der Hintergrund der Pille auf der Gesprächskarte.
+const Color kGuetePilleGrund = Color(0x66000000); // Schwarz 40 %
+
+/// Das Symbol je Stufe — Signalbalken.
+///
+/// 🔴 WARUM ÜBERHAUPT EIN SYMBOL, wo doch schon Farbe UND Wort dastehen.
+/// Weil zwei der vier Farben sich für Rot-Grün-Blinde kaum unterscheiden: das
+/// Hellgrün und das Gelb kommen auf 7,07:1 bzw. 7,17:1 — also fast dieselbe
+/// Helligkeit, und ohne Farbwahrnehmung bleibt kein Unterschied übrig.
+///
+/// Signalbalken tragen die Stufe in der FORM: drei, zwei, einer, keiner. Das
+/// liest sich auch dann, wenn von der Farbe nichts ankommt — und es ist das
+/// Bild, das jeder vom Telefon kennt.
+IconData gueteSymbol(QualitaetsStufe s) => switch (s) {
+  QualitaetsStufe.gut => Icons.signal_cellular_alt,
+  QualitaetsStufe.brauchbar => Icons.signal_cellular_alt_2_bar,
+  QualitaetsStufe.schlecht => Icons.signal_cellular_alt_1_bar,
+  QualitaetsStufe.unbrauchbar => Icons.signal_cellular_connected_no_internet_0_bar,
+  QualitaetsStufe.unbekannt => Icons.signal_cellular_off,
+};
+
 /// Aus einem gespeicherten MOS die Stufe zurückgewinnen — für den Verlauf,
 /// wo nur die Zahl in der Datenbank steht.
 QualitaetsStufe gueteStufeAusMos(double mos) => switch (mos) {
@@ -37,6 +84,49 @@ String gueteStufeText(QualitaetsStufe s) => switch (s) {
   QualitaetsStufe.unbrauchbar => 'kaum verständlich',
   QualitaetsStufe.unbekannt => 'unbekannt',
 };
+
+/// Die Signalbalken einer Stufe.
+///
+/// 🔴 ZWEI ÜBEREINANDER, und das ist keine Spielerei. Die Material-Symbole
+/// `signal_cellular_alt_*` zeichnen NUR die erreichten Balken — bei „schlecht"
+/// also einen einzigen, kurzen Strich. Gerendert und angesehen war der bei
+/// 13 dp kaum zu erkennen, ausgerechnet in dem Zustand, auf den es ankommt.
+///
+/// Jetzt liegen die vollen drei Balken blass darunter und die erreichten
+/// farbig darüber: die Anzeige hat immer dieselbe Grösse, und man sieht nicht
+/// nur WIE VIEL, sondern auch WIE VIEL VON WIE VIEL.
+///
+/// ⚠️ „kaum verständlich" bekommt ein eigenes Zeichen statt null Balken —
+/// null Balken und „noch nichts gemessen" sähen sonst gleich aus.
+class GueteBalken extends StatelessWidget {
+  const GueteBalken({
+    super.key,
+    required this.stufe,
+    required this.groesse,
+    required this.farbe,
+  });
+
+  final QualitaetsStufe stufe;
+  final double groesse;
+  final Color farbe;
+
+  @override
+  Widget build(BuildContext context) {
+    if (stufe == QualitaetsStufe.unbrauchbar ||
+        stufe == QualitaetsStufe.unbekannt) {
+      return Icon(gueteSymbol(stufe), size: groesse, color: farbe);
+    }
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Die vollen drei, blass — der Massstab.
+        Icon(Icons.signal_cellular_alt,
+            size: groesse, color: farbe.withValues(alpha: 0.28)),
+        Icon(gueteSymbol(stufe), size: groesse, color: farbe),
+      ],
+    );
+  }
+}
 
 /// Der kleine Punkt für die Gesprächskarte.
 ///
@@ -61,27 +151,34 @@ class GuetePunkt extends StatelessWidget {
         ),
       );
     }
-    final farbe = hell ? Colors.white : gueteFarbe(p.stufe);
-    return Row(
+    final farbe = hell ? gueteFarbeHell(p.stufe) : gueteFarbe(p.stufe);
+    final inhalt = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: hell ? Colors.white : gueteFarbe(p.stufe),
-            shape: BoxShape.circle,
-            // Auf farbigem Grund braucht der Punkt einen Rand, sonst
-            // verschwindet Grün auf Grün.
-            border: hell ? Border.all(color: Colors.white54) : null,
-          ),
-        ),
+        GueteBalken(stufe: p.stufe, groesse: hell ? 14 : 12, farbe: farbe),
         const SizedBox(width: 5),
         Text(
           'Verbindung ${gueteStufeText(p.stufe)}',
-          style: TextStyle(fontSize: 11, color: farbe),
+          style: TextStyle(
+            fontSize: 11,
+            // ⚠️ Der TEXT bleibt weiss, nicht farbig: bei 11 dp verlangt WCAG
+            // 4,5:1, und das erreicht von den vier Farben nur Weiss sicher.
+            // Die Farbe trägt das Symbol, das Wort trägt den Sinn.
+            color: hell ? Colors.white : farbe,
+          ),
         ),
       ],
+    );
+    if (!hell) return inhalt;
+    // Auf der farbigen Karte in einer dunklen Pille — siehe [gueteFarbeHell]:
+    // ohne sie käme Rot auf 1,61:1 gegen das Grün der Karte.
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: kGuetePilleGrund,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: inhalt,
     );
   }
 }
