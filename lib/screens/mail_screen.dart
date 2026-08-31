@@ -2017,7 +2017,19 @@ class _MailMessageViewState extends State<MailMessageView> {
   bool _loading = true;
   String? _error;
   Map<String, dynamic> _msg = {};
-  bool _receiptSent = false;
+  /// Wurde in DIESER Sitzung bestätigt. Ist nur die halbe Antwort — deshalb
+  /// nie direkt lesen, sondern über [_receiptSent].
+  bool _receiptLokal = false;
+
+  /// Ob für diese Nachricht schon eine Lesebestätigung raus ist.
+  ///
+  /// ⚠️ Die maßgebliche Auskunft ist `mdn_sent` vom Server; sie steht als
+  /// IMAP-Keyword ($MDNSent, RFC 3503) an der Nachricht selbst. Solange nur das
+  /// Widget sich das merkte, war die Antwort nach jedem Neuladen wieder „nein":
+  /// die Mail bat erneut um eine Bestätigung, und jedes Antippen schickte dem
+  /// Absender eine weitere. Einer Klinik ist das am 17.08.2026 zweimal
+  /// zugestellt worden.
+  bool get _receiptSent => _receiptLokal || _msg['mdn_sent'] == true;
 
   /// Anhänge werden für eine Weiterleitung geholt.
   bool _forwarding = false;
@@ -2070,7 +2082,7 @@ class _MailMessageViewState extends State<MailMessageView> {
         _loading = true;
         _error = null;
         _msg = {};
-        _receiptSent = false;
+        _receiptLokal = false;
         _standAus = null;
         _wiedervorlage = '';
       });
@@ -2655,8 +2667,13 @@ class _MailMessageViewState extends State<MailMessageView> {
     final res = await _api.sendMailReadReceipt(widget.uid, box: widget.box);
     if (!mounted) return;
     if (res['success'] == true) {
-      setState(() => _receiptSent = true);
-      _toast('Lesebestätigung gesendet');
+      setState(() => _receiptLokal = true);
+      // ⚠️ `already` heißt: der Server hat NICHT noch einmal gesendet. Das als
+      // „gesendet" zu melden wäre nicht falsch, aber es verschweigt, dass der
+      // Knopf diesmal nichts getan hat — und genau das war die Beschwerde.
+      _toast(res['already'] == true
+          ? 'Lesebestätigung war schon gesendet'
+          : 'Lesebestätigung gesendet');
     } else {
       _toast(res['message']?.toString() ?? 'Lesebestätigung fehlgeschlagen.');
     }
