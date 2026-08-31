@@ -49,8 +49,12 @@ void main() {
   test('im Strommodus erkennt das Gerät NICHT mit', () {
     // Sonst zahlte das Tablet Speicher und Rechenzeit für ein Ergebnis, das
     // niemand benutzt.
+    // ⚠️ Bis zum Ende der Methode statt eines festen Fensters: Kommentare und
+    // ein Fang-Block haben sie zweimal wachsen lassen, und jedes Mal schlug ein
+    // zu kurzes Fenster fehl, obwohl der Code stimmte.
     final i = nativ.indexOf('fun starten(');
-    final r = nativ.substring(i, i + 1400);
+    final ende = nativ.indexOf('private fun spurAnhaengen', i);
+    final r = nativ.substring(i, ende == -1 ? nativ.length : ende);
     expect(r, contains('if (!strom) {'));
     expect(r, contains('Recognizer(m, ZIEL_RATE.toFloat())'));
     // Und das Modell wird im Strommodus nicht verlangt.
@@ -139,6 +143,41 @@ void main() {
     // Gespräch mit einem Rest des vorigen.
     final i = nativ.indexOf('warteschlange.clear()');
     expect(nativ.substring(i, i + 300), contains('stromPuffer.clear()'));
+  });
+
+  test('die Tonspur kommt NICHT über sharedSingleton', () {
+    // 🔴 Im Betrieb am 31.08.2026:
+    //   NullPointerException: 'MediaStreamTrack
+    //   MethodCallHandlerImpl.getRemoteTrack(String)' on a null object
+    //   reference at FlutterWebRTCPlugin.getRemoteTrack
+    //
+    // `FlutterWebRTCPlugin` setzt im KONSTRUKTOR `sharedSingleton = this` —
+    // jede neue Instanz überschreibt ihn. Diese Anwendung hat mehr als eine
+    // Flutter-Engine (die Hintergrunddienste bringen eigene mit), und löst sich
+    // eine davon, ist ihr `methodCallHandler` null, während der Singleton noch
+    // auf sie zeigt.
+    //
+    // ⚠️ `?.` schützt NICHT: der Zeiger ist nicht null, sein Innenleben ist es.
+    expect(nativ, contains('var webrtcPlugin: FlutterWebRTCPlugin?'));
+    expect(nativ, contains('(webrtcPlugin ?: FlutterWebRTCPlugin.sharedSingleton)'));
+
+    // Und der Aufruf muss gefangen sein, sonst steht ein Absturzbericht auf
+    // dem Schirm statt einer Meldung.
+    final i = nativ.indexOf('val ziel = try {');
+    expect(i, isNot(-1), reason: 'getRemoteTrack nicht in einem Fang');
+    expect(nativ.substring(i, i + 400), contains('catch (e: Throwable)'));
+  });
+
+  test('die Haupt-Engine merkt sich das Plugin beim Einrichten', () {
+    // ⚠️ Nur dort ist der Singleton noch der richtige: `super` hat gerade
+    // GeneratedPluginRegistrant laufen lassen.
+    final m = File(
+            'android/app/src/main/kotlin/de/icd360sev/vorsitzer/MainActivity.kt')
+        .readAsStringSync();
+    final i = m.indexOf('super.configureFlutterEngine(flutterEngine)');
+    expect(i, isNot(-1));
+    expect(m.substring(i, i + 900),
+        contains('Untertitel.webrtcPlugin = FlutterWebRTCPlugin.sharedSingleton'));
   });
 
   test('die Aufbaufrist ist kurz', () {
