@@ -24,6 +24,7 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
 import java.net.Socket
+import com.cloudwebrtc.webrtc.FlutterWebRTCPlugin
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "de.icd360sev.vorsitzer/device_integrity"
@@ -70,6 +71,15 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // ⚠️ HIER, UND NUR HIER, IST DER SINGLETON NOCH DER RICHTIGE.
+        // `super` hat gerade `GeneratedPluginRegistrant` laufen lassen, also
+        // gehört `sharedSingleton` in diesem Augenblick der Haupt-Engine.
+        // Startet später ein Hintergrunddienst seine eigene Engine, überschreibt
+        // deren Plugin-Instanz den Singleton — und wenn sie sich wieder löst,
+        // zeigt er auf eine Instanz ohne `methodCallHandler`. Begründung
+        // ausführlich bei [Untertitel.webrtcPlugin].
+        Untertitel.webrtcPlugin = FlutterWebRTCPlugin.sharedSingleton
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->

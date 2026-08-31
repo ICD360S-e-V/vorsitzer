@@ -100,6 +100,33 @@ class Untertitel(private val ctx: Context) {
         private const val PUFFER_STUECKE = 32
 
         /** Wo das Sprachmodell liegt, sobald es geholt wurde. */
+        /**
+         * Das WebRTC-Plugin DER HAUPT-ENGINE.
+         *
+         * 🔴 WARUM NICHT `FlutterWebRTCPlugin.sharedSingleton`. Dessen
+         * Konstruktor macht `sharedSingleton = this` — JEDE neue Instanz
+         * überschreibt ihn also. Und diese Anwendung hat mehr als eine
+         * Flutter-Engine: neben der Oberfläche laufen die Hintergrunddienste
+         * (SMS-Gateway, Anruf-Gateway, Signatur), und jede solche Engine
+         * registriert über `GeneratedPluginRegistrant` ein eigenes
+         * `FlutterWebRTCPlugin`. Der Kommentar im Plugin sagt es selbst:
+         * „can be instantiated multiple times".
+         *
+         * Löst sich eine solche Engine wieder, setzt `stopListening()` ihren
+         * `methodCallHandler` auf null — `sharedSingleton` zeigt aber weiter
+         * auf sie. Im Betrieb sah das am 31.08.2026 so aus:
+         *
+         *   NullPointerException: 'MediaStreamTrack
+         *   MethodCallHandlerImpl.getRemoteTrack(String)' on a null object
+         *   reference at FlutterWebRTCPlugin.getRemoteTrack
+         *
+         * ⚠️ `?.` hilft dagegen NICHT: der Zeiger ist nicht null, sein
+         * Innenleben ist es. Deshalb wird die Instanz gemerkt, solange sie
+         * noch die richtige ist — beim Einrichten der Haupt-Engine.
+         */
+        @JvmStatic
+        var webrtcPlugin: FlutterWebRTCPlugin? = null
+
         fun modellOrdner(ctx: Context): File = File(ctx.filesDir, "vosk-de")
 
         fun modellDa(ctx: Context): Boolean {
@@ -171,7 +198,16 @@ class Untertitel(private val ctx: Context) {
                 "modellFehlt" to true)
         }
 
-        val ziel = FlutterWebRTCPlugin.sharedSingleton?.getRemoteTrack(spurId)
+        // ⚠️ Erst die gemerkte Instanz, dann der Singleton als Rückfall — und
+        // beides in einem Fang: ein NullPointer aus dem Plugin soll eine
+        // lesbare Meldung ergeben, keinen Absturzbericht auf dem Schirm.
+        val ziel = try {
+            (webrtcPlugin ?: FlutterWebRTCPlugin.sharedSingleton)
+                ?.getRemoteTrack(spurId)
+        } catch (e: Throwable) {
+            Log.w(TAG, "getRemoteTrack nicht verfuegbar", e)
+            null
+        }
         if (ziel !is AudioTrack) {
             return mapOf("ok" to false, "grund" to "Tonspur der Gegenstelle nicht gefunden.")
         }
