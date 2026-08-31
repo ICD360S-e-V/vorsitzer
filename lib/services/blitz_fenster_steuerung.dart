@@ -192,16 +192,19 @@ class BlitzFensterSteuerung {
   Future<bool> zeigen({
     required int conversationId,
     required String absender,
+    String? nummer,
     required String text,
     required String kanal,
     required DateTime zeit,
   }) =>
-      _nacheinander(() => _zeigen(conversationId, absender, text, kanal, zeit));
+      _nacheinander(
+          () => _zeigen(conversationId, absender, nummer, text, kanal, zeit));
 
-  Future<bool> _zeigen(
-      int conversationId, String absender, String text, String kanal, DateTime zeit) async {
+  Future<bool> _zeigen(int conversationId, String absender, String? nummer,
+      String text, String kanal, DateTime zeit) async {
     try {
-      return await _zeigenRoh(conversationId, absender, text, kanal, zeit);
+      return await _zeigenRoh(
+          conversationId, absender, nummer, text, kanal, zeit);
     } catch (e) {
       // ⚠️ Nichts darf hier hinausfliegen. `melden()` ruft ohne `await`; eine
       // Ausnahme landete sonst als unbehandelter Fehler im Protokoll, und der
@@ -213,7 +216,7 @@ class BlitzFensterSteuerung {
   }
 
   Future<bool> _zeigenRoh(
-      int conversationId, String absender, String text, String kanal, DateTime zeit) async {
+      int conversationId, String absender, String? nummer, String text, String kanal, DateTime zeit) async {
     final vorhanden = _aktuell;
 
     // Dieselbe Unterhaltung liegt schon vorn: anhängen statt ersetzen.
@@ -224,6 +227,7 @@ class BlitzFensterSteuerung {
     final neu = BlitzNachricht(
       conversationId: conversationId,
       absender: absender,
+      nummer: nummer,
       zeilen: [text],
       kanal: kanal,
       zeit: zeit,

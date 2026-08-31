@@ -11,7 +11,23 @@ import 'dart:convert';
 /// nachlädt, ist im Blitz-Fenster schlicht nicht vorhanden.
 class BlitzNachricht {
   final int conversationId;
+
+  /// Der Name — für die gewöhnliche Benachrichtigung und zum Zusammenfassen
+  /// mehrerer Zeilen desselben Absenders.
   final String absender;
+
+  /// Die Mitgliedsnummer, und das ist das EINZIGE, was die Karte anzeigt.
+  ///
+  /// ⚠️ Die Karte legt sich mitten auf den Bildschirm, auch wenn gerade
+  /// jemand danebensteht. Wer den Namen darauf liest, weiß, mit wem der
+  /// Vorsitzende schreibt — in einem Verein dieser Größe reicht das. Die
+  /// Nummer sagt dasselbe für den, der sie zuordnen kann, und nichts für
+  /// alle anderen.
+  ///
+  /// `null` heißt: unbekannt. Die Karte zeigt dann „Mitglied" und fällt
+  /// NICHT auf den Namen zurück — sonst stünde er ausgerechnet in dem Fall
+  /// da, den niemand vorhergesehen hat.
+  final String? nummer;
 
   /// Die Zeilen der Unterhaltung, älteste zuerst. Mehrere, weil ein zweiter
   /// Satz desselben Absenders die Karte ergänzt statt sie zu ersetzen — wer
@@ -31,12 +47,18 @@ class BlitzNachricht {
     required this.absender,
     required this.zeilen,
     required this.zeit,
+    this.nummer,
     this.kanal = 'app',
   });
+
+  /// Was auf der Karte steht. Nie der Name.
+  String get anzeige =>
+      (nummer != null && nummer!.trim().isNotEmpty) ? nummer!.trim() : 'Mitglied';
 
   BlitzNachricht ergaenztUm(String zeile, DateTime wann) => BlitzNachricht(
         conversationId: conversationId,
         absender: absender,
+        nummer: nummer,
         // Deckel bei 5: die Karte ist klein, und die ältesten Zeilen hat der
         // Leser bei einem Schwall ohnehin schon in der Benachrichtigung
         // gesehen. Ohne Deckel wächst das Fenster über den Bildschirm hinaus.
@@ -50,6 +72,7 @@ class BlitzNachricht {
   Map<String, dynamic> toJson() => {
         'conversation_id': conversationId,
         'absender': absender,
+        'nummer': nummer,
         'zeilen': zeilen,
         'kanal': kanal,
         'zeit': zeit.toIso8601String(),
@@ -62,6 +85,9 @@ class BlitzNachricht {
             // Ein leerer Name ergäbe eine Karte mit Anrede-Loch. Lieber
             // ehrlich „Unbekannt" als eine Karte, die kaputt aussieht.
             : 'Unbekannt',
+        nummer: (j['nummer'] as String?)?.trim().isNotEmpty == true
+            ? (j['nummer'] as String).trim()
+            : null,
         zeilen: (j['zeilen'] as List?)?.map((e) => '$e').toList() ?? const [],
         kanal: j['kanal'] as String? ?? 'app',
         zeit: DateTime.tryParse('${j['zeit']}') ?? DateTime.now(),

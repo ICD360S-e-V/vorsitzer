@@ -65,6 +65,7 @@ class BlitzNachrichtService {
   Future<void> melden({
     required int conversationId,
     required String absender,
+    String? nummer,
     required String text,
     String kanal = 'app',
     DateTime? zeit,
@@ -82,6 +83,7 @@ class BlitzNachrichtService {
         : BlitzNachricht(
             conversationId: conversationId,
             absender: absender,
+            nummer: nummer,
             zeilen: [text],
             kanal: kanal,
             zeit: wann,
@@ -109,6 +111,7 @@ class BlitzNachrichtService {
       final gezeigt = await BlitzFensterSteuerung.instanz.zeigen(
         conversationId: conversationId,
         absender: absender,
+        nummer: nummer,
         text: text,
         kanal: kanal,
         zeit: wann,

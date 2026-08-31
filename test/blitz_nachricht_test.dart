@@ -81,10 +81,17 @@ void main() {
   });
 
   group('BlitzKarte', () {
-    testWidgets('zeigt Absender, Text und bei SMS den Kanal', (tester) async {
+    testWidgets('zeigt Text und bei SMS den Kanal — aber NIE den Namen',
+        (tester) async {
+      // ⚠️ Hier stand einmal `expect(find.text('Olha Menning'), ...)`. Die
+      // Karte legt sich mitten auf den Bildschirm, auch wenn jemand
+      // danebensteht; sie zeigt deshalb nur noch die Mitgliedsnummer.
+      // Entscheidung des Users. Ohne Nummer steht „Mitglied" da, niemals
+      // der Name — siehe [BlitzNachricht.nummer].
       await _karteBauen(tester,
           nachricht: _n(zeilen: ['Post vom Jobcenter da'], kanal: 'sms'));
-      expect(find.text('Olha Menning'), findsOneWidget);
+      expect(find.text('Olha Menning'), findsNothing);
+      expect(find.text('Mitglied'), findsOneWidget);
       expect(find.text('Post vom Jobcenter da'), findsOneWidget);
       expect(find.textContaining('SMS'), findsOneWidget);
     });
