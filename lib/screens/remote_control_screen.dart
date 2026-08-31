@@ -52,6 +52,24 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
   StreamSubscription<BildBefund>? _bildSub;
   BildBefund? _befund;
 
+  /// Muss zu `Bildguete` in der Mitglieds-App passen — die Namen sind der
+  /// Schlüssel, den der Rahmen `q` überträgt.
+  /// ⚠️ Die beiden festen Stufen unterscheiden sich nicht in der Bitrate,
+  /// sondern darin, WAS bei Enge aufgegeben wird — Auflösung oder Bilder. Die
+  /// Beschriftung sagt das, weil „flüssig" und „scharf" allein niemandem
+  /// verraten, was er dafür hergibt.
+  static const _gueten = <String, String>{
+    'automatik': 'Automatisch (empfohlen)',
+    'fluessig': 'Flüssig — bei Enge wird das Bild gröber',
+    'scharf': 'Scharf — bei Enge ruckelt es',
+  };
+
+  /// ⚠️ Voreinstellung ist die Automatik. Eine feste Stufe ist eine Ansage und
+  /// hält die Regelung drüben an — wer sie wählt, nimmt der Leitung das
+  /// Nachjustieren ab und muss selbst wissen, was sie trägt.
+  String _guete = 'automatik';
+  int _bildschirm = 0;
+
   // Chatstreifen neben dem Bild. Bewusst schmal und ohne Anhänge: er soll
   // „schauen Sie mal oben rechts" ermöglichen, nicht den Chatdialog ersetzen.
   StreamSubscription<ChatMessage>? _nachrichtSub;
@@ -299,6 +317,41 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
                 setState(() => _stumm = !_stumm);
               },
             ),
+          // Bildschirmwahl — nur wenn die Gegenseite mehr als einen hat.
+          // Bei einem Telefon ist die Liste leer, dann gibt es hier nichts zu
+          // wählen und der Knopf erscheint gar nicht.
+          if (_svc.zielBildschirme.length > 1)
+            PopupMenuButton<int>(
+              tooltip: 'Bildschirm',
+              icon: const Icon(Icons.desktop_windows_outlined),
+              initialValue: _bildschirm,
+              onSelected: (n) {
+                _svc.sendBildschirm(n);
+                setState(() => _bildschirm = n);
+              },
+              itemBuilder: (_) => [
+                for (var i = 0; i < _svc.zielBildschirme.length; i++)
+                  PopupMenuItem(
+                    value: i,
+                    child: Text('${i + 1}: ${_svc.zielBildschirme[i]}'),
+                  ),
+              ],
+            ),
+          // Bildgüte. Wirkt sofort auf dem Gerät des Mitglieds, ohne die
+          // Sitzung neu auszuhandeln.
+          PopupMenuButton<String>(
+            tooltip: 'Bildgüte',
+            icon: const Icon(Icons.tune),
+            initialValue: _guete,
+            onSelected: (g) {
+              _svc.sendBildguete(g);
+              setState(() => _guete = g);
+            },
+            itemBuilder: (_) => [
+              for (final e in _gueten.entries)
+                PopupMenuItem(value: e.key, child: Text(e.value)),
+            ],
+          ),
           IconButton(
             tooltip: _chatOffen ? 'Chat ausblenden' : 'Chat einblenden',
             icon: Icon(_chatOffen ? Icons.chat : Icons.chat_bubble_outline,
@@ -512,7 +565,14 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(b.kurz, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            // Erste Zeile: wie es JETZT läuft. Das sind die Zahlen, an denen
+            // man „ruckelt" oder „hängt hinterher" festmachen kann.
+            Text(b.kurz,
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+            // Zweite Zeile: Format und Gesamtverbrauch.
+            Text(b.zweiteZeile,
+                style: const TextStyle(color: Colors.white54, fontSize: 11)),
             if (hinweis.isNotEmpty)
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),

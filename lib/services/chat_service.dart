@@ -929,6 +929,10 @@ class ChatService {
             // Fehlt das Feld (ältere Mitglieds-App), wird NICHTS behauptet:
             // true heißt hier „kein Grund bekannt", nicht „geprüft".
             bildFrei: json['bild_frei'] != false,
+            bildschirme: (json['bildschirme'] as List?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                const [],
           ));
           break;
 
@@ -1222,6 +1226,11 @@ class RemoteAnswerEvent {
   /// des Mitglieds, nicht in der Leitung.
   final bool bildFrei;
 
+  /// Namen der Monitore auf der Gegenseite. Leer bei einem Telefon — dort gibt
+  /// es nur die eine Anzeige. Mehr als einer heisst: der Vorsitz sieht
+  /// vielleicht den falschen.
+  final List<String> bildschirme;
+
   RemoteAnswerEvent({
     required this.conversationId,
     required this.answererId,
@@ -1230,6 +1239,7 @@ class RemoteAnswerEvent {
     this.plattform,
     this.steuerung = false,
     this.bildFrei = true,
+    this.bildschirme = const [],
   });
 }
 
