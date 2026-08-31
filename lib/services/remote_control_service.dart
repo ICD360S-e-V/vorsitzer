@@ -78,6 +78,7 @@ class RemoteControlService {
   final _bildController = StreamController<BildBefund>.broadcast();
   Timer? _bildUhr;
   BildBefund? _letzterBefund;
+  DateTime? _letzteMessung;
   BildBefund? get letzterBefund => _letzterBefund;
   RemoteControlState get state => _state;
   RemoteControlEnd get lastEnd => _lastEnd;
@@ -354,6 +355,20 @@ class RemoteControlService {
   void sendKey({required int hid, String? character, required bool down}) =>
       _sendInput({'t': 'k', 'hid': hid, 'ch': character, 'down': down});
 
+  /// Bildgüte am Gerät des Mitglieds einstellen.
+  ///
+  /// ⚠️ Warum das überhaupt gebraucht wird: die Verzögerung von ein bis zwei
+  /// Sekunden kommt nicht von der Entfernung, sondern vom **Bufferbloat** des
+  /// Mobilfunk-Uplinks. Die eigene Speedtest-Reihe des Vereins hat ihn
+  /// gemessen — Latenz unter Last bis 7402 ms, in 32 % der Läufe über das
+  /// Zehnfache des Ruhewerts. WebRTC dreht die Bitrate hoch, bis der Puffer des
+  /// Funkmodems voll ist; ab da läuft das Bild hinterher. Die Reparatur ist,
+  /// die Leitung bewusst NICHT auszureizen.
+  ///
+  /// Geht über den Eingabekanal, wird also sofort wirksam und braucht keine
+  /// Neuverhandlung. Ältere Mitglieds-Apps übergehen den Rahmen stumm.
+  void sendBildguete(String guete) => _sendInput({'t': 'q', 'g': guete});
+
   /// Systemtaste ohne Koordinaten: `back`, `home`, `recents`, `notifications`.
   ///
   /// Auf einem Telefon gibt es diese Ziele nicht als Fläche, die man anklicken
@@ -491,12 +506,14 @@ class RemoteControlService {
   ///                              auf der Gegenseite) oder die Anzeige malt nicht
   void _bildUhrStarten() {
     _bildUhr?.cancel();
+    _letzteMessung = null;
     _bildUhr = Timer.periodic(const Duration(seconds: 2), (_) async {
       final pc = _pc;
       if (pc == null) return;
       try {
         var empfangen = 0, dekodiert = 0, bytes = 0, breite = 0, hoehe = 0;
         String? codec;
+        double? rttMs;
         for (final bericht in await pc.getStats()) {
           final w = bericht.values;
           if (bericht.type == 'inbound-rtp' && w['kind'] == 'video') {
@@ -505,11 +522,39 @@ class RemoteControlService {
             bytes = (w['bytesReceived'] as num?)?.toInt() ?? bytes;
             breite = (w['frameWidth'] as num?)?.toInt() ?? breite;
             hoehe = (w['frameHeight'] as num?)?.toInt() ?? hoehe;
+          } else if (bericht.type == 'candidate-pair' && w['nominated'] == true) {
+            final rtt = w['currentRoundTripTime'];
+            if (rtt is num) rttMs = rtt.toDouble() * 1000;
           } else if (bericht.type == 'codec' && w['mimeType'] is String) {
             final m = w['mimeType'] as String;
             if (m.startsWith('video/')) codec = m.split('/').last;
           }
         }
+        // Raten aus dem Zuwachs seit dem letzten Takt — nicht aus der Summe.
+        // Die Summe wächst monoton und sagt nichts darüber, wie es JETZT läuft.
+        //
+        // ⚠️ Gemessen wird die WIRKLICH vergangene Zeit, nicht die zwei
+        // Sekunden des Zeitgebers. Ein Zeitgeber feuert später, wenn die
+        // Anwendung beschäftigt ist — und dann käme genau in dem Moment eine
+        // zu hohe Bildrate heraus, in dem es tatsächlich ruckelt.
+        final jetzt = DateTime.now();
+        final vorher = _letzterBefund;
+        final sek = _letzteMessung == null
+            ? 0.0
+            : jetzt.difference(_letzteMessung!).inMilliseconds / 1000;
+        _letzteMessung = jetzt;
+
+        var kbit = 0;
+        var fps = 0.0;
+        if (vorher != null && sek > 0.2) {
+          if (bytes > vorher.bytes) {
+            kbit = ((bytes - vorher.bytes) * 8 / 1000 / sek).round();
+          }
+          if (dekodiert > vorher.dekodiert) {
+            fps = (dekodiert - vorher.dekodiert) / sek;
+          }
+        }
+
         final befund = BildBefund(
           empfangen: empfangen,
           dekodiert: dekodiert,
@@ -517,6 +562,9 @@ class RemoteControlService {
           breite: breite,
           hoehe: hoehe,
           codec: codec,
+          kbit: kbit,
+          fps: fps,
+          rttMs: rttMs,
         );
         _letzterBefund = befund;
         if (!_bildController.isClosed) _bildController.add(befund);
@@ -586,6 +634,21 @@ class BildBefund {
   final int hoehe;
   final String? codec;
 
+  /// Rate des LETZTEN Takts, nicht der Durchschnitt der Sitzung. Nur so sieht
+  /// man, wie die Automatik drüben gerade nachregelt.
+  final int kbit;
+
+  /// Tatsächlich dargestellte Bilder je Sekunde.
+  ///
+  /// ⚠️ Aus `framesDecoded`, nicht aus `framesReceived`: gezählt wird, was
+  /// wirklich auf dem Schirm landet. Gehen die beiden auseinander, ist nicht
+  /// die Leitung das Problem, sondern die Wiedergabe hier.
+  final double fps;
+
+  /// Umlaufzeit. Steigt sie deutlich, füllt sich eine Warteschlange — genau
+  /// das, worauf die Automatik auf der Gegenseite reagiert.
+  final double? rttMs;
+
   const BildBefund({
     required this.empfangen,
     required this.dekodiert,
@@ -593,6 +656,9 @@ class BildBefund {
     required this.breite,
     required this.hoehe,
     this.codec,
+    this.kbit = 0,
+    this.fps = 0,
+    this.rttMs,
   });
 
   /// Nichts kommt an — Transport oder Spur.
@@ -604,8 +670,23 @@ class BildBefund {
   /// Kurzfassung für den Bildschirm. Bewusst mit Rohzahlen: eine Deutung ohne
   /// die Zahl daneben kann man nicht nachprüfen.
   String get kurz {
-    final grad = (breite > 0 && hoehe > 0) ? ' · $breite×$hoehe' : '';
-    final c = codec != null ? ' · $codec' : '';
-    return '$dekodiert/$empfangen Bilder · ${(bytes / 1024).round()} kB$grad$c';
+    final b = fps > 0 ? '${fps.toStringAsFixed(fps < 10 ? 1 : 0)} fps' : '– fps';
+    final d = kbit > 0 ? ' · ${(kbit / 8).round()} kB/s' : '';
+    final l = rttMs != null ? ' · ${rttMs!.round()} ms' : '';
+    return '$b$d$l';
+  }
+
+  /// Zweite Zeile: was die Sitzung insgesamt gekostet hat, und woran man
+  /// erkennt, ob das Bild überhaupt ankommt.
+  ///
+  /// ⚠️ Das Gesamtvolumen steht hier, weil die Gegenseite an einem Mobilfunk-
+  /// vertrag hängt. Eine halbe Stunde Fernwartung bei 120 kB/s sind rund
+  /// 200 MB — das gehört sichtbar gemacht, nicht dem Zufall überlassen.
+  String get zweiteZeile {
+    final mb = bytes / 1024 / 1024;
+    final grad = (breite > 0 && hoehe > 0) ? '$breite×$hoehe · ' : '';
+    final c = codec != null ? '$codec · ' : '';
+    return '$grad$c$dekodiert/$empfangen Bilder · '
+        '${mb.toStringAsFixed(mb < 10 ? 1 : 0)} MB gesamt';
   }
 }
