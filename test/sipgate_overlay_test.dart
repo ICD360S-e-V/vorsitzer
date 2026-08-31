@@ -4,6 +4,21 @@ import 'package:icd360sev_vorsitzer/services/notification_service.dart';
 import 'package:icd360sev_vorsitzer/services/sipgate_service.dart';
 import 'package:icd360sev_vorsitzer/widgets/sipgate_anruf_overlay.dart';
 
+
+/// Die Nummer, wie sie in der Karte STEHT — verdeckt.
+///
+/// 🔴 Die Karte schwebt über allem und ist von einem Meter Abstand zu lesen;
+/// seit dem 31.08.2026 steht dort nicht mehr die ganze Rufnummer. Diese Tests
+/// verlangten vorher die volle Nummer — sie prüfen jetzt das Gegenteil, und
+/// zwar in beide Richtungen: die verdeckte Form MUSS da sein, die volle DARF
+/// NICHT. Nur so fällt auf, wenn die Verdeckung wieder herausfällt.
+const nummerVoll = '+4971112345';
+// ⚠️ Von Hand geschrieben und darum nachgezählt: `+4971112345` hat ZEHN
+/// Ziffern, sichtbar bleiben fünf, also stehen dort genau fünf Punkte. Meine
+/// erste Fassung hatte sechs — und der Test schlug fehl, obwohl der Code
+/// stimmte.
+const nummerVerdeckt = '+49·····345';
+
 /// Die schwebende Gesprächskarte — und vor allem: dass sie NICHTS blockiert.
 ///
 /// ⚠️ WARUM DIESER TEST DER WICHTIGSTE HIER IST
@@ -40,7 +55,7 @@ void main() {
 
   SipgateGespraech gespraech(SipgateGespraechStand stand, {String? name}) =>
       SipgateGespraech(
-        nummer: '+4971112345',
+        nummer: nummerVoll,
         name: name,
         eingehend: stand == SipgateGespraechStand.klingelt,
         stand: stand,
@@ -60,7 +75,7 @@ void main() {
     await t.pumpWidget(appMitKnopf(() {}));
     SipgateAnrufOverlay().aktivieren();
     await t.pump();
-    expect(find.text('+4971112345'), findsNothing);
+    expect(find.text(nummerVerdeckt), findsNothing);
   });
 
   testWidgets('bei laufendem Gespräch erscheint Nummer und Dauer', (t) async {
@@ -70,7 +85,11 @@ void main() {
         SipgateZustand(gespraech: gespraech(SipgateGespraechStand.verbunden));
     await t.pump();
 
-    expect(find.text('+4971112345'), findsOneWidget);
+    expect(find.text(nummerVerdeckt), findsOneWidget);
+    // ⚠️ Und die volle Nummer DARF NICHT dastehen. Ohne diese Zeile bestünde
+    // der Test auch dann, wenn beides zu sehen wäre — die Verdeckung wäre
+    // wirkungslos, ohne dass irgendetwas fehlschlägt.
+    expect(find.textContaining(nummerVoll), findsNothing);
     // 187 Sekunden → 03:07. Die Uhr, nicht „187".
     expect(find.textContaining('03:07'), findsOneWidget);
   });
@@ -86,7 +105,7 @@ void main() {
     expect(find.text('Jobcenter'), findsOneWidget);
     // Ein Name allein sagt nicht, welche der drei Nummern eines Amtes man
     // erreicht hat — deshalb steht sie mit dabei.
-    expect(find.textContaining('+4971112345'), findsOneWidget);
+    expect(find.textContaining(nummerVerdeckt), findsOneWidget);
   });
 
   testWidgets('ein Knopf DARUNTER ist weiter erreichbar', (t) async {
@@ -100,7 +119,7 @@ void main() {
         SipgateZustand(gespraech: gespraech(SipgateGespraechStand.verbunden));
     await t.pump();
 
-    expect(find.text('+4971112345'), findsOneWidget,
+    expect(find.text(nummerVerdeckt), findsOneWidget,
         reason: 'die Karte muss da sein, sonst prüft der Test nichts');
 
     await t.tap(find.text('Knopf darunter'));
@@ -144,11 +163,11 @@ void main() {
     dienst.zustand.value =
         SipgateZustand(gespraech: gespraech(SipgateGespraechStand.verbunden));
     await t.pump();
-    expect(find.text('+4971112345'), findsOneWidget);
+    expect(find.text(nummerVerdeckt), findsOneWidget);
 
     dienst.zustand.value = const SipgateZustand();
     await t.pump();
-    expect(find.text('+4971112345'), findsNothing);
+    expect(find.text(nummerVerdeckt), findsNothing);
   });
 
   testWidgets('unterdruecken() blendet sie aus und wieder ein', (t) async {
@@ -159,15 +178,15 @@ void main() {
     dienst.zustand.value =
         SipgateZustand(gespraech: gespraech(SipgateGespraechStand.verbunden));
     await t.pump();
-    expect(find.text('+4971112345'), findsOneWidget);
+    expect(find.text(nummerVerdeckt), findsOneWidget);
 
     SipgateAnrufOverlay().unterdruecken(true);
     await t.pump();
-    expect(find.text('+4971112345'), findsNothing);
+    expect(find.text(nummerVerdeckt), findsNothing);
 
     SipgateAnrufOverlay().unterdruecken(false);
     await t.pump();
-    expect(find.text('+4971112345'), findsOneWidget);
+    expect(find.text(nummerVerdeckt), findsOneWidget);
   });
 
   group('zwei Beine und Konferenz', () {
@@ -188,7 +207,7 @@ void main() {
       await t.pumpWidget(appMitKnopf(() {}));
       SipgateAnrufOverlay().aktivieren();
       dienst.zustand.value = SipgateZustand(
-        gespraech: bein('+4971112345', 'Jobcenter'),
+        gespraech: bein(nummerVoll, 'Jobcenter'),
         zweites: bein('+4916094482053', 'Frau Padurean', gehalten: true),
       );
       await t.pump();
@@ -201,7 +220,7 @@ void main() {
       await t.pumpWidget(appMitKnopf(() {}));
       SipgateAnrufOverlay().aktivieren();
       dienst.zustand.value = SipgateZustand(
-        gespraech: bein('+4971112345', 'Jobcenter'),
+        gespraech: bein(nummerVoll, 'Jobcenter'),
         zweites: bein('+4916094482053', 'Frau Padurean'),
         konferenz: true,
       );
@@ -223,7 +242,7 @@ void main() {
       await t.pumpWidget(appMitKnopf(() => gedrueckt++));
       SipgateAnrufOverlay().aktivieren();
       dienst.zustand.value = SipgateZustand(
-        gespraech: bein('+4971112345', 'Jobcenter'),
+        gespraech: bein(nummerVoll, 'Jobcenter'),
         zweites: bein('+4916094482053', 'Frau Padurean'),
         konferenz: true,
       );
