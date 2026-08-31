@@ -443,3 +443,70 @@ class GueteTafel extends StatelessWidget {
     );
   }
 }
+
+/// Eine Wellenform, deren AUSSCHLAG die Güte trägt — nicht nur ihre Farbe.
+///
+/// ⚠️ Das ist keine Zierde, sondern die Erfüllung von WCAG 1.4.1: auf der
+/// Glaskarte ist die Farbe das Auffälligste, aber sie darf die Aussage nicht
+/// allein tragen. Bei „gut" schwingen die Balken voll aus, bei „kaum
+/// verständlich" bleiben sie fast flach — das erkennt auch, wer Rot und Grün
+/// nicht unterscheidet, und es ist auf einem Schwarzweiss-Ausdruck noch da.
+///
+/// ⚠️ Die Balken bewegen sich NICHT. Eine Dauer-Animation über einem laufenden
+/// Gespräch kostet jeden Frame Rechenzeit, und die Karte schwebt ohnehin über
+/// einer Oberfläche, die sich selbst zeichnet. Der Ausschlag ist ein
+/// Messwert, kein Pegelmesser.
+class Welle extends StatelessWidget {
+  const Welle({
+    super.key,
+    required this.stufe,
+    required this.farbe,
+    this.hoehe = 14,
+  });
+
+  final QualitaetsStufe stufe;
+  final Color farbe;
+  final double hoehe;
+
+  /// Wie weit die Welle ausschlägt — 1,0 heisst voll, 0,12 heisst fast flach.
+  static double ausschlag(QualitaetsStufe s) => switch (s) {
+        QualitaetsStufe.gut => 1.0,
+        QualitaetsStufe.brauchbar => 0.7,
+        QualitaetsStufe.schlecht => 0.42,
+        QualitaetsStufe.unbrauchbar => 0.2,
+        QualitaetsStufe.unbekannt => 0.12,
+      };
+
+  /// Das Grundmuster. Ungleiche Höhen, damit es wie Sprache aussieht und nicht
+  /// wie ein Balkendiagramm — gleich hohe Striche liest man als Fortschritt.
+  static const List<double> muster = [0.45, 0.85, 1.0, 0.6, 0.35];
+
+  @override
+  Widget build(BuildContext context) {
+    final a = ausschlag(stufe);
+    return SizedBox(
+      height: hoehe,
+      // ⚠️ Aus dem Barrierebaum heraus: daneben steht dasselbe als Wort, und
+      // eine Vorlesehilfe würde hier sonst eine zweite, stumme Grafik ansagen.
+      child: ExcludeSemantics(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            for (var i = 0; i < muster.length; i++) ...[
+              if (i > 0) const SizedBox(width: 2.5),
+              Container(
+                width: 3,
+                height: (hoehe * muster[i] * a).clamp(3.0, hoehe),
+                decoration: BoxDecoration(
+                  color: farbe,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
