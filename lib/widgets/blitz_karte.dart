@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -59,8 +60,70 @@ class _BlitzKarteState extends State<BlitzKarte> {
   bool _sendet = false;
   String? _fehler;
 
+  /// Der Text ist zugedeckt. Die Karte liegt mitten auf dem Bildschirm —
+  /// nach kurzem Lesen soll niemand mehr mitlesen können, der dazukommt.
+  bool _zugedeckt = false;
+
+  /// Sekunden, bis zugedeckt wird. Steht sichtbar neben dem Text, damit
+  /// niemand vom Verschwinden überrascht wird.
+  int _rest = 0;
+  Timer? _uhr;
+
+  static const _grundzeit = 3;
+  static const _hoechstzeit = 12;
+
+  /// Wie lange der Text offen bleibt.
+  ///
+  /// ⚠️ Nach LÄNGE, nicht pauschal. Fünf Sekunden reichen für zwei Zeilen
+  /// und für fünf nicht — man läse auf halbem Satz ins Leere. Gerechnet mit
+  /// rund 18 Zeichen je Sekunde; das ist bewusst langsamer als geübtes
+  /// Lesen (25–30), weil hier nebenher noch die Antwort überlegt wird.
+  Duration _dauer() {
+    final zeichen = widget.nachricht.zeilen.join(' ').length;
+    final s = (_grundzeit + zeichen / 18).ceil();
+    return Duration(seconds: s > _hoechstzeit ? _hoechstzeit : s);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _aufdecken();
+  }
+
+  @override
+  void didUpdateWidget(BlitzKarte alt) {
+    super.didUpdateWidget(alt);
+    // ⚠️ Eine neue Zeile deckt wieder auf und startet die Uhr neu — sonst
+    // läse man den Nachsatz ohne das, worauf er sich bezieht.
+    if (alt.nachricht.zeilen.length != widget.nachricht.zeilen.length) {
+      _aufdecken();
+    }
+  }
+
+  /// Text zeigen und die Uhr von vorn laufen lassen.
+  void _aufdecken() {
+    _uhr?.cancel();
+    final gesamt = _dauer().inSeconds;
+    setState(() {
+      _zugedeckt = false;
+      _rest = gesamt;
+    });
+    _uhr = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() => _rest--);
+      if (_rest <= 0) {
+        t.cancel();
+        setState(() => _zugedeckt = true);
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _uhr?.cancel();
     _eingabe.dispose();
     _eingabeFokus.dispose();
     super.dispose();
@@ -173,11 +236,32 @@ class _BlitzKarteState extends State<BlitzKarte> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
-                  z,
+                  _zugedeckt ? _punkte(z) : z,
                   style: TextStyle(
                     fontSize: gross ? 19 : 13,
                     height: 1.3,
-                    color: F.textStark,
+                    color: _zugedeckt ? F.textLeise : F.textStark,
+                    letterSpacing: _zugedeckt ? 1.5 : null,
+                  ),
+                ),
+              ),
+            if (_zugedeckt)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: InkWell(
+                  onTap: _aufdecken,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 4),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.visibility_outlined,
+                          size: gross ? 18 : 14, color: F.textLeise),
+                      const SizedBox(width: 5),
+                      Text('Wieder anzeigen',
+                          style: TextStyle(
+                              fontSize: gross ? 15 : 12, color: F.textLeise)),
+                    ]),
                   ),
                 ),
               ),
@@ -237,6 +321,30 @@ class _BlitzKarteState extends State<BlitzKarte> {
                       _uhrzeit(n.zeit),
                       style: TextStyle(fontSize: gross ? 13 : 10, color: F.textLeise),
                     ),
+                    // Die Rückwärtszählung. ⚠️ Sichtbar, und zwar von
+                    // Anfang an: ein Text, der ohne Vorwarnung verschwindet,
+                    // fühlt sich wie ein Fehler an. So weiß man, woran man
+                    // ist, und kann in Ruhe zu Ende lesen.
+                    if (!_zugedeckt && _rest > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        width: gross ? 22 : 17,
+                        height: gross ? 22 : 17,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: F.h(Colors.grey, 200),
+                        ),
+                        child: Text(
+                          '$_rest',
+                          style: TextStyle(
+                            fontSize: gross ? 12 : 9.5,
+                            fontWeight: FontWeight.w600,
+                            color: F.textLeise,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -372,6 +480,23 @@ class _BlitzKarteState extends State<BlitzKarte> {
         ),
       ),
     );
+  }
+
+  /// Ersetzt jeden Buchstaben durch einen Punkt, lässt Leerzeichen stehen.
+  ///
+  /// ⚠️ Die WORTFORM bleibt damit sichtbar: man sieht, dass da drei Zeilen
+  /// stehen und wie lang sie sind, aber nicht, was. Alles durch einen Block
+  /// zu ersetzen sähe aus, als wäre die Karte kaputt.
+  ///
+  /// ⚠️ Der Punkt U+2022, kein Sternchen: er steht in jeder Schrift, die
+  /// wir ausliefern. Ein hübscheres Zeichen, das als leeres Kästchen
+  /// erscheint, wäre genau der Fehler, den wir schon zweimal hatten.
+  static String _punkte(String text) {
+    final b = StringBuffer();
+    for (final z in text.split('')) {
+      b.write(z.trim().isEmpty ? z : '•');
+    }
+    return b.toString();
   }
 
   static String _initiale(String name) {
