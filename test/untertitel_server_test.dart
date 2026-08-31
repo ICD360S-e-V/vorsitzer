@@ -125,6 +125,22 @@ void main() {
     }
   });
 
+  test('der Ton wird zu 100-ms-Stücken gesammelt, nicht einzeln geschickt', () {
+    // 🔴 GEMESSEN, und die naheliegende Wahl war die schlechteste. WebRTC
+    // liefert 10-ms-Rahmen; einzeln weitergereicht hing der Text im Median
+    // 556 ms hinter dem Ton, weil der Server 100 Übergaben je Sekunde machen
+    // muss. Bei 100 ms sind es 85 ms — und zehnmal weniger Pakete auf einer
+    // Leitung, auf der wir Einbrüche unter 2 Mbit/s gemessen haben.
+    //
+    // ⚠️ Grösser ist auch nicht besser: 250 ms ergaben wieder 292 ms Verzug.
+    expect(nativ, contains('STROM_STUECK_MS = 100'));
+    expect(nativ, contains('if (stromPuffer.size < STROM_PROBEN) continue'));
+    // Und der Puffer wird beim Start geleert, sonst begänne das nächste
+    // Gespräch mit einem Rest des vorigen.
+    final i = nativ.indexOf('warteschlange.clear()');
+    expect(nativ.substring(i, i + 300), contains('stromPuffer.clear()'));
+  });
+
   test('die Aufbaufrist ist kurz', () {
     // ⚠️ Unsere eigenen Speedtest-Messungen zeigen auf dieser Leitung Spitzen
     // bis 7.402 ms und Tage unter 2 Mbit/s. Wer zwanzig Sekunden auf den

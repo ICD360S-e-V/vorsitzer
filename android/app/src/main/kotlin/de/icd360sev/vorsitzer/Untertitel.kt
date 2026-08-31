@@ -70,6 +70,28 @@ class Untertitel(private val ctx: Context) {
         private const val ZIEL_RATE = 16000
 
         /**
+         * Wie viel Ton in EINE Nachricht an den Server geht.
+         *
+         * 🔴 GEMESSEN, nicht geschaetzt — und die naheliegende Wahl war die
+         * schlechteste. WebRTC liefert 10-ms-Rahmen; wer sie einzeln
+         * weiterreicht, schickt 100 Nachrichten je Sekunde, und der Server
+         * kommt nicht hinterher: der Text hing im Median 556 ms hinter dem Ton.
+         *
+         *   Stueck    Pakete/s   Verzug Median   p95
+         *    10 ms       100         556 ms     1139 ms
+         *   100 ms        10          85 ms      258 ms   ← gewaehlt
+         *   250 ms         4         292 ms      726 ms
+         *
+         * ⚠️ Groesser ist auch nicht besser: bei 250 ms dauert die Verarbeitung
+         * je Stueck laenger und der Verzug steigt wieder. 100 ms ist der Punkt
+         * dazwischen — und nebenbei zehnmal weniger Pakete auf einer
+         * Mobilfunkleitung, auf der wir Einbrueche unter 2 Mbit/s gemessen
+         * haben.
+         */
+        private const val STROM_STUECK_MS = 100
+        private const val STROM_PROBEN = ZIEL_RATE * STROM_STUECK_MS / 1000
+
+        /**
          * ⚠️ Der Rueckruf kommt aus einem WebRTC-Tonthread. Wer dort blockiert,
          * laesst das GESPRAECH stocken — die Mitschrift wuerde also genau das
          * kaputtmachen, wozu sie da ist. Lieber ein Stueck Text verlieren als
@@ -107,6 +129,9 @@ class Untertitel(private val ctx: Context) {
      * Tablet nicht nur den Speicher, sondern auch die Rechenzeit.
      */
     private var strommodus = false
+
+    /** Sammelt die 10-ms-Rahmen, bis ein Stueck voll ist. */
+    private val stromPuffer = ArrayList<Short>(STROM_PROBEN * 2)
     private var sink: AudioTrackSink? = null
     private var spur: AudioTrack? = null
     private var pumpe: Thread? = null
@@ -161,6 +186,9 @@ class Untertitel(private val ctx: Context) {
             laeuft.set(true)
             verworfen.set(0)
             warteschlange.clear()
+            // ⚠️ Sonst begaenne das naechste Gespraech mit einem Rest des
+            // vorigen — hoerbar als ein halbes fremdes Wort am Anfang.
+            stromPuffer.clear()
 
             pumpeStarten()
             spurAnhaengen(ziel)
@@ -236,13 +264,19 @@ class Untertitel(private val ctx: Context) {
                     null
                 } ?: continue
                 if (strommodus) {
+                    // ⚠️ Sammeln, bis STROM_STUECK_MS beisammen sind. Einzeln
+                    // weiterzureichen war messbar das Schlechteste (siehe dort).
+                    stromPuffer.addAll(stueck.toList())
+                    if (stromPuffer.size < STROM_PROBEN) continue
+                    val block = ShortArray(stromPuffer.size) { stromPuffer[it] }
+                    stromPuffer.clear()
                     // ⚠️ Little-Endian: der Erkenner auf dem Server erwartet
                     // 16-bit-PCM in genau dieser Reihenfolge. Andersherum
                     // haetten beide Seiten Rauschen statt Sprache — und nichts
                     // wuerde fehlschlagen, es kaeme nur nie ein Wort heraus.
-                    val roh = ByteArray(stueck.size * 2)
-                    for (i in stueck.indices) {
-                        val v = stueck[i].toInt()
+                    val roh = ByteArray(block.size * 2)
+                    for (i in block.indices) {
+                        val v = block[i].toInt()
                         roh[i * 2] = (v and 0xFF).toByte()
                         roh[i * 2 + 1] = ((v shr 8) and 0xFF).toByte()
                     }
