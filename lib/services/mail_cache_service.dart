@@ -268,6 +268,7 @@ class MailCacheService {
           'uid', 'box', 'from', 'to', 'cc', 'subject', 'date', 'message_id',
           'in_reply_to', 'references', 'text', 'html', 'keywords', 'archived',
           'mdn_requested_by', 'mdn_original_id', 'mdn_disposition',
+          'mdn_sent',
           'authentication_results',
         ])
           if (daten.containsKey(k)) k: daten[k],
