@@ -187,7 +187,9 @@ class _BlitzKarteState extends State<BlitzKarte> {
   }
 
   Widget _kopf(BlitzNachricht n, bool gross) {
-    final farbe = _farbeFuer(n.absender);
+    // Auch Kreis und Farbe aus der Nummer: die Initiale des Namens auf der
+    // Karte zu lassen hieße, ihn halb doch zu zeigen.
+    final farbe = _farbeFuer(n.anzeige);
     return Padding(
       padding: EdgeInsets.fromLTRB(gross ? 24 : 11, gross ? 20 : 8, gross ? 12 : 4, 3),
       child: Row(
@@ -196,7 +198,7 @@ class _BlitzKarteState extends State<BlitzKarte> {
             radius: gross ? 22 : 12,
             backgroundColor: farbe,
             child: Text(
-              _initiale(n.absender),
+              _initiale(n.anzeige),
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -211,7 +213,10 @@ class _BlitzKarteState extends State<BlitzKarte> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  n.absender,
+                  // ⚠️ [BlitzNachricht.anzeige], nicht der Name — die Karte
+                  // liegt mitten auf dem Bildschirm, auch wenn jemand
+                  // danebensteht. Siehe dort.
+                  n.anzeige,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

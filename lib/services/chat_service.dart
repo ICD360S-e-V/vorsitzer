@@ -760,6 +760,10 @@ class ChatService {
             unawaited(BlitzNachrichtService.instanz.melden(
               conversationId: chatMsg.conversationId,
               absender: notifSender,
+              // ⚠️ Auf der Karte steht NUR das hier. Bei anonymen Besuchern
+              // gibt es keine Nummer und auch keinen Namen, den man zeigen
+              // dürfte — „Anonim" ist beides zugleich.
+              nummer: isAnonymous ? 'Anonim' : chatMsg.senderMitgliedernummer,
               text: chatMsg.displayMessage,
               kanal: chatMsg.channel,
               zeit: chatMsg.createdAt,
@@ -1044,6 +1048,14 @@ class ChatMessage {
   final int conversationId;
   final int senderId;
   final String senderName;
+
+  /// Die Mitgliedsnummer des Absenders, wenn der Server sie mitschickt.
+  ///
+  /// ⚠️ Sie ist das Einzige, was die Blitz-Karte anzeigt — siehe
+  /// [BlitzNachricht.nummer]. Der WebSocket liefert sie als
+  /// `sender_mitgliedernummer`; über andere Wege kann sie fehlen, und dann
+  /// steht auf der Karte „Mitglied" statt des Namens.
+  final String? senderMitgliedernummer;
   final String senderRole;
   final bool isAdmin;
   final String message;
@@ -1065,6 +1077,7 @@ class ChatMessage {
     required this.conversationId,
     required this.senderId,
     required this.senderName,
+    this.senderMitgliedernummer,
     required this.senderRole,
     required this.isAdmin,
     required this.message,
@@ -1082,6 +1095,10 @@ class ChatMessage {
       conversationId: json['conversation_id'] ?? 0,
       senderId: json['sender_id'] ?? 0,
       senderName: json['sender_name'] ?? '',
+      senderMitgliedernummer:
+          (json['sender_mitgliedernummer'] as String?)?.trim().isNotEmpty == true
+              ? (json['sender_mitgliedernummer'] as String).trim()
+              : null,
       senderRole: json['sender_role'] ?? '',
       isAdmin: json['is_admin'] ?? false,
       message: json['message'] ?? '',
