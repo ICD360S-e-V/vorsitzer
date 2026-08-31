@@ -2340,6 +2340,39 @@ class SipgateService {
     return r;
   }
 
+  /// Die Nummer für die schwebende Gesprächskarte — grösstenteils verdeckt.
+  ///
+  /// 🔴 WOZU. Die Karte schwebt über allem, was der Vorsitzende gerade tut,
+  /// und sie ist von einem Meter Abstand zu lesen. Wer im Wartezimmer, im Amt
+  /// oder im Bus daneben steht, hat sonst die vollständige Rufnummer des
+  /// Anrufers — eines Mitglieds, eines Arztes, einer Behörde. Im Vollbild
+  /// steht sie weiterhin ganz da: dorthin geht man absichtlich.
+  ///
+  /// Es bleiben die ersten zwei und die letzten drei Ziffern: genug, um einen
+  /// bekannten Anrufer wiederzuerkennen, zu wenig, um ihn anzurufen.
+  ///
+  /// ⚠️ KURZE NUMMERN BLEIBEN GANZ STEHEN. `110`, `112`, `116117`, `115` —
+  /// verdeckt ergäben sie Unsinn, sie sind niemandes Privatsache, und
+  /// ausgerechnet dort muss man sofort sehen, worum es geht.
+  ///
+  /// ⚠️ Gezählt werden ZIFFERN, nicht Zeichen: sonst verbrauchte ein `+49 `
+  /// die sichtbaren Stellen und man sähe von der eigentlichen Nummer nichts.
+  static String anruferVerdeckt(String? roh) {
+    final r = (roh ?? '').trim();
+    if (_anonym.contains(r.toLowerCase())) return 'Unbekannter Anrufer';
+    final ziffern = r.replaceAll(RegExp(r'\D'), '');
+    // Unter neun Ziffern lohnt das Verdecken nicht: es blieben zu wenige
+    // übrig, um überhaupt etwas zu erkennen — und Kurznummern sind dabei.
+    if (ziffern.length < 9) return anruferAnzeige(r);
+    final plus = r.startsWith('+') ? '+' : '';
+    final vorne = ziffern.substring(0, 2);
+    final hinten = ziffern.substring(ziffern.length - 3);
+    // Ein Punkt je verdeckter Ziffer: so bleibt die Länge sichtbar, und zwei
+    // verschiedene Anrufer sehen nicht gleich aus.
+    final mitte = '·' * (ziffern.length - 5);
+    return '$plus$vorne$mitte$hinten';
+  }
+
   /// Ob die Nummer des Anrufers unterdrückt ist.
   static bool anruferAnonym(String? roh) =>
       _anonym.contains((roh ?? '').trim().toLowerCase());
@@ -2988,5 +3021,17 @@ class SipgateGespraech {
         !(nameZiffern.isNotEmpty && nameZiffern == nummerZiffern) &&
         !SipgateService.anruferAnonym(n);
     return istEchterName ? n : SipgateService.anruferAnzeige(nummer);
+  }
+
+  /// Wie [anzeige], aber für die schwebende Karte: die Nummer verdeckt.
+  ///
+  /// ⚠️ Ein NAME bleibt stehen. Wer als Kontakt hinterlegt ist, steht ohnehin
+  /// nur mit dem Namen da, und den zu verdecken hiesse, die Karte unbrauchbar
+  /// zu machen — man wüsste nicht mehr, mit wem man spricht. Verdeckt wird,
+  /// was jemand abschreiben und benutzen kann: die Rufnummer.
+  String get anzeigeVerdeckt {
+    final voll = anzeige;
+    final nr = SipgateService.anruferAnzeige(nummer);
+    return voll == nr ? SipgateService.anruferVerdeckt(nummer) : voll;
   }
 }

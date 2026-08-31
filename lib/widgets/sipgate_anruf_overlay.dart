@@ -166,7 +166,7 @@ class _Karte extends StatelessWidget {
       // mithören — bei Gesundheits- oder Behördenthemen ist das kein Detail.
       return _rahmen(
         context, groesse, const Color(0xFF5E35B1), Icons.groups,
-        titel: 'Konferenz: ${z.beine.map((b) => b.anzeige).join(' + ')}',
+        titel: 'Konferenz: ${z.beine.map((b) => b.anzeigeVerdeckt).join(' + ')}',
         zeile: () => SipgateService.dauerUhr(g.dauerSekunden),
         knoepfe: [
           _rundKnopf(
@@ -234,8 +234,13 @@ class _Karte extends StatelessWidget {
                         // Nummer. Eine Konferenz mit einem Amt und einem
                         // Mitglied darf nicht wie ein einzelner Anruf aussehen.
                         z.konferenz
-                            ? 'Konferenz: ${z.beine.map((b) => b.anzeige).join(' + ')}'
-                            : g.anzeige,
+                            ? 'Konferenz: '
+                                '${z.beine.map((b) => b.anzeigeVerdeckt).join(' + ')}'
+                            // ⚠️ Verdeckt: die Karte schwebt über allem und
+                            // ist von einem Meter Abstand zu lesen. Im
+                            // Vollbild steht die Nummer ganz da — dorthin geht
+                            // man absichtlich.
+                            : g.anzeigeVerdeckt,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -259,7 +264,7 @@ class _Karte extends StatelessWidget {
                           // wundert man sich, warum die zweite Person schweigt.
                           final anderes = z.zweites != null && !z.konferenz
                               ? (z.zweites!.gehalten
-                                  ? ' · hält: ${z.zweites!.anzeige}'
+                                  ? ' · hält: ${z.zweites!.anzeigeVerdeckt}'
                                   : ' · 2 Gespräche')
                               : '';
                           // ⚠️ Zuerst, und mit eigenem Wortlaut: „die
@@ -270,8 +275,8 @@ class _Karte extends StatelessWidget {
                           if (g.vonGegenseiteGehalten) {
                             return 'In der Warteschleife · ${zeile()}$anderes';
                           }
-                          final nr = SipgateService.anruferAnzeige(g.nummer);
-                          if (verbunden && g.anzeige != nr) {
+                          final nr = SipgateService.anruferVerdeckt(g.nummer);
+                          if (verbunden && g.anzeigeVerdeckt != nr) {
                             return '${zeile()} · $nr$anderes';
                           }
                           return '${zeile()}$anderes';
