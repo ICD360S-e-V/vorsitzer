@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'api_service.dart';
 import 'chat_service.dart';
+import 'voice_call_service.dart' show iceServerEintraege;
 import 'logger_service.dart';
 
 final _log = LoggerService();
@@ -127,12 +128,26 @@ class RemoteControlService {
       final username = creds['username']?.toString();
       final password = creds['password']?.toString();
       if (uris.isEmpty || username == null || password == null) return empty;
-      final stun = uris.where((u) => u.startsWith('stun:')).toList();
-      final turn = uris.where((u) => u.startsWith('turn:') || u.startsWith('turns:')).toList();
-      final servers = <Map<String, dynamic>>[
-        if (stun.isNotEmpty) {'urls': stun},
-        if (turn.isNotEmpty) {'urls': turn, 'username': username, 'credential': password},
-      ];
+      // 🔴 EIN EINTRAG JE URI — niemals eine `urls`-LISTE.
+      //
+      // Hier stand die gruppierte Form, und sie ist auf dem Schreibtisch
+      // tödlich: die C++-Brücke von flutter_webrtc (Windows und Linux teilen
+      // sich `common/cpp/src/flutter_webrtc_base.cc`) liest `urls` in
+      // `IceServer.uri` — einen EINZELNEN String — und überschreibt ihn in
+      // jedem Schleifendurchlauf. Von N URIs überlebt nur die LETZTE. Android
+      // hat seinen eigenen Java-Pfad und behält alle, weshalb der Fehler mit
+      // Mitgliedern auf Telefonen nie auffiel.
+      //
+      // Die letzte URI ist `turns:…:5349` — genau der Transportweg, dessen
+      // TLS-Handschlag libwebrtc nicht zustande bringt (der eingebaute
+      // Wurzelspeicher `ssl_roots.h` kennt die Let's-Encrypt-Kette nicht).
+      // Ergebnis: null Relay-Kandidaten, und mit `iceTransportPolicy: relay`
+      // heisst das null Kandidaten überhaupt.
+      //
+      // Der Anrufdienst hat denselben Fehler schon einmal gehabt und dafür
+      // `iceServerEintraege()` bekommen. Die Fernwartung hat ihn nur nie
+      // benutzt — bis das erste Mitglied auf Windows die Sitzung öffnete.
+      final servers = iceServerEintraege(uris, username, password);
       if (servers.isEmpty) return empty;
       _cachedIceServers = {'iceServers': servers};
       final ttl = (creds['ttl'] as num?)?.toInt() ?? 86400;
@@ -369,6 +384,19 @@ class RemoteControlService {
   /// Neuverhandlung. Ältere Mitglieds-Apps übergehen den Rahmen stumm.
   void sendBildguete(String guete) => _sendInput({'t': 'q', 'g': guete});
 
+  /// Auf einen anderen Monitor der Gegenseite umschalten.
+  ///
+  /// ⚠️ Gibt es dort mehrere, war die Wahl bisher ein Münzwurf: die
+  /// Aufzählung der Monitore trägt kein Merkmal für „der Hauptbildschirm",
+  /// also wurde immer der erste genommen — womöglich der leere. Drüben wird
+  /// die Spur per `replaceTrack` getauscht, die Verbindung bleibt bestehen.
+  void sendBildschirm(int nr) => _sendInput({'t': 's', 'i': nr});
+
+  /// Monitore der Gegenseite, sobald sie geantwortet hat. Leer bei einem
+  /// Telefon.
+  List<String> get zielBildschirme => _zielBildschirme;
+  List<String> _zielBildschirme = const [];
+
   /// Systemtaste ohne Koordinaten: `back`, `home`, `recents`, `notifications`.
   ///
   /// Auf einem Telefon gibt es diese Ziele nicht als Fläche, die man anklicken
@@ -453,6 +481,7 @@ class RemoteControlService {
         _zielPlattform = e.plattform;
         _zielSteuerbar = e.steuerung;
         _zielBildFrei = e.bildFrei;
+        _zielBildschirme = e.bildschirme;
         if (!_zielSteuerbarController.isClosed) {
           _zielSteuerbarController.add(e.steuerung);
         }
@@ -620,6 +649,7 @@ class RemoteControlService {
     _zielPlattform = null;
     _zielSteuerbar = false;
     _zielBildFrei = true;
+    _zielBildschirme = const [];
   }
 }
 

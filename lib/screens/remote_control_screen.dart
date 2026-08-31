@@ -68,6 +68,7 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
   /// hält die Regelung drüben an — wer sie wählt, nimmt der Leitung das
   /// Nachjustieren ab und muss selbst wissen, was sie trägt.
   String _guete = 'automatik';
+  int _bildschirm = 0;
 
   // Chatstreifen neben dem Bild. Bewusst schmal und ohne Anhänge: er soll
   // „schauen Sie mal oben rechts" ermöglichen, nicht den Chatdialog ersetzen.
@@ -315,6 +316,26 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
                 _svc.mikrofonStumm(!_stumm);
                 setState(() => _stumm = !_stumm);
               },
+            ),
+          // Bildschirmwahl — nur wenn die Gegenseite mehr als einen hat.
+          // Bei einem Telefon ist die Liste leer, dann gibt es hier nichts zu
+          // wählen und der Knopf erscheint gar nicht.
+          if (_svc.zielBildschirme.length > 1)
+            PopupMenuButton<int>(
+              tooltip: 'Bildschirm',
+              icon: const Icon(Icons.desktop_windows_outlined),
+              initialValue: _bildschirm,
+              onSelected: (n) {
+                _svc.sendBildschirm(n);
+                setState(() => _bildschirm = n);
+              },
+              itemBuilder: (_) => [
+                for (var i = 0; i < _svc.zielBildschirme.length; i++)
+                  PopupMenuItem(
+                    value: i,
+                    child: Text('${i + 1}: ${_svc.zielBildschirme[i]}'),
+                  ),
+              ],
             ),
           // Bildgüte. Wirkt sofort auf dem Gerät des Mitglieds, ohne die
           // Sitzung neu auszuhandeln.
