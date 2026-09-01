@@ -237,15 +237,35 @@ class _ChatBereichState extends State<_ChatBereich> {
     });
   }
 
+  /// Beschriftung für eine Gesprächszeile: die Nummer und der Name.
+  ///
+  /// ⚠️ An EINER Stelle, weil die Liste und die Kopfzeile des geöffneten
+  /// Gesprächs dasselbe zeigen müssen. Zwei getrennte Rechnungen laufen
+  /// auseinander, und dann heisst dieselbe Person oben anders als in der Liste.
+  static ({String nummer, String name}) _beschriftung(Map<String, dynamic> g) {
+    final name = (g['gegenueber_name'] ?? g['member_name'])?.toString() ?? '';
+    final nummer =
+        (g['gegenueber_nr'] ?? g['mitgliedernummer'] ?? g['member_nr'])
+                ?.toString() ??
+            '';
+    return (nummer: nummer, name: name);
+  }
+
   void _oeffnen(Map<String, dynamic> g) {
     final id = g['id'];
+    final b = _beschriftung(g);
+    // In der Kopfzeile steht der Name, wenn es einen gibt: dort ist der Platz
+    // knapp, und man weiss beim Öffnen bereits, wen man angetippt hat.
+    final titel = b.name.isNotEmpty
+        ? b.name
+        : (b.nummer.isNotEmpty ? b.nummer : 'Gespräch ${g['id']}');
     showDialog(
       context: context,
       builder: (_) => LiveChatDialog(
         mitgliedernummer: widget.mitgliedernummer,
         userName: widget.userName,
         conversationId: id is int ? id : int.tryParse('$id'),
-        gegenueber: (g['gegenueber_name'] ?? g['member_name'])?.toString(),
+        gegenueber: titel,
       ),
     ).then((_) => _laden0());
   }
@@ -271,25 +291,54 @@ class _ChatBereichState extends State<_ChatBereich> {
           final g = _gespraeche[i];
           final ungelesen = (g['unread_count'] as num?)?.toInt() ?? 0;
           final letzte = g['last_message']?.toString() ?? '';
+          // Nummer oben, Name darunter — dieselbe Ordnung wie im Posteingang
+          // des Vorsitzes. Die Nummer ist im Verein die eindeutige Kennung
+          // (zwei Menschen können denselben Namen tragen, und Behörden suchen
+          // nach ihr); der Name kommt dazu, er ersetzt sie nicht.
+          final b = _beschriftung(g);
+          final name = b.name;
+          final nummer = b.nummer;
+          final oben = nummer.isNotEmpty
+              ? nummer
+              : (name.isNotEmpty ? name : 'Gespräch ${g['id']}');
+          // Nur zeigen, wenn er etwas hinzufügt — sonst stünde er zweimal da.
+          final zeigeName = name.isNotEmpty && name != oben;
           return Card(
             color: F.flaeche,
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: const Color(0xFF4a90d9),
+                // Der Anfangsbuchstabe kommt vom NAMEN, nicht von der Nummer:
+                // ein Kreis mit „V" für jeden wäre keine Unterscheidung.
                 child: Text(
-                  ((g['gegenueber_name'] ?? g['member_name'])?.toString() ?? '?').characters.first.toUpperCase(),
+                  name.isEmpty ? '?' : name.characters.first.toUpperCase(),
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
               title: Text(
-                (g['gegenueber_name'] ?? g['member_name'])?.toString() ?? 'Gespräch ${g['id']}',
+                oben,
                 style: TextStyle(fontWeight: FontWeight.w600, color: F.textStark),
               ),
-              subtitle: Text(
-                letzte.isEmpty ? 'Noch keine Nachricht' : letzte,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: F.textSchwach),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (zeigeName)
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: F.textSchwach,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  Text(
+                    letzte.isEmpty ? 'Noch keine Nachricht' : letzte,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: F.textLeise, fontSize: 12),
+                  ),
+                ],
               ),
               trailing: ungelesen > 0
                   ? Badge(label: Text('$ungelesen'))
