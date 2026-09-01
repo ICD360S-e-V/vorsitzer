@@ -339,10 +339,10 @@ class NtfyService {
 
       angezeigteMeldungen++;
       NotificationService().show(
-        title: istChatNachricht ? 'Neue Nachricht' : title,
-        body: istChatNachricht
-            ? 'Sie haben eine neue Nachricht von einem Mitglied.'
-            : body,
+        title: istChatNachricht
+            ? NotificationService.chatBenachrichtigungTitel
+            : title,
+        body: istChatNachricht ? '' : body,
       );
     } on FormatException {
       // Not valid JSON, ignore (could be keepalive)

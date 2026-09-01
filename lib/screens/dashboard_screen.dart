@@ -707,10 +707,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 // unten — die steht in der App, hinter der App-Sperre. In die
                 // Benachrichtigung gehen sie nicht mehr: die liegt auf dem
                 // Sperrbildschirm. Siehe [NotificationService.showChatMessage].
-                NotificationService().showChatMessage(
-                  conversationId: id,
-                  unreadCount: unreadCount,
-                );
+                NotificationService().showChatMessage(conversationId: id);
 
                 _chatBubbles[id] = ChatBubbleEntry(
                   conversationId: id,

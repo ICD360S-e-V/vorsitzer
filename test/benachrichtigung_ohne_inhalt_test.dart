@@ -36,8 +36,29 @@ void main() {
     expect(rumpf.contains(r'$message'), isFalse);
     expect(rumpf.contains('bodyPreview'), isFalse,
         reason: 'Textvorschau gehört nicht in die Benachrichtigung');
-    expect(rumpf.contains('Neue Nachricht'), isTrue,
+    expect(rumpf.contains('chatBenachrichtigungTitel'), isTrue,
         reason: 'es soll weiterhin gemeldet werden, DASS etwas da ist');
+
+    // ⚠️ Entscheidung des Users, 01.09.2026: NUR der Titel, kein Text.
+    expect(RegExp(r"body:\s*''").hasMatch(rumpf), isTrue,
+        reason: 'die Chat-Benachrichtigung trägt keinen Text');
+  });
+
+  test('es gibt genau EINEN Wortlaut, den sich beide Wege teilen', () {
+    final n = File('lib/services/notification_service.dart').readAsStringSync();
+    final t = File('lib/services/ntfy_service.dart').readAsStringSync();
+
+    // ⚠️ Zwei getrennte Zeichenketten würden auseinanderlaufen, und dann
+    // leckte wieder einer der beiden Wege. Der ntfy-Weg muss die Konstante
+    // benutzen, nicht seinen eigenen Text.
+    expect(
+        n.contains(
+            "static const String chatBenachrichtigungTitel = 'Neue Nachricht'"),
+        isTrue);
+    expect(t.contains('NotificationService.chatBenachrichtigungTitel'), isTrue,
+        reason: 'ntfy muss denselben Wortlaut verwenden, nicht einen eigenen');
+    expect(t.contains('Sie haben eine neue Nachricht'), isFalse,
+        reason: 'kein zweiter, eigener Wortlaut im ntfy-Weg');
   });
 
   test('ntfy-Chatmeldungen werden an der Marke speech_balloon entschärft', () {

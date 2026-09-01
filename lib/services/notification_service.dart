@@ -603,6 +603,13 @@ class NotificationService {
     }
   }
 
+  /// Der EINZIGE Wortlaut, den eine Chat-Benachrichtigung tragen darf.
+  ///
+  /// ⚠️ Steht hier und nicht zweimal im Code: [NtfyService] baut dieselbe
+  /// Meldung, und zwei getrennte Zeichenketten würden früher oder später
+  /// auseinanderlaufen — dann leckte wieder eine der beiden.
+  static const String chatBenachrichtigungTitel = 'Neue Nachricht';
+
   /// Die gewöhnliche Chat-Benachrichtigung — bewusst OHNE Namen und OHNE Text.
   ///
   /// 🔴 Bis zum 01.09.2026 stand hier `'$senderName: neue Nachricht'` als Titel
@@ -622,28 +629,27 @@ class NotificationService {
   /// Nachricht der Zweck der Sache, und die Karte ist dafür eigens hergerichtet
   /// (Mitgliedsnummer statt Name, Text deckt sich nach kurzem Lesen selbst zu).
   ///
-  /// ⚠️ `unreadCount` ist keine Angabe ÜBER ein Mitglied, sondern über den
-  /// eigenen Posteingang — er darf deshalb dastehen. Er ersetzt zugleich die
-  /// frühere Unterscheidbarkeit nach Absender, die KDE Plasma davon abhielt,
-  /// gleichlautende Meldungen als Dubletten zu drosseln
+  /// ⚠️ NUR der Titel, kein Text — Entscheidung des Users, 01.09.2026: „pune
+  /// doar neue nachricht si atat". Auch die Zahl der ungelesenen Nachrichten
+  /// steht nicht mehr dabei. Wer wissen will, worum es geht, öffnet die App;
+  /// dort steht alles, hinter der App-Sperre.
+  ///
+  /// ⚠️ Damit sind alle Chat-Benachrichtigungen wortgleich. Das war früher
+  /// anders, und zwar mit Grund: die Unterscheidung nach Absender hielt KDE
+  /// Plasma davon ab, sie als Dubletten zu drosseln
   /// (`org.freedesktop.Notifications.Error.ExcessNotificationGeneration`).
-  /// Ob das reicht, ist auf einem Plasma-Rechner nicht nachgemessen; die
-  /// Kennung je Unterhaltung unterscheidet die Meldungen ohnehin.
-  Future<void> showChatMessage({
-    int? conversationId,
-    int unreadCount = 1,
-  }) async {
-    _log.info('Chat-Benachrichtigung (ungelesen=$unreadCount, '
-        'chatOffen=$_isChatDialogOpen)',
+  /// Der Preis ist bewusst in Kauf genommen — die Kennung je Unterhaltung
+  /// unterscheidet die Meldungen weiterhin, und selbst wenn Plasma eine
+  /// zweite unterdrückt: die App zeigt die Nachricht ohnehin.
+  Future<void> showChatMessage({int? conversationId}) async {
+    _log.info('Chat-Benachrichtigung (chatOffen=$_isChatDialogOpen)',
         tag: 'NOTIF');
 
     // Nur benachrichtigen wenn Chat-Dialog NICHT geöffnet ist
     if (!_isChatDialogOpen) {
       await show(
-        title: 'Neue Nachricht',
-        body: unreadCount > 1
-            ? 'Sie haben $unreadCount neue Nachrichten von einem Mitglied.'
-            : 'Sie haben eine neue Nachricht von einem Mitglied.',
+        title: chatBenachrichtigungTitel,
+        body: '',
         payload: 'chat:$conversationId',
       );
 
