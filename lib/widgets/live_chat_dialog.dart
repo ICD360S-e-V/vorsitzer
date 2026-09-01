@@ -30,11 +30,26 @@ class LiveChatDialog extends StatefulWidget {
   final String userName;
   final CallOfferEvent? pendingCall;
 
+  /// Ein bestimmtes Gespräch statt „mein Support-Gespräch".
+  ///
+  /// ⚠️ Ohne das öffnet der Dialog immer die eine Unterhaltung, die
+  /// `chat/start.php` zurückgibt. Wer mit zwei Personen schreibt — ein
+  /// Vorstandsmitglied mit dem Vorsitz UND der Schatzmeisterin — käme an die
+  /// zweite nie heran, und zwar ohne jede Fehlermeldung: die App zeigte
+  /// einfach immer dieselbe.
+  final int? conversationId;
+
+  /// Name für die Kopfzeile. Bei einem Direktchat ist „Live Chat" zu wenig —
+  /// man muss sehen, mit WEM man gerade schreibt.
+  final String? gegenueber;
+
   const LiveChatDialog({
     super.key,
     required this.mitgliedernummer,
     required this.userName,
     this.pendingCall,
+    this.conversationId,
+    this.gegenueber,
   });
 
   @override
@@ -309,6 +324,17 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
   Future<void> _initChat() async {
     _log.info('LiveChat: _initChat() starting for ${widget.mitgliedernummer}', tag: 'CHAT');
     try {
+      // Ein vorgegebenes Gespräch wird NICHT über startChat geholt: das würde
+      // stillschweigend das eigene Support-Gespräch zurückgeben statt der
+      // gewünschten Unterhaltung.
+      if (widget.conversationId != null) {
+        _conversationId = widget.conversationId;
+        _log.info('LiveChat: vorgegebenes Gespräch $_conversationId', tag: 'CHAT');
+        await _loadMessages();
+        await _connectWebSocket();
+        return;
+      }
+
       // Start or get existing conversation via REST API
       _log.debug('LiveChat: Calling startChat API...', tag: 'CHAT');
       final result = await _apiService.startChat(widget.mitgliedernummer);
@@ -1263,11 +1289,11 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
         const Icon(Icons.chat, color: Color(0xFF4a90d9), size: 20),
         const SizedBox(width: 4),
         // 147 dp Überlauf auf dem Pixel 8 — dieselbe Kopfzeile wie überall.
-        const Expanded(
+        Expanded(
           child: Text(
-            'Live Chat',
+            widget.gegenueber ?? 'Live Chat',
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
         ),
 
