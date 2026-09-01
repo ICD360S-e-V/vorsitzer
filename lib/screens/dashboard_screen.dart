@@ -136,6 +136,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   // target screen le consumă în initState + apelează onFocusConsumed → clear.
   int? _pendingFocusTicketId;
   int? _pendingFocusTerminId;
+
+  /// Tag des gesuchten Termins — der Terminbildschirm stellt danach seine
+  /// Woche ein. Siehe [TerminverwaltungScreen.initialFocusTerminDate].
+  DateTime? _pendingFocusTerminDatum;
   int? _pendingFocusRoutineExecutionId;
 
   // Unread chat messages counter
@@ -1501,7 +1505,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   /// nicht minimiert ist: unter X11 hebt `focus()` allein ein Fenster nicht
   /// aus der Fensterliste heraus, es setzt nur den Eingabefokus — der Sprung
   /// führte dann in ein Fenster, das man nicht sieht.
-  Future<void> _dockOeffnen(String bereich, int? id) async {
+  Future<void> _dockOeffnen(String bereich, int? id, String datum) async {
     try {
       await windowManager.show();
       await windowManager.focus();
@@ -1513,15 +1517,36 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     switch (bereich) {
       case DockBereich.mitglieder:
         setState(() => _selectedMenuIndex = 1);
+        if (id == null) return;
+        // Genau derselbe Weg wie beim Antippen in der Mitgliederverwaltung
+        // (`onUserTap`) — dieselbe Karte, dieselben Reiter, dieselben Rechte.
+        //
+        // ⚠️ Wird das Mitglied nicht gefunden, bleibt es beim Reiter. Das ist
+        // KEIN gedachter Fall: `_users` ist beim allerersten Aufbau noch leer,
+        // und die Leiste kann eine Zeile von vorhin anbieten.
+        final gesucht = _users.where((u) => u.id == id).firstOrNull;
+        if (gesucht != null) _showUserDetailsDialog(gesucht);
+
       case DockBereich.termine:
         setState(() {
           _selectedMenuIndex = 3;
-          // Auf die angetippte Zeile springen. Der Bildschirm verbraucht das
-          // Ziel selbst und meldet sich über `onFocusConsumed` zurück.
+          // Der Bildschirm öffnet daraufhin den Termin-Dialog und meldet sich
+          // über `onFocusConsumed` zurück.
           if (id != null) _pendingFocusTerminId = id;
+          // ⚠️ MIT DATUM. Ohne es lädt der Terminbildschirm nur die laufende
+          // Woche; ein Termin von übernächster Woche stünde dort nicht in der
+          // Liste und der Sprung kehrte wortlos um.
+          _pendingFocusTerminDatum = DateTime.tryParse(datum);
         });
+
       case DockBereich.chat:
-        if (_isAdminChatOpen) return;
+        if (_isAdminChatOpen) {
+          // ⚠️ Der Dialog steht schon offen: `initialConversationId` greift
+          // nur beim Öffnen. Ohne diesen Weg passierte gar nichts — das
+          // Fenster käme nach vorn und zeigte weiter die alte Person.
+          if (id != null) AdminChatDialog.wunschUnterhaltung.value = id;
+          return;
+        }
         _showAdminChatDialogInternal(null, initialConversationId: id);
     }
   }
@@ -2655,7 +2680,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         return TerminverwaltungScreen(
           currentMitgliedernummer: widget.currentMitgliedernummer,
           initialFocusTerminId: _pendingFocusTerminId,
-          onFocusConsumed: () => setState(() => _pendingFocusTerminId = null),
+          initialFocusTerminDate: _pendingFocusTerminDatum,
+          onFocusConsumed: () => setState(() {
+            _pendingFocusTerminId = null;
+            _pendingFocusTerminDatum = null;
+          }),
         );
       case 4:
         return VereinverwaltungScreen(

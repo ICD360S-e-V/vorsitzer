@@ -37,6 +37,18 @@ const int _smsMaxZeichen = 800;
 
 /// Admin Chat Dialog for Vorsitzer to manage and respond to member chats
 class AdminChatDialog extends StatefulWidget {
+  /// Von aussen gewünschte Unterhaltung, während der Dialog SCHON offen ist.
+  ///
+  /// ⚠️ `initialConversationId` greift nur beim Öffnen. Wer aus der
+  /// Schnellstart-Leiste eine zweite Unterhaltung antippt, während der Chat
+  /// bereits offen steht, löste vorher **gar nichts** aus — das Fenster kam
+  /// nach vorn und zeigte weiter die alte Person. Ein stiller Fehlschlag an
+  /// genau der Stelle, an der man ihn für einen Klickfehler hält.
+  ///
+  /// ⚠️ Bewusst KEIN Schliessen-und-neu-Öffnen: im Eingabefeld kann eine halb
+  /// geschriebene Antwort stehen.
+  static final ValueNotifier<int?> wunschUnterhaltung = ValueNotifier<int?>(null);
+
   final String mitgliedernummer;
   final String userName;
   final CallOfferEvent? pendingCall;
@@ -179,6 +191,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
     // Mark chat dialog as open - stops notifications while viewing
     NotificationService.setChatDialogOpen(true);
+
+    // Wünsche von aussen annehmen, solange dieser Dialog offen ist.
+    AdminChatDialog.wunschUnterhaltung.addListener(_wunschAnnehmen);
 
     // Configure VoiceCallService signaling via ChatService
     _signalingHandler = (message) {
@@ -325,6 +340,12 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
     // Mark chat dialog as closed - re-enable notifications
     NotificationService.setChatDialogOpen(false);
+
+    // ⚠️ Zuhörer abmelden UND den Wunsch leeren. Bliebe dort eine Zahl stehen,
+    // spränge der Chat beim nächsten Öffnen sofort in eine Unterhaltung, die
+    // vor Minuten einmal angetippt wurde.
+    AdminChatDialog.wunschUnterhaltung.removeListener(_wunschAnnehmen);
+    AdminChatDialog.wunschUnterhaltung.value = null;
 
     _networkPollTimer?.cancel();
     _typingTimer?.cancel();
@@ -498,6 +519,25 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Fehler'), backgroundColor: Colors.red));
     }
+  }
+
+  /// Eine von aussen gewünschte Unterhaltung auswählen (Schnellstart-Leiste,
+  /// während der Dialog schon offen ist).
+  ///
+  /// ⚠️ Der Wunsch wird IMMER zurückgesetzt, auch wenn die Unterhaltung nicht
+  /// in der geladenen Liste steht. Bliebe er stehen, spränge der Chat beim
+  /// nächsten Laden unvermittelt woandershin — lange nachdem der Klick
+  /// vergessen ist.
+  void _wunschAnnehmen() {
+    final id = AdminChatDialog.wunschUnterhaltung.value;
+    if (id == null) return;
+    AdminChatDialog.wunschUnterhaltung.value = null;
+    if (!mounted || _isDisposed) return;
+    final ziel = _conversations.firstWhere(
+      (c) => _parseConvId(c['id']) == id,
+      orElse: () => <String, dynamic>{},
+    );
+    if (ziel.isNotEmpty) _selectConversation(ziel);
   }
 
   Future<void> _selectConversation(Map<String, dynamic> conversation) async {
