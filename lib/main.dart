@@ -6,7 +6,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'screens/login_with_code_screen.dart';
 import 'screens/blitz_fenster_app.dart';
+import 'screens/dock_fenster_app.dart';
 import 'models/blitz_nachricht.dart';
+import 'models/dock_eintrag.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'services/api_service.dart';
 import 'utils/einzelne_instanz.dart';
@@ -33,18 +35,26 @@ import 'widgets/app_sperre_huelle.dart';
 // Windows-only package
 import 'package:windows_single_instance/windows_single_instance.dart';
 
-/// Gibt das Fensterargument zurück, wenn dieses Isolate ein Blitz-Fenster
-/// bedient — sonst `null`.
+/// Gibt das Fensterargument zurück, wenn dieses Isolate ein NEBENFENSTER
+/// bedient (Blitz oder Schnellstart-Leiste) — sonst `null`.
 ///
-/// ⚠️ Fehler werden geschluckt und als „kein Blitz-Fenster" gewertet. Das ist
+/// ⚠️ Fehler werden geschluckt und als „Hauptfenster" gewertet. Das ist
 /// Absicht: schlägt die Erkennung fehl, muss die App normal starten. Ein
 /// Hauptfenster, das wegen einer Kanalstörung nie hochkommt, wäre der weitaus
-/// schlimmere Fehler als ein Blitz, der einmal ausbleibt.
-Future<String?> _blitzFensterArgument() async {
+/// schlimmere Fehler als ein Blitz oder eine Leiste, die einmal ausbleibt.
+///
+/// ⚠️ EIN Aufruf für alle Nebenfenster. `WindowController.fromCurrentEngine()`
+/// je Fenstersorte zu rufen hiesse, den Plattformkanal beim Start mehrfach zu
+/// befragen — und beim zweiten Anlauf nach einem Fehlschlag des ersten stünde
+/// die Reihenfolge der Prüfungen für das Ergebnis gerade, nicht das Argument.
+Future<String?> _nebenfensterArgument() async {
   try {
     final controller = await WindowController.fromCurrentEngine();
     final arg = controller.arguments;
-    if (arg.startsWith('$kBlitzFensterArgument:')) return arg;
+    if (arg.startsWith('$kBlitzFensterArgument:') ||
+        arg.startsWith('$kDockFensterArgument:')) {
+      return arg;
+    }
   } catch (_) {
     // Plugin noch nicht bereit oder gar nicht vorhanden → Hauptfenster.
   }
@@ -55,7 +65,7 @@ void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // ══════════════════════════════════════════════════════════════════
-  // BLITZ-FENSTER? Dann hier abbiegen — und zwar VOR allem anderen.
+  // NEBENFENSTER? Dann hier abbiegen — und zwar VOR allem anderen.
   //
   // Jedes Fenster von desktop_multi_window bekommt eine eigene Engine und
   // damit ein eigenes Isolate, in dem `main()` ein zweites Mal läuft. Der
@@ -69,9 +79,13 @@ void main(List<String> args) async {
   // gesetzt (linux/runner/my_application.cc). Unter Windows und macOS
   // entsteht gar kein Blitz-Fenster, also gibt es auch nichts zu erkennen.
   if (Platform.isLinux) {
-    final blitzArgument = await _blitzFensterArgument();
-    if (blitzArgument != null) {
-      await blitzFensterStarten(blitzArgument);
+    final nebenfenster = await _nebenfensterArgument();
+    if (nebenfenster != null) {
+      if (nebenfenster.startsWith('$kDockFensterArgument:')) {
+        await dockFensterStarten(nebenfenster);
+      } else {
+        await blitzFensterStarten(nebenfenster);
+      }
       return;
     }
   }

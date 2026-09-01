@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../services/secure_cloud_service.dart';
 import '../widgets/cloud_unlock_dialog.dart';
@@ -48,6 +49,9 @@ import '../widgets/sturmwarnung_broadcast_dialog.dart';
 import '../services/global_chat_service.dart';
 import '../services/blitz_nachricht_service.dart';
 import '../services/blitz_fenster_steuerung.dart';
+import '../services/dock_fenster_steuerung.dart';
+import '../models/dock_eintrag.dart';
+import '../utils/dock_eintraege_bauen.dart';
 import 'blitz_vollbild_screen.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/incoming_call_dialog.dart';
@@ -136,6 +140,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   // Unread chat messages counter
   int _unreadChatCount = 0;
+
+  /// Letzter an die Schnellstart-Leiste gemeldeter Chat-Zähler. `null` =
+  /// noch nie gemeldet, also beim ersten Aufbau einmal senden.
+  int? _dockZuletztGesendet;
   StreamSubscription<ChatMessage>? _messageSubscription;
   StreamSubscription<CallOfferEvent>? _callOfferSubscription;
   StreamSubscription<TicketNotificationEvent>? _ticketNotificationSubscription;
@@ -255,6 +263,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       if (!mounted || _isAdminChatOpen) return;
       _showAdminChatDialogInternal(null, initialConversationId: convId);
     };
+
+    // Die Schnellstart-Leiste: drei Symbole am rechten Bildschirmrand, die
+    // Mitglieder, Termine und offene Unterhaltungen zeigen, ohne dass das
+    // Hauptfenster aus der Fensterliste geholt werden muss.
+    //
+    // ⚠️ Erst die Lieferanten, DANN starten. Andersherum fragt die Leiste in
+    // der Sekunde ihres Hochfahrens in ein Loch und zeigt „Nicht angemeldet",
+    // obwohl sie gerade eben aus einem angemeldeten Dashboard entstanden ist.
+    if (DockFensterSteuerung.instanz.istMoeglich) {
+      DockFensterSteuerung.instanz
+        ..datenGeber = _dockDaten
+        ..onOeffnen = _dockOeffnen;
+      unawaited(DockFensterSteuerung.instanz.starten().then((ok) {
+        if (ok) _dockStandSenden();
+      }));
+    }
 
     _currentEmail = widget.currentEmail;
     // Badge only — one request; the actual feed polling runs server-side.
@@ -1420,7 +1444,110 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     }
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // Schnellstart-Leiste (nur Linux)
+  // ══════════════════════════════════════════════════════════════════
+
+  /// Liefert die Liste, die die Leiste anzeigen soll.
+  ///
+  /// ⚠️ Läuft im HAUPTFENSTER, gerufen aus der Engine der Leiste über
+  /// [kDockKanal]. Deshalb steht hier `_apiService` mit gültigem Token zur
+  /// Verfügung — in der Leiste selbst gäbe es das nicht.
+  Future<List<DockEintrag>> _dockDaten(String bereich) async {
+    switch (bereich) {
+      case DockBereich.mitglieder:
+        // Aus dem, was ohnehin schon geladen ist. Eine eigene Abfrage wäre
+        // eine zweite Liste, die von der im Bildschirm abweichen könnte.
+        return DockZeilen.mitglieder(_users);
+
+      case DockBereich.termine:
+        _terminService.setToken(_apiService.token);
+        final jetzt = DateTime.now();
+        final res = await _terminService.getAllTermine(
+          from: DateTime(jetzt.year, jetzt.month, jetzt.day),
+          to: jetzt.add(DockZeilen.terminFenster),
+        );
+        if (res['success'] != true) {
+          // ⚠️ Werfen, nicht leer zurückgeben. `DockFensterSteuerung` macht
+          // daraus „Laden fehlgeschlagen"; eine leere Liste hiesse auf dem
+          // Schirm „keine Termine" — und danach richtet sich jemand.
+          throw StateError('termine_list: ${res['message'] ?? 'kein Erfolg'}');
+        }
+        final roh = (res['termine'] as List?) ?? const [];
+        return DockZeilen.termine(
+          roh.map((t) => Termin.fromJson(Map<String, dynamic>.from(t as Map)))
+              .toList(),
+          jetzt,
+        );
+
+      case DockBereich.chat:
+        final res = await _apiService
+            .getChatConversations(widget.currentMitgliedernummer);
+        if (res['success'] != true) {
+          throw StateError('chat_conversations: kein Erfolg');
+        }
+        return DockZeilen.chat(
+          List<Map<String, dynamic>>.from(res['conversations'] ?? const []),
+        );
+
+      default:
+        return const [];
+    }
+  }
+
+  /// „Im Programm öffnen" aus der Leiste.
+  ///
+  /// ⚠️ `show()` VOR `focus()`, und beides auch dann, wenn das Fenster gar
+  /// nicht minimiert ist: unter X11 hebt `focus()` allein ein Fenster nicht
+  /// aus der Fensterliste heraus, es setzt nur den Eingabefokus — der Sprung
+  /// führte dann in ein Fenster, das man nicht sieht.
+  Future<void> _dockOeffnen(String bereich, int? id) async {
+    try {
+      await windowManager.show();
+      await windowManager.focus();
+    } catch (e) {
+      _log.warning('Hauptfenster kam nicht nach vorn: $e', tag: 'DOCK');
+    }
+    if (!mounted) return;
+
+    switch (bereich) {
+      case DockBereich.mitglieder:
+        setState(() => _selectedMenuIndex = 1);
+      case DockBereich.termine:
+        setState(() {
+          _selectedMenuIndex = 3;
+          // Auf die angetippte Zeile springen. Der Bildschirm verbraucht das
+          // Ziel selbst und meldet sich über `onFocusConsumed` zurück.
+          if (id != null) _pendingFocusTerminId = id;
+        });
+      case DockBereich.chat:
+        if (_isAdminChatOpen) return;
+        _showAdminChatDialogInternal(null, initialConversationId: id);
+    }
+  }
+
+  /// Abzeichen an die Leiste schieben.
+  ///
+  /// ⚠️ NUR der Chat trägt eine Zahl. Für „heute fällige Termine" gäbe es
+  /// keine Quelle, die schon läuft — es bräuchte eine eigene, regelmässige
+  /// Abfrage, und genau davon hat dieses Programm bereits zu viele (siehe
+  /// die nächtliche Abfragelast, die das Telefon leer gezogen hat). Die
+  /// Termine des Tages stehen im Panel, sobald man es öffnet, und die
+  /// heutigen sind dort hervorgehoben.
+  void _dockStandSenden() {
+    if (!DockFensterSteuerung.instanz.istMoeglich) return;
+    unawaited(DockFensterSteuerung.instanz.standSetzen({
+      DockBereich.chat: _unreadChatCount,
+    }));
+  }
+
   Future<void> _logout() async {
+    // ⚠️ ZUERST die Leiste entwaffnen, vor dem Verwerfen der Token. Sie steht
+    // über allen Fenstern und überlebt das Dashboard; würde sie danach noch
+    // einmal fragen, lieferte sie die Namen des abgemeldeten Kontos an
+    // jemanden, der gerade nicht mehr angemeldet ist.
+    await DockFensterSteuerung.instanz.abmelden();
+
     // Clear API tokens
     await _apiService.logout();
     // Beim Abmelden faellt auch das App-Passwort weg: es gehoert zu
@@ -1551,6 +1678,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   @override
   Widget build(BuildContext context) {
+    // Abzeichen der Schnellstart-Leiste nachziehen.
+    //
+    // ⚠️ HIER und nicht an den vier Stellen, die `_unreadChatCount` ändern.
+    // Jede dieser Stellen sitzt in einem `setState`, also führt jede ohnehin
+    // hierher — und eine fünfte, die jemand später hinzufügt, ebenfalls. Vier
+    // Aufrufe von Hand einzustreuen heisst, dass der nächste vergessen wird
+    // und die Zahl auf der Leiste still stehen bleibt.
+    //
+    // ⚠️ Der Vergleich ist die ganze Absicherung: ohne ihn ginge bei JEDEM
+    // Rahmen eine Kanalnachricht hinaus. Und der Aufruf setzt kein
+    // `setState`, kann also keine Schleife auslösen.
+    if (_dockZuletztGesendet != _unreadChatCount) {
+      _dockZuletztGesendet = _unreadChatCount;
+      _dockStandSenden();
+    }
+
     final isMobile = ResponsiveLayout.isMobile(context);
     // Weather pill: compact variant on phones (<600px), full otherwise (tablets — including Android — and desktop).
     final showWeatherCompact = MediaQuery.of(context).size.width < 600;
