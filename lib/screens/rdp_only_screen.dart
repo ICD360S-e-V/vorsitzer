@@ -340,7 +340,8 @@ class _RdpOnlyScreenState extends State<RdpOnlyScreen> {
                 leading: const Icon(Icons.lock_outline),
                 title: const Text('Jetzt sperren'),
                 subtitle: const Text(
-                    'Fragt beim naechsten Antippen nach dem App-Passwort'),
+                    'Fragt sofort nach dem App-Passwort — sonst wird nur beim '
+                    'Start der App gefragt'),
                 onTap: () => Navigator.pop(ctx, 'sperren'),
               ),
             ListTile(

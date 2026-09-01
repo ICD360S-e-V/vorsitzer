@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../services/api_service.dart';
 import '../services/device_key_service.dart';
@@ -14,11 +13,18 @@ import '../utils/sperre_passwort.dart';
 /// deckt sie auch offene Dialoge und Vollbildseiten ab. Läge sie darunter,
 /// bliebe ein geöffneter Dialog beim Sperren sichtbar und bedienbar.
 ///
-/// ⚠️ Im Normalfall ist das hier nur ein [Listener] um das Kind — kein Stack,
-/// keine Überlagerung. Der Kommentar in `main.dart` hält fest, dass ein
-/// dauerhaft eingehängtes Overlay dort einmal die App auf Android hat
+/// ⚠️ Im Normalfall reicht sie das Kind unverändert durch — kein Stack, keine
+/// Überlagerung, kein Lauscher. Der Kommentar in `main.dart` hält fest, dass
+/// ein dauerhaft eingehängtes Overlay dort einmal die App auf Android hat
 /// einfrieren lassen; die Sperrfläche entsteht deshalb erst, wenn wirklich
 /// gesperrt ist.
+///
+/// ⚠️ Bis zum 02.09.2026 hingen hier ein `Listener` über dem gesamten Baum und
+/// ein Haken in `HardwareKeyboard`, um jede Berührung und jeden Tastendruck zu
+/// vermerken — Futter für die Leerlaufsperre. Die gibt es nicht mehr
+/// (Entscheidung des Users, siehe `AppSperreService`), also sind sie weg. Ein
+/// Lauscher, der über jedem Zeigerereignis der App liegt und nichts mehr
+/// bewirkt, ist keine tote Zeile, sondern laufende Arbeit bei jeder Wischgeste.
 class AppSperreHuelle extends StatefulWidget {
   const AppSperreHuelle({super.key, required this.child});
 
@@ -37,20 +43,14 @@ class _AppSperreHuelleState extends State<AppSperreHuelle>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _sperre.addListener(_neu);
-    _sperre.taktStarten();
-    // Tastatur zählt auch als Bedienung — auf dem Rechner tippt man lange,
-    // ohne den Zeiger zu bewegen, und würde sonst mitten im Satz gesperrt.
-    HardwareKeyboard.instance.addHandler(_taste);
     _anmeldungBeobachten();
   }
 
   @override
   void dispose() {
     _anmeldeWache?.cancel();
-    HardwareKeyboard.instance.removeHandler(_taste);
     WidgetsBinding.instance.removeObserver(this);
     _sperre.removeListener(_neu);
-    _sperre.taktStoppen();
     super.dispose();
   }
 
@@ -108,26 +108,17 @@ class _AppSperreHuelleState extends State<AppSperreHuelle>
     _sperre.laden();
   }
 
-  /// Gibt immer `false` zurück: wir hören nur mit, wir verbrauchen nichts.
-  bool _taste(KeyEvent _) {
-    _sperre.vermerkeBedienung();
-    return false;
-  }
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // ⚠️ In den Hintergrund zu gehen sperrt NICHT. Das ist der ganze Punkt der
+    // Änderung vom 02.09.2026: wer kurz in den Kalender schaut oder einen
+    // Anruf annimmt, soll danach weiterarbeiten können. Gesperrt wird beim
+    // Neustart der App und über den Schloss-Knopf.
     if (state == AppLifecycleState.resumed) {
-      // ⚠️ Hier steckt der Sinn der Uhrzeit-Rechnung: war die App zwei Stunden
-      // im Hintergrund, lief kein Takt — die Zeit ist trotzdem vergangen.
-      _sperre.pruefen();
-      _sperre.taktStarten();
-      // Kommt die App über dem gesperrten Gerät nach vorn (Anruf, Tipp auf eine
-      // Benachrichtigung), sofort sperren — unabhängig von den 15 Minuten.
+      // Einzige Ausnahme: kommt die App über dem gesperrten GERÄT nach vorn
+      // (Anruf-Vollbild, Tipp auf eine Benachrichtigung am Sperrbildschirm),
+      // wären die Akten ohne Geräte-PIN sichtbar. Dann sofort sperren.
       unawaited(_sperre.ueberLockschirmPruefen());
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden) {
-      // Den Takt anhalten spart Strom; gemerkt wird ohnehin der Zeitpunkt.
-      _sperre.taktStoppen();
     }
   }
 
@@ -153,14 +144,7 @@ class _AppSperreHuelleState extends State<AppSperreHuelle>
 
   @override
   Widget build(BuildContext context) {
-    final kind = Listener(
-      // `translucent`: mithören, ohne einem Knopf darunter etwas wegzunehmen.
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => _sperre.vermerkeBedienung(),
-      onPointerMove: (_) => _sperre.vermerkeBedienung(),
-      onPointerSignal: (_) => _sperre.vermerkeBedienung(),
-      child: widget.child,
-    );
+    final kind = widget.child;
 
     // Vor der Anmeldung gibt es nichts zu sperren — der Anmeldebildschirm ist
     // sein eigener Riegel.
@@ -178,76 +162,7 @@ class _AppSperreHuelleState extends State<AppSperreHuelle>
     if (!_sperre.istEingerichtet) {
       return _darueberlegen(kind, _EinrichtFlaeche(sperre: _sperre));
     }
-    if (_sperre.warntGleich) {
-      return Stack(
-        children: [
-          kind,
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            left: 12,
-            right: 12,
-            child: _Hinweisstreifen(
-              verbleibend: _sperre.verbleibend,
-              onBleiben: () => _sperre.vermerkeBedienung(erzwingen: true),
-            ),
-          ),
-        ],
-      );
-    }
     return kind;
-  }
-}
-
-/// Der Streifen in der letzten Minute.
-class _Hinweisstreifen extends StatelessWidget {
-  const _Hinweisstreifen({required this.verbleibend, required this.onBleiben});
-
-  final Duration verbleibend;
-  final VoidCallback onBleiben;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = verbleibend.inSeconds;
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade800,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: const [
-            BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2))
-          ],
-        ),
-        child: Row(children: [
-          const Icon(Icons.lock_clock, color: Colors.white, size: 20),
-          const SizedBox(width: 10),
-          // ⚠️ Kurz halten. Die erste Fassung nannte auch noch den Grund
-          // („keine Eingaben seit 15 Minuten") — auf einem 412-px-Telefon
-          // brach das auf vier Zeilen um, und der Streifen verdeckte ein
-          // Drittel des Bildschirms. Erst am gerenderten Bild aufgefallen.
-          Expanded(
-            child: Text(
-              'Sperre in $s\u00a0s',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600),
-            ),
-          ),
-          TextButton(
-            onPressed: onBleiben,
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              minimumSize: const Size(0, 36),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: const Text('Bleiben'),
-          ),
-        ]),
-      ),
-    );
   }
 }
 
@@ -265,8 +180,26 @@ class _SperrFlaecheState extends State<_SperrFlaeche> {
   bool _laeuft = false;
   bool _falsch = false;
 
+  /// ⚠️ Zählt die Wartestaffel nach zu vielen Fehlversuchen herunter.
+  ///
+  /// Bis zum 02.09.2026 kam dieser Sekundentakt aus `AppSperreService` — er
+  /// diente der Leerlaufsperre und hat die Anzeige nebenbei mitgezogen. Mit
+  /// der Leerlaufsperre fiel er weg, und ohne Ersatz stünde hier „noch 300
+  /// Sekunden", bis jemand etwas tippt. Deshalb hier, wo er hingehört: er
+  /// lebt nur, solange die Sperrfläche da ist.
+  Timer? _takt;
+
+  @override
+  void initState() {
+    super.initState();
+    _takt = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && widget.sperre.wartezeitRest > Duration.zero) setState(() {});
+    });
+  }
+
   @override
   void dispose() {
+    _takt?.cancel();
     _feld.dispose();
     super.dispose();
   }
@@ -435,8 +368,9 @@ class _EinrichtFlaecheState extends State<_EinrichtFlaeche> {
                 const SizedBox(height: 10),
                 Text(
                   'Die App enthält Mitglieder-, Gesundheits- und Behördendaten. '
-                  'Sie wird nach ${AppSperreService.leerlauf.inMinutes} Minuten '
-                  'ohne Bedienung gesperrt und beim Öffnen danach gefragt.\n\n'
+                  'Danach gefragt wird beim Start der App und immer dann, wenn '
+                  'Sie in der Kopfzeile auf das Schloss tippen — nicht '
+                  'zwischendurch.\n\n'
                   'Das ist NICHT die PIN des Geräts — wer die kennt, soll damit '
                   'nicht auch in die Akten kommen.',
                   textAlign: TextAlign.center,

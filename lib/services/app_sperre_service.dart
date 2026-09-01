@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -17,27 +16,31 @@ import 'voice_call_service.dart';
 /// Schulter — käme damit auch an die Mitgliederdaten. Ein eigenes Passwort ist
 /// ein zweiter, davon unabhängiger Riegel. Entscheidung des Users, 22.08.2026.
 ///
-/// ⚠️ **Die Zeit wird an der Uhr gemessen, nicht heruntergezählt.** Das ist der
-/// Kern: ein `Timer` läuft nicht weiter, wenn Android die App einfriert oder
-/// der Rechner schlafen geht. Wer die Restzeit mitzählt, hat nach acht Stunden
-/// Schlaf eine App, die noch elf Minuten übrig zu haben glaubt. Gemerkt wird
-/// der **Zeitpunkt** der letzten Bedienung; die verstrichene Zeit wird bei
-/// jedem Blick neu ausgerechnet, auch beim Zurückkehren aus dem Hintergrund.
+/// ⚠️ **Es gibt KEINE Sperre nach Leerlauf mehr.** Bis zum 02.09.2026 sperrte
+/// die App nach 15 Minuten ohne Bedienung. Entscheidung des Users: das hat im
+/// Alltag mitten in der Arbeit nach dem Passwort gefragt und war damit vor
+/// allem eines — lästig. Gesperrt wird jetzt nur noch aus drei Anlässen, und
+/// alle drei sind für den Bedienenden vorhersehbar:
+///
+///  1. **Die App wurde geschlossen und neu gestartet.** [laden] setzt den
+///     gesperrten Zustand, sobald ein Passwort abgelegt ist. Das ist der Fall,
+///     der wirklich zählt: ein gefundenes oder gestohlenes Gerät.
+///  2. **Der Schloss-Knopf in der Kopfzeile** ([sperren]) — für den Moment, in
+///     dem man das Gerät aus der Hand gibt.
+///  3. **Die App kommt über dem System-Sperrbildschirm nach vorn**
+///     ([ueberLockschirmPruefen]) — sonst wären Mitgliedsdaten ohne Entsperren
+///     des Geräts sichtbar, weil `showWhenLocked` für die ganze App gilt.
+///
+/// ⚠️ Wer hier je wieder eine Leerlaufsperre einbaut, braucht auch den ganzen
+/// Apparat zurück, den es dafür brauchte: Zeigerlauscher und Tastaturhaken über
+/// dem gesamten Baum, eine Entprellung, einen Sekundentakt und einen
+/// Hinweisstreifen. Und die Zeit müsste **an der Uhr** gemessen werden, nicht
+/// heruntergezählt — ein `Timer` läuft nicht weiter, wenn Android die App
+/// einfriert oder der Rechner schlafen geht.
 class AppSperreService extends ChangeNotifier {
   AppSperreService._();
   static final AppSperreService _i = AppSperreService._();
   factory AppSperreService() => _i;
-
-  /// Nach dieser Zeit ohne Bedienung wird gesperrt.
-  static const Duration leerlauf = Duration(minutes: 15);
-
-  /// So lange vorher erscheint der Hinweis mit dem Countdown.
-  static const Duration warnungAb = Duration(minutes: 1);
-
-  /// Bedienung wird höchstens so oft vermerkt. Ohne diese Bremse liefe bei
-  /// jeder Fingerbewegung Arbeit mit — eine Bildlaufgeste erzeugt hunderte
-  /// Zeigerereignisse in wenigen Sekunden.
-  static const Duration _entprellung = Duration(seconds: 2);
 
   static const String _schluesselPasswort = 'app_sperre_v1';
   static const String _schluesselFehler = 'app_sperre_fehler_v1';
@@ -45,29 +48,16 @@ class AppSperreService extends ChangeNotifier {
   final SecureStore _speicher = SecureStore();
   final LoggerService _log = LoggerService();
 
-  DateTime _letzteBedienung = DateTime.now();
-  DateTime? _letzterVermerk;
   SperrePasswort? _abgelegt;
   bool _gesperrt = false;
   bool _geladen = false;
   int _fehlversuche = 0;
   DateTime? _sperrfristBis;
-  Timer? _takt;
 
   bool get istEingerichtet => _abgelegt != null;
   bool get istGesperrt => _gesperrt;
   bool get istGeladen => _geladen;
   int get fehlversuche => _fehlversuche;
-
-  /// Verbleibende Zeit bis zur Sperre, an der Uhr gerechnet.
-  Duration get verbleibend {
-    final rest = leerlauf - DateTime.now().difference(_letzteBedienung);
-    return rest.isNegative ? Duration.zero : rest;
-  }
-
-  /// Die letzte Minute läuft — die Oberfläche zeigt den Hinweis.
-  bool get warntGleich =>
-      istEingerichtet && !_gesperrt && verbleibend <= warnungAb;
 
   /// Wie lange die Eingabe noch gesperrt ist (nach zu vielen Fehlversuchen).
   Duration get wartezeitRest {
@@ -99,7 +89,6 @@ class AppSperreService extends ChangeNotifier {
     // Vorgabe „beim Öffnen fragen".
     _gesperrt = _abgelegt != null;
     _geladen = true;
-    _letzteBedienung = DateTime.now();
     notifyListeners();
   }
 
@@ -109,7 +98,6 @@ class AppSperreService extends ChangeNotifier {
     _abgelegt = neu;
     _gesperrt = false;
     await _fehlerZuruecksetzen();
-    vermerkeBedienung(erzwingen: true);
     notifyListeners();
   }
 
@@ -129,7 +117,6 @@ class AppSperreService extends ChangeNotifier {
     }
     _gesperrt = false;
     await _fehlerZuruecksetzen();
-    vermerkeBedienung(erzwingen: true);
     notifyListeners();
     return true;
   }
@@ -149,22 +136,7 @@ class AppSperreService extends ChangeNotifier {
 
   // ── Betrieb ───────────────────────────────────────────────────────────────
 
-  /// Vermerkt Bedienung. Entprellt, ausser bei [erzwingen].
-  void vermerkeBedienung({bool erzwingen = false}) {
-    final jetzt = DateTime.now();
-    if (!erzwingen &&
-        _letzterVermerk != null &&
-        jetzt.difference(_letzterVermerk!) < _entprellung) {
-      return;
-    }
-    _letzterVermerk = jetzt;
-    final warnteVorher = warntGleich;
-    _letzteBedienung = jetzt;
-    // Nur melden, wenn sich für die Oberfläche etwas ändert — sonst baute jede
-    // Berührung den Hinweisstreifen neu auf.
-    if (warnteVorher) notifyListeners();
-  }
-
+  /// Sperrt von Hand — der Schloss-Knopf in der Kopfzeile.
   void sperren() {
     if (!istEingerichtet || _gesperrt) return;
     _gesperrt = true;
@@ -177,8 +149,8 @@ class AppSperreService extends ChangeNotifier {
   /// Beim Zurückkehren in den Vordergrund: erscheint die App ÜBER dem
   /// System-Sperrbildschirm (Anruf-Fullscreen-Intent, Tipp auf eine
   /// Benachrichtigung auf dem Sperrbildschirm), muss die App-Sperre SOFORT
-  /// greifen — unabhängig von den 15 Minuten. Sonst wären Mitgliedsdaten ohne
-  /// Entsperren des Geräts sichtbar (`showWhenLocked` gilt für die ganze App).
+  /// greifen. Sonst wären Mitgliedsdaten ohne Entsperren des Geräts sichtbar
+  /// (`showWhenLocked` gilt für die ganze App).
   /// Ausnahme: ein laufendes/eingehendes Gespräch — sonst stünde die
   /// Passwortabfrage vor dem Anrufbildschirm.
   Future<void> ueberLockschirmPruefen() async {
@@ -206,52 +178,6 @@ class AppSperreService extends ChangeNotifier {
       // Der Anrufdienst darf die Entscheidung nicht aufhalten.
     }
     return true;
-  }
-
-  /// Schaut auf die Uhr. Wird vom Takt und beim Zurückkehren aus dem
-  /// Hintergrund gerufen.
-  void pruefen() {
-    if (!istEingerichtet || _gesperrt) return;
-
-    // ⚠️ Ein laufendes Gespräch gilt als Bedienung. Sperrte die App mitten im
-    // Gespräch, liefe der Ton weiter, aber niemand käme mehr an den
-    // Auflegen-Knopf — man müsste sich erst anmelden, um das Gespräch zu
-    // beenden, das man gerade führt.
-    try {
-      if (VoiceCallService().callState != CallState.idle) {
-        vermerkeBedienung(erzwingen: true);
-        return;
-      }
-    } catch (_) {
-      // Der Anrufdienst darf die Sperre nicht aufhalten.
-    }
-
-    if (verbleibend == Duration.zero) {
-      _log.info('Sperre: Leerlauf abgelaufen', tag: 'SPERRE');
-      sperren();
-      return;
-    }
-    // In der letzten Minute (und solange eine Wartestaffel läuft) muss die
-    // Anzeige jede Sekunde nachziehen.
-    if (warntGleich || wartezeitRest > Duration.zero) notifyListeners();
-  }
-
-  void taktStarten() {
-    _takt?.cancel();
-    // Eine Sekunde, damit die letzte Minute wirklich herunterzählt. Der Takt
-    // rechnet nicht mit, er schaut nur auf die Uhr.
-    _takt = Timer.periodic(const Duration(seconds: 1), (_) => pruefen());
-  }
-
-  void taktStoppen() {
-    _takt?.cancel();
-    _takt = null;
-  }
-
-  @override
-  void dispose() {
-    taktStoppen();
-    super.dispose();
   }
 
   // ── Innereien ─────────────────────────────────────────────────────────────
