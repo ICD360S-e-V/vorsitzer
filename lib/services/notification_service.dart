@@ -603,27 +603,47 @@ class NotificationService {
     }
   }
 
-  /// Chat-Benachrichtigung anzeigen (nur wenn Chat-Dialog geschlossen ist)
+  /// Die gewöhnliche Chat-Benachrichtigung — bewusst OHNE Namen und OHNE Text.
+  ///
+  /// 🔴 Bis zum 01.09.2026 stand hier `'$senderName: neue Nachricht'` als Titel
+  /// und die ersten 80 Zeichen der Nachricht als Text. Eine Benachrichtigung
+  /// liegt auf dem Sperrbildschirm und im Streifen — also unter den Augen von
+  /// jedem, der neben dem Tablet steht. Bei einem Behindertenverein ist der
+  /// Wortlaut einer Mitgliedsnachricht regelmässig eine Gesundheitsangabe, und
+  /// der Name daneben macht sie zuordenbar. Das gehört nicht dorthin.
+  ///
+  /// ⚠️ Die Sperre sitzt in der METHODE, nicht bei den Aufrufern: ein Aufrufer,
+  /// der es künftig vergisst, wäre eine stille Scheibe ins Fenster. Name und
+  /// Text werden nicht mehr entgegengenommen — es gibt schlicht keinen
+  /// Parameter mehr, über den sie hereinkommen könnten. Ein Test hält das fest.
+  ///
+  /// ⚠️ Der Blitz ist hiervon NICHT betroffen und wurde bewusst nicht
+  /// angefasst ([showBlitzVollbild], [BlitzKarte]). Dort ist das Anzeigen der
+  /// Nachricht der Zweck der Sache, und die Karte ist dafür eigens hergerichtet
+  /// (Mitgliedsnummer statt Name, Text deckt sich nach kurzem Lesen selbst zu).
+  ///
+  /// ⚠️ `unreadCount` ist keine Angabe ÜBER ein Mitglied, sondern über den
+  /// eigenen Posteingang — er darf deshalb dastehen. Er ersetzt zugleich die
+  /// frühere Unterscheidbarkeit nach Absender, die KDE Plasma davon abhielt,
+  /// gleichlautende Meldungen als Dubletten zu drosseln
+  /// (`org.freedesktop.Notifications.Error.ExcessNotificationGeneration`).
+  /// Ob das reicht, ist auf einem Plasma-Rechner nicht nachgemessen; die
+  /// Kennung je Unterhaltung unterscheidet die Meldungen ohnehin.
   Future<void> showChatMessage({
-    required String senderName,
-    required String message,
     int? conversationId,
+    int unreadCount = 1,
   }) async {
-    _log.info(
-        // 🔴 Hier standen Absendername UND voller Nachrichtentext.
-        'Chat-Benachrichtigung (Absender ${senderName.length} Z., '
-        'Text ${message.length} Z., chatOffen=$_isChatDialogOpen)',
+    _log.info('Chat-Benachrichtigung (ungelesen=$unreadCount, '
+        'chatOffen=$_isChatDialogOpen)',
         tag: 'NOTIF');
 
     // Nur benachrichtigen wenn Chat-Dialog NICHT geöffnet ist
     if (!_isChatDialogOpen) {
-      // Personalize title+body per sender so KDE Plasma's notification
-      // server doesn't classify them as duplicates and throttle them with
-      // org.freedesktop.Notifications.Error.ExcessNotificationGeneration.
-      final bodyPreview = message.length > 80 ? '${message.substring(0, 77)}...' : message;
       await show(
-        title: '$senderName: neue Nachricht',
-        body: bodyPreview.isNotEmpty ? bodyPreview : 'Sie haben eine neue Nachricht erhalten.',
+        title: 'Neue Nachricht',
+        body: unreadCount > 1
+            ? 'Sie haben $unreadCount neue Nachrichten von einem Mitglied.'
+            : 'Sie haben eine neue Nachricht von einem Mitglied.',
         payload: 'chat:$conversationId',
       );
 
