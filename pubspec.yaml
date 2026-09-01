@@ -57,12 +57,27 @@ dependencies:
   # damit der Import stabil ist — wie bei flutter_svg.
   convert: ^3.1.1
 
-  # HTML parsing for client-side handelsregister.de scraping
-  # Exakt gepinnt: der Sanitizer und flutter_widget_from_html_core müssen
-  # DENSELBEN html5lib-Port benutzen. Die mXSS-Bypässe bei DOMPurify, Proton
-  # und Tuta entstanden alle daraus, dass Sanitizer und Renderer
-  # unterschiedlich geparst haben.
-  html: 0.15.6
+  # HTML parsing for client-side handelsregister.de scraping.
+  #
+  # ⚠️ EXAKT GEPINNT — aber nicht aus dem Grund, der hier früher stand.
+  # Die alte Begründung war, Sanitizer und flutter_widget_from_html_core
+  # müssten DENSELBEN html5lib-Port benutzen. Das stimmt (die mXSS-Bypässe bei
+  # DOMPurify, Proton und Tuta entstanden alle aus dieser Divergenz) — nur
+  # erzwingt der exakte Pin es nicht: pub löst ohnehin genau EIN `html` für
+  # den ganzen Graphen auf, und fwfh verlangt bloss `^0.15.0`. Ein Caret hier
+  # hätte dieselbe Wirkung gehabt.
+  #
+  # Der Pin bleibt trotzdem, mit dem Grund, der wirklich trägt: unter einem
+  # Sanitizer darf sich der Parser nicht unbemerkt ändern. Jede Anhebung wird
+  # gegen einen Angriffskorpus geprüft, nicht geerbt.
+  #
+  # 0.15.6 -> 0.15.7 am 02.09.2026 so geprüft: 30 mXSS-/Schema-/CDATA-/
+  # Fremdnamensraum-Vektoren durch `sanitizeMailHtml`, Ausgabe auf beiden
+  # Fassungen byteweise gleich bis auf EINEN Fall (`<svg><![CDATA[ ]]]> …`),
+  # wo 0.15.7 ein escaptes `]]&gt;` als TEXT liefert statt gar nichts — der
+  # Tokenizer schliesst den CDATA-Block jetzt korrekt. Keine Nutzlast
+  # überlebte in einer der beiden Fassungen.
+  html: 0.15.7
 
   # Local storage for tokens
   shared_preferences: ^2.5.5
