@@ -2116,19 +2116,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               gpsFollowing: _weatherService.isFollowingGps,
               onTap: () => showWeatherDialog(context, _weatherService),
             ),
-          // Hell / Dunkel / System. Steht bewusst neben Profil und Abmelden,
-          // also bei dem, was das eigene Konto betrifft — nicht zwischen den
+          // Hell / Dunkel / System. Steht bewusst neben dem Profil, also bei
+          // dem, was das eigene Konto betrifft — nicht zwischen den
           // Fachknöpfen.
           const ThemeUmschalterKnopf(),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: _showProfileDialog,
             tooltip: 'Mein Profil',
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-            tooltip: 'Abmelden',
           ),
           ],
         ],
