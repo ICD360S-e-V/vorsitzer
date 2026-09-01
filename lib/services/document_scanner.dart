@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show compute;
 import 'package:image/image.dart' as img;
-import 'package:opencv_core/opencv.dart' as cv;
+import 'package:dartcv4/dartcv.dart' as cv;
 
 import 'scan_geometry.dart';
 
