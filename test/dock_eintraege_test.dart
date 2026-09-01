@@ -178,6 +178,26 @@ void main() {
       );
     });
 
+    test('jede Zeile trägt ihren Tag mit sich', () {
+      // ⚠️ Ohne den Tag findet der Terminbildschirm nur, was in der LAUFENDEN
+      // Woche liegt — die Leiste zeigt aber 14 Tage. Etwa die Hälfte der
+      // Zeilen wäre tot: antippen, Fenster kommt nach vorn, nichts geschieht.
+      final z = DockZeilen.termine(
+          [termin(wann: DateTime(2026, 9, 12, 18, 0))], jetzt).single;
+      expect(z.datum, '2026-09-12');
+      // Nur der Tag, keine Uhrzeit — gesprungen wird auf die Woche.
+      expect(DateTime.parse(z.datum).hour, 0);
+    });
+
+    test('einstellige Monate und Tage bekommen ihre Null', () {
+      // '2026-9-3' liesse sich zwar noch parsen, aber es ist nicht das
+      // Format, das überall sonst im Haus benutzt wird.
+      final z = DockZeilen.termine([
+        termin(wann: DateTime(2026, 9, 3, 9, 0))
+      ], DateTime(2026, 9, 1, 14, 30)).single;
+      expect(z.datum, '2026-09-03');
+    });
+
     test('ohne Ort steht die Kategorie da', () {
       expect(
         DockZeilen.termine([
@@ -299,6 +319,7 @@ void main() {
         zusatz: 'Rechts',
         abzeichen: 3,
         betont: true,
+        datum: '2026-09-12',
       );
       final zurueck = DockEintrag.fromJson(e.toJson());
       expect(zurueck.id, 7);
@@ -307,6 +328,7 @@ void main() {
       expect(zurueck.zusatz, 'Rechts');
       expect(zurueck.abzeichen, 3);
       expect(zurueck.betont, isTrue);
+      expect(zurueck.datum, '2026-09-12');
     });
 
     test('eine halbe Karte kippt die Liste nicht', () {

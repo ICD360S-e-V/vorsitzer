@@ -47,8 +47,10 @@ class DockFensterSteuerung {
   Future<List<DockEintrag>> Function(String bereich)? datenGeber;
 
   /// Auf eine Zeile (oder auf „Im Programm öffnen") getippt. `id` ist die
-  /// Zeile, `null` heisst „nur den Bereich".
-  void Function(String bereich, int? id)? onOeffnen;
+  /// Zeile, `null` heisst „nur den Bereich". `datum` (`YYYY-MM-DD`) ist nur
+  /// bei Terminen gesetzt und sagt dem Bildschirm, auf welche Woche er
+  /// stellen muss — siehe [DockEintrag.datum].
+  void Function(String bereich, int? id, String datum)? onOeffnen;
 
   bool get istMoeglich => Platform.isLinux;
 
@@ -124,7 +126,7 @@ class DockFensterSteuerung {
         final a = _karte(ruf.arguments);
         final bereich = '${a['bereich'] ?? ''}';
         if (bereich.isEmpty) return false;
-        onOeffnen?.call(bereich, _alsInt(a['id']));
+        onOeffnen?.call(bereich, _alsInt(a['id']), '${a['datum'] ?? ''}');
         return true;
       default:
         return null;
