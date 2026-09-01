@@ -131,8 +131,8 @@ dependencies {
     // ⚠️ DIE FASSUNG MUSS DIE VON flutter_webrtc SEIN. Übersetzt man gegen
     // eine andere als die, die zur Laufzeit geladen wird, fällt das erst auf
     // dem Gerät auf — als NoSuchMethodError mitten im Gespräch. Steht in
-    // `flutter_webrtc-1.6.0/android/build.gradle`.
-    compileOnly("io.github.webrtc-sdk:android:144.7559.09")
+    // `flutter_webrtc-1.6.1/android/build.gradle`.
+    compileOnly("io.github.webrtc-sdk:android:150.7871.01")
 
     // Offline-Spracherkennung für die Live-Mitschrift. Apache 2.0.
     //
