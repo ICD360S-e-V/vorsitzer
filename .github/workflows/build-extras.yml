@@ -47,7 +47,7 @@ on:
       flutter_version:
         description: 'Flutter version'
         required: false
-        default: '3.44.8'
+        default: '3.47.2'
       build_number:
         description: 'Build number override (leave empty for auto)'
         required: false
@@ -56,7 +56,7 @@ on:
   # Nur noch von Hand ausloesbar.
 
 env:
-  FLUTTER_VERSION: ${{ github.event.inputs.flutter_version || '3.44.8' }}
+  FLUTTER_VERSION: ${{ github.event.inputs.flutter_version || '3.47.2' }}
   JAVA_VERSION: '17'
   APP_NAME: vorsitzer
 

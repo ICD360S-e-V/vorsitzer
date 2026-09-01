@@ -238,7 +238,7 @@ dependencies:
   # Zweites Fenster für den Blitz — die kleine Nachrichten-Karte, die mitten
   # auf dem Bildschirm über jedem anderen Programm auftaucht.
   #
-  # ⚠️ Flutter 3.44.8 hat Mehrfenster bereits eingebaut (WindowingOwner,
+  # ⚠️ Flutter 3.47.2 hat Mehrfenster bereits eingebaut (WindowingOwner,
   # _window_linux.dart), aber NICHT öffentlich exportiert — der eigene
   # Doc-Kommentar verlangt `import 'package:flutter/src/widgets/_window.dart'`,
   # also SDK-Interna ohne Stabilitätszusage. Sobald Canonical das öffentlich

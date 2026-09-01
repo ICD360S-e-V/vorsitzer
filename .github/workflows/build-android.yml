@@ -54,7 +54,7 @@ on:
       flutter_version:
         description: 'Flutter version'
         required: false
-        default: '3.44.8'
+        default: '3.47.2'
       build_number:
         description: 'Build number override (leave empty for auto)'
         required: false
@@ -134,7 +134,7 @@ jobs:
 
       - uses: ./.github/actions/flutter-setup
         with:
-          flutter-version: ${{ github.event.inputs.flutter_version || '3.44.8' }}
+          flutter-version: ${{ github.event.inputs.flutter_version || '3.47.2' }}
 
       - name: flutter pub get
         run: flutter pub get
@@ -256,7 +256,7 @@ jobs:
       - uses: ./.github/actions/flutter-setup
         if: runner.environment == 'github-hosted'
         with:
-          flutter-version: ${{ github.event.inputs.flutter_version || '3.44.8' }}
+          flutter-version: ${{ github.event.inputs.flutter_version || '3.47.2' }}
 
       - name: Install dependencies
         run: flutter pub get
@@ -305,7 +305,7 @@ jobs:
           # gen_snapshot — der Build wird dadurch ebenfalls kuerzer.
           #
           # ⚠️ flutter#169413 behauptet, --target-platform werde ohne
-          # --split-per-abi ignoriert. Auf unserer Fassung 3.44.8 stimmt das
+          # --split-per-abi ignoriert. Auf unserer Fassung 3.47.2 stimmt das
           # NICHT: nachgeprueft mit einem leeren Projekt, das APK enthielt
           # danach ausschliesslich lib/arm64-v8a. Deckt sich mit der Quelle,
           # build_apk.dart:74 reicht die Liste durch und gradle.dart:526
