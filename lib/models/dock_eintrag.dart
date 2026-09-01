@@ -80,6 +80,14 @@ class DockEintrag {
   /// Hervorgehoben darstellen — heute fälliger Termin, Notfall, ungelesen.
   final bool betont;
 
+  /// Tag, an dem die Zeile spielt, als `YYYY-MM-DD`. Nur bei Terminen gesetzt.
+  ///
+  /// ⚠️ Reist mit, weil der Terminbildschirm ohne ihn nur die LAUFENDE WOCHE
+  /// lädt: ein Termin von übernächster Woche stünde dort gar nicht in der
+  /// Liste, der Sprung fände nichts und kehrte wortlos um. Die Leiste zeigt
+  /// 14 Tage — ohne dieses Feld wäre etwa die Hälfte ihrer Zeilen tot.
+  final String datum;
+
   const DockEintrag({
     this.id,
     required this.titel,
@@ -87,6 +95,7 @@ class DockEintrag {
     this.zusatz = '',
     this.abzeichen = 0,
     this.betont = false,
+    this.datum = '',
   });
 
   Map<String, dynamic> toJson() => {
@@ -96,6 +105,7 @@ class DockEintrag {
         if (zusatz.isNotEmpty) 'zusatz': zusatz,
         if (abzeichen > 0) 'abzeichen': abzeichen,
         if (betont) 'betont': true,
+        if (datum.isNotEmpty) 'datum': datum,
       };
 
   /// ⚠️ Jedes Feld einzeln abgesichert. Die Gegenseite ist zwar unser
@@ -109,6 +119,7 @@ class DockEintrag {
         zusatz: '${j['zusatz'] ?? ''}',
         abzeichen: _alsInt(j['abzeichen']) ?? 0,
         betont: j['betont'] == true,
+        datum: '${j['datum'] ?? ''}',
       );
 
   static int? _alsInt(dynamic v) =>

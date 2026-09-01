@@ -233,11 +233,12 @@ class _DockFensterAppState extends State<DockFensterApp> {
   ///
   /// ⚠️ Ein fehlgeschlagener Sprung wird ANGEZEIGT, nicht verschluckt. Sonst
   /// tippt jemand auf eine Zeile, es passiert nichts, und er tippt weiter.
-  Future<void> _oeffnen(String bereich, int? id) async {
+  Future<void> _oeffnen(String bereich, int? id, [String datum = '']) async {
     try {
       await _kanal.invokeMethod(DockRuf.oeffnen, {
         'bereich': bereich,
         if (id != null) 'id': id,
+        if (datum.isNotEmpty) 'datum': datum,
       });
     } catch (_) {
       if (mounted) setState(() => _fehler = 'Programm antwortet nicht');
@@ -488,7 +489,7 @@ class _DockFensterAppState extends State<DockFensterApp> {
       );
 
   Widget _zeile(String bereich, DockEintrag e) => InkWell(
-        onTap: () => _oeffnen(bereich, e.id),
+        onTap: () => _oeffnen(bereich, e.id, e.datum),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           child: Row(

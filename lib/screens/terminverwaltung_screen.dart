@@ -42,12 +42,26 @@ class TerminverwaltungScreen extends StatefulWidget {
   final String currentMitgliedernummer;
   /// Termin id to auto-open dialog on first frame (deep-link din Arbeitswochen)
   final int? initialFocusTerminId;
+
+  /// Datum des gesuchten Termins.
+  ///
+  /// ⚠️ OHNE DAS FINDET DER SPRUNG NUR TERMINE DIESER WOCHE. Der Bildschirm
+  /// lädt ausschliesslich `_currentWeekStart` + 7 Tage; ein Termin von übernächster
+  /// Woche steht dann gar nicht in `_termine`, `_consumeFocusTerminIfPossible`
+  /// findet nichts und kehrt **wortlos** um. Aus der Schnellstart-Leiste heraus
+  /// (14 Tage Vorschau) wäre gut die Hälfte der Zeilen tot gewesen — man tippt,
+  /// das Fenster kommt nach vorn, und nichts geschieht.
+  ///
+  /// `null` heisst „diese Woche", also genau das bisherige Verhalten.
+  final DateTime? initialFocusTerminDate;
+
   final VoidCallback? onFocusConsumed;
 
   const TerminverwaltungScreen({
     super.key,
     required this.currentMitgliedernummer,
     this.initialFocusTerminId,
+    this.initialFocusTerminDate,
     this.onFocusConsumed,
   });
 
@@ -96,8 +110,52 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     super.initState();
     initializeDateFormatting('de_DE', null);
     _pendingFocusTerminId = widget.initialFocusTerminId;
+    // Auf die Woche des gesuchten Termins stellen, BEVOR geladen wird —
+    // danach wäre die Ladeanfrage schon mit der falschen Spanne heraus.
+    final ziel = widget.initialFocusTerminDate;
+    if (ziel != null) {
+      _currentWeekStart = ziel.subtract(Duration(days: ziel.weekday - 1));
+    }
     _loadData();
   }
+
+  /// Ein NEUES Sprungziel, während der Bildschirm schon steht.
+  ///
+  /// ⚠️ `initState` läuft genau einmal. Ist die Terminverwaltung bereits
+  /// offen — man ist gerade dort, oder man war eben schon einmal —, dann
+  /// wechselt das Dashboard nur `initialFocusTerminId`, und ohne diese
+  /// Stelle passierte **gar nichts**: kein Dialog, keine Meldung.
+  ///
+  /// ⚠️ Das ist KEIN Fehler der Schnellstart-Leiste, sondern einer, den es
+  /// schon vorher gab: dieselbe Stille traf den Sprung aus einer
+  /// Benachrichtigung heraus, sobald dieser Bildschirm zufällig schon offen
+  /// war. Die Leiste macht ihn nur alltäglich.
+  @override
+  void didUpdateWidget(TerminverwaltungScreen alt) {
+    super.didUpdateWidget(alt);
+    final id = widget.initialFocusTerminId;
+    if (id == null || id == alt.initialFocusTerminId) return;
+
+    _pendingFocusTerminId = id;
+
+    final ziel = widget.initialFocusTerminDate;
+    if (ziel != null) {
+      final woche = ziel.subtract(Duration(days: ziel.weekday - 1));
+      if (!_gleicheWoche(woche, _currentWeekStart)) {
+        // Andere Woche: erst umstellen und laden. `_loadTermine` ruft am
+        // Ende selbst `_consumeFocusTerminIfPossible` — hier NICHT zusätzlich,
+        // sonst suchte man in der Liste der alten Woche und verbrauchte das
+        // Ziel, ohne etwas zu öffnen.
+        setState(() => _currentWeekStart = woche);
+        unawaited(_loadTermine());
+        return;
+      }
+    }
+    _consumeFocusTerminIfPossible();
+  }
+
+  static bool _gleicheWoche(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   void _consumeFocusTerminIfPossible() {
     final id = _pendingFocusTerminId;

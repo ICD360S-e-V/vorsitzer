@@ -197,6 +197,77 @@ void main() {
     });
   });
 
+  group('Ein Klick muss WIRKLICH ankommen', () {
+    // ⚠️ Die Rückmeldung, aus der diese Gruppe entstand: „degeaba apar
+    // iconitele alea acolo daca nu sunt 100% functionale". Sie war berechtigt —
+    // bei den Mitgliedern wurde die `id` der angetippten Zeile schlicht
+    // weggeworfen, es öffnete sich nur der Reiter. Alle drei Fehlschläge hier
+    // sind LAUTLOS: das Fenster kommt nach vorn, und dann geschieht nichts.
+    final dashboard = quelle('lib/screens/dashboard_screen.dart');
+    final termine = quelle('lib/screens/terminverwaltung_screen.dart');
+    final chat = quelle('lib/widgets/admin_chat_dialog.dart');
+
+    String sprung(String bereich) {
+      final ganz = rumpfVon(dashboard, 'Future<void> _dockOeffnen(');
+      final start = ganz.indexOf('case DockBereich.$bereich:');
+      if (start < 0) throw StateError('Zweig fehlt: $bereich');
+      final naechster = ganz.indexOf('case DockBereich.', start + 10);
+      return ganz.substring(start, naechster < 0 ? ganz.length : naechster);
+    }
+
+    test('ein Mitglied öffnet seine Karte, nicht nur den Reiter', () {
+      final z = ohneKommentare(sprung('mitglieder'));
+      expect(z, contains('_showUserDetailsDialog'),
+          reason: 'Die id der angetippten Zeile wird weggeworfen — es öffnet '
+              'sich nur die Mitgliederverwaltung');
+    });
+
+    test('ein Termin reist MIT DATUM, sonst findet ihn nur diese Woche', () {
+      final z = ohneKommentare(sprung('termine'));
+      expect(z, contains('_pendingFocusTerminId'));
+      expect(z, contains('_pendingFocusTerminDatum'),
+          reason: 'Ohne Datum lädt der Terminbildschirm nur die laufende '
+              'Woche; die Leiste zeigt 14 Tage');
+    });
+
+    test('der Terminbildschirm stellt auf die Woche des Ziels', () {
+      final i = ohneKommentare(rumpfVon(termine, 'void initState()'));
+      expect(i, contains('initialFocusTerminDate'));
+      expect(i, contains('_currentWeekStart'));
+    });
+
+    test('… auch wenn er schon offen steht', () {
+      // ⚠️ `initState` läuft genau einmal. Ohne `didUpdateWidget` bleibt ein
+      // zweiter Sprung wirkungslos — und zwar schon für die Sprünge aus
+      // Benachrichtigungen, lange vor der Leiste.
+      final d = ohneKommentare(
+          rumpfVon(termine, 'void didUpdateWidget(TerminverwaltungScreen'));
+      expect(d, contains('_pendingFocusTerminId'));
+      expect(d, contains('_loadTermine'));
+    });
+
+    test('eine zweite Unterhaltung erreicht den schon offenen Chat', () {
+      final z = ohneKommentare(sprung('chat'));
+      expect(z, contains('_isAdminChatOpen'));
+      expect(z, contains('AdminChatDialog.wunschUnterhaltung'),
+          reason: 'Bei offenem Dialog greift initialConversationId nicht — '
+              'ohne den Wunsch passiert gar nichts');
+    });
+
+    test('der Chat nimmt den Wunsch an und gibt ihn wieder ab', () {
+      final o = ohneKommentare(chat);
+      expect(o, contains('addListener(_wunschAnnehmen)'),
+          reason: 'Niemand hört auf den Wunsch');
+      expect(o, contains('removeListener(_wunschAnnehmen)'),
+          reason: 'Zuhörer überlebt den Dialog');
+      // ⚠️ Der Wunsch muss beim Schliessen geleert werden, sonst springt der
+      // Chat beim nächsten Öffnen sofort in eine Unterhaltung, die vor
+      // Minuten einmal angetippt wurde.
+      final d = ohneKommentare(rumpfVon(chat, 'void dispose()'));
+      expect(d, contains('wunschUnterhaltung.value = null'));
+    });
+  });
+
   group('Abmelden', () {
     test('die Leiste wird entwaffnet, BEVOR die Token fallen', () {
       // ⚠️ Sie steht über allen Fenstern und überlebt das Dashboard. Fragte

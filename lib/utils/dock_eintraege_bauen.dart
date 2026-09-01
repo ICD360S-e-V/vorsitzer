@@ -104,6 +104,9 @@ class DockZeilen {
         titel: t.title.trim().isEmpty ? 'Ohne Titel' : t.title.trim(),
         unterzeile: ort.isEmpty ? _kategorieText(t.category) : ort,
         zusatz: wannText(t.terminDate, jetzt),
+        // Nur der Tag, keine Uhrzeit: der Bildschirm springt auf die WOCHE.
+        datum: '${t.terminDate.year.toString().padLeft(4, '0')}-'
+            '${_zwei(t.terminDate.month)}-${_zwei(t.terminDate.day)}',
         // Heute fällig oder Notfall — das sind die beiden Fälle, in denen
         // ein Blick auf die Leiste zu spät sein kann.
         betont: t.isNotfall || _gleicherTag(t.terminDate, jetzt),
