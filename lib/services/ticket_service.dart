@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:http/io_client.dart';
+import 'api_service.dart';
 import 'device_key_service.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
@@ -632,11 +633,32 @@ class TicketService {
     _client = IOClient(HttpClientFactory.createPinnedHttpClient());
   }
 
+  /// Das lebende Access-Token — dieselbe Quelle wie bei `ApiService`, damit
+  /// die vorsorgliche Erneuerung alle 50 Minuten auch hier ankommt.
+  ///
+  /// ⚠️ Bis zum 31.08.2026 schickte dieser Dienst ÜBERHAUPT KEIN
+  /// `Authorization` mit — nur `X-Device-Key`. Solange die Endpunkte allein
+  /// `validateApiKey()` hatten, fiel das nicht auf. Am 30.08.2026 bekamen
+  /// `tickets/admin_list.php` und `tickets/admin_create.php` eine
+  /// Rollenprüfung, und die verlangt einen Bearer: ab 18:40 Uhr beantwortete
+  /// der Server jeden Aufruf mit 401, die Ticketverwaltung zeigte nichts mehr
+  /// an und konnte nichts mehr anlegen. Im nginx-Log ist der Schnitt exakt
+  /// abzulesen — bis 18:38 ausschliesslich 200, danach ausschliesslich 401.
+  ///
+  /// ⚠️ Der Kopf gehört deshalb an ALLE Aufrufe dieses Dienstes, nicht nur an
+  /// die beiden aufgefallenen. Ein Geräteschlüssel weist ein Gerät aus, keine
+  /// Person; jeder weitere Endpunkt, der irgendwann nach der Rolle fragt,
+  /// liefe sonst wieder still auf 401. `test/ticket_service_bearer_test.dart`
+  /// hält das fest.
+  String? get _jwt => ApiService().token;
+
   Map<String, String> get _headers {
     final deviceKey = _deviceKeyService.deviceKey;
+    final jwt = _jwt;
     return {
       'Content-Type': 'application/json',
       'User-Agent': 'ICD360S-Vorsitzer/1.0',
+      if (jwt != null) 'Authorization': 'Bearer $jwt',
       if (deviceKey != null) 'X-Device-Key': deviceKey,
     };
   }
@@ -953,6 +975,14 @@ class TicketService {
       );
 
       // Add headers
+      // ⚠️ MultipartRequest setzt seine Kopfzeilen von Hand und bekommt
+      // `_headers` NICHT ab. Genau daran ist am 30.08.2026 schon
+      // platform/korrespondenz_create.php zerbrochen, als es eine
+      // Rollenprüfung bekam. Deshalb hier dieselben drei Kopfzeilen.
+      final jwt = _jwt;
+      if (jwt != null) {
+        request.headers['Authorization'] = 'Bearer $jwt';
+      }
       if (deviceKey != null) {
         request.headers['X-Device-Key'] = deviceKey;
       }
