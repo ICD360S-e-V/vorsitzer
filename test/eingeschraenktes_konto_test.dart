@@ -104,6 +104,21 @@ void main() {
       expect(q, isNot(contains('admin_id ==')));
     });
 
+    test('zeigt das GEGENÜBER, nicht das Mitglied des Gesprächs', () {
+      // 🔴 Erst falsch gebaut: `member_*` wurde beim Direktchat mit der
+      // Gegenseite überschrieben. In der Liste der Schatzmeisterin stand für
+      // ihr Gespräch mit dem Vorsitz darum IHR EIGENER Name -- genau der Fall,
+      // den die Spiegelung verhindern sollte, blieb offen. Der Server liefert
+      // jetzt eigene `gegenueber_*`-Felder; wer hier wieder auf `member_name`
+      // zurückfällt, holt den Fehler zurück.
+      expect(q, contains("g['gegenueber_name']"),
+          reason: 'sonst steht in der Liste der eigene Name');
+      // Rückfall muss bleiben: ein älterer Server kennt das Feld nicht, und
+      // eine Liste ohne Namen wäre schlimmer als eine mit dem falschen.
+      expect(q, contains("?? g['member_name']"),
+          reason: 'ohne Rückfall bleibt die Liste an einem alten Server leer');
+    });
+
     test('zeigt keine internen Ticket-Notizen', () {
       expect(q, contains('!c.isInternal'),
           reason: 'interne Notizen sind Bemerkungen ÜBER den Vorgang, nicht an den Melder');

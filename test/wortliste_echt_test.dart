@@ -370,12 +370,34 @@ void main() {
       // Sie läuft einmal je Wortende, nicht je Tastendruck. Gemessen über
       // 4.000 Wörter: 2,97 ms im Schnitt; der teuerste Fall ist ein langes
       // Wort ohne jede Ähnlichkeit, weil dort nichts früh abbricht.
-      final uhr = Stopwatch()..start();
-      for (final w in ['dovument', 'cerrere', 'xyzabcdef', 'trimiter']) {
-        t.korrektur(w);
+      //
+      // ⚠️ BESTE von mehreren Runden, nicht eine einzelne Messung. Vier Wörter
+      // dauern wenige Millisekunden — da landet jeder Planungshaken der
+      // Testumgebung ungefiltert in der Zahl. Gemessen: allein 3 ms, in der
+      // vollen Suite 16–19 ms, allein durch die nebenher laufenden Isolate.
+      // Damit stand das Budget faktisch bei null Luft: die nächste hinzugefügte
+      // Testdatei — gleich welche — hätte diesen Test rot gemacht.
+      //
+      // Die beste Runde schätzt die ARBEIT, und die ist gemeint: das Budget hat
+      // gegenüber dem echten Mittel (2,97 ms) rund fünffache Luft und soll eine
+      // algorithmische Verschlechterung fangen, keine Maschinenauslastung.
+      // Wird `korrektur` fünfmal langsamer, reisst auch die beste Runde.
+      //
+      // ⚠️ Zulässig nur, weil `korrektur` sich NICHTS merkt (kein Cache im
+      // Pfad, nachgesehen) — jede Runde leistet dieselbe Arbeit. Bei einer
+      // memoisierenden Funktion wäre die zweite Runde ein Scheinwert.
+      const woerter = ['dovument', 'cerrere', 'xyzabcdef', 'trimiter'];
+      var beste = double.infinity;
+      for (var runde = 0; runde < 5; runde++) {
+        final uhr = Stopwatch()..start();
+        for (final w in woerter) {
+          t.korrektur(w);
+        }
+        uhr.stop();
+        final proWort = uhr.elapsedMicroseconds / woerter.length;
+        if (proWort < beste) beste = proWort;
       }
-      uhr.stop();
-      expect(uhr.elapsedMicroseconds / 4, lessThan(15000));
+      expect(beste, lessThan(15000), reason: '${beste.round()} µs');
     });
   });
 
