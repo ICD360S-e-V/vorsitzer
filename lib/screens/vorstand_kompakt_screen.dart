@@ -245,7 +245,7 @@ class _ChatBereichState extends State<_ChatBereich> {
         mitgliedernummer: widget.mitgliedernummer,
         userName: widget.userName,
         conversationId: id is int ? id : int.tryParse('$id'),
-        gegenueber: g['member_name']?.toString(),
+        gegenueber: (g['gegenueber_name'] ?? g['member_name'])?.toString(),
       ),
     ).then((_) => _laden0());
   }
@@ -277,12 +277,12 @@ class _ChatBereichState extends State<_ChatBereich> {
               leading: CircleAvatar(
                 backgroundColor: const Color(0xFF4a90d9),
                 child: Text(
-                  (g['member_name']?.toString() ?? '?').characters.first.toUpperCase(),
+                  ((g['gegenueber_name'] ?? g['member_name'])?.toString() ?? '?').characters.first.toUpperCase(),
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
               title: Text(
-                g['member_name']?.toString() ?? 'Gespräch ${g['id']}',
+                (g['gegenueber_name'] ?? g['member_name'])?.toString() ?? 'Gespräch ${g['id']}',
                 style: TextStyle(fontWeight: FontWeight.w600, color: F.textStark),
               ),
               subtitle: Text(
