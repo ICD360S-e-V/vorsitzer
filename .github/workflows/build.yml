@@ -20,7 +20,7 @@ on:
       flutter_version:
         description: 'Flutter version'
         required: false
-        default: '3.44.8'
+        default: '3.47.2'
       build_number:
         description: 'Build number override (leave empty for auto)'
         required: false
@@ -30,7 +30,7 @@ on:
       - 'v*'
 
 env:
-  FLUTTER_VERSION: ${{ github.event.inputs.flutter_version || '3.44.8' }}
+  FLUTTER_VERSION: ${{ github.event.inputs.flutter_version || '3.47.2' }}
   JAVA_VERSION: '17'
   APP_NAME: vorsitzer
 
@@ -130,7 +130,7 @@ jobs:
 
       - uses: ./.github/actions/flutter-setup
         with:
-          flutter-version: ${{ github.event.inputs.flutter_version || '3.44.8' }}
+          flutter-version: ${{ github.event.inputs.flutter_version || '3.47.2' }}
 
       - name: flutter pub get
         run: flutter pub get
@@ -168,7 +168,7 @@ jobs:
     # Fehltreffer 58 s, weil der Eintrag 1,6 GB gross ist und jedes Mal neu
     # entpackt wird), 33 s apt, dazu ein Gradle-Cache, der sich nichts merkt.
     # Auf dem eigenen Rechner liegt all das schlicht auf der Platte:
-    # /opt/flutter (3.44.8, dieselbe Fassung), /opt/android-sdk, clang, cmake,
+    # /opt/flutter (3.47.2, dieselbe Fassung), /opt/android-sdk, clang, cmake,
     # ninja und die GTK-Kette sind installiert. Kein Download, kein Cache, kein
     # Scope, keine haengenden apt-Spiegel.
     #
@@ -241,7 +241,7 @@ jobs:
       - uses: ./.github/actions/flutter-setup
         if: runner.environment == 'github-hosted'
         with:
-          flutter-version: ${{ github.event.inputs.flutter_version || '3.44.8' }}
+          flutter-version: ${{ github.event.inputs.flutter_version || '3.47.2' }}
 
       - name: Install Linux build dependencies
         if: runner.environment == 'github-hosted'

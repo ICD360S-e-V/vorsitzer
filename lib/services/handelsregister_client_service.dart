@@ -511,7 +511,9 @@ class HandelsregisterClientService {
         }
         final response = await request.close();
         _storeCookies(response);
-        return _readString(response);
+        // await: sonst laeuft ein Lesefehler AM RUMPF am Wiederholungs-
+        // block vorbei, obwohl die Schleife genau dafuer da ist.
+        return await _readString(response);
       } on HttpException {
         if (attempt < retries) {
           debugPrint('[HR-CLIENT] GET retry ${attempt + 1}/$retries for $url');

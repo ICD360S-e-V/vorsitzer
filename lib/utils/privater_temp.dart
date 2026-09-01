@@ -38,18 +38,22 @@ class _PrivaterTempPfad extends PathProviderLinux {
     if (zwischen != null) return zwischen;
     try {
       final cache = await getApplicationCachePath(); // ~/.cache/<appid>
-      if (cache == null) return super.getTemporaryPath();
-      final dir = Directory('$cache/tmp-privat');
-      if (!dir.existsSync()) dir.createSync(recursive: true);
-      // 0700: nur der Eigentümer darf hinein. Das schützt die 664-Dateien
-      // darin, ohne dass jede einzeln gechmod-et werden muss.
-      await Process.run('chmod', ['700', dir.path]);
-      _pfad = dir.path;
-      return dir.path;
+      if (cache != null) {
+        final dir = Directory('$cache/tmp-privat');
+        if (!dir.existsSync()) dir.createSync(recursive: true);
+        // 0700: nur der Eigentümer darf hinein. Das schützt die 664-Dateien
+        // darin, ohne dass jede einzeln gechmod-et werden muss.
+        await Process.run('chmod', ['700', dir.path]);
+        _pfad = dir.path;
+        return dir.path;
+      }
     } catch (_) {
       // Lieber funktionierendes /tmp als ein kaputtes Dokument-Öffnen.
-      return super.getTemporaryPath();
     }
+    // ⚠️ Der Rückfall steht AUSSERHALB des try, und zwar genau einmal.
+    // Ihn drinnen zu lassen und zu awaiten hieße: schlägt er fehl, fängt ihn
+    // der eigene catch und ruft ihn ein zweites Mal auf.
+    return super.getTemporaryPath();
   }
 }
 
