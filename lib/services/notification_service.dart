@@ -603,27 +603,53 @@ class NotificationService {
     }
   }
 
-  /// Chat-Benachrichtigung anzeigen (nur wenn Chat-Dialog geschlossen ist)
-  Future<void> showChatMessage({
-    required String senderName,
-    required String message,
-    int? conversationId,
-  }) async {
-    _log.info(
-        // 🔴 Hier standen Absendername UND voller Nachrichtentext.
-        'Chat-Benachrichtigung (Absender ${senderName.length} Z., '
-        'Text ${message.length} Z., chatOffen=$_isChatDialogOpen)',
+  /// Der EINZIGE Wortlaut, den eine Chat-Benachrichtigung tragen darf.
+  ///
+  /// ⚠️ Steht hier und nicht zweimal im Code: [NtfyService] baut dieselbe
+  /// Meldung, und zwei getrennte Zeichenketten würden früher oder später
+  /// auseinanderlaufen — dann leckte wieder eine der beiden.
+  static const String chatBenachrichtigungTitel = 'Neue Nachricht';
+
+  /// Die gewöhnliche Chat-Benachrichtigung — bewusst OHNE Namen und OHNE Text.
+  ///
+  /// 🔴 Bis zum 01.09.2026 stand hier `'$senderName: neue Nachricht'` als Titel
+  /// und die ersten 80 Zeichen der Nachricht als Text. Eine Benachrichtigung
+  /// liegt auf dem Sperrbildschirm und im Streifen — also unter den Augen von
+  /// jedem, der neben dem Tablet steht. Bei einem Behindertenverein ist der
+  /// Wortlaut einer Mitgliedsnachricht regelmässig eine Gesundheitsangabe, und
+  /// der Name daneben macht sie zuordenbar. Das gehört nicht dorthin.
+  ///
+  /// ⚠️ Die Sperre sitzt in der METHODE, nicht bei den Aufrufern: ein Aufrufer,
+  /// der es künftig vergisst, wäre eine stille Scheibe ins Fenster. Name und
+  /// Text werden nicht mehr entgegengenommen — es gibt schlicht keinen
+  /// Parameter mehr, über den sie hereinkommen könnten. Ein Test hält das fest.
+  ///
+  /// ⚠️ Der Blitz ist hiervon NICHT betroffen und wurde bewusst nicht
+  /// angefasst ([showBlitzVollbild], [BlitzKarte]). Dort ist das Anzeigen der
+  /// Nachricht der Zweck der Sache, und die Karte ist dafür eigens hergerichtet
+  /// (Mitgliedsnummer statt Name, Text deckt sich nach kurzem Lesen selbst zu).
+  ///
+  /// ⚠️ NUR der Titel, kein Text — Entscheidung des Users, 01.09.2026: „pune
+  /// doar neue nachricht si atat". Auch die Zahl der ungelesenen Nachrichten
+  /// steht nicht mehr dabei. Wer wissen will, worum es geht, öffnet die App;
+  /// dort steht alles, hinter der App-Sperre.
+  ///
+  /// ⚠️ Damit sind alle Chat-Benachrichtigungen wortgleich. Das war früher
+  /// anders, und zwar mit Grund: die Unterscheidung nach Absender hielt KDE
+  /// Plasma davon ab, sie als Dubletten zu drosseln
+  /// (`org.freedesktop.Notifications.Error.ExcessNotificationGeneration`).
+  /// Der Preis ist bewusst in Kauf genommen — die Kennung je Unterhaltung
+  /// unterscheidet die Meldungen weiterhin, und selbst wenn Plasma eine
+  /// zweite unterdrückt: die App zeigt die Nachricht ohnehin.
+  Future<void> showChatMessage({int? conversationId}) async {
+    _log.info('Chat-Benachrichtigung (chatOffen=$_isChatDialogOpen)',
         tag: 'NOTIF');
 
     // Nur benachrichtigen wenn Chat-Dialog NICHT geöffnet ist
     if (!_isChatDialogOpen) {
-      // Personalize title+body per sender so KDE Plasma's notification
-      // server doesn't classify them as duplicates and throttle them with
-      // org.freedesktop.Notifications.Error.ExcessNotificationGeneration.
-      final bodyPreview = message.length > 80 ? '${message.substring(0, 77)}...' : message;
       await show(
-        title: '$senderName: neue Nachricht',
-        body: bodyPreview.isNotEmpty ? bodyPreview : 'Sie haben eine neue Nachricht erhalten.',
+        title: chatBenachrichtigungTitel,
+        body: '',
         payload: 'chat:$conversationId',
       );
 

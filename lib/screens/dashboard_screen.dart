@@ -703,13 +703,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     ? '${lastMessage.substring(0, 80)}...'
                     : lastMessage;
 
-                NotificationService().showChatMessage(
-                  senderName: memberName,
-                  message: unreadCount == 1
-                      ? msgPreview
-                      : '$unreadCount ungelesene Nachrichten: $msgPreview',
-                  conversationId: id,
-                );
+                // ⚠️ Name und Vorschau gehen NUR noch in die Blase weiter
+                // unten — die steht in der App, hinter der App-Sperre. In die
+                // Benachrichtigung gehen sie nicht mehr: die liegt auf dem
+                // Sperrbildschirm. Siehe [NotificationService.showChatMessage].
+                NotificationService().showChatMessage(conversationId: id);
 
                 _chatBubbles[id] = ChatBubbleEntry(
                   conversationId: id,

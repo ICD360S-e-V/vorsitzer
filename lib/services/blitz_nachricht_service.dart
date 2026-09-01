@@ -70,9 +70,10 @@ class BlitzNachrichtService {
     String kanal = 'app',
     DateTime? zeit,
   }) async {
+    // ⚠️ Ohne Namen und ohne Wortlaut — das ist der Streifen, der auch auf dem
+    // Sperrbildschirm liegt. Der Blitz weiter unten zeigt beides weiterhin,
+    // das ist dort der Zweck und ausdrücklich so gewollt.
     Future<void> gewoehnlich() => NotificationService().showChatMessage(
-          senderName: absender,
-          message: text,
           conversationId: conversationId,
         );
 

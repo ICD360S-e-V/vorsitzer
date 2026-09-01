@@ -306,8 +306,44 @@ class NtfyService {
         tag: 'NTFY',
       );
 
+      // 🔴 CHAT-NACHRICHT: hier kam bis zum 01.09.2026 der NAME des Mitglieds
+      // und der WORTLAUT der Nachricht auf den Bildschirm — unverändert so,
+      // wie der Server sie geschickt hat. Nachgesehen in
+      // `api/helpers/NtfyVorsitzerService.php`:
+      //
+      //     notifyNewMessage($nummer, $senderName, $preview)
+      //       -> Titel: "Neue Nachricht von {$senderName}"
+      //       -> Text:  $preview
+      //
+      // Eine Benachrichtigung liegt auf dem SPERRBILDSCHIRM. Bei einem
+      // Behindertenverein ist der Wortlaut einer Mitgliedsnachricht
+      // regelmässig eine Gesundheitsangabe, und der Name daneben macht sie
+      // zuordenbar — für jeden, der neben dem Tablet steht.
+      //
+      // ⚠️ Erkannt wird die Chat-Nachricht an der Marke `speech_balloon`, und
+      // die ist dafür belastbar: sie wird serverseitig AUSSCHLIESSLICH von
+      // `notifyNewMessage` gesetzt, in allen drei Diensten (Mitglieder,
+      // Schatzmeister, Vorsitzer) und nirgendwo sonst — nachgezählt am
+      // 01.09.2026, drei Fundstellen, alle in dieser einen Methode.
+      //
+      // ⚠️ Alle anderen Meldungen bleiben unangetastet: Fax, Login-Anfragen,
+      // Wächter-Alarme. Die tragen keine Mitgliedsdaten, und sie generisch zu
+      // machen würde sie wertlos machen.
+      //
+      // ⚠️ Die eigentliche Reparatur gehört auf den SERVER — was nicht
+      // gesendet wird, kann auch nicht angezeigt werden, und sie würde
+      // zugleich für die Mitglieder- und die Schatzmeister-App gelten, ohne
+      // dass dort jemand eine neue Fassung installieren muss. Bis dahin ist
+      // das hier die Sperre auf unserer Seite.
+      final istChatNachricht = tags.contains('speech_balloon');
+
       angezeigteMeldungen++;
-      NotificationService().show(title: title, body: body);
+      NotificationService().show(
+        title: istChatNachricht
+            ? NotificationService.chatBenachrichtigungTitel
+            : title,
+        body: istChatNachricht ? '' : body,
+      );
     } on FormatException {
       // Not valid JSON, ignore (could be keepalive)
     } catch (e) {
