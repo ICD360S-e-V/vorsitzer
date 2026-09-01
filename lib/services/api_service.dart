@@ -2310,6 +2310,30 @@ class ApiService {
   // ============= CHAT API =============
 
   // Start a new chat conversation
+  /// Was darf dieses Konto sehen? Rolle plus das Flag
+  /// `users.zugriff_eingeschraenkt`.
+  ///
+  /// ⚠️ Das ist KEINE Zugriffskontrolle, sondern nur die Auskunft, welche
+  /// Oberfläche sinnvoll ist. Die Kontrolle sitzt auf dem Server
+  /// (`requireAdminRole`, `requireRollen`, `ticketZugriff`, `chatIstAdmin`).
+  /// Darum ist der Rückfall bei einem Netzfehler bewusst „nicht
+  /// eingeschränkt": ein eingeschränktes Konto bekommt dann überall 403 und
+  /// kann nichts anrichten — würde man umgekehrt bei Netzfehler sperren,
+  /// stünde der Vorsitzende ohne Grund vor einer leeren App.
+  Future<Map<String, dynamic>> meinZugriff() async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/auth/mein_zugriff.php'),
+        headers: _headers,
+        body: jsonEncode({}),
+      ).timeout(const Duration(seconds: 10));
+      final d = jsonDecode(response.body);
+      return d is Map<String, dynamic> ? d : {'success': false};
+    } catch (e) {
+      return {'success': false, 'message': '$e'};
+    }
+  }
+
   Future<Map<String, dynamic>> startChat(String mitgliedernummer, {String subject = 'Support'}) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/chat/start.php'),
