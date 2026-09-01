@@ -34,41 +34,67 @@ class ConversationListItem extends StatelessWidget {
     final displayName = isAnonymous
         ? AnonymousChatHelper.displayName(conversation)
         : (memberNr.isNotEmpty ? memberNr : (conversation['member_name'] ?? 'Unbekannt'));
+    // Der Name des Gegenuebers. `gegenueber_name` ist der ausdrueckliche Name
+    // dafuer; `member_name` ist der Rueckfall fuer aeltere Server.
+    final gegenName = (conversation['gegenueber_name'] ?? conversation['member_name'])
+            ?.toString() ??
+        '';
+    // Nur zeigen, wenn er etwas HINZUFUEGT: steht oben schon der Name (weil
+    // keine Nummer da war), waere die zweite Zeile eine Dopplung.
+    final zeigeName =
+        !isAnonymous && gegenName.isNotEmpty && gegenName != displayName;
     final lastSeenStr = conversation['last_seen'] as String?;
     final anonMeta = isAnonymous ? AnonymousChatHelper.metadataFrom(conversation) : null;
 
     final selectedBg = const Color(0xFF1a1a2e).withValues(alpha: 0.1);
     final anonBg = const Color(0xFFFFB74D).withValues(alpha: 0.10);
 
+    // ⚠️ Material statt Container um die Farbe: das ListTile malt Hintergrund
+    // und Tipp-Welle auf das NÄCHSTGELEGENE Material. Lag darüber eine
+    // eingefärbte Box, waren beide verdeckt — Flutter meldet das im
+    // Testlauf als Fehler, und auf dem Gerät bleibt die Welle beim Antippen
+    // einfach aus. Traf jede ausgewählte Zeile und jeden anonymen Besucher.
+    // Die Schwesterdatei in der Mitglieder-App trägt dieselbe Reparatur samt
+    // Begründung seit längerem; hier war sie nie angekommen.
     return Container(
       decoration: BoxDecoration(
-        color: isSelected ? selectedBg : (isAnonymous ? anonBg : null),
         border: isAnonymous
             ? const Border(left: BorderSide(color: Color(0xFFFFB74D), width: 4))
             : null,
       ),
-      child: ListTile(
-        dense: true,
-        leading: _buildAvatar(displayName, status, isAnonymous: isAnonymous),
-        title: _buildTitle(displayName, unreadCount, isAnonymous: isAnonymous),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (isAnonymous && anonMeta != null) _buildAnonymousMetaRow(anonMeta),
-            // Network status row (connection type, ping, battery) — only for real members
-            if (!isAnonymous && (networkData != null || hasActiveCall))
-              _buildNetworkRow(),
-            // Last seen (offline only) — only for real members
-            if (!isAnonymous && !isOnline && !hasActiveCall && lastSeenStr != null)
-              Text(
-                _formatLastSeen(lastSeenStr),
-                style: TextStyle(
-                  fontSize: 10,
-                  color: F.h(Colors.grey, 600),
-                  fontStyle: FontStyle.italic,
+      child: Material(
+        color: isSelected
+            ? selectedBg
+            : (isAnonymous ? anonBg : Colors.transparent),
+        child: ListTile(
+          dense: true,
+          leading: _buildAvatar(displayName, status, isAnonymous: isAnonymous),
+          title: _buildTitle(displayName, unreadCount, isAnonymous: isAnonymous),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (zeigeName)
+                Text(
+                  gegenName,
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
-              ),
-          ],
+              if (isAnonymous && anonMeta != null) _buildAnonymousMetaRow(anonMeta),
+              // Network status row (connection type, ping, battery) — only for real members
+              if (!isAnonymous && (networkData != null || hasActiveCall))
+                _buildNetworkRow(),
+              // Last seen (offline only) — only for real members
+              if (!isAnonymous && !isOnline && !hasActiveCall && lastSeenStr != null)
+                Text(
+                  _formatLastSeen(lastSeenStr),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: F.h(Colors.grey, 600),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+            ],
         ),
         onTap: onTap,
         trailing: onDelete != null
@@ -80,6 +106,7 @@ class ConversationListItem extends StatelessWidget {
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
               )
             : null,
+        ),
       ),
     );
   }
