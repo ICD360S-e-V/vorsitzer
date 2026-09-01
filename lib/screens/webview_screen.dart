@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -971,7 +970,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   Future<List<String>> _androidFilePicker(android_webview.FileSelectorParams params) async {
     try {
-      final result = await FilePicker.pickFiles(allowMultiple: params.mode == android_webview.FileSelectorMode.openMultiple);
+      final result = await FilePickerHelper.pickFiles(allowMultiple: params.mode == android_webview.FileSelectorMode.openMultiple);
       if (result != null && result.files.isNotEmpty) {
         return result.files.where((f) => f.path != null).map((f) => File(f.path!).uri.toString()).toList();
       }
@@ -1002,7 +1001,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
       final data = jsonDecode(message);
       if (data['action'] != 'pick') return;
 
-      final result = await FilePicker.pickFiles(
+      final result = await FilePickerHelper.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'tif', 'txt'],
         allowMultiple: data['multiple'] == true,

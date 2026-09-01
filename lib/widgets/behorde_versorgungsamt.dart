@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'cloud_file_picker.dart';
 import 'package:flutter/services.dart';
-import 'package:file_picker/file_picker.dart';
 import '../models/user.dart';
 import '../screens/webview_screen.dart';
 import '../services/api_service.dart';

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:flutter/services.dart';
 import '../utils/clipboard_helper.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:camera_macos/camera_macos.dart';
 import 'package:crop_your_image/crop_your_image.dart';

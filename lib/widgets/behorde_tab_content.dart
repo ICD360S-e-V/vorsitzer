@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
@@ -6091,7 +6090,7 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
   /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _upload(int jahr, {FilePickerResult? ausCloud}) async {
-    final pick = ausCloud ?? await FilePicker.pickFiles(allowMultiple: true);
+    final pick = ausCloud ?? await FilePickerHelper.pickFiles(allowMultiple: true);
     if (pick == null || pick.files.isEmpty) return;
     final files = pick.files.where((f) => f.path != null).toList();
     if (files.isEmpty) return;

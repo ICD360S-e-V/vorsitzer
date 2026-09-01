@@ -1,7 +1,55 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:file_picker/file_picker.dart';
+
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:file_picker/file_picker.dart' as fp;
 import 'package:file_selector/file_selector.dart' as fs;
+
+/// Die Dateityp-Auswahl kommt unveraendert aus `file_picker`; nur `any` und
+/// `custom` werden hier benutzt.
+typedef FileType = fp.FileType;
+
+/// ⚠️ ERSATZ FUER EINEN TYP, DEN `file_picker` 12 GESTRICHEN HAT.
+///
+/// Bis 11.x gab `pickFiles` ein `FilePickerResult?` mit `files` zurueck, und
+/// jede `PlatformFile` trug `bytes` und `size` fertig bei sich. In 12 gibt
+/// `pickFiles` eine `List<PlatformFile>`, `FilePickerResult` existiert nicht
+/// mehr, und `bytes`/`size` sind zu `readAsBytes()`/`length()` geworden — also
+/// asynchron.
+///
+/// Diese beiden kleinen Klassen halten die alte Form. Der Grund ist nicht
+/// Bequemlichkeit: `FilePickerResult?` steht in ueber hundert Signaturen quer
+/// durch die App (`Future<void> _upload({FilePickerResult? ausCloud})`), fast
+/// immer als reiner Durchreichetyp. Sie alle auf eine asynchrone Oberflaeche
+/// umzubauen hiesse, 39 Dateien anzufassen, um an einer einzigen Stelle etwas
+/// zu gewinnen. Stattdessen liest der Helper die Bytes EINMAL beim Auswaehlen
+/// und reicht sie fertig weiter — genau das, was 11.x mit `withData: true`
+/// ohnehin tat.
+class PlatformFile {
+  const PlatformFile({
+    required this.name,
+    required this.size,
+    this.path,
+    this.bytes,
+  });
+
+  final String name;
+  final int size;
+  final String? path;
+  final Uint8List? bytes;
+
+  /// Endung ohne Punkt, oder `null`. Gleiche Bedeutung wie frueher.
+  String? get extension {
+    final i = name.lastIndexOf('.');
+    return (i <= 0 || i == name.length - 1) ? null : name.substring(i + 1);
+  }
+}
+
+/// Ergebnis einer Auswahl. Siehe [PlatformFile] fuer den Grund.
+class FilePickerResult {
+  const FilePickerResult(this.files);
+  final List<PlatformFile> files;
+}
 
 /// Drop-in replacement for [FilePicker.platform] that works on ALL platforms
 /// including unsigned / ad-hoc signed macOS builds.
@@ -65,7 +113,6 @@ class FilePickerHelper {
     FileType type = FileType.any,
     List<String>? allowedExtensions,
     bool withData = false,
-    bool withReadStream = false,
   }) async {
     if (Platform.isMacOS) {
       return _pickViaMacOSFileSelector(
@@ -74,14 +121,62 @@ class FilePickerHelper {
         dialogTitle: dialogTitle,
       );
     }
-    return FilePicker.pickFiles(
-      dialogTitle: dialogTitle,
-      allowMultiple: allowMultiple,
-      type: type,
-      allowedExtensions: allowedExtensions,
-      withData: withData,
-      withReadStream: withReadStream,
-    );
+    // ⚠️ `allowMultiple` ist in 12 veraltet; fuer die Einzelauswahl gibt es
+    // jetzt `pickFile`. Beide Wege muenden in dieselbe Umwandlung.
+    //
+    // ⚠️ UND BEIDE MUESSEN GEFANGEN WERDEN. Bis 11.x gab die Auswahl `null`
+    // zurueck, wenn auf der Plattform keine Umsetzung bereitsteht; seit 12
+    // wirft sie stattdessen `UnimplementedError: pickFiles() has not been
+    // implemented`. Von den rund dreissig Aufrufstellen hat keine ein
+    // try/catch — sie alle rechnen mit `null` fuer „abgebrochen oder geht
+    // hier nicht". Ohne dieses catch platzt stattdessen der Knopfdruck.
+    // (Gefunden, weil drei Widget-Tests genau daran zerbrachen.)
+    try {
+      if (!allowMultiple) {
+        final eine = await fp.FilePicker.pickFile(
+          dialogTitle: dialogTitle,
+          type: type,
+          allowedExtensions: allowedExtensions,
+        );
+        return await _umwandeln(eine == null ? const [] : [eine],
+            withData: withData);
+      }
+      final gewaehlt = await fp.FilePicker.pickFiles(
+        dialogTitle: dialogTitle,
+        type: type,
+        allowedExtensions: allowedExtensions,
+      );
+      return await _umwandeln(gewaehlt, withData: withData);
+    } on UnimplementedError catch (e) {
+      // Nur DIESER Fall wird geschluckt, und er wird protokolliert. Ein
+      // Rechte- oder Lesefehler soll weiterhin nach oben durchschlagen.
+      debugPrint('[FilePicker] Auswahl auf dieser Plattform nicht verfuegbar: $e');
+      return null;
+    }
+  }
+
+  /// `file_picker` 12 liefert `PlatformFile`-Objekte, die Groesse und Inhalt
+  /// erst auf Nachfrage herausgeben. Hier wird beides EINMAL geholt und in
+  /// unsere Form gelegt.
+  ///
+  /// ⚠️ `withData: false` liest bewusst KEINE Bytes — ein 100-MB-Anhang
+  /// soll nicht im Speicher landen, nur weil jemand seinen Namen wissen will.
+  /// Die Groesse kostet nichts und kommt immer mit.
+  static Future<FilePickerResult?> _umwandeln(
+    List<fp.PlatformFile> gewaehlt, {
+    required bool withData,
+  }) async {
+    if (gewaehlt.isEmpty) return null;
+    final dateien = <PlatformFile>[];
+    for (final f in gewaehlt) {
+      dateien.add(PlatformFile(
+        name: f.name,
+        size: await f.length(),
+        path: f.path,
+        bytes: withData ? await f.readAsBytes() : null,
+      ));
+    }
+    return FilePickerResult(dateien);
   }
 
   // Ein „saveFile", das nur einen Pfad liefert und das Schreiben dem Aufrufer
@@ -128,36 +223,37 @@ class FilePickerHelper {
     final type = ext.isEmpty ? FileType.any : FileType.custom;
     final allowed = ext.isEmpty ? null : [ext];
 
-    if (Platform.isAndroid || Platform.isIOS) {
-      // Das Plugin schreibt hier selbst; die Rückgabe ist eine content-URI,
-      // kein Dateisystempfad — nicht damit weiterrechnen.
-      final saved = await FilePicker.saveFile(
-        dialogTitle: dialogTitle,
-        fileName: safeName,
-        type: type,
-        allowedExtensions: allowed,
-        bytes: bytes,
-      );
-      return saved == null ? null : safeName;
+    // macOS zuerst: dort scheitert NSSavePanel an fehlenden Entitlements,
+    // deshalb schreiben wir selbst nach ~/Downloads (siehe [_saveViaMacOS]).
+    if (Platform.isMacOS) {
+      final path = await _saveViaMacOS(fileName: safeName);
+      if (path == null) return null;
+      final target = (ext.isNotEmpty && !path.toLowerCase().endsWith('.$ext'))
+          ? '$path.$ext'
+          : path;
+      await File(target).writeAsBytes(bytes, flush: true);
+      return target;
     }
 
-    final path = Platform.isMacOS
-        ? await _saveViaMacOS(fileName: safeName)
-        : await FilePicker.saveFile(
-            dialogTitle: dialogTitle,
-            fileName: safeName,
-            type: type,
-            allowedExtensions: allowed,
-          );
-    if (path == null) return null;
+    // ⚠️ Ab `file_picker` 12 verlangt `saveFile` die Bytes IMMER und schreibt
+    // die Datei auf JEDER Plattform selbst — vorher tat es das nur auf
+    // Android/iOS, und auf Linux/Windows mussten wir hinterher selbst
+    // schreiben. Zurueck kommt jetzt eine `Uri` statt eines Pfades.
+    final uri = await fp.FilePicker.saveFile(
+      dialogTitle: dialogTitle,
+      fileName: safeName,
+      type: type,
+      allowedExtensions: allowed,
+      bytes: bytes,
+    );
+    if (uri == null) return null;
 
-    // Manche Dialoge geben den Namen ohne Endung zurück, wenn der Nutzer sie
-    // wegeditiert — dann hätte die Datei keinen Typ mehr.
-    final target = (ext.isNotEmpty && !path.toLowerCase().endsWith('.$ext'))
-        ? '$path.$ext'
-        : path;
-    await File(target).writeAsBytes(bytes, flush: true);
-    return target;
+    // ⚠️ Nur ein `file:`-Uri ist ein Pfad, den der Aufrufer oeffnen kann. Auf
+    // Android kommt eine `content:`-Uri zurueck — die darf NICHT in einen
+    // `File` wandern; dort ist der Dateiname alles, was wir ehrlich sagen
+    // koennen. Genau diese Unterscheidung traegt [savesToRealPath].
+    if (uri.scheme != 'file') return safeName;
+    return uri.toFilePath();
   }
 
   /// Ob [saveBytes] einen echten Dateisystempfad zurückgibt. Auf Android/iOS
@@ -228,10 +324,13 @@ class FilePickerHelper {
     } catch (_) {
       // Last resort: try the original file_picker anyway
       try {
-        return await FilePicker.pickFiles(
-          allowMultiple: allowMultiple,
-          withData: withData,
-        );
+        if (!allowMultiple) {
+          final eine = await fp.FilePicker.pickFile();
+          return await _umwandeln(eine == null ? const [] : [eine],
+              withData: withData);
+        }
+        return await _umwandeln(await fp.FilePicker.pickFiles(),
+            withData: withData);
       } catch (_) {
         return null;
       }

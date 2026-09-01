@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/phone_link.dart';
 import '../utils/sicher_clipboard.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:otp/otp.dart';
 import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
