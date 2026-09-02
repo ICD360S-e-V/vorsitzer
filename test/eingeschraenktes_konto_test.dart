@@ -80,6 +80,23 @@ void main() {
     });
   });
 
+  group('Die Verwalter-Takte hängen am Dashboard, nicht am Programmstart', () {
+    test('main.dart startet keinen von ihnen', () {
+      // Läge auch nur einer in main.dart, liefe er für JEDES Konto — auch für
+      // ein eingeschränktes, das den Kompakt-Bildschirm sieht und von den
+      // Takten nichts ahnt.
+      final m = lies('lib/main.dart');
+      for (final dienst in [
+        'FaxBadgeService',
+        'MailBadgeService',
+        'TicketNotificationService',
+      ]) {
+        expect(m, isNot(contains(dienst)),
+            reason: '$dienst gehört an den Bildschirm, der ihn auch benutzt');
+      }
+    });
+  });
+
   group('Der Kompakt-Bildschirm bleibt kompakt', () {
     late String q;
     setUpAll(() => q = lies('lib/screens/vorstand_kompakt_screen.dart'));
@@ -117,6 +134,28 @@ void main() {
       // eine Liste ohne Namen wäre schlimmer als eine mit dem falschen.
       expect(q, contains("?? g['member_name']"),
           reason: 'ohne Rückfall bleibt die Liste an einem alten Server leer');
+    });
+
+    test('startet keine Verwalter-Abfragen', () {
+      // Die Abfragetakte des Dashboards (Fax, Mail, Ticket-Benachrichtigungen)
+      // gehören einem Konto, das sie auch benutzen darf. Ein eingeschränktes
+      // bekommt darauf 403 — und zwar alle fünf Minuten, rund um die Uhr:
+      // Strom für nichts, und ein Log voller 403, in dem eine echte Warnung
+      // nicht mehr auffällt.
+      //
+      // ⚠️ Heute stimmt das schon; diese Prüfung hält es fest. Wer später
+      // einen Takt hier einbaut oder ihn nach main.dart verschiebt, bemerkt
+      // nichts: es schlägt nichts fehl, der Server antwortet brav mit 403.
+      for (final dienst in [
+        'FaxBadgeService',
+        'MailBadgeService',
+        'TicketNotificationService',
+        'listPendingMyVote',
+        'getPendingApprovals',
+      ]) {
+        expect(q, isNot(contains(dienst)),
+            reason: '$dienst gehört dem Dashboard, nicht diesem Bildschirm');
+      }
     });
 
     test('zeigt keine internen Ticket-Notizen', () {
