@@ -26,9 +26,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
 
     signingConfigs {
         if (keystorePropertiesFile.exists()) {
@@ -113,6 +110,14 @@ android {
                 "proguard-rules.pro"
             )
         }
+    }
+}
+
+// ⚠️ Ersetzt den frueheren `kotlinOptions`-Block im android{}: ab KGP 2.3 ist
+// er entfernt.
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 
