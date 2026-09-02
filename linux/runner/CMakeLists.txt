@@ -20,7 +20,14 @@ apply_standard_settings(${BINARY_NAME})
 add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 
 # Add dependency libraries. Add any application-specific dependencies here.
+# ⚠️ ENABLE_EXPORTS: legt die Symbole des Programms in seine dynamische
+# Symboltabelle. Ohne das greift die Überlagerung von `fl_dart_project_new`
+# in main.cc nicht — das Blitz-Fenster-Plugin bände direkt an die Engine, und
+# die Blitz-Karte bliebe leer, ohne Fehler und ohne Meldung.
+set_target_properties(${BINARY_NAME} PROPERTIES ENABLE_EXPORTS ON)
+
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
+target_link_libraries(${BINARY_NAME} PRIVATE ${CMAKE_DL_LIBS})
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
 
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")

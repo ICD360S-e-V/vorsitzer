@@ -1,51 +1,68 @@
+#include <dlfcn.h>
+#include <flutter_linux/flutter_linux.h>
+
 #include "my_application.h"
 
-// ⚠️ IMPELLER AUS — sonst bleibt das Blitz-Fenster SCHWARZ.
+// ⚠️ IMPELLER AUS — sonst bleibt das Blitz-Fenster ein leeres Rechteck.
 //
-// Seit dem Sprung auf Flutter 3.47 (CI-Umstellung 3.44.8 → 3.47.2) ist
-// Impeller unter Linux die Voreinstellung. Für das Hauptfenster ist das
-// unauffällig; das ZWEITE Fenster von `desktop_multi_window` (die
-// Blitz-Karte) zeichnet damit aber nur noch seine unterste Ebene — der
-// Karteninhalt kommt nie an.
+// Seit Flutter 3.47 (CI-Umstellung 3.44.8 → 3.47.2, #541) ist Impeller unter
+// Linux die Voreinstellung. Das Hauptfenster verträgt das; das ZWEITE Fenster
+// von desktop_multi_window (die Blitz-Karte) zeichnet damit nur noch seine
+// unterste Ebene — der Karteninhalt kommt nie an. Im Protokoll dazu
+// `Timed out waiting for OpenGL frame of size 380x130 (have 1x1)`.
 //
-// Gemessen am 02.09.2026 auf dem Rechner des Vorsitzenden (X11/xfwm4 über
-// RDP, Software-Rendering: `libEGL warning: DRI3 error`), an der laufenden
-// Fassung 6.183.0:
-//   * ausgeliefert:            Fenster 380×243, ALLE 92.340 Pixel #000000
-//   * eigener Bau, Impeller an: nur der Scaffold-Hintergrund, 100 % Fläche,
-//                               dazu `Timed out waiting for OpenGL frame of
-//                               size 380x130 (have 1x1)`
-//   * derselbe Bau, Impeller aus: Karte vollständig, 0 GL-Warnungen
-// Ein Unterschied, eine Ursache — der einzige Unterschied zwischen den
-// letzten beiden Läufen war dieser Schalter.
+// 🔴 WARUM ES NICHT ÜBER `FLUTTER_ENGINE_SWITCHES` GEHT — der erste Anlauf
+// (#557) hat genau das versucht und war im ausgelieferten Programm WIRKUNGSLOS.
+// Der Einbetter liest die Umgebungsvariablen nur ausserhalb von Release; in
+// `engine_switches.cc` steht die Auswertung hinter `#ifndef FLUTTER_RELEASE`.
+// Nachgemessen an den beiden Engines auf dieser Maschine:
+//     debug   libflutter_linux_gtk.so : „FLUTTER_ENGINE_SWITCHES" 1×
+//     release libflutter_linux_gtk.so : „FLUTTER_ENGINE_SWITCHES" 0×
+// Ein Debug-Bau beweist hier also NICHTS. Wer diese Zeilen ändert, prüft am
+// Release-Paket nach, nicht an `flutter run`.
 //
-// ⚠️ WARUM ÜBER DIE UMGEBUNG UND NICHT ÜBER `fl_dart_project_*`.
-// `fl_dart_project_set_enable_impeller()` gälte nur für das Projekt, das
-// dieser Runner selbst anlegt — also nur für das Hauptfenster. Das
-// Blitz-Fenster bekommt sein `FlDartProject` INNERHALB von
-// desktop_multi_window (`multi_window_manager.cc`), wo wir nicht hinreichen.
-// Die Umgebungsvariablen liest der Einbetter bei JEDEM Engine-Start neu, also
-// auch für die zweite Engine. Deshalb hier, vor dem ersten Fenster.
+// ⚠️ WARUM ÜBERLAGERT UND NICHT SCHLICHT GESETZT.
+// `fl_dart_project_set_enable_impeller()` wirkt auf das FlDartProject, dem man
+// es mitgibt. Das des Hauptfensters legt dieser Runner selbst an — an das des
+// Blitz-Fensters kommen wir nicht heran: es entsteht INNERHALB von
+// desktop_multi_window (`multi_window_manager.cc`, `fl_dart_project_new()`),
+// und der Rückruf, den das Paket uns anbietet, läuft erst, wenn die Engine
+// schon steht. Deshalb wird die Fabrik selbst überlagert: das Programm
+// definiert `fl_dart_project_new` und liegt in der Symbolsuche vor der
+// Engine-Bibliothek, also landen ALLE Projekte hier — auch die des Pakets.
+// `dlsym(RTLD_NEXT, …)` holt danach das echte.
 //
-// ⚠️ `--enable-impeller=false` ist von Flutter als veraltet markiert
+// ⚠️ Dafür braucht das Programm `ENABLE_EXPORTS` (siehe runner/CMakeLists.txt).
+// Ohne das steht `fl_dart_project_new` nicht in seiner dynamischen
+// Symboltabelle, das Plugin bindet direkt an die Engine, und diese Datei ist
+// wieder wirkungslos — ohne Fehler, ohne Meldung.
+//
+// ⚠️ Die Meldung unten ist keine Zierde: sie ist die einzige Stelle, an der
+// sich im Betrieb ablesen lässt, dass die Überlagerung wirklich greift.
+//
+// ⚠️ Das ist eine Brücke. Flutter meldet den Opt-out bereits als veraltet
 // („Impeller opt-out deprecated … going to go away in an upcoming Flutter
-// release"). Das ist eine Brücke, keine Dauerlösung. Fällt der Schalter weg,
-// bleibt nur, die Karte unter Linux nicht mehr in ein eigenes Fenster zu
-// legen, sondern als Überlagerung ins Hauptfenster.
-//
-// ⚠️ NICHT „aufräumen", solange das Blitz-Fenster existiert. Es gibt keinen
-// Fehler, keine Meldung und keinen roten Test, wenn diese Zeilen fehlen — nur
-// ein schwarzes Rechteck mitten auf dem Bildschirm.
-static void impeller_abschalten() {
-  // Ein bereits gesetzter Wert von aussen hat Vorrang: so lässt sich zum
-  // Nachmessen jederzeit wieder mit Impeller starten, ohne neu zu bauen.
-  if (g_getenv("FLUTTER_ENGINE_SWITCHES") != nullptr) return;
-  g_setenv("FLUTTER_ENGINE_SWITCHES", "1", TRUE);
-  g_setenv("FLUTTER_ENGINE_SWITCH_1", "enable-impeller=false", TRUE);
+// release"). Fällt er weg, bleibt nur, die Blitz-Karte unter Linux nicht mehr
+// in ein eigenes Fenster zu legen, sondern als Überlagerung ins Hauptfenster.
+extern "C" FlDartProject* fl_dart_project_new(void) {
+  using FabrikFn = FlDartProject* (*)(void);
+  static FabrikFn echte_fabrik = nullptr;
+  if (echte_fabrik == nullptr) {
+    echte_fabrik =
+        reinterpret_cast<FabrikFn>(dlsym(RTLD_NEXT, "fl_dart_project_new"));
+    if (echte_fabrik == nullptr) {
+      // Ohne die echte Fabrik gibt es kein Fenster — laut scheitern ist besser
+      // als ein Programm, das ohne Grund gar nicht erst hochkommt.
+      g_error("fl_dart_project_new nicht auffindbar: %s", dlerror());
+    }
+  }
+  FlDartProject* projekt = echte_fabrik();
+  fl_dart_project_set_enable_impeller(projekt, FALSE);
+  g_message("[RENDER] Impeller fuer diese Engine abgeschaltet");
+  return projekt;
 }
 
 int main(int argc, char** argv) {
-  impeller_abschalten();
   g_autoptr(MyApplication) app = my_application_new();
   return g_application_run(G_APPLICATION(app), argc, argv);
 }
