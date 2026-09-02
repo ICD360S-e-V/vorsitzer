@@ -274,7 +274,7 @@ dependencies:
   # ============================================================
 
   # Background tasks scheduler (mobile alternative to auto-start)
-  workmanager: ^0.9.0
+  workmanager: ^0.10.9
 
   # Vordergrunddienst für das Gateway-Tablet.
   #
@@ -287,7 +287,7 @@ dependencies:
   # nicht: die App wird über das eigene F-Droid-Repo verteilt, ohne Play
   # Services. Genau denselben Weg geht auch die F-Droid-Fassung von ntfy
   # selbst (dauerhafte Verbindung statt FCM, ~0-1 % Akku in 17 Stunden).
-  flutter_foreground_task: ^10.0.0
+  flutter_foreground_task: ^11.0.1
 
   # SMS-Versand über die SIM des Vereins-Tablets (Termin-Erinnerungen).
   # Eigenes Plugin-Paket statt MethodChannel in MainActivity: nur registrierte
