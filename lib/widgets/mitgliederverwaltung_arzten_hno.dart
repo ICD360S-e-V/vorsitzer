@@ -12,7 +12,6 @@ import 'mail_delivery_indicator.dart';
 import '../screens/mail_compose_screen.dart';
 import '../utils/cloud_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -16789,7 +16788,7 @@ class _ManagementViewState extends State<_ManagementView> {
   /// [ausCloud] gesetzt = die Seiten kommen schon aus dem Cloud; der
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _pickAndUploadMulti(String type, {FilePickerResult? ausCloud}) async {
-    final picked = ausCloud ?? await FilePicker.pickFiles(
+    final picked = ausCloud ?? await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
       withData: true,
@@ -17118,7 +17117,7 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
   /// [ausCloud] gesetzt = die Bestätigung kommt schon aus dem Cloud; der
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _pickConf({FilePickerResult? ausCloud}) async {
-    final picked = ausCloud ?? await FilePicker.pickFiles(
+    final picked = ausCloud ?? await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
       withData: true,
@@ -17453,7 +17452,7 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
   /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _pickFiles({FilePickerResult? ausCloud}) async {
-    final picked = ausCloud ?? await FilePicker.pickFiles(
+    final picked = ausCloud ?? await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
       withData: true, allowMultiple: true,
@@ -17669,7 +17668,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
   /// [ausCloud] gesetzt = die Anhänge kommen schon aus dem Cloud; der
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _addAttachments({FilePickerResult? ausCloud}) async {
-    final picked = ausCloud ?? await FilePicker.pickFiles(
+    final picked = ausCloud ?? await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
       withData: true, allowMultiple: true,

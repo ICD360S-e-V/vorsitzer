@@ -7,7 +7,6 @@ import '../services/phone_call_service.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import '../utils/sicher_clipboard.dart';
 import 'package:intl/intl.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:open_filex/open_filex.dart';
@@ -8492,7 +8491,7 @@ class _MitwirkungspflichtSubTabState extends State<_MitwirkungspflichtSubTab> {
   }
 
   Future<void> _uploadSigned(int id) async {
-    final result = await FilePicker.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
       allowMultiple: false,

@@ -1,11 +1,11 @@
 import 'dart:io';
-import 'package:launch_at_startup/launch_at_startup.dart';
+import '../utils/autostart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'logger_service.dart';
 import 'platform_service.dart';
 
 /// Startup Service - manages auto-start with OS login
-/// Windows and Linux only - macOS not supported by launch_at_startup plugin
+/// Windows und Linux. macOS bleibt aussen vor — siehe [AutoStart].
 class StartupService {
   static final _log = LoggerService();
   static const String _prefKey = 'start_with_os';
@@ -19,8 +19,13 @@ class StartupService {
   bool get isEnabled => _isEnabled;
 
   /// Check if auto-start is supported on current platform
-  /// Note: macOS not supported by launch_at_startup plugin
-  bool get isSupported => Platform.isWindows || Platform.isLinux;
+  bool get isSupported => AutoStart.istUnterstuetzt;
+
+  AutoStart get _autostart => AutoStart(
+        appName: 'ICD360S e.V',
+        exePfad: Platform.resolvedExecutable,
+        args: const ['--autostart'],
+      );
 
   /// Initialize the startup service
   Future<void> initialize() async {
@@ -31,19 +36,12 @@ class StartupService {
     }
 
     try {
-      // Setup launch_at_startup with platform-specific configuration
-      launchAtStartup.setup(
-        appName: 'ICD360S e.V',
-        appPath: Platform.resolvedExecutable,
-        args: ['--autostart'],
-      );
-
       // Load saved preference
       final prefs = await SharedPreferences.getInstance();
       _isEnabled = prefs.getBool(_prefKey) ?? false;
 
       // Sync with actual system state
-      final isActuallyEnabled = await launchAtStartup.isEnabled();
+      final isActuallyEnabled = await _autostart.istAktiv();
 
       if (_isEnabled != isActuallyEnabled) {
         // Preference and actual state don't match, update preference
@@ -62,7 +60,7 @@ class StartupService {
     if (!isSupported) return false;
 
     try {
-      await launchAtStartup.enable();
+      await _autostart.einschalten();
       _isEnabled = true;
 
       final prefs = await SharedPreferences.getInstance();
@@ -81,7 +79,7 @@ class StartupService {
     if (!isSupported) return false;
 
     try {
-      await launchAtStartup.disable();
+      await _autostart.ausschalten();
       _isEnabled = false;
 
       final prefs = await SharedPreferences.getInstance();

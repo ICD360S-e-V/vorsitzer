@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
-import 'package:file_picker/file_picker.dart';
 
 import '../services/api_service.dart';
 import '../services/signatur_service.dart';

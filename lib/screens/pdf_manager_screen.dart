@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:pdfrx/pdfrx.dart' hide PdfDocument;
 import 'package:pdf/pdf.dart' hide PdfDocument, PdfPage;
 import 'package:pdf/widgets.dart' as pw;
