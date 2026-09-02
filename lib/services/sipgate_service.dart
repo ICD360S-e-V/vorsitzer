@@ -556,10 +556,19 @@ class SipgateService {
       zustand.value.gespraech?.stand == SipgateGespraechStand.verbunden &&
       zustand.value.zweites == null;
 
-  /// Ob `*5` jetzt Sinn hätte: zwei Beine, beide verbunden, noch keine
-  /// Konferenz.
+  /// Ob `*5` jetzt Sinn hätte: ein zweiter Teilnehmer ist dazugewählt und es
+  /// läuft noch keine Konferenz.
+  ///
+  /// 🔴 NICHT MEHR `verbundeneBeine == 2`, und das war der zweite Grund, warum
+  /// der Knopf nie erschien. Seit der zweite Teilnehmer über die Anlage
+  /// (`*3<nr>#`) und nicht als eigener SIP-Dialog dazukommt, gibt es für ihn
+  /// gar kein `verbunden`-Signal — die Bedingung konnte nie wahr werden, und
+  /// der Knopf blieb unsichtbar, ohne dass irgendwo etwas fehlschlug.
+  ///
+  /// ⚠️ „Kann" heisst hier: es ist sinnvoll, es zu VERSUCHEN. Ob der zweite
+  /// Teilnehmer schon abgehoben hat, weiss nur der Mensch am Hörer.
   bool get kannKonferenz =>
-      !zustand.value.konferenz && zustand.value.verbundeneBeine == 2;
+      !zustand.value.konferenz && zustand.value.zweites != null;
 
   /// Ob auf DIESEM Gerät in der App telefoniert wird.
   ///
@@ -1210,11 +1219,28 @@ class SipgateService {
   }
 
   /// Wählt die zweite Nummer dazu, mit dem ersten Bein in der Warteschleife.
+  ///
+  /// 🔴 ÜBER DIE ANLAGE, NICHT ALS ZWEITER SIP-RUF — und genau daran ist die
+  /// Konferenz vorher gescheitert.
+  ///
+  /// Die alte Fassung hielt das erste Gespräch mit `*3` und öffnete dann mit
+  /// `_helper.call(...)` einen ZWEITEN, eigenständigen SIP-Dialog. Für die
+  /// Anlage sind das zwei Anrufe, die nichts miteinander zu tun haben; ein
+  /// späteres `*5` hat dann nichts zusammenzuschalten. Es sah aus wie eine
+  /// Kleinigkeit im Zustand und war der ganze Fehler.
+  ///
+  /// sipgate schreibt die Folge selbst vor (help.sipgate.de, „Tastenkürzel"):
+  ///
+  ///     Halten          *3
+  ///     Transfer        *3<Rufnummer>#
+  ///     Konferenz       *5   — „nach dem Transfer eines weiteren
+  ///                            Teilnehmers … alle zusammenschalten"
+  ///
+  /// Also: `*3`, Nummer, `#` auf DEMSELBEN Gespräch. Danach kennt die Anlage
+  /// beide Teilnehmer auf einer Leitung, und `*5` hat etwas zu tun.
   Future<String?> _zweitesWaehlen(String nummer, String? bezeichnung) async {
-    // Halten zuerst. Ohne das hört die erste Person mit, während man wählt —
-    // bei einem Amt und einem Mitglied im selben Gespräch ist das genau das,
-    // was nicht passieren darf.
-    await halten(true);
+    final ruf = _rufA ?? _rufB;
+    if (ruf == null) return 'Kein Gespräch.';
 
     _anrufIdB = await _anrufProtokoll(
       richtung: 'aus',
@@ -1223,14 +1249,19 @@ class SipgateService {
       status: 'gestartet',
     );
 
-    final ok = await _helper.call('sip:$nummer@sipgate.de', voiceOnly: true);
-    if (!ok) {
+    if (!await _steuerfolge(ruf, ['*3', nummer, '#'])) {
       await _anrufProtokoll(
-          anrufId: _anrufIdB, status: 'fehler', fehler: 'sip_ua: nicht verbunden');
-      await halten(false);
-      return 'Zweiter Anruf konnte nicht gestartet werden.';
+          anrufId: _anrufIdB, status: 'fehler', fehler: 'DTMF nicht gesendet');
+      return 'Die Anlage hat die Nummer nicht angenommen — steht das '
+          'Gespräch noch?';
     }
     _aktiv = 'B';
+    // ⚠️ `waehlt` und NICHT `verbunden`, obwohl die Anlage jetzt wählt: für
+    // diesen zweiten Teilnehmer gibt es KEINEN eigenen SIP-Dialog, also auch
+    // kein Signal, wenn er abhebt. Zu behaupten, er sei verbunden, wäre eine
+    // Angabe, die niemand geprüft hat. Der Bildschirm sagt deshalb „angewählt"
+    // und überlässt den nächsten Schritt dem Menschen, der hört, ob jemand
+    // dran ist.
     _setz(
       zweites: SipgateGespraech(
         nummer: nummer,
@@ -1239,7 +1270,32 @@ class SipgateService {
         stand: SipgateGespraechStand.waehlt,
       ),
     );
+    _setzBein('A', (g) => g.kopie(gehalten: true));
+    _log.info('sipgate: *3$nummer# geschickt — zweiter Teilnehmer über die '
+        'Anlage angewählt', tag: 'SIPGATE');
+    if (bezeichnung == null || bezeichnung.isEmpty) {
+      unawaited(_namenNachreichen('B', nummer));
+    }
     return null;
+  }
+
+  /// Schickt mehrere Steuercodes hintereinander, mit Luft dazwischen.
+  ///
+  /// ⚠️ MIT PAUSEN, und die sind nicht kosmetisch. Eine Anlage erkennt eine
+  /// Ziffernfolge über die Lücken zwischen den Tönen; kommt alles in einem
+  /// Block, verschmelzen Wiederholungen („077" wird zu „07") oder die Folge
+  /// wird gar nicht erst als Wahl erkannt. Deshalb Ziffer für Ziffer.
+  Future<bool> _steuerfolge(Call ruf, List<String> teile) async {
+    for (final teil in teile) {
+      for (final zeichen in teil.split('')) {
+        // Was keine Taste ist, gehört nicht auf die Leitung: ein „+" oder ein
+        // Leerzeichen aus einer Rufnummer würde die Folge zerreissen.
+        if (!'0123456789*#'.contains(zeichen)) continue;
+        if (!_steuercode(ruf, zeichen)) return false;
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+      }
+    }
+    return true;
   }
 
   /// Hält das aktive Bein (`*3`) oder holt es zurück (`#`).
@@ -1287,8 +1343,8 @@ class SipgateService {
   /// „zusammengeschaltet — bitte prüfen, ob sich alle hören".
   Future<String?> konferenzSchalten() async {
     if (zustand.value.konferenz) return 'Die Konferenz läuft schon.';
-    if (zustand.value.verbundeneBeine < 2) {
-      return 'Für eine Konferenz müssen beide Gespräche verbunden sein.';
+    if (zustand.value.zweites == null) {
+      return 'Erst die zweite Nummer dazuwählen — dann zusammenschalten.';
     }
     final ruf = _rufA ?? _rufB;
     if (ruf == null) return 'Kein Gespräch.';
