@@ -18,6 +18,7 @@ import '../widgets/sipgate_waehltastatur.dart';
 import 'sipgate_kontakte_screen.dart';
 import '../utils/app_farben.dart';
 import '../utils/mitschrift_sprachen.dart';
+import '../widgets/konferenz_dialog.dart';
 
 /// Telefonieren über sipgate, direkt in der App.
 ///
@@ -1162,15 +1163,19 @@ class _SipgateScreenState extends State<SipgateScreen> {
                 label: const Text('Wechseln (*4)'),
                 onPressed: _dienst.makeln,
               ),
-            if (_dienst.kannKonferenz)
+            // ⚠️ `kannKonferenzStarten`, nicht `kannKonferenz`: der Knopf ist
+            // der EINSTIEG in den Ablauf. Vorher hing er an „es gibt schon
+            // einen zweiten Teilnehmer" — also an dem, wozu er hinführen
+            // sollte. So kam man nie hin.
+            if (_dienst.kannKonferenzStarten)
               FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple.shade600),
+                style: FilledButton.styleFrom(
+                    backgroundColor: Colors.deepPurple.shade600),
                 icon: const Icon(Icons.groups),
-                label: const Text('Konferenz (*5)'),
-                onPressed: () async {
-                  final m = await _dienst.konferenzSchalten();
-                  if (m != null) _melde(m, fehler: true);
-                },
+                label: Text(_dienst.kannKonferenz
+                    ? 'Zusammenschalten'
+                    : 'Konferenz'),
+                onPressed: () => konferenzAblauf(context),
               ),
             if (z.verbundeneBeine > 0)
               ValueListenableBuilder<bool>(

@@ -10,6 +10,7 @@ import '../services/qualitaets_sonde.dart';
 import '../services/untertitel_service.dart';
 import 'guete_anzeige.dart';
 import 'sekunden_takt.dart';
+import 'konferenz_dialog.dart';
 
 /// Schwebende Gesprächskarte, sichtbar über jedem Bildschirm.
 ///
@@ -431,6 +432,17 @@ class _Karte extends StatelessWidget {
                       dienst.ablehnen),
                 ] else ...[
                   if (verbunden) ...[
+                    // 🔴 WARUM DIESER KNOPF HIER SEIN MUSS
+                    // Konferenz, Makeln und Weiterverbinden gibt es seit
+                    // jeher — aber nur im Vollbild. Wer telefoniert, sieht
+                    // diese Karte; um an die Steuerung zu kommen, musste er
+                    // erst hineintippen und dann scrollen. Gemeldet wurde das
+                    // als „der Konferenzknopf ist weg". Er war nie weg, er war
+                    // nur nicht dort, wo man ihn braucht.
+                    _rundKnopf(Icons.more_horiz, Colors.white24,
+                        'Weitere Gesprächsfunktionen',
+                        () => _funktionen(context, dienst, z)),
+                    const SizedBox(width: 6),
                     _rundKnopf(
                       g.stumm ? Icons.mic_off : Icons.mic,
                       Colors.white24,
@@ -646,6 +658,76 @@ class _Karte extends StatelessWidget {
           ),
         ),
       );
+
+  /// Die Gesprächsfunktionen, die kein Tippen brauchen — direkt von der Karte.
+  ///
+  /// ⚠️ Was eine Nummer braucht (dazuwählen, weiterverbinden), führt ins
+  /// Vollbild statt ein Eingabefeld über die schwebende Karte zu legen: die
+  /// Karte ist 320 dp breit und liegt über allem anderen; eine Tastatur darauf
+  /// verdeckt genau das, was man gerade abliest.
+  void _funktionen(BuildContext context, SipgateService dienst, SipgateZustand z) {
+    final zweites = z.zweites;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (blatt) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (zweites == null)
+              ListTile(
+                leading: const Icon(Icons.groups),
+                title: const Text('Konferenz'),
+                subtitle: const Text(
+                    'Zweite Nummer wählen — die erste wartet solange —, dann '
+                    'beide zusammenschalten.'),
+                onTap: () {
+                  Navigator.pop(blatt);
+                  konferenzAblauf(context);
+                },
+              )
+            else ...[
+              ListTile(
+                leading: const Icon(Icons.groups),
+                title: const Text('Zusammenschalten'),
+                // ⚠️ Der Hinweis gehört an den Knopf, nicht in eine Fussnote:
+                // für den zweiten Teilnehmer gibt es kein Signal, wenn er
+                // abhebt. Wer zu früh drückt, schaltet ins Leere.
+                subtitle: const Text(
+                    'Erst drücken, wenn die zweite Person abgehoben hat.'),
+                onTap: () {
+                  Navigator.pop(blatt);
+                  konferenzAblauf(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.swap_horiz),
+                title: const Text('Wechseln'),
+                subtitle: Text('Zurück zu ${zweites.gehalten ? 'der zweiten '
+                    'Person' : 'der ersten Person'}'),
+                onTap: () {
+                  Navigator.pop(blatt);
+                  dienst.makeln();
+                },
+              ),
+            ],
+            ListTile(
+              leading: const Icon(Icons.phone_forwarded),
+              title: const Text('Weiterverbinden'),
+              subtitle: const Text(
+                  'Die beiden werden verbunden, wir legen dabei auf.'),
+              onTap: () {
+                Navigator.pop(blatt);
+                Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SipgateScreen()));
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _rundKnopf(IconData symbol, Color farbe, String hinweis, VoidCallback tun) =>
       Tooltip(
