@@ -23,6 +23,7 @@ import 'dart:io';
 
 import 'api_service.dart';
 import 'logger_service.dart';
+import '../utils/mitschrift_sprachen.dart';
 
 final _log = LoggerService();
 
@@ -36,7 +37,20 @@ final _log = LoggerService();
 const Duration kStromAufbauFrist = Duration(seconds: 6);
 
 class UntertitelStrom {
-  UntertitelStrom({required this.aufText, required this.aufAbbruch});
+  UntertitelStrom({
+    required this.aufText,
+    required this.aufAbbruch,
+    this.sprache = kMitschriftStandard,
+  });
+
+  /// Welches Modell der Server nehmen soll — `de`, `en` oder `ro`.
+  ///
+  /// ⚠️ Ein SCHLÜSSEL, kein Pfad. Der Server schlägt ihn in einer eigenen
+  /// Tabelle nach; kennt er ihn nicht, weist er die Verbindung ab. Der
+  /// Vorgänger dieses Servers (aus dem vosk-server-Projekt) nahm vom Client
+  /// stattdessen `{"model": "<pfad>"}` entgegen — dann bestimmt der Client,
+  /// was geladen wird.
+  final String sprache;
 
   /// `art` ist `teil` (im Satz) oder `satz` (fertig) — dieselben Namen wie
   /// beim Erkennen auf dem Gerät, damit die Anzeige nichts unterscheiden muss.
@@ -77,7 +91,7 @@ class UntertitelStrom {
           pfad;
 
       _draht = await WebSocket.connect(url).timeout(kStromAufbauFrist);
-      _draht!.add(jsonEncode({'token': token}));
+      _draht!.add(jsonEncode({'token': token, 'sprache': sprache}));
       _offen = true;
       _gesendet = 0;
 
@@ -98,7 +112,14 @@ class UntertitelStrom {
         onDone: () {
           final war = _offen;
           _offen = false;
-          if (war) aufAbbruch('Verbindung zum Erkenner beendet');
+          if (!war) return;
+          // ⚠️ 1003 ist die EINE Absage, die einen eigenen Satz verdient: der
+          // Server hat kein Modell für diese Sprache. Ohne die Unterscheidung
+          // stünde dort „Verbindung beendet", und man suchte den Fehler im
+          // Netz statt in der Sprachwahl.
+          aufAbbruch(_draht?.closeCode == 1003
+              ? 'Für diese Sprache gibt es kein Modell auf dem Server.'
+              : 'Verbindung zum Erkenner beendet');
         },
         onError: (Object e) {
           final war = _offen;
