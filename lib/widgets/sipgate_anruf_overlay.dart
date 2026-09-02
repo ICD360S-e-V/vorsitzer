@@ -10,6 +10,7 @@ import '../services/qualitaets_sonde.dart';
 import '../services/untertitel_service.dart';
 import 'guete_anzeige.dart';
 import 'sekunden_takt.dart';
+import 'konferenz_dialog.dart';
 
 /// Schwebende Gesprächskarte, sichtbar über jedem Bildschirm.
 ///
@@ -675,34 +676,28 @@ class _Karte extends StatelessWidget {
           children: [
             if (zweites == null)
               ListTile(
-                leading: const Icon(Icons.group_add),
-                title: const Text('Zweite Nummer dazuwählen'),
+                leading: const Icon(Icons.groups),
+                title: const Text('Konferenz'),
                 subtitle: const Text(
-                    'Für eine Konferenz oder zum Weiterverbinden. Das laufende '
-                    'Gespräch wird dabei gehalten.'),
+                    'Zweite Nummer wählen — die erste wartet solange —, dann '
+                    'beide zusammenschalten.'),
                 onTap: () {
                   Navigator.pop(blatt);
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const SipgateScreen()));
+                  konferenzAblauf(context);
                 },
               )
             else ...[
               ListTile(
                 leading: const Icon(Icons.groups),
-                title: const Text('Zusammenschalten (Konferenz)'),
+                title: const Text('Zusammenschalten'),
                 // ⚠️ Der Hinweis gehört an den Knopf, nicht in eine Fussnote:
                 // für den zweiten Teilnehmer gibt es kein Signal, wenn er
                 // abhebt. Wer zu früh drückt, schaltet ins Leere.
                 subtitle: const Text(
                     'Erst drücken, wenn die zweite Person abgehoben hat.'),
-                onTap: () async {
-                  // ⚠️ Den Boten VOR dem Warten holen: nach dem `await` kann
-                  // der Kontext des Blatts weg sein, und die Meldung — die
-                  // gerade dann wichtig ist, wenn etwas schiefging — fiele aus.
-                  final bote = ScaffoldMessenger.maybeOf(context);
+                onTap: () {
                   Navigator.pop(blatt);
-                  final m = await dienst.konferenzSchalten();
-                  if (m != null) bote?.showSnackBar(SnackBar(content: Text(m)));
+                  konferenzAblauf(context);
                 },
               ),
               ListTile(

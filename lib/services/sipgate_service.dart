@@ -570,6 +570,18 @@ class SipgateService {
   bool get kannKonferenz =>
       !zustand.value.konferenz && zustand.value.zweites != null;
 
+  /// Ob sich der Konferenz-Ablauf überhaupt beginnen lässt.
+  ///
+  /// ⚠️ Ein ANDERER Wert als [kannKonferenz], und der Unterschied ist genau
+  /// der gemeldete Fehler: [kannKonferenz] sagt „`*5` hätte jetzt Sinn" und ist
+  /// erst wahr, wenn schon ein zweiter dazugewählt IST. Als Bedingung für den
+  /// Knopf war das ein Kreis — man kam nie zum zweiten Teilnehmer, weil der
+  /// Knopf erst erschien, wenn es ihn schon gab.
+  bool get kannKonferenzStarten =>
+      hatGespraech &&
+      zustand.value.gespraech?.stand == SipgateGespraechStand.verbunden &&
+      !zustand.value.konferenz;
+
   /// Ob auf DIESEM Gerät in der App telefoniert wird.
   ///
   /// **Nur Android**, und das ist eine Festlegung, keine technische Grenze:

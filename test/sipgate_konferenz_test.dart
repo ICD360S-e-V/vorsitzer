@@ -119,7 +119,11 @@ void main() {
 
     test('Konferenz und Wechseln stehen im Menü', () {
       final r = rumpf(overlay, 'void _funktionen(', 'Widget _rundKnopf(');
-      expect(r, contains('konferenzSchalten()'));
+      // ⚠️ Der Menüpunkt schickt NICHT mehr selbst `*5`, sondern öffnet den
+      // Ablauf: von dort führt ein Weg zur zweiten Nummer, und der Hinweis
+      // „erst wenn abgehoben" steht dabei. Ein Knopf, der sofort schaltet,
+      // liesse den zweiten Schritt wieder weg.
+      expect(r, contains('konferenzAblauf(context)'));
       expect(r, contains('dienst.makeln()'));
     });
 
