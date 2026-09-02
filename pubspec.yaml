@@ -332,7 +332,18 @@ dependencies:
   # native speech recognizer (Android SpeechRecognizer / iOS Speech.framework).
   # Zero network calls, funcționează și offline pe device-uri cu on-device STT.
   speech_to_text: ^7.0.0
-  opencv_core: ^1.4.5
+  # OpenCV-Bindings, DIREKT statt ueber `opencv_core`.
+  #
+  # ⚠️ `opencv_core` ist eingestellt — pub.dev meldet woertlich
+  # "discontinued, replaced by dartcv4". Es war ohnehin nur eine
+  # Weiterleitung: eine einzige Datei, die `dartcv4` re-exportiert, dazu
+  # die Verpackung der nativen Teile. Und es nagelte `dartcv4` auf EXAKT
+  # 1.1.8 fest, waehrend dort 2.3.0 steht.
+  #
+  # ⚠️ 2.3.0 braucht `meta ^1.19.0` und war deshalb bis Flutter 3.47
+  # unmoeglich: 3.44.8 pinnte `meta` ueber `flutter_test` auf exakt
+  # 1.18.0. Wer das SDK je zurueckdreht, dreht auch das hier zurueck.
+  dartcv4: ^2.3.0
   flutter_widget_from_html_core: ^0.17.2
 
 dev_dependencies:

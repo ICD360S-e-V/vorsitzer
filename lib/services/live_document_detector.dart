@@ -6,7 +6,7 @@ import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/services.dart' show DeviceOrientation;
-import 'package:opencv_core/opencv.dart' as cv;
+import 'package:dartcv4/dartcv.dart' as cv;
 
 import 'document_scanner.dart';
 import 'scan_geometry.dart';
