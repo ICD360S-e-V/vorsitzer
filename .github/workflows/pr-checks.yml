@@ -210,6 +210,41 @@ jobs:
       # Ein PR fiel damit rot aus, ohne dass am Code etwas war. Das Muster
       # `Connection reset` steht längst in retry-build.sh — es wurde hier nur
       # nie benutzt.
+      # ⚠️ Der Schlüssel haengt an der dartcv4-Fassung UND am Dart-SDK, nicht an
+      # `pubspec.lock`: der Bau wird nur ungueltig, wenn eines von beiden sich
+      # aendert. Auf die Sperrdatei zu hashen hiesse, den 9-Minuten-Bau bei
+      # JEDER Abhaengigkeitsaenderung wegzuwerfen — also fast bei jedem PR,
+      # der ihn braucht.
+      - name: Schluessel fuer den nativen dartcv-Bau bestimmen
+        id: dartcv
+        run: |
+          set -euo pipefail
+          V="$(awk '/^  dartcv4:/{f=1} f && /^    version:/{gsub(/[" ]/,"",$2); print $2; exit}' pubspec.lock)"
+          if [ -z "$V" ]; then
+            echo "::error::dartcv4 steht nicht in pubspec.lock — Schluessel waere leer."
+            exit 1
+          fi
+          D="$(dart --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "key=dartcv-${{ runner.os }}-$V-dart$D" >> "$GITHUB_OUTPUT"
+          echo "dartcv4 $V, Dart $D"
+
+      # ⚠️ NUR WIEDERHERSTELLEN, nicht schreiben. Ein Cache, den ein PR anlegt,
+      # ist an dessen merge-ref gebunden und fuer jeden anderen PR unlesbar
+      # (siehe die Begruendung im Kopf von warm-cache.yml) — er wuerde also
+      # ~500 MB kosten und niemandem nuetzen, ausser einem erneuten Lauf
+      # DIESES PRs. Geschrieben wird ausschliesslich auf `main`.
+      #
+      # Was er spart: seit `dartcv4` 2.2 gibt es kein vorgebautes OpenCV mehr,
+      # es wird aus der Quelle uebersetzt. Gemessen an PR #548 hat das diesen
+      # Ablauf von ~8m30s auf 17m16s gebracht.
+      - name: Nativen dartcv-Bau wiederherstellen
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: .dart_tool/hooks_runner
+          key: ${{ steps.dartcv.outputs.key }}
+          restore-keys: dartcv-${{ runner.os }}-${{ steps.dartcv.outputs.version }}-
+
       - name: Build Linux (liefert libdartcv.so für die Tests)
         run: .github/scripts/retry-build.sh flutter build linux --debug
 

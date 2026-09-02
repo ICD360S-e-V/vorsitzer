@@ -212,6 +212,41 @@ jobs:
       - name: flutter pub get
         run: flutter pub get
 
+      # ⚠️ Der Schlüssel haengt an der dartcv4-Fassung UND am Dart-SDK, nicht an
+      # `pubspec.lock`: der Bau wird nur ungueltig, wenn eines von beiden sich
+      # aendert. Auf die Sperrdatei zu hashen hiesse, den 9-Minuten-Bau bei
+      # JEDER Abhaengigkeitsaenderung wegzuwerfen — also fast bei jedem PR,
+      # der ihn braucht.
+      - name: Schluessel fuer den nativen dartcv-Bau bestimmen
+        id: dartcv
+        run: |
+          set -euo pipefail
+          V="$(awk '/^  dartcv4:/{f=1} f && /^    version:/{gsub(/[" ]/,"",$2); print $2; exit}' pubspec.lock)"
+          if [ -z "$V" ]; then
+            echo "::error::dartcv4 steht nicht in pubspec.lock — Schluessel waere leer."
+            exit 1
+          fi
+          D="$(dart --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "key=dartcv-${{ runner.os }}-$V-dart$D" >> "$GITHUB_OUTPUT"
+          echo "dartcv4 $V, Dart $D"
+
+      - name: Nativen dartcv-Bau cachen
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: .dart_tool/hooks_runner
+          key: ${{ steps.dartcv.outputs.key }}
+          restore-keys: dartcv-${{ runner.os }}-${{ steps.dartcv.outputs.version }}-
+
+      # ⚠️ Der Linux-Bau steht hier NUR, um den Cache oben zu fuellen — und er
+      # muss Linux sein: `dartcv4` uebersetzt OpenCV je Ziel getrennt, die
+      # Artefakte des Android-Baus weiter unten passen nicht zu dem, was
+      # pr-checks.yml braucht.
+      #
+      # Nebenbei ist es die zweite Rauchprobe auf `main`, neben der von Android.
+      - name: Linux-Debug-Build (fuellt den dartcv-Cache)
+        run: .github/scripts/retry-build.sh flutter build linux --debug
+
       # Füllt in einem Zug den Gradle-Abhängigkeits-Cache, den Kotlin-Cache und
       # die Android-Artefakte von Flutter — also genau das, was der
       # Release-Build auf dem Tag später kalt herunterladen müsste.
