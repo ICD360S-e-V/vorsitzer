@@ -209,9 +209,20 @@ class _BlitzFensterAppState extends State<BlitzFensterApp>
         useMaterial3: true,
       ),
       home: Scaffold(
-        // Durchsichtig, damit die abgerundeten Ecken der Karte nicht auf einem
-        // grauen Rechteck sitzen.
-        backgroundColor: Colors.transparent,
+        // ⚠️ UNDURCHSICHTIG, und zwar in der Farbe der Karte.
+        //
+        // Hier stand `Colors.transparent`, damit die abgerundeten Ecken nicht
+        // auf einem grauen Rechteck sitzen. Unter Linux geht das nicht: das
+        // Fenster von desktop_multi_window bekommt keinen RGBA-Visual, und der
+        // Hintergrund einer `FlView` ist laut `fl_view.h` „defaults to black".
+        // Was die Karte nicht selbst bemalt, ist also nicht durchsichtig,
+        // sondern SCHWARZ — in den vier Ecken und in jedem Streifen, den die
+        // Höhenanpassung gerade noch nicht eingeholt hat.
+        //
+        // In der Kartenfarbe fällt beides nicht mehr auf. Nachgemessen am
+        // 02.09.2026: mit `transparent` blieb ein magenta eingefärbter
+        // Prüfrand rundum stehen — im Betrieb wäre der schwarz gewesen.
+        backgroundColor: F.flaeche,
         // ⚠️ Der Scroller gibt der Karte nach unten UNBEGRENZTEN Platz. Nur
         // so hat sie eine eigene natürliche Höhe, an der sich das Fenster
         // ausrichten kann; in einem festen Rahmen gemessen wäre die Karte
@@ -269,10 +280,16 @@ Future<void> blitzFensterStarten(String argument) async {
 
   await windowManager.ensureInitialized();
   await windowManager.waitUntilReadyToShow(
-    const WindowOptions(
+    // ⚠️ Nicht mehr `const`: die Hintergrundfarbe kommt aus [F] und hängt an
+    // der Hell/Dunkel-Wahl, die oben aus der Nutzlast gesetzt wurde.
+    WindowOptions(
       size: kBlitzFensterGroesse,
       center: true,
-      backgroundColor: Colors.transparent,
+      // Deckt den Augenblick zwischen `show()` und dem ersten Flutter-Rahmen
+      // ab. ⚠️ Unter Linux setzt window_manager damit nur den GTK-Hintergrund
+      // — die FlView liegt davor. Die Farbe, die wirklich zählt, ist die des
+      // Scaffold weiter unten.
+      backgroundColor: F.flaeche,
       skipTaskbar: true,
       titleBarStyle: TitleBarStyle.hidden,
       alwaysOnTop: true,
