@@ -17,14 +17,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Die Sprachen, für die auf dem Server ein Modell liegt.
 ///
-/// ⚠️ Diese Menge ist an den Server gekoppelt (`ASR_MODELLE` in
-/// `vosk-asr.service` plus `ASR_RO_MODELL`). Steht hier eine Sprache, die
-/// dort fehlt, weist der Server die Verbindung mit „Sprache nicht verfügbar"
-/// ab — sichtbar, nicht still. Umgekehrt bliebe ein Modell auf dem Server
-/// ungenutzt.
+/// ⚠️ Diese Menge ist an den Server gekoppelt (`ASR_MODELLE` und
+/// `ASR_PARAKEET_SPRACHEN` in `vosk-asr.service`). Steht hier eine Sprache,
+/// die dort fehlt, weist der Server die Verbindung mit „Sprache nicht
+/// verfügbar" ab — sichtbar, nicht still. Umgekehrt bliebe ein Modell auf dem
+/// Server ungenutzt.
 ///
-/// Am Telefonband gemessene Wortfehler: de 0,0 % · en 0,0 % · ro 22,6 %.
-const Set<String> kMitschriftSprachen = {'de', 'en', 'ro'};
+/// Am echten Telefonband gemessene Wortfehler:
+///
+///     de   0,0 %   Vosk gross
+///     en   1,2 %   Vosk gross
+///     ro   6,2 %   Parakeet TDT 0.6B v3
+///     ru   6,5 %   Parakeet TDT 0.6B v3
+///     uk   5,0 %   Parakeet TDT 0.6B v3
+///
+/// ⚠️ Rumänisch lief zuerst über `gigant/romanian-wav2vec2`, das beste rein
+/// rumänische Modell auf HuggingFace, und kam auf **22,6 %**. Parakeet kommt
+/// auf denselben Dateien auf 6,2 % — und deckt Russisch und Ukrainisch gleich
+/// mit ab, ohne ein zweites Modell. Im Bestand sind das neun weitere
+/// Mitglieder (ru 9, uk 4).
+///
+/// ⚠️ Türkisch (1 Mitglied) und Arabisch (1, ohne Nummer) fehlen weiter:
+/// Parakeet kann 25 europäische Sprachen, diese beiden nicht.
+const Set<String> kMitschriftSprachen = {'de', 'en', 'ro', 'ru', 'uk'};
 
 /// Womit begonnen wird, wenn über den Anschluss nichts bekannt ist.
 ///
@@ -111,5 +126,7 @@ String mitschriftSpracheName(String s) => switch (s) {
       'de' => 'Deutsch',
       'en' => 'Englisch',
       'ro' => 'Rumänisch',
+      'ru' => 'Russisch',
+      'uk' => 'Ukrainisch',
       _ => s.toUpperCase(),
     };
