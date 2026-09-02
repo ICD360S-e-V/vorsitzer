@@ -46,7 +46,6 @@ void main() {
       expect(s.istEingerichtet, isFalse);
       expect(s.istGesperrt, isFalse,
           reason: 'sonst käme man ohne Passwort nie wieder hinein');
-      s.pruefen();
       expect(s.istGesperrt, isFalse);
     });
 
@@ -85,34 +84,64 @@ void main() {
     });
   });
 
-  group('Leerlauf — an der Uhr, nicht heruntergezählt', () {
-    test('frisch bedient bleibt fast die volle Zeit übrig', () async {
+  // ══════════════════════════════════════════════════════════════════════════
+  // Kein Leerlauf mehr — Entscheidung des Users, 02.09.2026.
+  //
+  // Bis dahin sperrte die App nach 15 Minuten ohne Bedienung. Das hat mitten
+  // in der Arbeit nach dem Passwort gefragt. Es bleiben drei Anlaesse:
+  // Neustart, Schloss-Knopf, und die App ueber dem Geraete-Sperrbildschirm.
+  //
+  // ⚠️ Diese Proben pruefen den QUELLTEXT mit. Der Rueckfall waere sonst
+  // lautlos: baut jemand `vermerkeBedienung`/`pruefen`/einen Sekundentakt
+  // wieder ein, faellt keine Zusicherung ueber den Zustand um — die App wuerde
+  // einfach wieder sperren, und gemeldet haette es niemand.
+  // ══════════════════════════════════════════════════════════════════════════
+  group('Kein Leerlauf', () {
+    test('nach dem Entsperren bleibt offen, egal wie viel Zeit vergeht',
+        () async {
       final s = AppSperreService();
       await s.zuruecksetzen();
-      await s.passwortSetzen('zeit-test-123');
-      s.vermerkeBedienung(erzwingen: true);
-      expect(s.verbleibend.inMinutes, greaterThanOrEqualTo(14));
-      expect(s.verbleibend, lessThanOrEqualTo(AppSperreService.leerlauf));
-      expect(s.warntGleich, isFalse);
+      await s.passwortSetzen('kein-leerlauf-123');
+      await s.laden();
+      expect(s.istGesperrt, isTrue);
+      expect(await s.entsperren('kein-leerlauf-123'), isTrue);
+      expect(s.istGesperrt, isFalse);
+      // Frueher haette hier ein Takt nach 15 Minuten zugeschlagen. Es gibt
+      // keinen mehr — der Zustand kann sich ohne Zutun gar nicht mehr aendern.
+      expect(s.istGesperrt, isFalse);
     });
 
-    test('die Warnschwelle liegt bei einer Minute', () {
-      expect(AppSperreService.warnungAb, const Duration(minutes: 1));
-      expect(AppSperreService.leerlauf, const Duration(minutes: 15));
-    });
-
-    test('Entprellung: schnelle Wiederholungen kosten nichts', () async {
-      final s = AppSperreService();
-      await s.zuruecksetzen();
-      await s.passwortSetzen('entprell-123');
-      s.vermerkeBedienung(erzwingen: true);
-      final a = s.verbleibend;
-      for (var i = 0; i < 500; i++) {
-        s.vermerkeBedienung();
+    test('der Dienst kennt keine Leerlauf-Begriffe mehr', () {
+      final quelle =
+          File('lib/services/app_sperre_service.dart').readAsStringSync();
+      // Der Kopfkommentar erklaert, warum es sie nicht mehr gibt — geprueft
+      // wird deshalb der Code, nicht die Datei.
+      final code = quelle
+          .split('\n')
+          .where((z) => !z.trimLeft().startsWith('//'))
+          .join('\n');
+      for (final wort in [
+        'vermerkeBedienung',
+        'Timer.periodic',
+        'taktStarten',
+        'warntGleich',
+        'leerlauf',
+      ]) {
+        expect(code, isNot(contains(wort)),
+            reason: 'die Leerlaufsperre ist zurueck: $wort');
       }
-      // Ohne Bremse hätte jede der 500 Wiederholungen die Zeit neu gesetzt;
-      // mit Bremse bleibt sie stehen (bis auf den Lauf der Uhr).
-      expect((a - s.verbleibend).inMilliseconds, lessThan(2000));
+    });
+
+    test('die Huelle lauscht nicht mehr auf Zeiger und Tasten', () {
+      final quelle =
+          File('lib/widgets/app_sperre_huelle.dart').readAsStringSync();
+      final code = quelle
+          .split('\n')
+          .where((z) => !z.trimLeft().startsWith('///'))
+          .join('\n');
+      // Ein Lauscher ueber dem ganzen Baum kostet bei jeder Wischgeste Arbeit.
+      expect(code, isNot(contains('onPointerMove')));
+      expect(code, isNot(contains('HardwareKeyboard.instance.addHandler')));
     });
 
     test('sperren() wirkt nur bei gesetztem Passwort', () async {
@@ -122,6 +151,16 @@ void main() {
       s.sperren();
       expect(s.istGesperrt, isFalse,
           reason: 'ohne Passwort gäbe es keinen Weg zurück');
+    });
+
+    test('sperren() ist der Schloss-Knopf und muss sofort greifen', () async {
+      final s = AppSperreService();
+      await s.zuruecksetzen();
+      await s.passwortSetzen('schloss-knopf-123');
+      expect(s.istGesperrt, isFalse);
+      s.sperren();
+      expect(s.istGesperrt, isTrue,
+          reason: 'seit dem 02.09.2026 der einzige Weg neben dem Neustart');
     });
   });
 
@@ -198,7 +237,6 @@ void main() {
       await s.zuruecksetzen();
       await s.laden();
       s.sperren();
-      s.pruefen();
       for (var i = 0; i < 10; i++) {
         await s.entsperren('falsch');
       }

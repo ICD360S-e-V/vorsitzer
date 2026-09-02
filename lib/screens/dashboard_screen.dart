@@ -1616,7 +1616,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           // (siehe den Absatz darüber). Auf dem Telefon liegt er im ⋮-Menü,
           // wie alles andere auch.
           // Von Hand sperren — fuer den Moment, in dem man das Geraet aus der
-          // Hand gibt und nicht 15 Minuten warten will.
+          // Hand gibt.
+          //
+          // ⚠️ Seit dem 02.09.2026 ist das neben dem Neustart der App der
+          // EINZIGE Weg in die Sperre: die Leerlaufsperre nach 15 Minuten ist
+          // weg (Entscheidung des Users). Dieser Knopf ist damit kein
+          // Abkuerzer mehr, sondern die Sperre selbst — er darf nicht
+          // wegfallen.
           //
           // ⚠️ Nur sichtbar, wenn ein Passwort gesetzt ist. Ohne eins tut
           // `sperren()` ohnehin nichts, und ein Knopf, der nichts tut, ist
