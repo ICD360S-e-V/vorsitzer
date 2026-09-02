@@ -25,11 +25,28 @@ void main() {
     // Am Telefonband gemessen: Gerät 17,6 % Wortfehler, Server 0,0 %.
     final i = dienst.indexOf('Future<String?> starten(String spurId');
     expect(i, isNot(-1));
-    final rumpf = dienst.substring(i, i + 1600);
-    expect(rumpf, contains('_stromStarten(spurId)'));
+    // ⚠️ Bis zur NÄCHSTEN Deklaration, nicht „i + 1600". Genau daran ist
+    // dieser Test am 02.09.2026 gescheitert, obwohl der Code stimmte: die
+    // Methode war um einen Kommentarblock gewachsen, und der zweite gesuchte
+    // Aufruf lag knapp ausserhalb des festen Fensters. `indexOf` gab dann -1
+    // zurück, und die Reihenfolge-Prüfung verglich gegen -1.
+    final ende = dienst.indexOf('  /// Versucht die Erkennung auf dem Server', i);
+    expect(ende, greaterThan(i));
+    final rumpf = dienst.substring(i, ende);
+    // ⚠️ Auf den AUFRUF geprüft, nicht auf seine genaue Schreibweise: seit
+    // dem 02.09.2026 bekommt er die Sprache mit (`_stromStarten(spurId, spr)`).
+    // Die Aussage ist „der Server kommt zuerst", nicht „mit genau einem
+    // Argument" — ein Test, der an einem zusätzlichen Parameter zerbricht,
+    // wird beim nächsten Umbau entnervt gelöscht.
+    expect(rumpf, contains('_stromStarten(spurId'));
     // Und der Rückfall kommt DANACH, nicht stattdessen.
-    expect(rumpf.indexOf('_stromStarten'),
-        lessThan(rumpf.indexOf("_kanal.invokeMapMethod")));
+    final aServer = rumpf.indexOf('_stromStarten');
+    final aGeraet = rumpf.indexOf('_kanal.invokeMapMethod');
+    // ⚠️ Beide müssen überhaupt dastehen. Ohne diese zwei Zeilen bestünde der
+    // Vergleich auch mit -1 auf einer Seite — und dann prüft er nichts.
+    expect(aServer, isNot(-1));
+    expect(aGeraet, isNot(-1));
+    expect(aServer, lessThan(aGeraet));
   });
 
   test('ein Abriss schaltet auf das Gerät um, statt still zu werden', () {
@@ -43,7 +60,9 @@ void main() {
     expect(i, isNot(-1));
     final r = dienst.substring(i, i + 400);
     expect(r, contains('await beenden()'));
-    expect(r, contains('starten(spur)'));
+    // ⚠️ Ohne die Klammer zu, aus demselben Grund: der Aufruf reicht seit dem
+    // 02.09.2026 die zuletzt gewählte Sprache weiter.
+    expect(r, contains('starten(spur'));
   });
 
   test('im Strommodus erkennt das Gerät NICHT mit', () {
@@ -80,7 +99,13 @@ void main() {
     final i = strom.indexOf('WebSocket.connect(url)');
     expect(i, isNot(-1));
     final r = strom.substring(i, i + 300);
-    expect(r, contains("jsonEncode({'token': token})"));
+    expect(r, contains("jsonEncode({'token': token"));
+    // ⚠️ UND die Sprache geht in derselben ersten Nachricht mit. Sie ist ein
+    // SCHLÜSSEL, den der Server in einer eigenen Tabelle nachschlägt — der
+    // Server aus dem vosk-server-Projekt nimmt an dieser Stelle stattdessen
+    // `{"model": "<pfad>"}` entgegen, und dann bestimmt der Client, was
+    // geladen wird.
+    expect(r, contains("'sprache': sprache"));
   });
 
   test('beim Beenden wird das Ende ANGESAGT, bevor geschlossen wird', () {

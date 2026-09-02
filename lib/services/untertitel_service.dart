@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'logger_service.dart';
 import 'platform_service.dart';
 import 'untertitel_strom.dart';
+import '../utils/mitschrift_sprachen.dart';
 
 final _log = LoggerService();
 
@@ -150,21 +151,38 @@ class UntertitelService {
   /// Startet die Untertitel für die Tonspur [spurId] der Gegenstelle.
   ///
   /// Gibt den Grund zurück, wenn es nicht geht — `null` heisst: läuft.
-  Future<String?> starten(String spurId, {String sprache = 'de'}) async {
+  Future<String?> starten(String spurId,
+      {String sprache = kMitschriftStandard}) async {
     if (!plattformFaehig) return 'Untertitel gibt es nur auf dem Tablet.';
     if (aktiv.value) return null;
     if (spurId.isEmpty) {
       return 'Die Tonspur der Gegenstelle steht noch nicht — bitte kurz warten.';
     }
+    final spr = mitschriftSprache(sprache) ?? kMitschriftStandard;
     _letzteSpur = spurId;
+    _letzteSprache = spr;
+    laufendeSprache.value = spr;
     _lauschen();
 
     // ⚠️ ZUERST DER SERVER, das Gerät als Rückfall. Am Telefonband gemessen:
     // das Modell im Gerät 17,6 % Wortfehler, das grosse auf dem Server 0,0 %.
     // Geht der Server nicht, läuft es weiter wie bisher — schlechterer Text
     // ist besser als keiner.
-    final stromGrund = await _stromStarten(spurId);
+    final stromGrund = await _stromStarten(spurId, spr);
     if (stromGrund == null) return null;
+    // 🔴 DER RÜCKFALL AUFS GERÄT GILT NUR FÜR DEUTSCH.
+    // Im Gerät liegt ein einziges Modell (`vosk-model-small-de-0.15`).
+    // Englische oder rumänische Rede dadurch zu schicken ergäbe flüssige
+    // deutsche Wörter, die nie gesagt wurden — auf dem Server gemessen 99,3 %
+    // Wortfehler, und keiner davon sieht nach einem Fehler aus. Lieber keine
+    // Mitschrift als eine erfundene.
+    if (spr != 'de') {
+      hindernis.value = 'Für ${mitschriftSpracheName(spr)} rechnet nur der '
+          'Server, und der ist gerade nicht erreichbar.';
+      _log.info('Untertitel: Server nicht nutzbar ($stromGrund) — '
+          'kein Rückfall, Sprache $spr', tag: 'UNTERTITEL');
+      return hindernis.value;
+    }
     _log.info('Untertitel: Server nicht nutzbar ($stromGrund) — '
         'Modell im Gerät', tag: 'UNTERTITEL');
     try {
@@ -188,8 +206,9 @@ class UntertitelService {
   }
 
   /// Versucht die Erkennung auf dem Server. `null` heisst: sie läuft.
-  Future<String?> _stromStarten(String spurId) async {
+  Future<String?> _stromStarten(String spurId, String sprache) async {
     final st = UntertitelStrom(
+      sprache: sprache,
       aufText: (art, text) {
         // ⚠️ Dieselben Namen wie beim Erkennen im Gerät — die Anzeige muss
         // nicht wissen, wo gerechnet wurde.
@@ -214,13 +233,23 @@ class UntertitelService {
         _log.warning('Untertitel: Serverstrecke abgerissen ($grund)',
             tag: 'UNTERTITEL');
         aufDemServer.value = false;
-        unawaited(_aufGeraetUmschalten());
+        // Siehe oben: nur Deutsch kann das Gerät.
+        if (_letzteSprache == 'de') {
+          unawaited(_aufGeraetUmschalten());
+        } else {
+          hindernis.value = grund;
+          unawaited(beenden());
+        }
       },
     );
     final grund = await st.starten();
     if (grund != null) return grund;
 
     try {
+      // ⚠️ `sprache` bleibt hier 'de' und das ist kein Versehen: mit
+      // `strom: true` erkennt das Gerät gar nichts, es zapft nur die Tonspur
+      // an und schickt die Rohdaten weiter. Ein anderer Wert würde die native
+      // Seite dazu bringen, ein Modell zu suchen, das es dort nicht gibt.
       final a = await _kanal.invokeMapMethod<String, dynamic>(
           'starten', {'spurId': spurId, 'sprache': 'de', 'strom': true});
       if (a?['ok'] != true) {
@@ -243,7 +272,7 @@ class UntertitelService {
     final spur = _letzteSpur;
     await beenden();
     if (spur == null || spur.isEmpty) return;
-    final grund = await starten(spur);
+    final grund = await starten(spur, sprache: _letzteSprache);
     if (grund != null) {
       hindernis.value = grund;
     }
@@ -251,6 +280,19 @@ class UntertitelService {
 
   /// Die zuletzt benutzte Tonspur — für den Wechsel auf das Gerät.
   String? _letzteSpur;
+
+  /// Die zuletzt gewählte Sprache — für den Wiederaufbau nach einer
+  /// Neuverhandlung und für die Frage, ob das Gerät einspringen darf.
+  String _letzteSprache = kMitschriftStandard;
+
+  /// Womit gerade erkannt wird — für die Anzeige und den Umschalter.
+  ///
+  /// ⚠️ Heisst NICHT `sprache`: in [starten] gibt es einen Parameter dieses
+  /// Namens, und der verdeckt das Feld. `sprache.value = …` schrieb dort auf
+  /// den String statt auf den Melder und liess sich nicht übersetzen — hier
+  /// laut, in einer Methode ohne diesen Parameter aber stillschweigend falsch.
+  final ValueNotifier<String> laufendeSprache =
+      ValueNotifier<String>(kMitschriftStandard);
 
   Future<void> beenden() async {
     _horcher?.cancel();

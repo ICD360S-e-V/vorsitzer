@@ -17,6 +17,7 @@ import '../widgets/netz_pastille.dart';
 import '../widgets/sipgate_waehltastatur.dart';
 import 'sipgate_kontakte_screen.dart';
 import '../utils/app_farben.dart';
+import '../utils/mitschrift_sprachen.dart';
 
 /// Telefonieren über sipgate, direkt in der App.
 ///
@@ -1180,6 +1181,44 @@ class _SipgateScreenState extends State<SipgateScreen> {
                   onPressed: _untertitelUmschalten,
                 ),
               ),
+            // Die Sprache der Mitschrift — nur sichtbar, wenn sie läuft.
+            //
+            // ⚠️ Sie MUSS von Hand umschaltbar sein. Vorgeschlagen wird sie
+            // aus `users.preferred_language`, also aus der Sprache der
+            // ANWENDUNG des Mitglieds — und ein Mitglied mit rumänischer
+            // Oberfläche kann am Telefon Deutsch sprechen. Die Wahl hier gilt
+            // ab sofort und beim nächsten Anruf an dieselbe Nummer.
+            if (z.verbundeneBeine > 0)
+              ValueListenableBuilder<bool>(
+                valueListenable: UntertitelService().aktiv,
+                builder: (_, an, __) => !an
+                    ? const SizedBox.shrink()
+                    : ValueListenableBuilder<String>(
+                        valueListenable: UntertitelService().laufendeSprache,
+                        builder: (_, spr, __) => PopupMenuButton<String>(
+                          tooltip: 'Sprache der Mitschrift',
+                          onSelected: _spracheUmschalten,
+                          itemBuilder: (_) => [
+                            for (final k in kMitschriftSprachen)
+                              PopupMenuItem(
+                                value: k,
+                                child: Row(children: [
+                                  Icon(k == spr
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_unchecked, size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(mitschriftSpracheName(k)),
+                                ]),
+                              ),
+                          ],
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.translate),
+                            label: Text(mitschriftSpracheName(spr)),
+                            onPressed: null,
+                          ),
+                        ),
+                      ),
+              ),
             if (z.verbundeneBeine > 0)
               OutlinedButton.icon(
                 icon: const Icon(Icons.phone_forwarded),
@@ -1223,7 +1262,9 @@ class _SipgateScreenState extends State<SipgateScreen> {
     // Gespräch (Halten, Codecwechsel) ersetzt die Tonspur, und die gemerkte
     // zeigt danach ins Leere — auf dem Schirm steht dann „Tonspur der
     // Gegenstelle nicht gefunden", obwohl das Gespräch läuft.
-    final grund = await u.starten(await _dienst.gegenstelleSpurAktuell() ?? '');
+    final grund = await u.starten(
+        await _dienst.gegenstelleSpurAktuell() ?? '',
+        sprache: u.laufendeSprache.value);
     if (!mounted) return;
     if (grund == null) return;
 
@@ -1234,6 +1275,17 @@ class _SipgateScreenState extends State<SipgateScreen> {
       return;
     }
     _melde(grund, fehler: true);
+  }
+
+  /// Stellt die laufende Mitschrift auf eine andere Sprache um.
+  Future<void> _spracheUmschalten(String k) async {
+    final grund = await _dienst.mitschriftSpracheWechseln(k);
+    if (!mounted) return;
+    if (grund != null) {
+      _melde(grund, fehler: true);
+    } else {
+      _melde('Mitschrift läuft jetzt auf ${mitschriftSpracheName(k)}.');
+    }
   }
 
   /// Holt das Offline-Sprachmodell auf das Gerät.

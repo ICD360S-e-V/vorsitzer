@@ -21,6 +21,7 @@ import 'signatur_gateway_service.dart';
 import 'untertitel_modell.dart';
 import 'untertitel_service.dart';
 import 'voice_call_service.dart' show iceServerEintraege;
+import '../utils/mitschrift_sprachen.dart';
 
 final _log = LoggerService();
 
@@ -2578,7 +2579,8 @@ class SipgateService {
     // nativ an der ALTEN Spur; ohne das Lösen liefe er weiter ins Leere und
     // hielte nebenbei eine Spur fest, die niemand mehr braucht.
     await u.beenden();
-    final grund = await u.starten(id);
+    final grund = await u.starten(
+        id, sprache: await _mitschriftSprache(zustand.value.gespraech?.nummer ?? ''));
     if (grund != null) {
       _log.warning('sipgate: Mitschrift nach Neuverhandlung nicht wieder '
           'gestartet ($grund)', tag: 'SIPGATE');
@@ -2588,6 +2590,57 @@ class SipgateService {
     }
   }
 
+  /// Fragt den Server, welche Sprache an diesem Anschluss zu erwarten ist.
+  ///
+  /// ⚠️ Ein VORSCHLAG, kein Befund: er kommt aus `users.preferred_language`,
+  /// also aus der Sprache der ANWENDUNG des Mitglieds. Ein Mitglied mit
+  /// rumänischer Oberfläche kann am Telefon Deutsch sprechen. Deshalb schlägt
+  /// eine einmal von Hand getroffene Wahl diesen Vorschlag dauerhaft.
+  Future<String?> _spracheNachschlagen(String nummer) async {
+    try {
+      final a = await ApiService().sipgateAction(
+          {'action': 'anrufer', 'nummer': nummer});
+      if (a['success'] != true) return null;
+      return a['sprache'] as String?;
+    } catch (e) {
+      _log.warning('sipgate: Sprache nicht nachschlagbar ($e)', tag: 'SIPGATE');
+      return null;
+    }
+  }
+
+  /// Welche Sprache die Mitschrift dieses Gesprächs benutzt.
+  Future<String> _mitschriftSprache(String nummer) async {
+    if (nummer.isEmpty || anruferAnonym(nummer)) return kMitschriftStandard;
+    final gemerkt = await MitschriftSprachwahl.gemerkt(nummer);
+    // ⚠️ Nur fragen, wenn nichts gemerkt ist. Sonst kostete jedes Gespräch
+    // eine Anfrage für eine Antwort, die ohnehin überstimmt wird.
+    final vorschlag =
+        gemerkt == null ? await _spracheNachschlagen(nummer) : null;
+    return mitschriftSpracheWaehlen(gemerkt: gemerkt, vorschlag: vorschlag);
+  }
+
+  /// Stellt die Mitschrift des laufenden Gesprächs auf eine andere Sprache um.
+  ///
+  /// Die Wahl gilt ab sofort UND beim nächsten Anruf an dieselbe Nummer.
+  /// Gibt den Grund zurück, wenn es nicht ging — `null` heisst: läuft.
+  Future<String?> mitschriftSpracheWechseln(String sprache) async {
+    final spr = mitschriftSprache(sprache);
+    if (spr == null) return 'Für diese Sprache gibt es kein Modell.';
+    final g = zustand.value.gespraech;
+    if (g == null) return 'Es läuft kein Gespräch.';
+    await MitschriftSprachwahl.merken(g.nummer, spr);
+    final u = UntertitelService();
+    final id = await gegenstelleSpurAktuell();
+    if (id == null || id.isEmpty) {
+      return 'Die Tonspur der Gegenstelle steht noch nicht.';
+    }
+    // ⚠️ Erst lösen, dann binden — wie bei der Neuverhandlung. Ein zweites
+    // `starten` auf einer laufenden Mitschrift kehrt sofort zurück und die
+    // Sprache bliebe die alte, ohne dass etwas fehlschlägt.
+    await u.beenden();
+    return u.starten(id, sprache: spr);
+  }
+
   Future<void> _mitschriftVonSelbst() async {
     final u = UntertitelService();
     if (!u.plattformFaehig || u.aktiv.value) return;
@@ -2595,12 +2648,18 @@ class SipgateService {
     final id = await gegenstelleSpurAktuell();
     if (id == null || id.isEmpty) return;
     try {
-      if (!await UntertitelModell().vorhanden()) {
-        _log.info('sipgate: Mitschrift nicht von selbst — Modell fehlt noch',
+      final spr = await _mitschriftSprache(zustand.value.gespraech?.nummer ?? '');
+      // 🔴 DIE SPERRE GILT NUR FÜR DEUTSCH, und das war vorher falsch.
+      // Gerechnet wird zuerst auf dem SERVER; das Modell im Gerät ist nur der
+      // Rückfall. Vorher hing der Selbststart trotzdem an ihm — auf einem
+      // Tablet, das die 45 MB nie geholt hat, sprang die Mitschrift also nie
+      // von selbst an, obwohl der Server sie gekonnt hätte. Für Englisch und
+      // Rumänisch gibt es im Gerät ohnehin kein Modell.
+      if (spr == 'de' && !await UntertitelModell().vorhanden()) {
+        _log.info('sipgate: Mitschrift ohne Gerätemodell — nur über den Server',
             tag: 'SIPGATE');
-        return;
       }
-      final grund = await u.starten(id);
+      final grund = await u.starten(id, sprache: spr);
       if (grund != null) {
         // ⚠️ Nur ins Protokoll. Von selbst gestartet heisst: der Vorsitzende
         // hat nicht danach gefragt — ihm dafür eine Fehlermeldung über den
