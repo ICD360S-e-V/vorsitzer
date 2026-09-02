@@ -24,6 +24,7 @@ import '../utils/clipboard_import.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/anonymous_chat_helper.dart';
 import '../utils/chat_message_merge.dart';
+import '../utils/such_text.dart';
 import '../services/anonymous_chat_service.dart';
 import '../utils/app_farben.dart';
 
@@ -2445,70 +2446,136 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       return role == 'mitglied' || role == 'member';
     }).toList();
 
+    // ⚠️ Nach Namen sortiert, nicht in der Reihenfolge des Servers. Der liefert
+    // nach `id`, also in der Reihenfolge des Eintritts — eine Ordnung, nach der
+    // niemand sucht, weil niemand auswendig weiß, wer wann eingetreten ist.
+    // Sortiert wird über `suchText`, sonst landet „Öztürk" hinter „Zaharia".
+    members.sort((a, b) => suchText((a['name'] ?? '').toString())
+        .compareTo(suchText((b['name'] ?? '').toString())));
+
     if (!mounted) return;
 
-    showDialog(
+    final suchfeld = TextEditingController();
+    await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.add_comment, color: Colors.green),
-            SizedBox(width: 8),
-            Text('Neue Konversation'),
-          ],
-        ),
-        content: SizedBox(
-          width: 350,
-          height: 400,
-          child: members.isEmpty
-              ? const Center(child: Text('Keine Mitglieder gefunden'))
-              : ListView.builder(
-                  itemCount: members.length,
-                  itemBuilder: (context, index) {
-                    final member = members[index];
-                    final memberNr = member['mitgliedernummer']?.toString() ?? '';
-                    final name = member['name']?.toString() ?? 'Unbekannt';
-                    final isOnline = _chatService.isUserOnline(memberNr);
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final begriff = suchfeld.text.trim();
+          // Name UND Mitgliedsnummer werden durchsucht: „M51060" ist im
+          // Vorstand oft die geläufigere Kennung als der Name.
+          final treffer = begriff.isEmpty
+              ? members
+              : members.where((m) {
+                  final n = (m['name'] ?? '').toString();
+                  final nr = (m['mitgliedernummer'] ?? '').toString();
+                  return suchTreffer('$n $nr', begriff);
+                }).toList();
 
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: isOnline ? Colors.green : F.h(Colors.grey, 300),
-                        child: Icon(
-                          Icons.person,
-                          color: isOnline ? Colors.white : F.h(Colors.grey, 600),
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.add_comment, color: Colors.green),
+                SizedBox(width: 8),
+                Text('Neue Konversation'),
+              ],
+            ),
+            content: SizedBox(
+              width: 350,
+              height: 400,
+              child: members.isEmpty
+                  ? const Center(child: Text('Keine Mitglieder gefunden'))
+                  : Column(
+                      children: [
+                        TextField(
+                          controller: suchfeld,
+                          autofocus: true,
+                          textInputAction: TextInputAction.search,
+                          onChanged: (_) => setDialogState(() {}),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: 'Name oder Mitgliedsnummer',
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            suffixIcon: begriff.isEmpty
+                                ? null
+                                : IconButton(
+                                    icon: const Icon(Icons.clear, size: 20),
+                                    tooltip: 'Suche leeren',
+                                    onPressed: () {
+                                      suchfeld.clear();
+                                      setDialogState(() {});
+                                    },
+                                  ),
+                            border: const OutlineInputBorder(),
+                          ),
                         ),
-                      ),
-                      title: Text(name),
-                      subtitle: Text(memberNr),
-                      trailing: isOnline
-                          ? Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: F.h(Colors.green, 100),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Text(
-                                'Online',
-                                style: TextStyle(color: Colors.green, fontSize: 11),
-                              ),
-                            )
-                          : null,
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _startConversationWithMember(memberNr, name);
-                      },
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Abbrechen'),
-          ),
-        ],
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: treffer.isEmpty
+                              // ⚠️ Kein leerer Kasten: „nichts gefunden" und
+                              // „noch nichts geladen" sähen sonst gleich aus.
+                              ? Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Text(
+                                      'Kein Mitglied passt zu „$begriff".',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(color: F.h(Colors.grey, 600)),
+                                    ),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  itemCount: treffer.length,
+                                  itemBuilder: (context, index) {
+                                    final member = treffer[index];
+                                    final memberNr = member['mitgliedernummer']?.toString() ?? '';
+                                    final name = member['name']?.toString() ?? 'Unbekannt';
+                                    final isOnline = _chatService.isUserOnline(memberNr);
+
+                                    return ListTile(
+                                      leading: CircleAvatar(
+                                        backgroundColor: isOnline ? Colors.green : F.h(Colors.grey, 300),
+                                        child: Icon(
+                                          Icons.person,
+                                          color: isOnline ? Colors.white : F.h(Colors.grey, 600),
+                                        ),
+                                      ),
+                                      title: Text(name),
+                                      subtitle: Text(memberNr),
+                                      trailing: isOnline
+                                          ? Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: F.h(Colors.green, 100),
+                                                borderRadius: BorderRadius.circular(10),
+                                              ),
+                                              child: const Text(
+                                                'Online',
+                                                style: TextStyle(color: Colors.green, fontSize: 11),
+                                              ),
+                                            )
+                                          : null,
+                                      onTap: () {
+                                        Navigator.pop(ctx);
+                                        _startConversationWithMember(memberNr, name);
+                                      },
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Abbrechen'),
+              ),
+            ],
+          );
+        },
       ),
     );
+    suchfeld.dispose();
   }
 
   // Start a conversation with a specific member
