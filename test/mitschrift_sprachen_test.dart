@@ -17,8 +17,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('welche Sprachen es gibt', () {
-    test('genau die drei mit Modell', () {
-      expect(kMitschriftSprachen, {'de', 'en', 'ro'});
+    test('genau die fünf mit Modell', () {
+      // ⚠️ Gekoppelt an `ASR_MODELLE` und `ASR_PARAKEET_SPRACHEN` auf dem
+      // Server. Weicht die Liste ab, weist der Server ab (Code 1003) — das
+      // fällt auf, kostet aber ein Gespräch.
+      expect(kMitschriftSprachen, {'de', 'en', 'ro', 'ru', 'uk'});
     });
 
     test('erkennt auch Schreibweisen mit Land', () {
@@ -30,10 +33,10 @@ void main() {
     });
 
     test('ohne Modell heisst null, nicht Deutsch', () {
-      // ⚠️ Der Kern der Sache. Für diese Sprachen gibt es Mitglieder im
-      // Bestand (ru 9, uk 4, tr 1) — sie still auf Deutsch zu erkennen wäre
-      // genau der Fehler, der wie ein Ergebnis aussieht.
-      for (final r in ['ru', 'uk', 'tr', 'ar', 'pl', '', '  ', 'xx', 'deutsch']) {
+      // ⚠️ Der Kern der Sache. Türkisch hat ein Mitglied im Bestand — es
+      // still auf Deutsch zu erkennen wäre genau der Fehler, der wie ein
+      // Ergebnis aussieht. (ru und uk sind seit dem 02.09.2026 abgedeckt.)
+      for (final r in ['tr', 'ar', 'pl', 'it', '', '  ', 'xx', 'deutsch']) {
         expect(mitschriftSprache(r), isNull, reason: r);
       }
       expect(mitschriftSprache(null), isNull);
@@ -56,12 +59,18 @@ void main() {
 
     test('ein Vorschlag ohne Modell fällt auf Deutsch, nicht auf sich selbst',
         () {
-      expect(mitschriftSpracheWaehlen(vorschlag: 'ru'), 'de');
+      expect(mitschriftSpracheWaehlen(vorschlag: 'tr'), 'de');
+    });
+
+    test('Russisch und Ukrainisch werden jetzt vorgeschlagen', () {
+      // Neun Mitglieder im Bestand; vor dem 02.09.2026 fielen sie auf Deutsch.
+      expect(mitschriftSpracheWaehlen(vorschlag: 'ru'), 'ru');
+      expect(mitschriftSpracheWaehlen(vorschlag: 'uk'), 'uk');
     });
 
     test('eine gemerkte Sprache ohne Modell wird übergangen', () {
       // Kann entstehen, wenn eine Sprache später vom Server verschwindet.
-      expect(mitschriftSpracheWaehlen(gemerkt: 'ru', vorschlag: 'ro'), 'ro');
+      expect(mitschriftSpracheWaehlen(gemerkt: 'tr', vorschlag: 'ro'), 'ro');
     });
 
     test('ohne alles Deutsch', () {
@@ -102,7 +111,7 @@ void main() {
 
     test('gemerkt wird nur, was ein Modell hat', () async {
       const nummer = '+4973180159736';
-      await MitschriftSprachwahl.merken(nummer, 'ru');
+      await MitschriftSprachwahl.merken(nummer, 'tr');
       expect(await MitschriftSprachwahl.gemerkt(nummer), isNull);
       await MitschriftSprachwahl.merken(nummer, 'ro');
       expect(await MitschriftSprachwahl.gemerkt(nummer), 'ro');
