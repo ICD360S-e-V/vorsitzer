@@ -1422,13 +1422,61 @@ class SipgateService {
 
   /// Legt auf. Ohne Angabe das aktive Bein; mit `zweites: true` gezielt das
   /// hinzugewählte — sonst könnte man das falsche verlieren, sobald zwei laufen.
+  ///
+  /// 🔴 BEI EINER KONFERENZ REICHT DAS NICHT. Der zweite Teilnehmer kommt über
+  /// die Telefonanlage (`*3<nr>#`), nicht als eigener SIP-Dialog — unser
+  /// Softphone hängt also an EINEM Bein. Legen wir das auf, endet unsere
+  /// Teilnahme; die beiden anderen können miteinander verbunden bleiben.
+  /// Gemeldet wurde genau das: „das Gespräch schliesst sich nicht bei allen".
+  ///
+  /// Deshalb hinterher über die Schnittstelle nachfassen und die Gespräche
+  /// auflegen, die noch zu UNSEREN Nummern gehören.
   void auflegen({bool? zweites}) {
+    final z = zustand.value;
+    // Vor dem Auflegen ablesen: gleich danach ist der Zustand abgeräumt.
+    final betroffen = <String>[
+      if (z.gespraech != null) z.gespraech!.nummer,
+      if (z.zweites != null) z.zweites!.nummer,
+    ];
+    final mehrAlsEins = z.konferenz || z.zweites != null;
     final ruf = switch (zweites) {
       true => _rufB,
       false => _rufA,
       null => _aktiverRuf,
     };
     ruf?.hangup();
+    if (mehrAlsEins && betroffen.isNotEmpty) {
+      unawaited(_restAuflegen(betroffen));
+    }
+  }
+
+  /// Legt über die sipgate-Schnittstelle auf, was zu diesen Nummern noch läuft.
+  ///
+  /// ⚠️ MIT NUMMERN, nie pauschal. `GET /calls` liefert alle Gespräche des
+  /// Kontos; ohne Filter kappte man ein Gespräch, das jemand anders auf einem
+  /// anderen Gerät führt. Der Abgleich passiert auf dem Server.
+  ///
+  /// ⚠️ Und mit kurzer Verzögerung: unser BYE ist gerade erst hinausgegangen,
+  /// die Anlage braucht einen Moment, bis `/calls` den neuen Stand zeigt.
+  /// Ohne die Pause sähe man das eigene, schon beendete Bein und legte es ein
+  /// zweites Mal auf, während das eigentlich gemeinte noch nicht auftaucht.
+  Future<void> _restAuflegen(List<String> nummern) async {
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    try {
+      final a = await ApiService().sipgateAction(
+          {'action': 'alle_auflegen', 'nummern': nummern});
+      final n = a['aufgelegt'];
+      _log.info(
+          'sipgate: Konferenz nachgefasst — ${n ?? 0} weitere Gespräche '
+          'aufgelegt, ${a['unberuehrt'] ?? 0} fremde unberührt',
+          tag: 'SIPGATE');
+    } catch (e) {
+      // ⚠️ Nur ins Protokoll. Unser eigenes Bein ist bereits weg; hier noch
+      // eine Meldung über den Bildschirm zu legen, während der Vorsitzende
+      // gerade auflegt, hülfe niemandem.
+      _log.warning('sipgate: Nachfassen nach der Konferenz ging nicht ($e)',
+          tag: 'SIPGATE');
+    }
   }
 
   /// Das Bein, das gerade klingelt — bei zwei Gesprächen kann das das zweite
@@ -1896,6 +1944,35 @@ class SipgateService {
           gegenstelleSpurId = null;
           // ⚠️ Und damit ist der Text weg. Gespeichert wird nichts.
           unawaited(UntertitelService().beenden());
+        }
+
+        // 🔴 EIN BEIN OHNE SIP-DIALOG KANN NICHT WEITERLAUFEN.
+        // Seit der zweite Teilnehmer über die Anlage dazukommt (`*3<nr>#`),
+        // gibt es für ihn KEINEN eigenen `Call` — also auch nie ein Ereignis,
+        // das ihn abräumt. Endete das einzige Bein, blieb sein Eintrag für
+        // immer im Zustand stehen: beim nächsten, ganz gewöhnlichen Anruf
+        // zeigte die App „2 Gespräche" und hielt eine Nummer, die längst
+        // aufgelegt hatte. Genau so gemeldet.
+        //
+        // ⚠️ Die Bedingung ist „kein `Call` mehr da", nicht „Konferenz war
+        // an": auch ein abgebrochener Versuch, bei dem nie zusammengeschaltet
+        // wurde, hinterlässt denselben Geist.
+        if (_rufA == null && _rufB == null) {
+          for (final s in const ['A', 'B']) {
+            if (_bein(s) == null) continue;
+            _anrufProtokoll(
+              anrufId: _protokollId(s),
+              status: 'beendet',
+              dauerS: _bein(s)?.dauerSekunden ?? 0,
+            );
+            _setzeBein(s, null);
+            if (s == 'A') {
+              _anrufIdA = null;
+            } else {
+              _anrufIdB = null;
+            }
+          }
+          if (zustand.value.konferenz) _setz(konferenz: false);
         }
 
         // Bleibt genau ein Bein übrig, ist es das aktive und keine Konferenz
