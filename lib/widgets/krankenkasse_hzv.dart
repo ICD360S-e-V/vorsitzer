@@ -1407,6 +1407,7 @@ class _HzvVersandDialogState extends State<HzvVersandDialog> {
   String _key = 'widerruf';
   String _stelle = '', _kasse = '', _quelle = 'keine', _absender = '';
   String _arzt = '', _praxis = '', _praxisOrt = '', _programm = '';
+  String _signatur = '';
   final _mailC = TextEditingController();
   final _faxC = TextEditingController();
   final _betreffC = TextEditingController();
@@ -1453,6 +1454,7 @@ class _HzvVersandDialogState extends State<HzvVersandDialog> {
       _praxis = r['praxis']?.toString() ?? '';
       _praxisOrt = r['praxis_ort']?.toString() ?? '';
       _programm = r['programm']?.toString() ?? '';
+      _signatur = r['signatur_vorschau']?.toString() ?? '';
       _laedt = false;
       _vorlageUebernehmen();
     });
@@ -1552,6 +1554,38 @@ class _HzvVersandDialogState extends State<HzvVersandDialog> {
                         decoration: const InputDecoration(
                             labelText: 'Text', isDense: true, border: OutlineInputBorder()),
                       ),
+                      if (_signatur.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Theme(
+                            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                            child: ExpansionTile(
+                              tilePadding: EdgeInsets.zero,
+                              childrenPadding: const EdgeInsets.only(bottom: 8),
+                              dense: true,
+                              leading: Icon(Icons.draw, size: 18, color: F.h(Colors.teal, 700)),
+                              title: Text(
+                                'Unterschrift wird automatisch angehängt — '
+                                '${_signatur.split('\n').where((z) => z.trim().isNotEmpty).skip(1).firstOrNull ?? ''}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              subtitle: Text(
+                                'Ihre Angaben als angemeldetes Vorstandsmitglied, dazu Anschrift '
+                                'und Register des Vereins. Steht auch im PDF, also auch im Fax.',
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
+                              ),
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(8),
+                                  color: F.h(Colors.grey, 100),
+                                  child: SelectableText(_signatur,
+                                      style: const TextStyle(fontSize: 11, height: 1.35)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 10),
                       Row(children: [
                         Expanded(
@@ -1581,7 +1615,8 @@ class _HzvVersandDialogState extends State<HzvVersandDialog> {
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Absender: ${_absender.isEmpty ? '— in den Vereinsdaten fehlt eine E-Mail-Adresse' : _absender}. '
-                          'Das Schreiben geht als PDF hinaus und wird an diesen Eintrag geheftet. '
+                          'Das Schreiben geht als PDF hinaus — beim Fax IST das PDF der Brief — '
+                          'und wird an diesen Eintrag geheftet. '
                           'Nach erfolgreichem Versand wird nur das ABSENDEDATUM eingetragen — den '
                           'Status setzt die Kasse mit ihrer Antwort, nicht wir.',
                           style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
