@@ -320,7 +320,10 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
     final today = DateTime.now();
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      // stretch, damit alle sieben Kästen gleich hoch bleiben. Ohne Expanded
+      // im Innern (siehe unten) würde sich jede Spalte sonst auf ihren Inhalt
+      // zusammenziehen und der Raster sähe zerrissen aus.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: List.generate(7, (dayIndex) {
         final day = _currentWeekStart.add(Duration(days: dayIndex));
         final isToday = day.year == today.year && day.month == today.month && day.day == today.day;
@@ -409,20 +412,29 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                     ),
                   ),
                 // Execution cards
-                Expanded(
-                  child: dayExecs.isEmpty
-                      ? Center(
-                          child: Text(
-                            'Keine Aufgaben',
-                            style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 12),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(6),
-                          itemCount: dayExecs.length,
-                          itemBuilder: (context, index) => _buildExecutionCard(dayExecs[index]),
-                        ),
-                ),
+                // ⚠️ KEIN Expanded und KEIN eigener Scroll hier: die Spalte
+                // steckt seit #197 in einem SingleChildScrollView, der seinem Kind
+                // unbegrenzte Höhe gibt. Ein Expanded darin wirft
+                // "RenderFlex children have non-zero flex but incoming height
+                // constraints are unbounded" — die Tagesspalte wird dann gar nicht
+                // erst gelegt, und der Wochenraster blieb leer. Gescrollt wird
+                // aussen, deshalb shrinkWrap + NeverScrollableScrollPhysics.
+                if (dayExecs.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      'Keine Aufgaben',
+                      style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 12),
+                    ),
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(6),
+                    itemCount: dayExecs.length,
+                    itemBuilder: (context, index) => _buildExecutionCard(dayExecs[index]),
+                  ),
               ],
             ),
             ),
