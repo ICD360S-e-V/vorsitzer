@@ -20,6 +20,7 @@ void main() {
     "einkommen_gehalt": {"wo": "Behörde ▸ Arbeitgeber ▸ Lohnabrechnung", "anzahl": 0, "zustand": "leer"},
     "buergergeld": {
       "wo": "Behörde ▸ Jobcenter ▸ Antrag ▸ Bewilligungsbescheid",
+      "herkunft": "jobcenter",
       "anzahl": 2,
       "zustand": "vorhanden",
       "zeitraum": "01.01.2026 – 31.12.2026",
@@ -31,6 +32,18 @@ void main() {
       ],
       "grund": null
     },
+    "kontoauszuege": {
+      "wo": "Finanzen ▸ Zuständige Bank ▸ Kontoauszüge",
+      "herkunft": "kontoauszug",
+      "anzahl": 2,
+      "zustand": "vorhanden",
+      "zeitraum": "01.03.2026 – 31.07.2026",
+      "dokumente": [
+        {"id": 11, "name": "Scan_1.jpg", "groesse": 83152},
+        {"id": 12, "name": "Scan_2.jpg", "groesse": 88624}
+      ],
+      "grund": "Im Fenster 03.03.2026 – 03.09.2026 fehlt: 01.08.2026 – 03.09.2026"
+    },
     "mietvertrag": {"wo": "Behörde ▸ Vermieter ▸ Mietvertrag", "anzahl": 0, "zustand": "leer"}
   }
 }
@@ -41,7 +54,7 @@ void main() {
   group('insolvenzQuellenLesen', () {
     test('liest die echte Antwortform', () {
       final q = insolvenzQuellenLesen(j(echteForm)['quellen']);
-      expect(q.length, 3);
+      expect(q.length, 4);
       expect(q['buergergeld']!['zustand'], 'vorhanden');
       expect(q['buergergeld']!['zeitraum'], '01.01.2026 – 31.12.2026');
       expect(q['buergergeld']!['laufend'], isTrue);
@@ -63,6 +76,25 @@ void main() {
       expect(q['buergergeld'], isEmpty);
       expect(insolvenzQuelleDokumente(q['buergergeld']), isEmpty);
     });
+  });
+
+  // ⚠️ Die Herkunft entscheidet, über welchen Endpunkt die Datei geholt wird:
+  // Bürgergeld liegt in `behoerde_antrag_dokumente`, Kontoauszüge in
+  // `korrespondenz_attachments`. Erst stand dort fest „jobcenter" — der
+  // Kontoauszug wäre beim Jobcenter gesucht worden, wo er nicht liegt.
+  test('die beiden Quellen nennen verschiedene Herkünfte', () {
+    final q = insolvenzQuellenLesen(j(echteForm)['quellen']);
+    expect(q['buergergeld']!['herkunft'], 'jobcenter');
+    expect(q['kontoauszuege']!['herkunft'], 'kontoauszug');
+  });
+
+  // Die Lücke ist die eigentliche Auskunft des Abschnitts: „lückenlos" steht
+  // in seiner Beschreibung, und zwei Auszüge sagen nichts darüber, ob der
+  // August fehlt.
+  test('die Lücke im Sechs-Monats-Fenster wird durchgereicht', () {
+    final q = insolvenzQuellenLesen(j(echteForm)['quellen']);
+    expect(q['kontoauszuege']!['grund'], contains('fehlt'));
+    expect(q['kontoauszuege']!['zeitraum'], '01.03.2026 – 31.07.2026');
   });
 
   group('insolvenzQuelleDokumente', () {

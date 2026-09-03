@@ -6735,6 +6735,11 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
     final docs = insolvenzQuelleDokumente(q);
     if (docs.isEmpty) return null;
 
+    // ⚠️ Woher die Datei zu holen ist, sagt der Server — nicht der Abschnitt.
+    // Bürgergeld liegt in `behoerde_antrag_dokumente`, Kontoauszüge in
+    // `korrespondenz_attachments`: zwei Tabellen, zwei Endpunkte.
+    final herkunft = (q['herkunft'] ?? 'jobcenter').toString();
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 6, 4),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -6760,21 +6765,23 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
               IconButton(icon: Icon(Icons.visibility, size: 17, color: F.h(Colors.indigo, 600)),
                 tooltip: 'Anzeigen', padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                onPressed: () => _verknuepftOeffnen(id, name, speichern: false)),
+                onPressed: () => _verknuepftOeffnen(id, name, herkunft, speichern: false)),
               IconButton(icon: Icon(Icons.download, size: 17, color: F.h(Colors.green, 700)),
                 tooltip: 'Herunterladen', padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                onPressed: () => _verknuepftOeffnen(id, name, speichern: true)),
+                onPressed: () => _verknuepftOeffnen(id, name, herkunft, speichern: true)),
             ]));
         }),
       ]),
     );
   }
 
-  Future<void> _verknuepftOeffnen(int docId, String name,
+  Future<void> _verknuepftOeffnen(int docId, String name, String herkunft,
       {required bool speichern}) async {
     try {
-      final resp = await widget.apiService.downloadAntragDokument(docId);
+      final resp = herkunft == 'kontoauszug'
+          ? await widget.apiService.downloadKorrAttachment(docId)
+          : await widget.apiService.downloadAntragDokument(docId);
       if (resp.statusCode != 200) {
         if (mounted) {
           _melden('Die Unterlage ist nicht abrufbar (HTTP ${resp.statusCode})',
@@ -6986,6 +6993,10 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
     // Wie viele Unterlagen dieses Abschnitts liegen in einem ANDEREN Modul?
     // Sie stehen in der Liste, gehören aber nicht zur Akte.
     final verknuepft = insolvenzQuelleDokumente(_quellen[u.quelle]).length;
+    // Der Ort im Klartext, wie ihn der Server nennt — „aus dem Jobcenter"
+    // wäre bei den Kontoauszügen schlicht falsch.
+    final verknuepftWo =
+        (_quellen[u.quelle]?['wo'] ?? 'einem anderen Modul').toString();
 
     final kanzlei = (info['kanzlei'] ?? '').toString().trim();
     final empfCtrl = TextEditingController(text: (info['empfaenger'] ?? '').toString().trim());
@@ -7014,9 +7025,10 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
-                          'Darunter $verknuepft aus dem Jobcenter '
-                          '${verknuepft == 1 ? 'verknüpfte' : 'verknüpfte'} — '
-                          'sie ${verknuepft == 1 ? 'geht' : 'gehen'} mit, bleibt aber dort abgelegt.',
+                          'Darunter $verknuepft ${verknuepft == 1 ? 'Unterlage' : 'Unterlagen'} '
+                          'aus $verknuepftWo — '
+                          '${verknuepft == 1 ? 'sie geht' : 'sie gehen'} mit, '
+                          '${verknuepft == 1 ? 'bleibt' : 'bleiben'} aber dort abgelegt.',
                           style: TextStyle(fontSize: 10.5, color: F.h(Colors.teal, 800))),
                     ),
                   const SizedBox(height: 12),
@@ -7125,9 +7137,11 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
       try {
         // Verknüpfte Unterlagen liegen in einem anderen Modul und kommen
         // über dessen Endpunkt — der hat seine eigene Prüfung.
-        final r = quelle == 'akte'
-            ? await widget.apiService.downloadInsolvenzAkteDoc(id)
-            : await widget.apiService.downloadAntragDokument(id);
+        final r = switch (quelle) {
+          'akte' => await widget.apiService.downloadInsolvenzAkteDoc(id),
+          'kontoauszug' => await widget.apiService.downloadKorrAttachment(id),
+          _ => await widget.apiService.downloadAntragDokument(id),
+        };
         if (r.statusCode != 200) {
           fehlgeschlagen.add(name);
           continue;
