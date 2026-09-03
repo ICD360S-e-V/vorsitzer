@@ -19,6 +19,7 @@ import '../services/signatur_service.dart';
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
 import '../utils/mail_sendungen.dart';
+import '../utils/insolvenz_quellen.dart';
 import '../models/mail_models.dart';
 import '../screens/mail_compose_screen.dart';
 
@@ -6173,11 +6174,7 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
       // Fläche ohne Meldung. Der Server codiert deshalb mit (object), und
       // hier wird trotzdem geprüft: die Codierung ist eine Nebenwirkung der
       // Schlüssel, kein Vertrag.
-      final roh = q['quellen'];
-      _quellen = roh is Map
-          ? roh.map((s, v) => MapEntry(s.toString(),
-              v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{}))
-          : <String, Map<String, dynamic>>{};
+      _quellen = insolvenzQuellenLesen(q['quellen']);
       _loaded = true;
     });
   }
@@ -6690,15 +6687,117 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
         ),
     };
 
+    // Zusätze, die nur die Bürgergeld-Quelle mitbringt: der
+    // Bewilligungszeitraum und, falls der gewählte Bescheid nicht der
+    // laufende ist, der Grund dafür.
+    //
+    // ⚠️ Der Grund ist keine Verzierung. „Kein laufender Bewilligungszeitraum
+    // — der zuletzt abgelaufene" und „Der Bewilligungszeitraum beginnt erst
+    // am …" sind zwei verschiedene Lagen, und beide sehen ohne diesen Satz
+    // aus wie ein ganz normaler Bescheid.
+    final zeitraum = (q['zeitraum'] ?? '').toString();
+    final grund = (q['grund'] ?? '').toString();
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(sinnbild, size: 13, color: F.h(farbe, 700)),
-        const SizedBox(width: 6),
-        Expanded(child: Text(text,
-          style: TextStyle(fontSize: 10.5, color: F.h(farbe, 800)))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(sinnbild, size: 13, color: F.h(farbe, 700)),
+          const SizedBox(width: 6),
+          Expanded(child: Text(text,
+            style: TextStyle(fontSize: 10.5, color: F.h(farbe, 800)))),
+        ]),
+        if (zeitraum.isNotEmpty)
+          Padding(padding: const EdgeInsets.only(left: 19, top: 2),
+            child: Text(
+              'Bewilligungszeitraum $zeitraum'
+              '${q['laufend'] == true ? ' — läuft' : ''}',
+              style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 700)))),
+        if (grund.isNotEmpty)
+          Padding(padding: const EdgeInsets.only(left: 19, top: 2),
+            child: Text(grund,
+              style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 800)))),
       ]),
     );
+  }
+
+  /// Die Unterlagen, die in einem anderen Modul liegen und hier nur
+  /// VERKNÜPFT sind.
+  ///
+  /// ⚠️ Sie werden nicht kopiert — eine zweite Kopie wäre ein zweiter Ort, an
+  /// dem dasselbe Dokument altert und einmal vergessen wird. Deshalb steht an
+  /// jeder Zeile, woher sie kommt, und deshalb gibt es hier kein Löschen:
+  /// gelöscht wird im Jobcenter, wo die Unterlage hingehört.
+  Widget? _verknuepfteDokumente(String? quelle) {
+    if (quelle == null) return null;
+    final q = _quellen[quelle];
+    if (q == null) return null;
+    final docs = insolvenzQuelleDokumente(q);
+    if (docs.isEmpty) return null;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 6, 4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.link, size: 13, color: F.h(Colors.teal, 700)),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            'Aus ${q['wo'] ?? 'einem anderen Modul'} — hier nur verknüpft, '
+            'nicht kopiert',
+            style: TextStyle(fontSize: 10.5, color: F.h(Colors.teal, 800),
+              fontWeight: FontWeight.w600))),
+        ]),
+        ...docs.map((d) {
+          final id = d['id'] is int ? d['id'] as int : int.tryParse('${d['id']}') ?? 0;
+          final name = (d['name'] ?? 'Unterlage').toString();
+          return Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Row(children: [
+              const SizedBox(width: 19),
+              Icon(Icons.description_outlined, size: 15, color: F.h(Colors.teal, 600)),
+              const SizedBox(width: 8),
+              Expanded(child: Text(name, style: const TextStyle(fontSize: 12))),
+              IconButton(icon: Icon(Icons.visibility, size: 17, color: F.h(Colors.indigo, 600)),
+                tooltip: 'Anzeigen', padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                onPressed: () => _verknuepftOeffnen(id, name, speichern: false)),
+              IconButton(icon: Icon(Icons.download, size: 17, color: F.h(Colors.green, 700)),
+                tooltip: 'Herunterladen', padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                onPressed: () => _verknuepftOeffnen(id, name, speichern: true)),
+            ]));
+        }),
+      ]),
+    );
+  }
+
+  Future<void> _verknuepftOeffnen(int docId, String name,
+      {required bool speichern}) async {
+    try {
+      final resp = await widget.apiService.downloadAntragDokument(docId);
+      if (resp.statusCode != 200) {
+        if (mounted) {
+          _melden('Die Unterlage ist nicht abrufbar (HTTP ${resp.statusCode})',
+              Colors.orange);
+        }
+        return;
+      }
+      if (!mounted) return;
+      if (speichern) {
+        final saved = await FilePickerHelper.saveBytes(
+            bytes: resp.bodyBytes, fileName: name,
+            dialogTitle: 'Unterlage speichern');
+        if (saved == null || !mounted) return;
+        _melden('Gespeichert: $saved', Colors.green);
+      } else {
+        final dir = await getTemporaryDirectory();
+        final file = sichereDatei(dir, name);
+        await file.writeAsBytes(resp.bodyBytes);
+        if (mounted) await FileViewerDialog.show(context, file.path, name);
+      }
+    } catch (e) {
+      if (mounted) dateiFehlerMelden(context, e);
+    }
   }
 
   Widget _dokAbschnitt(InsolvenzUnterlage u) {
@@ -6778,6 +6877,7 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
         // Antwort auf „muss ich das überhaupt anfordern?", und die wird
         // gestellt, bevor jemand die Liste liest.
         ?_quellenBand(u.quelle),
+        ?_verknuepfteDokumente(u.quelle),
         if (docs.isEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
           child: Text('Keine Unterlagen', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 11))),
         ...docs.map((d) => Padding(padding: const EdgeInsets.fromLTRB(12, 2, 6, 2), child: Row(children: [
@@ -6878,6 +6978,10 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
       return;
     }
 
+    // Wie viele Unterlagen dieses Abschnitts liegen in einem ANDEREN Modul?
+    // Sie stehen in der Liste, gehören aber nicht zur Akte.
+    final verknuepft = insolvenzQuelleDokumente(_quellen[u.quelle]).length;
+
     final kanzlei = (info['kanzlei'] ?? '').toString().trim();
     final empfCtrl = TextEditingController(text: (info['empfaenger'] ?? '').toString().trim());
     var gewaehlt = vorlagen.keys.first.toString();
@@ -6898,6 +7002,19 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                   Text('${alle.length} ${alle.length == 1 ? 'Datei' : 'Dateien'}',
                       style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
+                  // ⚠️ Verknüpfte Unterlagen liegen NICHT in dieser Akte und
+                  // gehen deshalb nicht mit. Der Abschnitt zeigt sie an —
+                  // ohne diesen Satz stünden acht Dokumente auf dem Schirm
+                  // und keines im Umschlag, und niemand wüsste warum.
+                  if (verknuepft > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                          '$verknuepft ${verknuepft == 1 ? 'verknüpfte Unterlage geht' : 'verknüpfte Unterlagen gehen'} '
+                          'NICHT mit — sie ${verknuepft == 1 ? 'liegt' : 'liegen'} im Jobcenter, '
+                          'nicht in dieser Akte. Zum Mitsenden zuerst hier ablegen.',
+                          style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 800))),
+                    ),
                   const SizedBox(height: 12),
                   if (kanzlei.isNotEmpty)
                     Text('An: $kanzlei',
