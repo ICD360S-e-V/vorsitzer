@@ -4,11 +4,29 @@ import 'logger_service.dart';
 
 final _log = LoggerService();
 
-/// Heartbeat Service - updates last_seen in real-time
-/// Sends heartbeat to server every 60 seconds to update last_seen timestamp
-/// This ensures members can see when admin is online
+/// Heartbeat Service — hält `users.last_seen` frisch, damit Mitglieder sehen,
+/// ob der Vorsitz gerade erreichbar ist.
+///
+/// ⚠️ DIESER TAKT HÄNGT AN EINER ZAHL AUF DEM SERVER.
+/// `api/chat/support_status.php` entscheidet mit `ONLINE_FENSTER_SEKUNDEN`,
+/// ab wann jemand als offline gilt. Das Fenster muss GRÖSSER sein als dieser
+/// Takt, sonst flackert die Anzeige.
+///
+/// Bis zum 03.09.2026 passte das nicht zusammen: hier standen 60 Sekunden,
+/// dort 30 — der Vorsitz galt also die halbe Zeit als offline, obwohl die App
+/// lief. Live nachgemessen an dem Tag: `seconds_since_active: 32`, also genau
+/// dieser Fall. Kein Fehler meldete sich; es sah nur nach „gerade weg" aus.
+///
+/// Jetzt 120 s hier gegen 180 s dort. Das halbiert nebenbei die Anfragen von
+/// 1.440 auf 720 am Tag — jede weckt das Funkmodul, das danach rund
+/// 17 Sekunden in erhöhtem Zustand bleibt (Android, „The radio state
+/// machine"). Wer den Takt ändert, ändert das Serverfenster mit.
 class HeartbeatService {
-  static const Duration _interval = Duration(seconds: 60);
+  static const Duration _interval = Duration(seconds: 120);
+
+  /// Nur für den Regressionstest, der diesen Wert gegen das Online-Fenster
+  /// des Servers hält. Der Takt selbst bleibt privat.
+  static int get taktSekunden => _interval.inSeconds;
 
   Timer? _timer;
   String? _currentMitgliedernummer;

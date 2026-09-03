@@ -301,7 +301,42 @@ class TerminSmsGatewayService {
     // fünf Minuten, und das Mitglied sitzt in diesem Moment vor dem
     // Unterschriftsfeld und wartet. Eine Terminerinnerung, die dafür eine
     // Runde später rausgeht, kostet niemanden etwas.
-    final tan = await _signaturTanAbarbeiten(api);
+    // ── Eine Sonde statt fünf Leerabfragen ────────────────────────────────
+    //
+    // Bis zum 03.09.2026 fragte JEDER Takt alle fünf Warteschlangen einzeln,
+    // dazu den Posteingang. Am nginx-Log vom 02.09. nachgezählt: 7.679
+    // Anfragen an einem Tag, davon 28 mit Inhalt — bei `wetter` und
+    // `signatur` war keine einzige Antwort gefüllt. Jede weckt das Funkmodul,
+    // das danach rund 17 Sekunden in erhöhtem Zustand bleibt.
+    //
+    // ⚠️ Ein Fehlschlag der Sonde bedeutet ALLES fragen, nicht nichts. Sonst
+    // bliebe bei einem Netzwackler eine TAN liegen, während ein Mitglied vor
+    // dem Unterschriftsfeld wartet — und zwar lautlos, denn „nichts zu tun"
+    // sieht von aussen aus wie ein ruhiger Durchlauf.
+    final sonde = await api.getGatewayAnstehend();
+    final Map<String, dynamic>? anstehend = sonde['success'] == true
+        ? (sonde['anstehend'] as Map?)?.cast<String, dynamic>()
+        : null;
+    if (anstehend == null) {
+      _log.warning(
+          'Warteschlangen-Sonde nicht erreichbar (${sonde['message'] ?? '?'}) '
+          '— es wird wie bisher einzeln gefragt',
+          tag: 'SMS_GW');
+    }
+    bool faellig(String name) => anstehend == null || anstehend[name] == true;
+
+    final tan = faellig('signatur')
+        ? await _signaturTanAbarbeiten(api)
+        : const SmsGatewayRun();
+
+    if (!faellig('termine')) {
+      return _restAbarbeiten(api,
+          sent: tan.sent,
+          failed: tan.failed,
+          skipped: tan.skipped,
+          background: background,
+          faellig: faellig);
+    }
 
     final queueRes = await api.getTerminSmsQueue();
     if (queueRes['success'] != true) {
@@ -326,7 +361,11 @@ class TerminSmsGatewayService {
     }
 
     return _restAbarbeiten(api,
-        sent: sent, failed: failed, skipped: skipped, background: background);
+        sent: sent,
+        failed: failed,
+        skipped: skipped,
+        background: background,
+        faellig: faellig);
   }
 
   /// Die Terminerinnerungen eines Durchlaufs.
@@ -432,11 +471,18 @@ class TerminSmsGatewayService {
     // Wird nur für den Posteingang gebraucht: nur im Vordergrund darf nach der
     // Leseberechtigung gefragt werden, im Hintergrundjob gibt es keine Activity.
     bool background = false,
+    // Antwort der Warteschlangen-Sonde aus [runOnce]. Sagt für jeden Namen, ob
+    // sich eine Abfrage überhaupt lohnt. Voreinstellung: alles fragen — damit
+    // ein künftiger Aufrufer, der die Sonde nicht kennt, das ALTE Verhalten
+    // bekommt und nicht stillschweigend gar nichts mehr abarbeitet.
+    bool Function(String) faellig = _immerFaellig,
   }) async {
     // Medikamenten-Erinnerungen laufen über dieselbe SIM, aber eine eigene
     // Warteschlange. Sie kommen NACH den Terminen dran: ein verpasster Termin
     // ist der teurere Fehler.
-    final med = await _medikamenteAbarbeiten(api);
+    final med = faellig('medikamente')
+        ? await _medikamenteAbarbeiten(api)
+        : const SmsGatewayRun();
     sent += med.sent;
     failed += med.failed;
     skipped += med.skipped;
@@ -444,7 +490,9 @@ class TerminSmsGatewayService {
     // Wetterwarnungen zuletzt, aber nur, weil sie am seltensten anfallen —
     // inhaltlich sind sie die dringendsten. Der Server hat sie schon auf
     // „schwer" und aufwärts gefiltert.
-    final wetter = await _wetterAbarbeiten(api);
+    final wetter = faellig('wetter')
+        ? await _wetterAbarbeiten(api)
+        : const SmsGatewayRun();
     sent += wetter.sent;
     failed += wetter.failed;
     skipped += wetter.skipped;
@@ -453,7 +501,9 @@ class TerminSmsGatewayService {
     // Vorsitzer vom Schreibtisch aus als SMS abgeschickt hat. Bewusst ans
     // Ende — die automatischen Erinnerungen haben eine Frist, diese hier
     // wartet nur auf den nächsten Weckruf, der ohnehin sofort kommt.
-    final chatSms = await _chatSmsAbarbeiten(api);
+    final chatSms = faellig('chat_outbox')
+        ? await _chatSmsAbarbeiten(api)
+        : const SmsGatewayRun();
     sent += chatSms.sent;
     failed += chatSms.failed;
     skipped += chatSms.skipped;
@@ -492,6 +542,13 @@ class TerminSmsGatewayService {
     }
     return result;
   }
+
+  /// Voreinstellung für [_restAbarbeiten]: jede Warteschlange fragen.
+  ///
+  /// ⚠️ Muss eine echte Funktion sein — Dart lässt in einem Vorgabewert kein
+  /// Lambda zu, und ein `null` mit `?? true` hätte dieselbe Zusage weniger
+  /// sichtbar gemacht.
+  static bool _immerFaellig(String _) => true;
 
   /// Wie oft der Posteingang durchsucht wird.
   ///

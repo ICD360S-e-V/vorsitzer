@@ -48,7 +48,7 @@ class _AppSperreHuelleState extends State<AppSperreHuelle>
 
   @override
   void dispose() {
-    _anmeldeWache?.cancel();
+    ApiService().angemeldet.removeListener(_anmeldungGeaendert);
     WidgetsBinding.instance.removeObserver(this);
     _sperre.removeListener(_neu);
     super.dispose();
@@ -62,7 +62,6 @@ class _AppSperreHuelleState extends State<AppSperreHuelle>
 
   /// Zuletzt gesehener Anmeldezustand.
   bool _warAngemeldet = false;
-  Timer? _anmeldeWache;
 
   /// ⚠️ Der Grund, warum die Sperre in der ersten Fassung NIE griff.
   ///
@@ -76,22 +75,42 @@ class _AppSperreHuelleState extends State<AppSperreHuelle>
   /// selbst, `builder` läuft dabei NICHT erneut. Im Betrieb hiess das: keine
   /// Sperre, und nach dem Update fragte auch niemand nach einem Passwort.
   ///
-  /// `ApiService` meldet Anmeldungen nicht, also wird nachgesehen. Eine
-  /// Sekunde, und verglichen wird ein `bool` — das kostet nichts.
+  /// ⚠️ Bis zum 03.09.2026 stand hier ein `Timer.periodic(1 s)`, mit der
+  /// Begründung „verglichen wird ein `bool` — das kostet nichts". Der
+  /// Vergleich kostet wirklich nichts; der TAKT kostet. 86.400 Aufwachvorgänge
+  /// am Tag, über die ganze Lebensdauer der App, auf einem Gerät, dessen
+  /// Vordergrunddienst den Prozessor ohnehin am Schlafen hindert.
+  ///
+  /// `ApiService` meldet Anmeldungen jetzt selbst ([ApiService.angemeldet]).
+  /// Der Melder hängt am Setzer von `_token`, kann also nicht veralten.
   void _anmeldungBeobachten() {
-    _anmeldeWache?.cancel();
-    _anmeldeWache = Timer.periodic(const Duration(seconds: 1), (_) {
-      final jetzt = ApiService().isLoggedIn;
-      if (jetzt == _warAngemeldet) return;
+    ApiService().angemeldet.removeListener(_anmeldungGeaendert);
+    ApiService().angemeldet.addListener(_anmeldungGeaendert);
+    // Einmal sofort: beim Aufbau kann längst jemand angemeldet sein, und der
+    // Melder feuert erst beim nächsten Wechsel.
+    //
+    // ⚠️ Hier NICHT über `_anmeldungGeaendert` gehen. Diese Methode läuft aus
+    // `initState`, und dort ist `setState` verboten — Flutter wirft
+    // „setState() called during build". Der Aufbau kommt ohnehin gleich, ein
+    // Neubau wäre also nur zusätzlich.
+    final jetzt = ApiService().angemeldet.value;
+    if (jetzt != _warAngemeldet) {
       _warAngemeldet = jetzt;
-      if (jetzt) {
-        _ladenAnstossen();
-      } else {
-        // Abgemeldet: beim naechsten Anmelden muss frisch geladen werden.
-        _laedt = false;
-      }
-      if (mounted) setState(() {});
-    });
+      if (jetzt) _ladenAnstossen();
+    }
+  }
+
+  void _anmeldungGeaendert() {
+    final jetzt = ApiService().angemeldet.value;
+    if (jetzt == _warAngemeldet) return;
+    _warAngemeldet = jetzt;
+    if (jetzt) {
+      _ladenAnstossen();
+    } else {
+      // Abgemeldet: beim naechsten Anmelden muss frisch geladen werden.
+      _laedt = false;
+    }
+    if (mounted) setState(() {});
   }
 
   /// Liest den Sperrzustand — erst, wenn jemand angemeldet ist.
