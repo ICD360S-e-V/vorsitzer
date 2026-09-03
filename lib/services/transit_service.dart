@@ -1691,6 +1691,30 @@ class TransitService {
       name: 'Transit (grob)',
       abstandMeter: 100,
       intervall: _kOrtungsIntervall,
+      // ⚠️ Ausdrücklich `medium`, nicht die Voreinstellung.
+      //
+      // `anmelden` hat als Vorgabe `LocationAccuracy.high`, und
+      // [StandortStrom] nimmt das MAXIMUM aller Verbraucher. Dieser Verbraucher
+      // heisst „grob", fordert 100 m und einen Fix alle drei Minuten — und
+      // hielt damit trotzdem den Empfänger der GANZEN App auf
+      // `QUALITY_HIGH_ACCURACY`, also am Satellitenempfänger, solange die App
+      // offen war.
+      //
+      // Der Kommentar oben beschreibt genau diese Absicht für das INTERVALL
+      // („der Empfänger läuft nur dann kürzer getaktet, solange ein feinerer
+      // Verbraucher angemeldet ist"). Für die Genauigkeit fehlte sie.
+      //
+      // Auf diesem Gerät wiegt es doppelt: ohne Play Services wählt
+      // `LocationManagerClient.determineProvider` den AOSP-`FUSED_PROVIDER`
+      // oder, wenn es den nicht gibt, direkt `GPS_PROVIDER` — es gibt also
+      // keine Fused-Heuristik, die eine zu hohe Anforderung abfedert.
+      //
+      // ⚠️ Preis: `medium` ist auf Android mit 100–500 m angegeben. Wenn keine
+      // Karte offen ist, kann die Auswahl der nächsten Haltestelle also gröber
+      // werden. Sobald die Fahrtkarte oder der Ausstieg-Alarm dazukommt, hebt
+      // deren eigene Anforderung den Strom von selbst wieder auf `high` —
+      // genau dafür gibt es [StandortStrom].
+      genauigkeit: LocationAccuracy.medium,
       onFehler: (e) {
         _log.debug('Transit: Position stream error: $e', tag: 'TRANSIT');
       },

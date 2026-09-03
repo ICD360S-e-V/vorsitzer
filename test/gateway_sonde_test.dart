@@ -60,6 +60,41 @@ void main() {
     });
   });
 
+  group('Ortung', () {
+    test('der grobe Transit-Verbraucher fordert NICHT die volle Genauigkeit', () {
+      // ⚠️ `StandortStrom.anmelden` hat als Vorgabe `LocationAccuracy.high`,
+      // und `_Anforderung.ausAbos` nimmt das MAXIMUM aller Verbraucher. Ein
+      // Verbraucher, der `genauigkeit` weglässt, hält damit den Empfänger der
+      // GANZEN App am Satelliten — auch wenn er selbst nur 100 m alle drei
+      // Minuten braucht.
+      //
+      // Bis zum 03.09.2026 war genau das der Fall. Aufgefallen ist es erst,
+      // als klar wurde, dass auf dem Gerät Play Services abgeschaltet sind:
+      // dann wählt geolocator `LocationManagerClient`, und dessen
+      // `determineProvider` geht auf den AOSP-FUSED_PROVIDER oder direkt auf
+      // `GPS_PROVIDER` — es gibt keine Fused-Heuristik, die eine zu hohe
+      // Anforderung abfedert.
+      final quelle =
+          File('lib/services/transit_service.dart').readAsStringSync();
+      final block = RegExp(
+        r"anmelden\(\s*name: 'Transit \(grob\)'.*?\);",
+        dotAll: true,
+      ).firstMatch(quelle);
+      expect(block, isNotNull,
+          reason: 'Die Anmeldung "Transit (grob)" wurde umbenannt oder entfernt');
+      expect(block!.group(0), contains('genauigkeit:'),
+          reason: 'Ohne ausdrückliche Genauigkeit erbt dieser Verbraucher '
+              'LocationAccuracy.high und hebt den Strom der ganzen App an');
+      // ⚠️ Auf das ARGUMENT prüfen, nicht auf den blossen Namen: der
+      // Kommentar daneben erklärt die Falle und nennt `LocationAccuracy.high`
+      // dabei wörtlich. Ein Test, der darauf anschlägt, meldet den Kommentar.
+      expect(block.group(0),
+          isNot(contains('genauigkeit: LocationAccuracy.high')),
+          reason: 'Ein "grober" Verbraucher darf nicht die volle Genauigkeit '
+              'fordern');
+    });
+  });
+
   group('Herzschlag', () {
     test('Takt bleibt unter dem Online-Fenster des Servers', () {
       // ⚠️ KOPPLUNG AN DEN SERVER: `api/chat/support_status.php` hält jemanden
