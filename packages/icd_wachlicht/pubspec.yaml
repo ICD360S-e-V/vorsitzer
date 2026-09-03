@@ -1,0 +1,26 @@
+name: icd_wachlicht
+description: >-
+  Ein PARTIAL_WAKE_LOCK, der nur genommen wird, solange er wirklich gebraucht
+  wird — und der von sich aus abläuft, falls ihn niemand mehr freigibt.
+  Bewusst als eigenes Plugin-Paket statt als MethodChannel in MainActivity:
+  nur registrierte Plugins landen im GeneratedPluginRegistrant und damit auch
+  in der Flutter-Engine, die der Vordergrunddienst startet. Genau dort — im
+  Isolate des Wachdienstes — wird das Wachlicht gebraucht; ein Kanal aus
+  MainActivity existiert dort nicht.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.32.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: de.icd360sev.icd_wachlicht
+        pluginClass: IcdWachlichtPlugin
