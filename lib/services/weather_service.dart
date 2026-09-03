@@ -817,7 +817,24 @@ class WeatherService {
   void _startGpsStream() {
     try {
       const genauigkeit = LocationAccuracy.medium;
-      const abstand = 1; // Meter
+      // ⚠️ 500 m, NICHT 1 m — und das ist keine Feinheit.
+      //
+      // [StandortStrom] baut den nativen Strom mit der FEINSTEN Anforderung
+      // aller Verbraucher (`_Anforderung.ausAbos` nimmt das Minimum). Dieser
+      // Dienst ist von der Anmeldung bis zur Abmeldung angemeldet, also hat
+      // seine Zahl den Empfänger für die ganze App auf 1 Meter gestellt —
+      // rund um die Uhr, für einen Abruf, der sich selbst ohnehin auf
+      // 15 Minuten oder 5 km drosselt (siehe [_onGpsMoved]).
+      //
+      // Auf diesem Gerät wiegt das doppelt: ohne Play Services läuft
+      // geolocator über den `LocationManager`, es gibt also kein Bündeln
+      // durch den Fused-Anbieter.
+      //
+      // 500 m liegt weit unter den 5 km, ab denen [_onGpsMoved] sofort
+      // nachfragt — die Funktion verliert nichts. Wer die ÖPNV-Karte offen
+      // hat, bekommt weiterhin 5 bzw. 10 Meter: die melden sich selbst mit
+      // ihrer eigenen, feineren Anforderung an.
+      const abstand = 500; // Meter
       // ⚠️ Kein eigener `Geolocator.getPositionStream`. Genau dieser Dienst war
       // der Grund, warum die ÖPNV-Karte nie ihre 10-Meter-Auflösung bekam: er
       // bleibt vom Anmelden bis zum Abmelden der App angemeldet, also gab

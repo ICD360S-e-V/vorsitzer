@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show ValueNotifier, visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,8 +27,29 @@ class ApiService {
   // All requests now use dynamic Device Key only (no legacy fallback)
   // Hardcoded keys can be extracted via reverse engineering - CRITICAL vulnerability!
 
-  String? _token;
+  String? _tokenWert;
   String? _refreshToken;
+
+  /// Meldet, ob gerade jemand angemeldet ist — ohne dass jemand nachsehen muss.
+  ///
+  /// ⚠️ WOFÜR: [AppSperreHuelle] liess dafür bis zum 03.09.2026 einen
+  /// `Timer.periodic(1 s)` über die GANZE Lebensdauer der App laufen, nur um
+  /// ein `bool` zu vergleichen. Das sind 86.400 Aufwachvorgänge am Tag, und
+  /// auf dem Gateway-Gerät hält der Vordergrunddienst den Prozessor ohnehin
+  /// schon wach — jeder dieser Takte kostet dort echte Rechenzeit.
+  ///
+  /// ⚠️ WARUM ES NICHT VERALTEN KANN: [_token] ist ab hier ein Zugriffspaar,
+  /// kein Feld. JEDE Zuweisung — auch eine künftige, die niemand hier
+  /// eingetragen hat — läuft durch den Setzer und meldet mit. Ein zweites
+  /// Feld danebenzustellen wäre die Fassung gewesen, die beim nächsten Umbau
+  /// lautlos stehenbleibt und die Sperre nie mehr laden lässt.
+  final ValueNotifier<bool> angemeldet = ValueNotifier<bool>(false);
+
+  String? get _token => _tokenWert;
+  set _token(String? wert) {
+    _tokenWert = wert;
+    angemeldet.value = wert != null;
+  }
   late http.Client _client;
   /// Separater Client für externe APIs (Bundesagentur, handelsregister.de),
   /// deren TLS-Zertifikate NICHT von Let's Encrypt sind und damit nicht durch
@@ -1423,6 +1444,31 @@ class ApiService {
 
   Future<Map<String, dynamic>> _postWetterQueue(Map<String, dynamic> body) =>
       _postGatewayWarteschlange('admin/wetter_sms_queue.php', body);
+
+  /// Eine Frage statt fünf: liegt in irgendeiner Warteschlange etwas?
+  ///
+  /// Antwort: `{'anstehend': {'signatur': bool, 'termine': bool,
+  /// 'medikamente': bool, 'wetter': bool, 'chat_outbox': bool}}`.
+  ///
+  /// WARUM ES DAS GIBT
+  /// Der Wachdienst fragte in jedem Takt alle fünf Warteschlangen einzeln.
+  /// Am nginx-Log vom 02.09.2026 nachgezählt: 7.679 Anfragen an einem Tag, von
+  /// denen **28** etwas brachten — bei `wetter` und `signatur` war nicht eine
+  /// einzige Antwort gefüllt. Jede Anfrage weckt das Funkmodul, und das bleibt
+  /// danach rund 17 Sekunden in erhöhtem Zustand (Android, „The radio state
+  /// machine": 5 s volle Leistung, 12 s Zwischenstufe).
+  ///
+  /// ⚠️ Die Sonde liefert **keine Zeilen**. Sie entscheidet nur, ob der echte
+  /// Endpunkt gefragt werden muss. Das Holen, Belegen und Melden bleibt
+  /// unverändert dort, wo es steht — sonst müsste hier die Abfrage von fünf
+  /// Endpunkten nachgebaut werden, und die liefe beim nächsten Umbau lautlos
+  /// auseinander.
+  ///
+  /// ⚠️ Bei `success != true` darf der Aufrufer NICHT „nichts zu tun"
+  /// schliessen, sondern muss wie bisher alle fünf fragen. Ein Netzwackler
+  /// darf keine TAN liegen lassen.
+  Future<Map<String, dynamic>> getGatewayAnstehend() =>
+      _postGatewayWarteschlange('gateway/anstehend.php', {'action': 'probe'});
 
   /// Gemeinsamer Zugang zu allen fünf SMS-Warteschlangen — und die einzige
   /// Stelle im ApiService, die ALLES fängt.
