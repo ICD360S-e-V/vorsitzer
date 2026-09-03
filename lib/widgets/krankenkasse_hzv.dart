@@ -1570,8 +1570,8 @@ class _HzvVersandDialogState extends State<HzvVersandDialog> {
                                 style: const TextStyle(fontSize: 12),
                               ),
                               subtitle: Text(
-                                'Ihre Angaben als angemeldetes Vorstandsmitglied, dazu Anschrift '
-                                'und Register des Vereins. Steht auch im PDF, also auch im Fax.',
+                                'Dieselbe wie im Mail-Client der App — haben Sie sie dort '
+                                'geändert, gilt die geänderte. Steht auch im PDF, also auch im Fax.',
                                 style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
                               ),
                               children: [
