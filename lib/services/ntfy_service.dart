@@ -53,6 +53,37 @@ class NtfyService {
   http.Client? _client;
   StreamSubscription? _subscription;
   Timer? _reconnectTimer;
+
+  /// Wacht darüber, dass überhaupt noch etwas hereinkommt.
+  Timer? _stillstandsWache;
+
+  /// Nach dieser Stille gilt der Strom als tot.
+  ///
+  /// ⚠️ WARUM ES DIESE WACHE BRAUCHT — und warum ihr Fehlen lange unsichtbar war:
+  /// Läuft die NAT-Zuordnung des Mobilfunkbetreibers ab, ist die Verbindung
+  /// tot, OHNE dass irgendetwas davon erfährt. Es kommt kein FIN, kein RST,
+  /// kein Fehler — der Strom wird einfach still. `onDone` feuert nicht,
+  /// `onError` feuert nicht, und [_verbunden] blieb deshalb bis in alle
+  /// Ewigkeit auf `true`. Die App hielt sich für erreichbar, während sie es
+  /// nicht mehr war, und niemand hätte es gemerkt.
+  ///
+  /// Das Erkennungsmerkmal lag die ganze Zeit da: ntfy schickt alle
+  /// **45 Sekunden** ein `keepalive`-Ereignis über denselben Strom
+  /// (`keepalive-interval`, Vorgabe des Servers, bei uns nicht überschrieben).
+  /// [_handleLine] hat es bisher als „kein message-Ereignis" weggeworfen.
+  /// Bleibt es aus, ist die Leitung tot — eine andere Erklärung gibt es nicht.
+  ///
+  /// ⚠️ 150 Sekunden = gut drei ausgefallene Lebenszeichen. Kürzer hiesse: ein
+  /// verzögertes Paket beendet eine gesunde Verbindung. Wer am Server
+  /// `keepalive-interval` ändert, ändert diesen Wert mit — es ist die einzige
+  /// Stelle, an der die beiden zusammenhängen, und ein Fehler meldet sich
+  /// nicht, er sieht nur aus wie „ntfy ist wieder mal instabil".
+  ///
+  /// ⚠️ Die Wache ist selbst ein Zeitgeber im Benutzerraum: schläft der
+  /// Prozessor, läuft sie nicht. Das ist hier richtig so — solange niemand
+  /// wach ist, tut auch der tote Strom niemandem weh. Beim nächsten Aufwachen
+  /// schlägt sie an und der Zustand wird korrigiert.
+  static const _stillstandsfrist = Duration(seconds: 150);
   bool _running = false;
   int _reconnectAttempts = 0;
 
@@ -104,6 +135,8 @@ class NtfyService {
     _verbunden = false;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _stillstandsWache?.cancel();
+    _stillstandsWache = null;
     _subscription?.cancel();
     _subscription = null;
     _client?.close();
@@ -249,6 +282,13 @@ class NtfyService {
   void handleLineFuerTest(String line) => _handleLine(line);
 
   void _handleLine(String line) {
+    // ⚠️ VOR jedem Aussteigen. Auch ein `keepalive` und auch eine leere Zeile
+    // sind ein Lebenszeichen — sie sind sogar das einzige, das in ruhigen
+    // Stunden je ankommt. Stünde das Zurücksetzen weiter unten, hinter dem
+    // Filter auf `message`, würde die Wache in genau den Stunden zuschlagen,
+    // in denen alles in Ordnung ist.
+    _wacheStellen();
+
     if (line.trim().isEmpty) return;
 
     try {
@@ -349,6 +389,25 @@ class NtfyService {
     } catch (e) {
       _log.error('ntfy: Parse error: $e', tag: 'NTFY');
     }
+  }
+
+  /// Setzt die Stillstandswache neu auf.
+  void _wacheStellen() {
+    _stillstandsWache?.cancel();
+    if (!_running) return;
+    _stillstandsWache = Timer(_stillstandsfrist, () {
+      _log.warning(
+          'ntfy: seit ${_stillstandsfrist.inSeconds}s kein Lebenszeichen — '
+          'Leitung gilt als tot, neu verbinden',
+          tag: 'NTFY');
+      // Nicht nur neu verbinden: _scheduleReconnect setzt zuerst
+      // [_verbunden] auf false. Genau daran hängen die Abfragetakte und das
+      // Wachlicht des Wachdienstes — ohne diesen Schritt bliebe beides im
+      // Sparmodus, während in Wahrheit niemand mehr zuhört.
+      _subscription?.cancel();
+      _subscription = null;
+      _scheduleReconnect();
+    });
   }
 
   void _scheduleReconnect() {

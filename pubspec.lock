@@ -794,6 +794,13 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  icd_wachlicht:
+    dependency: "direct main"
+    description:
+      path: "packages/icd_wachlicht"
+      relative: true
+    source: path
+    version: "1.0.0"
   image:
     dependency: "direct main"
     description:

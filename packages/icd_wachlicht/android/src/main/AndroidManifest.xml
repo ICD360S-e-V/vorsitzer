@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- WAKE_LOCK wird bewusst im App-Manifest deklariert, nicht hier: die
+         Berechtigung soll bei der App sichtbar bleiben, die sie benutzt. Sie
+         steht dort bereits (für flutter_foreground_task). -->
+</manifest>

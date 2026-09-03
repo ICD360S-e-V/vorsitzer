@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:icd_wachlicht/icd_wachlicht.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'anruf_gateway_service.dart';
@@ -94,10 +95,77 @@ class SignaturGatewayService {
         // beendet Hintergrundarbeit aggressiv; ohne das bliebe der Dienst
         // nach dem ersten Eingriff für immer weg.
         autoRunOnMyPackageReplaced: true,
-        allowWakeLock: true,
+        // ⚠️ AUS, und das ist der Kern dieser Änderung.
+        //
+        // `true` nimmt im Plugin einen PARTIAL_WAKE_LOCK per `acquire()` OHNE
+        // Zeitgrenze und hält ihn, solange der Dienst lebt
+        // (ForegroundService.kt:428) — auf diesem Gerät also 24 Stunden am
+        // Tag. Googles Schwelle für „excessive" liegt bei zwei Stunden binnen
+        // 24 (Android vitals).
+        //
+        // ⚠️ Und es genügt NICHT, das Flag umzustellen: `updateService` läuft
+        // über den Zweig `API_UPDATE`, und der ruft weder `acquireLockMode()`
+        // noch `releaseLockMode()` — nur `startForegroundService` tut das. Ein
+        // bereits genommener Lock bliebe also gehalten, lautlos. Deshalb steht
+        // `false` an BEIDEN Stellen, und der Lock wird über [IcdWachlicht]
+        // selbst geführt (siehe `_wachlichtNachfuehren`).
+        allowWakeLock: false,
         allowWifiLock: false,
       ),
     );
+
+    // Direkt nach dem Schreiben der neuen Einstellungen — siehe dort, warum
+    // das Schreiben allein nicht reicht.
+    await _wachlichtUmstellen();
+  }
+
+  /// Merker der einmaligen Umstellung auf das eigene Wachlicht.
+  static const _kWachlichtUmstellung = 'wachlicht_umstellung_v1';
+
+  /// 🔴 OHNE DAS BLEIBT DER ALTE DAUERLOCK NACH DEM UPDATE GEHALTEN — LAUTLOS.
+  ///
+  /// Die Kette, an der es hängt:
+  ///  1. `allowWakeLock` wird nur in `startForegroundService()` ausgewertet
+  ///     (`releaseLockMode(); acquireLockMode();`). Der Zweig `API_UPDATE`,
+  ///     über den `updateService` läuft, fasst den Lock NICHT an.
+  ///  2. Der Dienst hat `autoRunOnMyPackageReplaced: true`. Nach dem Update
+  ///     startet ihn `RebootReceiver` selbst — und liest dabei die
+  ///     Einstellungen, die noch die ALTE App geschrieben hat. Dort steht
+  ///     `allowWakeLock: true`, also wird der Dauerlock wieder genommen.
+  ///  3. Danach schreibt [initialisieren] zwar die neuen Einstellungen, aber
+  ///     ohne Neustart bleibt der bereits genommene Lock gehalten.
+  ///
+  /// Ergebnis wäre: die Reparatur greift erst beim nächsten Neustart des
+  /// Geräts — auf einem Telefon also Tage bis Wochen später. Der PR sähe
+  /// wirkungslos aus, und niemand hätte einen Anhaltspunkt, warum.
+  ///
+  /// Deshalb einmal anhalten und neu starten. Das kostet einen kurzen
+  /// Neuaufbau der Weckleitung, direkt nach einem Update, bei dem der Prozess
+  /// ohnehin gerade ersetzt wurde.
+  ///
+  /// ⚠️ Nur wenn der Dienst LÄUFT. Ihn hier zu starten wäre etwas völlig
+  /// anderes — er gehört auf Geräte mit Gateway-Rolle, und darüber entscheidet
+  /// nicht diese Methode.
+  static Future<void> _wachlichtUmstellen() async {
+    if (!istUnterstuetzt) return;
+    try {
+      final sp = await SharedPreferences.getInstance();
+      if (sp.getBool(_kWachlichtUmstellung) == true) return;
+      if (await laeuft()) {
+        _log.info('Wachlicht-Umstellung: Dienst einmal neu starten, damit der '
+            'alte Dauerlock freigegeben wird', tag: 'SIG_GW');
+        await stoppen();
+        await starten();
+      }
+      // ⚠️ Auch setzen, wenn der Dienst gar nicht lief: dann gibt es keinen
+      // alten Lock, und beim nächsten regulären Start gelten ohnehin die neuen
+      // Einstellungen. Ohne das liefe die Prüfung bei jedem App-Start erneut.
+      await sp.setBool(_kWachlichtUmstellung, true);
+    } catch (e) {
+      // Misslingt es, bleibt der Merker ungesetzt und der nächste App-Start
+      // versucht es erneut — besser als eine Umstellung, die still ausfällt.
+      _log.warning('Wachlicht-Umstellung fehlgeschlagen: $e', tag: 'SIG_GW');
+    }
   }
 
   static Future<bool> laeuft() async {
@@ -120,7 +188,21 @@ class SignaturGatewayService {
         eventAction: ForegroundTaskEventAction.repeat(takt.inMilliseconds),
         autoRunOnBoot: true,
         autoRunOnMyPackageReplaced: true,
-        allowWakeLock: true,
+        // ⚠️ AUS, und das ist der Kern dieser Änderung.
+        //
+        // `true` nimmt im Plugin einen PARTIAL_WAKE_LOCK per `acquire()` OHNE
+        // Zeitgrenze und hält ihn, solange der Dienst lebt
+        // (ForegroundService.kt:428) — auf diesem Gerät also 24 Stunden am
+        // Tag. Googles Schwelle für „excessive" liegt bei zwei Stunden binnen
+        // 24 (Android vitals).
+        //
+        // ⚠️ Und es genügt NICHT, das Flag umzustellen: `updateService` läuft
+        // über den Zweig `API_UPDATE`, und der ruft weder `acquireLockMode()`
+        // noch `releaseLockMode()` — nur `startForegroundService` tut das. Ein
+        // bereits genommener Lock bliebe also gehalten, lautlos. Deshalb steht
+        // `false` an BEIDEN Stellen, und der Lock wird über [IcdWachlicht]
+        // selbst geführt (siehe `_wachlichtNachfuehren`).
+        allowWakeLock: false,
         allowWifiLock: false,
       ),
     );
@@ -387,8 +469,53 @@ class _SignaturGatewayHandler extends TaskHandler {
     }
   }
 
+  /// Hält den Prozessor wach — aber nur, solange die Weckleitung NICHT steht.
+  ///
+  /// ⚠️ DIE BEGRÜNDUNG IN EINEM SATZ: der Takt dieses Dienstes ist eine
+  /// Korutine mit `delay(interval)` (ForegroundTask.kt:123), also ein
+  /// Zeitgeber im Benutzerraum — er läuft nicht, solange der Prozessor
+  /// schläft.
+  ///
+  /// Steht der ntfy-Strom, macht das nichts: der Server schickt alle
+  /// 45 Sekunden ein Lebenszeichen (`keepalive-interval`, Vorgabe von ntfy und
+  /// bei uns nicht überschrieben), und ein eintreffendes Netzpaket weckt das
+  /// Gerät ohnehin — der Kernel nimmt dafür selbst einen Lock, bis der
+  /// Benutzerraum das Paket verarbeitet hat. Ein Wählauftrag oder eine TAN
+  /// kommt auf demselben Weg herein und wurde am 11.08.2026 mit einer Sekunde
+  /// Abstand nachgemessen.
+  ///
+  /// Reisst der Strom, fällt genau diese Weckquelle weg. Dann ist die Abfrage
+  /// die einzige Absicherung, die noch greift — und dann, und nur dann, muss
+  /// der Prozessor wach bleiben. Es ist derselbe Umschalter, an dem schon der
+  /// Takt hängt ([_faellig]), aus demselben Grund: er fällt von allein
+  /// zurück, ohne dass jemand einen Schalter umlegen muss.
+  ///
+  /// ⚠️ Die Zeitgrenze wird bei JEDEM Takt erneuert und ist bewusst knapp über
+  /// dem Takt gewählt. Bleibt der Dienst stehen, läuft der Lock von selbst ab,
+  /// statt das Gerät für immer wach zu halten.
+  Future<void> _wachlichtNachfuehren() async {
+    if (NtfyService().istVerbunden) {
+      await IcdWachlicht.freigeben();
+      return;
+    }
+    await IcdWachlicht.nehmen(dauer: _wachlichtGrenze);
+  }
+
+  /// Obergrenze des Wachlichts.
+  ///
+  /// Zwei Minuten: mehr als der langsamste Takt (eine Minute) plus ein
+  /// ausgefallener Durchlauf, und trotzdem kurz genug, dass ein abgestürzter
+  /// Dienst das Gerät höchstens zwei Minuten wach hält statt bis zum Neustart.
+  static const _wachlichtGrenze = Duration(minutes: 2);
+
   @override
   Future<void> onRepeatEvent(DateTime timestamp) async {
+    // ⚠️ VOR allem anderen. Fällt der Durchlauf gleich unten wegen fehlender
+    // Anmeldung aus, ist der Zustand der Weckleitung trotzdem schon bewertet —
+    // sonst bliebe bei einem Gerät, das sich nicht anmelden kann, ausgerechnet
+    // die Absicherung ohne Wachlicht.
+    await _wachlichtNachfuehren();
+
     if (!await _anmelden()) {
       _scheitern(_letzterGrund, timestamp);
       return;
@@ -511,6 +638,11 @@ class _SignaturGatewayHandler extends TaskHandler {
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     debugPrint('[SIG_GW] Dienst beendet (Zeitüberschreitung: $isTimeout)');
+    // ⚠️ Zuerst das Wachlicht. Es hat zwar eine Zeitgrenze und liefe von
+    // selbst ab — aber „von selbst in zwei Minuten" ist keine Freigabe,
+    // sondern eine Verzögerung, und ein beendeter Dienst hat keinen Grund
+    // mehr, das Gerät auch nur eine Minute wach zu halten.
+    await IcdWachlicht.freigeben();
     // Die Weckleitung mitnehmen. Ohne das bliebe eine stehende Verbindung samt
     // Wiederverbindungs-Timer in einem Isolate zurück, dessen Dienst es nicht
     // mehr gibt — sie würde niemanden mehr wecken und trotzdem weiter Strom
