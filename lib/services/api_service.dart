@@ -5835,6 +5835,68 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ─── Krankenkasse → HZV / Hausarztprogramm (§ 73b SGB V) ─────
+  // Spaltenweise verschlüsselt auf dem Server; hier fließt nur Klartext.
+  Future<Map<String, dynamic>> _hzvPost(Map<String, dynamic> body) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/krankenkasse_hzv_manage.php'),
+      headers: _headers, body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<Map<String, dynamic>> listHzvTeilnahme(int userId) =>
+      _hzvPost({'action': 'list', 'user_id': userId});
+  Future<Map<String, dynamic>> saveHzvTeilnahme(int userId, Map<String, dynamic> teilnahme) =>
+      _hzvPost({'action': 'save', 'user_id': userId, 'teilnahme': teilnahme});
+  Future<Map<String, dynamic>> deleteHzvTeilnahme(int id) =>
+      _hzvPost({'action': 'delete', 'id': id});
+  Future<Map<String, dynamic>> listHzvDocs(int hzvId) =>
+      _hzvPost({'action': 'list_docs', 'hzv_id': hzvId});
+  Future<Map<String, dynamic>> deleteHzvDoc(int id) =>
+      _hzvPost({'action': 'delete_doc', 'id': id});
+
+  Future<Map<String, dynamic>> uploadHzvDoc({
+    required int hzvId, required String filePath, required String fileName,
+    String dokTyp = 'sonstiges',
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/krankenkasse_hzv_doc_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    // ⚠️ addAll(_headers) — MultipartRequest setzt die Kopfzeilen sonst selbst
+    // und schickt kein Bearer; genau daran ist PR #508 hängen geblieben.
+    request.headers.addAll(_headers);
+    request.fields['hzv_id'] = hzvId.toString();
+    request.fields['dok_typ'] = dokTyp;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send();
+    final r = await http.Response.fromStream(sr);
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  /// „Aus Cloud": Datei aus dem verschlüsselten Mitglieder-Cloud an einen
+  /// HZV-Eintrag hängen. Der Eigentümer wird serverseitig über hzv_id → user_id
+  /// aufgelöst, ein fremdes Mitglied kommt also nicht durch.
+  Future<Map<String, dynamic>> attachHzvDocFromCloud({
+    required int hzvId, required int cloudFileId, String dokTyp = 'sonstiges',
+  }) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/krankenkasse_hzv_doc_upload.php'),
+        headers: _headers,
+        body: jsonEncode({'action': 'attach_from_cloud', 'hzv_id': hzvId, 'cloud_file_id': cloudFileId, 'dok_typ': dokTyp}),
+      ).timeout(const Duration(seconds: 30));
+      try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud-Übernahme fehlgeschlagen: $e'};
+    }
+  }
+
+  Future<http.Response> downloadHzvDoc(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/krankenkasse_hzv_doc_download.php?id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   // ─── Zahnarzt Härtefall docs (Antrag + Bewilligung) ─────────
   // Two doc-buckets per Härtefall dossier identified by an UUID stored
   // in the JSON entry. type param selects which table+folder.
