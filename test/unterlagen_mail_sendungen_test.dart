@@ -12,8 +12,9 @@ import 'package:icd360sev_vorsitzer/utils/mail_sendungen.dart';
 /// hier meldet sich also nirgends — die Mail geht hinaus, das Anschreiben
 /// zählt 25 Anlagen auf, und im Umschlag liegen 20.
 void main() {
-  MailAnhangPlan a(int id, int groesse) =>
-      MailAnhangPlan(docId: id, name: 'Steuerbescheid-$id.jpg', groesse: groesse);
+  MailAnhangPlan a(int id, int groesse, {String quelle = 'akte'}) =>
+      MailAnhangPlan(
+          docId: id, name: 'Steuerbescheid-$id.jpg', groesse: groesse, quelle: quelle);
 
   group('mailSendungenPlanen', () {
     test('passt alles in eine Mail, bleibt es eine', () {
@@ -72,6 +73,18 @@ void main() {
 
     test('leere Liste ergibt keine leere Mail', () {
       expect(mailSendungenPlanen(const []).teile, 0);
+    });
+
+    // ⚠️ Dieselbe Id in beiden Tabellen: `akte:17` und `jobcenter:17` sind
+    // zwei verschiedene Dateien. Ginge die Herkunft beim Aufteilen verloren,
+    // läge im Umschlag zweimal dieselbe — und zwar unauffällig, weil beide
+    // Namen stimmen.
+    test('gleiche Id aus zwei Quellen bleibt unterscheidbar', () {
+      final p = mailSendungenPlanen(
+          [a(17, 100), a(17, 100, quelle: 'jobcenter')]);
+      final teile = p.sendungen.single.anhaenge;
+      expect(teile.length, 2);
+      expect(teile.map((x) => x.quelle), ['akte', 'jobcenter']);
     });
   });
 

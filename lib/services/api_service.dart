@@ -9459,6 +9459,9 @@ class ApiService {
     required String kategorie,
     required String abschnitt,
     List<int> docIds = const [],
+    /// Ids der VERKNÜPFTEN Unterlagen (Jobcenter). Eigener Parameter, weil
+    /// die beiden Tabellen eigene Id-Räume haben: `17` gibt es in beiden.
+    List<int> jcDocIds = const [],
     int teil = 0,
     int teile = 0,
   }) async {
@@ -9471,6 +9474,7 @@ class ApiService {
         'kategorie': kategorie,
         'abschnitt': abschnitt,
         if (docIds.isNotEmpty) 'doc_ids': docIds,
+        if (jcDocIds.isNotEmpty) 'jc_doc_ids': jcDocIds,
         if (teile > 1) 'teil': teil,
         if (teile > 1) 'teile': teile,
       }),

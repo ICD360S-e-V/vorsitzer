@@ -57,8 +57,15 @@ const int kMailMaxAnhaenge = 20;
 
 /// Eine Datei, so wie sie an die Mail gehängt wird.
 class MailAnhangPlan {
-  /// Id der Unterlage in der Akte — der Server baut daraus das Anschreiben.
+  /// Id der Unterlage — der Server baut daraus das Anschreiben.
   final int docId;
+
+  /// Woher sie stammt: `akte` oder ein anderes Modul (`jobcenter`).
+  ///
+  /// ⚠️ Ohne die Herkunft ist die Id mehrdeutig: die beiden Tabellen haben
+  /// eigene Id-Räume, `17` gibt es in beiden. Wer sie wegwirft, lädt die
+  /// falsche Datei herunter — und zwar eine, die es gibt.
+  final String quelle;
 
   /// Der Name, unter dem die Datei **hinausgeht**. Kommt vom Server, damit
   /// die Aufzählung im Brief und der Anhang denselben Namen tragen.
@@ -70,6 +77,7 @@ class MailAnhangPlan {
     required this.docId,
     required this.name,
     required this.groesse,
+    this.quelle = 'akte',
   });
 }
 

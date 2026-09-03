@@ -6835,7 +6835,12 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
             // Nur wenn es etwas zu senden GIBT. Ein Knopf, der bei einem leeren
             // Abschnitt nur sagen kann „keine Unterlagen", ist eine Enttäuschung
             // mit Vorlaufzeit.
-            if (docs.isNotEmpty)
+            //
+            // ⚠️ Verknüpfte zählen mit. Zuerst hing der Knopf allein an den
+            // eigenen Unterlagen — bei „Bürgergeld" standen damit acht Seiten
+            // des Bescheids auf dem Schirm und kein Weg, sie zu senden.
+            if (docs.isNotEmpty
+                || insolvenzQuelleDokumente(_quellen[u.quelle]).isNotEmpty)
               OutlinedButton.icon(
                 onPressed: () => _mailAbschnitt(u),
                 icon: const Icon(Icons.alternate_email, size: 13),
@@ -6945,7 +6950,7 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
     final docs = _docs
         .where((d) => (d['kategorie'] ?? 'sonstiges').toString() == u.schluessel)
         .toList();
-    if (docs.isEmpty) return;
+    if (docs.isEmpty && insolvenzQuelleDokumente(_quellen[u.quelle]).isEmpty) return;
 
     final info = await widget.apiService.insolvenzUnterlagenMailVorlagen(
         akteId: _akteId, kategorie: u.schluessel, abschnitt: u.titel);
@@ -7002,18 +7007,17 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                   Text('${alle.length} ${alle.length == 1 ? 'Datei' : 'Dateien'}',
                       style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
-                  // ⚠️ Verknüpfte Unterlagen liegen NICHT in dieser Akte und
-                  // gehen deshalb nicht mit. Der Abschnitt zeigt sie an —
-                  // ohne diesen Satz stünden acht Dokumente auf dem Schirm
-                  // und keines im Umschlag, und niemand wüsste warum.
+                  // Verknüpfte Unterlagen gehen mit — aber es steht dabei,
+                  // dass sie aus einem anderen Modul kommen. Wer den Umschlag
+                  // packt, soll wissen, woher der Inhalt stammt.
                   if (verknuepft > 0)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
-                          '$verknuepft ${verknuepft == 1 ? 'verknüpfte Unterlage geht' : 'verknüpfte Unterlagen gehen'} '
-                          'NICHT mit — sie ${verknuepft == 1 ? 'liegt' : 'liegen'} im Jobcenter, '
-                          'nicht in dieser Akte. Zum Mitsenden zuerst hier ablegen.',
-                          style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 800))),
+                          'Darunter $verknuepft aus dem Jobcenter '
+                          '${verknuepft == 1 ? 'verknüpfte' : 'verknüpfte'} — '
+                          'sie ${verknuepft == 1 ? 'geht' : 'gehen'} mit, bleibt aber dort abgelegt.',
+                          style: TextStyle(fontSize: 10.5, color: F.h(Colors.teal, 800))),
                     ),
                   const SizedBox(height: 12),
                   if (kanzlei.isNotEmpty)
@@ -7109,19 +7113,28 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
     _melden('${alle.length} ${alle.length == 1 ? 'Datei wird' : 'Dateien werden'} '
         'geladen …', F.h(Colors.blue, 700));
     final anhaenge = <MailAnhangPlan>[];
-    final inhalte = <int, Uint8List>{};
+    // ⚠️ Der Schlüssel trägt die HERKUNFT mit. Die beiden Tabellen haben
+    // eigene Id-Räume; über die Id allein überschriebe eine Jobcenter-Datei
+    // die gleichnamige aus der Akte, und im Umschlag läge die falsche.
+    final inhalte = <String, Uint8List>{};
     final fehlgeschlagen = <String>[];
     for (final d in alle) {
       final id = d['id'] is int ? d['id'] as int : int.tryParse('${d['id']}') ?? 0;
+      final quelle = (d['quelle'] ?? 'akte').toString();
       final name = (d['anhang_name'] ?? d['datei_name'] ?? 'Unterlage').toString();
       try {
-        final r = await widget.apiService.downloadInsolvenzAkteDoc(id);
+        // Verknüpfte Unterlagen liegen in einem anderen Modul und kommen
+        // über dessen Endpunkt — der hat seine eigene Prüfung.
+        final r = quelle == 'akte'
+            ? await widget.apiService.downloadInsolvenzAkteDoc(id)
+            : await widget.apiService.downloadAntragDokument(id);
         if (r.statusCode != 200) {
           fehlgeschlagen.add(name);
           continue;
         }
-        inhalte[id] = r.bodyBytes;
-        anhaenge.add(MailAnhangPlan(docId: id, name: name, groesse: r.bodyBytes.length));
+        inhalte['$quelle:$id'] = r.bodyBytes;
+        anhaenge.add(MailAnhangPlan(
+            docId: id, quelle: quelle, name: name, groesse: r.bodyBytes.length));
       } catch (_) {
         fehlgeschlagen.add(name);
       }
@@ -7178,7 +7191,12 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
         akteId: _akteId,
         kategorie: u.schluessel,
         abschnitt: u.titel,
-        docIds: sendung.anhaenge.map((a) => a.docId).toList(),
+        docIds: [
+          for (final a in sendung.anhaenge) if (a.quelle == 'akte') a.docId,
+        ],
+        jcDocIds: [
+          for (final a in sendung.anhaenge) if (a.quelle != 'akte') a.docId,
+        ],
         teil: teil,
         teile: teile,
       );
@@ -7208,8 +7226,9 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
           body: text,
           initialAttachments: [
             for (final a in sendung.anhaenge)
-              if (inhalte[a.docId] != null)
-                MailOutgoingAttachment(filename: a.name, bytes: inhalte[a.docId]!),
+              if (inhalte['${a.quelle}:${a.docId}'] != null)
+                MailOutgoingAttachment(
+                    filename: a.name, bytes: inhalte['${a.quelle}:${a.docId}']!),
           ],
           onSent: (antwort) => messageId = (antwort['message_id'] ?? '').toString(),
         ),
