@@ -9438,6 +9438,51 @@ class ApiService {
     return await _client.get(Uri.parse('$baseUrl/admin/insolvenz_manage.php?type=download&id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
   }
 
+  /// Die Anschreiben, mit denen ein Abschnitt der Unterlagen an die
+  /// Insolvenzverwaltung geht — Betreff und Text, sonst nichts.
+  ///
+  /// ⚠️ Verschickt NICHTS. Gesendet wird im Mail-Client der App, damit der
+  /// Vorstand den fertigen Brief samt Anhängen sieht und ändern kann, bevor
+  /// etwas das Haus verlässt.
+  ///
+  /// [docIds] sind die Unterlagen DIESER Sendung. Eine Mail trägt 20 Anhänge
+  /// und 25 MB; ein Abschnitt mit 25 Scans geht deshalb in mehreren
+  /// Sendungen hinaus, und [teil]/[teile] schreiben das in Betreff und Text.
+  /// Ohne [docIds] nimmt der Server alle Unterlagen des Abschnitts.
+  ///
+  /// [abschnitt] ist die Beschriftung aus `kInsolvenzUnterlagen` — sie steht
+  /// im Client, weil sie dort ohnehin neben dem Schlüssel liegt; sie ein
+  /// zweites Mal im PHP zu führen wäre die Stelle, an der beide auseinander
+  /// laufen.
+  Future<Map<String, dynamic>> insolvenzUnterlagenMailVorlagen({
+    required int akteId,
+    required String kategorie,
+    required String abschnitt,
+    List<int> docIds = const [],
+    int teil = 0,
+    int teile = 0,
+  }) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/insolvenz_manage.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'type': 'unterlagen_mail_vorlagen',
+        'akte_id': akteId,
+        'kategorie': kategorie,
+        'abschnitt': abschnitt,
+        if (docIds.isNotEmpty) 'doc_ids': docIds,
+        if (teile > 1) 'teil': teil,
+        if (teile > 1) 'teile': teile,
+      }),
+    ).timeout(const Duration(seconds: 20));
+    try {
+      final d = jsonDecode(r.body);
+      return d is Map<String, dynamic> ? d : {'success': false};
+    } on FormatException {
+      return {'success': false, 'message': 'Unerwartete Antwort vom Server'};
+    }
+  }
+
   // ========== RUNDFUNKBEITRAG ANTRAG DETAIL ==========
 
   Future<Map<String, dynamic>> listRfbAntragVerlauf(int antragId) async {

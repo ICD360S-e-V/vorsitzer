@@ -10,6 +10,7 @@ import '../utils/file_picker_helper.dart';
 import '../utils/mail_absenderwahl.dart';
 import '../utils/mail_adressbuch.dart';
 import '../utils/mail_sendeschutz.dart';
+import '../utils/mail_sendungen.dart';
 import '../utils/mail_vorlage.dart';
 import 'mail_kontakte_screen.dart';
 import 'mail_vorlagen_screen.dart';
@@ -156,8 +157,29 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
       _ccCtrl.text = widget.cc ?? '';
       _subjectCtrl.text = widget.subject ?? '';
       _showCcBcc = (widget.cc ?? '').isNotEmpty;
-      _newAttachments.addAll(widget.initialAttachments);
-      if (widget.initialAttachments.isNotEmpty) _dirty = true;
+      // ⚠️ Auch hier gelten die Grenzen — und zwar aus demselben Grund wie
+      // beim Auswählen von Hand: PHP nimmt je Anfrage nur `max_file_uploads`
+      // Dateien an (auf unserem Server 20) und schneidet den Rest STILL aus
+      // `$_FILES`. Das passiert vor der ersten Zeile des Skripts, ist dort
+      // also nicht einmal feststellbar — der Server KANN das nicht melden,
+      // die Grenze muss hier gezogen werden.
+      //
+      // Vorher wurden Anhänge aus einer Weiterleitung ungeprüft übernommen:
+      // 21 Anhänge gingen als 20 hinaus, ohne dass irgendwo etwas fehlschlug.
+      final (uebernommen, abgelehnt) = mailAnhaengeEinpassen(
+          widget.initialAttachments,
+          maxDateien: _maxFiles, maxBytes: _maxTotal);
+      _newAttachments.addAll(uebernommen);
+      if (uebernommen.isNotEmpty) _dirty = true;
+      // ⚠️ Erst nach dem ersten Bild: in initState gibt es noch kein
+      // ScaffoldMessenger. Und gemeldet wird es auf jeden Fall — lautlos
+      // weglassen wäre genau der Fehler, der hier behoben wird.
+      if (abgelehnt.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _toast('Nicht übernommen: ${abgelehnt.join(', ')} — '
+              'eine E-Mail trägt höchstens $_maxFiles Anhänge und 25 MB.');
+        });
+      }
     }
 
     for (final c in [_toCtrl, _ccCtrl, _bccCtrl, _subjectCtrl, _bodyCtrl]) {
