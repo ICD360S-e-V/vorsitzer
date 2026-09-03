@@ -19,8 +19,16 @@
 ///    rechnet, meldet dann „abgelaufen", obwohl die Frist noch gar nicht
 ///    angefangen hat — der Fehler in genau der gefährlichen Richtung.
 ///
-///    ⚠️ Nicht das **Begrüßungsschreiben**: das nennt den Beginn der Teilnahme
-///    und ist keine Widerrufsbelehrung.
+///    ⚠️ **Das Begrüßungsschreiben KANN die Belehrung sein** — und ist es
+///    häufig. Auf dem Begrüßungsschreiben der IKK classic (Stand 08/2026)
+///    steht sie wörtlich unter dem Brieftext: „Sie haben die Möglichkeit,
+///    innerhalb von zwei Wochen Ihre Teilnahme … zu widerrufen. Zur
+///    Fristwahrung genügt die rechtzeitige Absendung … **Ihre Widerrufsfrist
+///    beginnt nach Erhalt dieser Belehrung** in schriftlicher oder
+///    elektronischer Form." Dann laufen die zwei Wochen ab dem Tag, an dem
+///    dieser Umschlag ankommt — Wochen nach der Unterschrift in der Praxis.
+///    Umgekehrt gilt es nicht: ein Begrüßungsschreiben ohne Belehrungstext
+///    startet keine Frist. Maßgeblich ist, was auf dem Blatt steht.
 ///  * **Mindestbindung — zwölf Monate.** Danach ist der Versicherte „an seine
 ///    Teilnahmeerklärung und an die Wahl seines Hausarztes mindestens ein Jahr
 ///    gebunden"; ein Hausarztwechsel davor geht nur aus wichtigem Grund.

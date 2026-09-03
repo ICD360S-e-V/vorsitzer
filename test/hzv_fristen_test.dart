@@ -43,6 +43,17 @@ void main() {
           DateTime.utc(2026, 9, 15));
     });
 
+    // Der belegte Regelfall aus dem echten Begruessungsschreiben der IKK classic:
+    // Teilnahmeerklaerung in der Praxis unterschrieben, Belehrung erst Wochen
+    // spaeter mit dem Brief der Kasse. Wer nur ab der Unterschrift rechnet,
+    // meldet hier laengst „abgelaufen", waehrend die Frist noch laeuft.
+    test('Belehrung im Begruessungsschreiben — Frist laeuft ab dessen Erhalt', () {
+      final wBis = hzvWiderrufBis(DateTime(2026, 7, 20), DateTime(2026, 8, 19));
+      expect(wBis, DateTime.utc(2026, 9, 2));
+      // Gegenprobe: allein ab der Unterschrift waere schon der 03.08. der letzte Tag.
+      expect(hzvWiderrufBis(DateTime(2026, 7, 20)), DateTime.utc(2026, 8, 3));
+    });
+
     test('nur eine Belehrung, ohne erfasste Unterschrift, reicht auch', () {
       expect(hzvWiderrufBis(null, DateTime(2026, 9, 10)), DateTime.utc(2026, 9, 24));
     });

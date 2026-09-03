@@ -5897,6 +5897,60 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ─── HZV: Widerruf / Kündigung / Wechsel direkt an die Kasse ──
+  //
+  // 🔴 Empfänger ist die KRANKENKASSE, nie das HÄVG-Rechenzentrum. § 73b Abs. 3
+  // SGB V: der Widerruf geht „bei der Krankenkasse" ein. Im Netz stehen für die
+  // HZV prominent `hzv.de` / `haevg-rz.de` — das ist die Stelle, die die
+  // Einschreibung technisch verarbeitet, nicht der Erklärungsempfänger. Das Ziel
+  // löst deshalb allein der Server aus `behoerden_standorte` auf.
+  Future<Map<String, dynamic>> _hzvVersand(
+    Map<String, dynamic> body, {
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/krankenkasse_hzv_versand.php'),
+        headers: _headers, body: jsonEncode(body),
+      ).timeout(timeout);
+      try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Unerwartete Antwort vom Server'}; }
+    } catch (e) {
+      // ⚠️ Kein stilles false: beim Versand ist „warum nicht" die eigentliche
+      // Information. Ein leeres Ergebnis sähe aus wie „abgelehnt", obwohl
+      // vielleicht nur das Netz weg war — und jemand faxt ein zweites Mal.
+      return {'success': false, 'message': 'Server nicht erreichbar: $e'};
+    }
+  }
+
+  /// Vorlagen, Zieladressen und die Frage, ob überhaupt gesendet werden kann.
+  Future<Map<String, dynamic>> hzvVersandVorlagen(int hzvId) =>
+      _hzvVersand({'action': 'vorlagen', 'hzv_id': hzvId},
+          timeout: const Duration(seconds: 20));
+
+  Future<Map<String, dynamic>> hzvVersandMail({
+    required int hzvId, required String vorlage,
+    String empfaenger = '', String betreff = '', String text = '', String cc = '',
+  }) =>
+      _hzvVersand({
+        'action': 'mail_senden', 'hzv_id': hzvId, 'vorlage': vorlage,
+        if (empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+        if (betreff.isNotEmpty) 'betreff': betreff,
+        if (text.isNotEmpty) 'text': text,
+        if (cc.isNotEmpty) 'cc': cc,
+      });
+
+  /// ⚠️ Erfolg heißt „an sipgate übergeben", NICHT „zugestellt".
+  Future<Map<String, dynamic>> hzvVersandFax({
+    required int hzvId, required String vorlage,
+    String empfaenger = '', String betreff = '', String text = '',
+  }) =>
+      _hzvVersand({
+        'action': 'fax_senden', 'hzv_id': hzvId, 'vorlage': vorlage,
+        if (empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+        if (betreff.isNotEmpty) 'betreff': betreff,
+        if (text.isNotEmpty) 'text': text,
+      });
+
   // ─── Zahnarzt Härtefall docs (Antrag + Bewilligung) ─────────
   // Two doc-buckets per Härtefall dossier identified by an UUID stored
   // in the JSON entry. type param selects which table+folder.

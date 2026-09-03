@@ -141,6 +141,37 @@ class _KrankenkasseHzvTabState extends State<KrankenkasseHzvTab> {
     if (saved == true) _load();
   }
 
+  /// Welche Vorlage bei diesem Eintrag zuerst dran ist.
+  ///
+  /// Läuft die Widerrufsfrist noch, ist der Widerruf der schnellere und
+  /// voraussetzungslose Weg — die Kündigung käme erst nach zwölf Monaten zum
+  /// Zug. Ist der Eintrag als Wechsel angelegt, ist es die Wechselanzeige.
+  String _vorauswahl(Map<String, dynamic> t) {
+    if (t['ist_wechsel'] == true) return 'wechsel';
+    final wBis = hzvWiderrufBis(
+        DateTime.tryParse(t['unterschrieben_am']?.toString() ?? ''),
+        DateTime.tryParse(t['belehrung_am']?.toString() ?? ''));
+    final heute = DateTime.now();
+    if (wBis != null && !DateTime.utc(heute.year, heute.month, heute.day).isAfter(wBis)) {
+      return 'widerruf';
+    }
+    return 'kuendigung';
+  }
+
+  Future<void> _senden(Map<String, dynamic> t) async {
+    final gesendet = await showDialog<bool>(
+      context: context,
+      builder: (_) => HzvVersandDialog(
+        apiService: widget.apiService,
+        hzvId: t['id'] as int,
+        vorauswahl: _vorauswahl(t),
+      ),
+    );
+    // Neu laden auch ohne Erfolg: der Server trägt bei einem geglückten
+    // Versand das Absendedatum ein, und das gehört sofort auf den Schirm.
+    if (gesendet == true) _load();
+  }
+
   Future<void> _delete(Map<String, dynamic> t) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -313,6 +344,11 @@ class _KrankenkasseHzvTabState extends State<KrankenkasseHzvTab> {
               ),
             ],
             const Spacer(),
+            IconButton(
+              tooltip: 'Widerruf / Kündigung / Wechsel an die Kasse senden',
+              icon: const Icon(Icons.outgoing_mail, size: 18),
+              onPressed: () => _senden(t),
+            ),
             if (hzvLaeuft(status))
               IconButton(
                 tooltip: 'Hausarztwechsel beantragen',
@@ -512,8 +548,10 @@ class HzvRechtsHinweis extends StatelessWidget {
               'ABSCHICKEN; ankommen muss er nicht rechtzeitig.'),
           _z('⚠️ Die zwei Wochen laufen ab dem Erhalt der WIDERRUFSBELEHRUNG, frühestens '
               'aber ab der Unterschrift — der spätere Tag zählt. Steht die Belehrung auf dem '
-              'Formular (Regelfall), fallen beide zusammen; kommt sie per Post, beginnt die '
-              'Frist erst dann. Das Begrüßungsschreiben ist NICHT die Belehrung.'),
+              'Formular, fallen beide zusammen; kommt sie per Post, beginnt die Frist erst '
+              'dann. Sie steht oft im BEGRÜSSUNGSSCHREIBEN der Kasse (so bei der IKK classic) '
+              '— dann laufen die zwei Wochen ab dem Tag, an dem dieser Umschlag ankommt, also '
+              'Wochen nach der Unterschrift in der Praxis. Nachsehen, was auf dem Blatt steht.'),
           _z('Danach ist das Mitglied mindestens zwölf Monate an die Teilnahme UND an '
               'den gewählten Hausarzt gebunden.'),
           _z('Die HZV bindet an GENAU EINEN Hausarzt. Andere Ärzte nur nach dessen '
@@ -863,6 +901,15 @@ class _HzvEditDialogState extends State<HzvEditDialog> {
             ]),
             const SizedBox(height: 10),
             _datum(_belehrungC, 'Widerrufsbelehrung erhalten am'),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Sie steht oft im Begrüßungsschreiben der Kasse — bei der IKK classic '
+                'wörtlich unter dem Brieftext. Dann hier den Tag eintragen, an dem der '
+                'Brief ankam, nicht das Briefdatum.',
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
+              ),
+            ),
             if (wBis != null)
               _rechnung(
                 'Widerruf ohne Begründung möglich bis '
@@ -870,8 +917,8 @@ class _HzvEditDialogState extends State<HzvEditDialog> {
                 'Erhalt der Widerrufsbelehrung, frühestens mit der Abgabe — der '
                 'spätere Tag zählt (§ 73b Abs. 3 SGB V). Abschicken genügt.'
                 '${belehrung == null ? ' ⚠️ Ohne Belehrungsdatum ab der Unterschrift '
-                    'gerechnet; kam die Belehrung erst per Post, ist der letzte Tag '
-                    'später. Die Belehrung ist NICHT das Begrüßungsschreiben.' : ''}',
+                    'gerechnet; kam die Belehrung erst per Post — etwa im '
+                    'Begrüßungsschreiben —, ist der letzte Tag später.' : ''}',
               ),
             const SizedBox(height: 10),
             Row(children: [
@@ -1317,5 +1364,301 @@ class _HzvDokumenteSectionState extends State<HzvDokumenteSection> {
         ],
       ],
     ]);
+  }
+}
+
+// ══════════════════ Versand an die Kasse ════════════════════════════════
+
+/// Widerruf, Kündigung oder Hausarztwechsel direkt an die Krankenkasse — per
+/// E-Mail oder Fax.
+///
+/// 🔴 Das Ziel kommt **allein vom Server** aus dem Standort-Verzeichnis der
+/// Kasse des Mitglieds. Für die HZV stehen im Netz prominent die Anschriften
+/// des HÄVG Rechenzentrums (`hzv.de`, `haevg-rz.de`) — das ist die Stelle, die
+/// die Einschreibung technisch verarbeitet, **nicht** der Erklärungsempfänger.
+/// § 73b Abs. 3 SGB V verlangt den Widerruf „bei der Krankenkasse". Ein dorthin
+/// gefaxter Widerruf geht an den Falschen, und es fällt erst auf, wenn die
+/// Frist um ist.
+///
+/// ⚠️ Kein Ziel-Eingabefeld ohne Vorbelegung: eine plausible, falsch getippte
+/// Faxnummer ist die schlimmste Sorte Fehler — es geht raus und niemand merkt,
+/// wohin. Die Felder sind änderbar, aber sie kommen gefüllt.
+class HzvVersandDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int hzvId;
+
+  /// Welche Vorlage vorausgewählt ist — abgeleitet aus dem, was der Eintrag
+  /// gerade braucht.
+  final String vorauswahl;
+
+  const HzvVersandDialog({
+    super.key,
+    required this.apiService,
+    required this.hzvId,
+    this.vorauswahl = 'widerruf',
+  });
+
+  @override
+  State<HzvVersandDialog> createState() => _HzvVersandDialogState();
+}
+
+class _HzvVersandDialogState extends State<HzvVersandDialog> {
+  Map<String, dynamic> _vorlagen = {};
+  String _key = 'widerruf';
+  String _stelle = '', _kasse = '', _quelle = 'keine', _absender = '';
+  final _mailC = TextEditingController();
+  final _faxC = TextEditingController();
+  final _betreffC = TextEditingController();
+  final _textC = TextEditingController();
+  bool _laedt = true;
+  bool _sendet = false;
+  String? _fehler;
+
+  @override
+  void initState() {
+    super.initState();
+    _key = widget.vorauswahl;
+    _laden();
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_mailC, _faxC, _betreffC, _textC]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _laden() async {
+    final r = await widget.apiService.hzvVersandVorlagen(widget.hzvId);
+    if (!mounted) return;
+    if (r['success'] != true) {
+      setState(() {
+        _laedt = false;
+        _fehler = r['message']?.toString() ?? 'Vorlagen konnten nicht geladen werden.';
+      });
+      return;
+    }
+    setState(() {
+      _vorlagen = Map<String, dynamic>.from(r['vorlagen'] as Map? ?? {});
+      if (!_vorlagen.containsKey(_key) && _vorlagen.isNotEmpty) _key = _vorlagen.keys.first;
+      _mailC.text = r['empfaenger']?.toString() ?? '';
+      _faxC.text = r['fax']?.toString() ?? '';
+      _stelle = r['stelle']?.toString() ?? '';
+      _kasse = r['kasse']?.toString() ?? '';
+      _quelle = r['kontakt_quelle']?.toString() ?? 'keine';
+      _absender = r['absender']?.toString() ?? '';
+      _laedt = false;
+      _vorlageUebernehmen();
+    });
+  }
+
+  /// Betreff und Text aus der gewählten Vorlage — aber nur, solange niemand
+  /// von Hand hineingeschrieben hat. Sonst löschte ein Umschalten die eigene
+  /// Formulierung.
+  void _vorlageUebernehmen({bool erzwingen = false}) {
+    final v = Map<String, dynamic>.from(_vorlagen[_key] as Map? ?? {});
+    final alt = Map<String, dynamic>.from(
+        _vorlagen.values.map((e) => Map<String, dynamic>.from(e as Map)).firstWhere(
+              (e) => e['betreff']?.toString() == _betreffC.text,
+              orElse: () => <String, dynamic>{},
+            ));
+    final unberuehrt = _betreffC.text.isEmpty || alt.isNotEmpty;
+    if (erzwingen || unberuehrt) {
+      _betreffC.text = v['betreff']?.toString() ?? '';
+      _textC.text = v['text']?.toString() ?? '';
+    }
+  }
+
+  Future<void> _senden(String weg) async {
+    setState(() => _sendet = true);
+    final r = weg == 'fax'
+        ? await widget.apiService.hzvVersandFax(
+            hzvId: widget.hzvId, vorlage: _key,
+            empfaenger: _faxC.text.trim(), betreff: _betreffC.text.trim(), text: _textC.text)
+        : await widget.apiService.hzvVersandMail(
+            hzvId: widget.hzvId, vorlage: _key,
+            empfaenger: _mailC.text.trim(), betreff: _betreffC.text.trim(), text: _textC.text);
+    if (!mounted) return;
+    setState(() => _sendet = false);
+    final ok = r['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(r['message']?.toString() ?? (ok ? 'Gesendet' : 'Fehlgeschlagen')),
+      backgroundColor: ok ? Colors.green : Colors.red,
+      duration: const Duration(seconds: 5),
+    ));
+    if (ok) Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('An die Krankenkasse senden'),
+      content: SizedBox(
+        width: 620,
+        child: _laedt
+            ? const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()))
+            : _fehler != null
+                ? Text(_fehler!, style: const TextStyle(color: Colors.red))
+                : SingleChildScrollView(
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      _empfaengerKarte(),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: _key,
+                        decoration: const InputDecoration(
+                            labelText: 'Schreiben', isDense: true, border: OutlineInputBorder()),
+                        items: _vorlagen.entries
+                            .map((e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(
+                                    (e.value as Map)['titel']?.toString() ?? e.key,
+                                    overflow: TextOverflow.ellipsis)))
+                            .toList(),
+                        onChanged: (v) => setState(() {
+                          _key = v ?? _key;
+                          _vorlageUebernehmen(erzwingen: true);
+                        }),
+                      ),
+                      if ((_vorlagen[_key] as Map?)?['hinweis'] != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text((_vorlagen[_key] as Map)['hinweis'].toString(),
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
+                          ),
+                        ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _betreffC,
+                        decoration: const InputDecoration(
+                            labelText: 'Betreff', isDense: true, border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _textC,
+                        maxLines: 12,
+                        minLines: 8,
+                        style: const TextStyle(fontSize: 12),
+                        decoration: const InputDecoration(
+                            labelText: 'Text', isDense: true, border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _mailC,
+                            decoration: const InputDecoration(
+                                labelText: 'E-Mail der Kasse',
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.email, size: 18)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _faxC,
+                            decoration: const InputDecoration(
+                                labelText: 'Fax der Kasse',
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.print, size: 18)),
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Absender: ${_absender.isEmpty ? '— in den Vereinsdaten fehlt eine E-Mail-Adresse' : _absender}. '
+                          'Das Schreiben geht als PDF hinaus und wird an diesen Eintrag geheftet. '
+                          'Nach erfolgreichem Versand wird nur das ABSENDEDATUM eingetragen — den '
+                          'Status setzt die Kasse mit ihrer Antwort, nicht wir.',
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
+                        ),
+                      ),
+                    ]),
+                  ),
+      ),
+      actions: _laedt || _fehler != null
+          ? [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen'))]
+          : [
+              TextButton(
+                  onPressed: _sendet ? null : () => Navigator.pop(context),
+                  child: const Text('Abbrechen')),
+              OutlinedButton.icon(
+                onPressed: _sendet || _faxC.text.trim().isEmpty ? null : () => _senden('fax'),
+                icon: const Icon(Icons.print, size: 16),
+                label: const Text('Per Fax'),
+              ),
+              ElevatedButton.icon(
+                onPressed: _sendet || _mailC.text.trim().isEmpty ? null : () => _senden('mail'),
+                icon: _sendet
+                    ? const SizedBox(
+                        width: 14, height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.send, size: 16),
+                label: const Text('Per E-Mail'),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
+              ),
+            ],
+    );
+  }
+
+  Widget _empfaengerKarte() {
+    final leer = _quelle == 'keine';
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: F.h(leer ? Colors.orange : Colors.teal, 50),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: F.h(leer ? Colors.orange : Colors.teal, 200)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(leer ? Icons.warning_amber : Icons.account_balance,
+              size: 16, color: F.h(leer ? Colors.orange : Colors.teal, 800)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              _stelle.isEmpty ? (_kasse.isEmpty ? 'Keine Kasse hinterlegt' : _kasse) : _stelle,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: F.h(leer ? Colors.orange : Colors.teal, 900)),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+          leer
+              ? 'Zu dieser Geschäftsstelle steht kein Eintrag im Standort-Verzeichnis. '
+                  'Fax und E-Mail fehlen deshalb nachweislich, nicht aus Versehen — bitte '
+                  'von Hand eintragen und vorher an der Quelle prüfen.'
+              : _quelle == 'hzv_stelle'
+                  ? 'Das ist die Stelle der Kasse, die genau diesen Vorgang führt '
+                      '(Selektivverträge / Hausarztprogramm) — der direkte Weg. '
+                      '⚠️ NICHT das HÄVG-Rechenzentrum (hzv.de / haevg-rz.de): das '
+                      'verarbeitet nur die Einschreibung und ist nicht der Empfänger '
+                      'einer Erklärung (§ 73b Abs. 3 SGB V).'
+                  : _quelle == 'zentrale'
+                      ? 'Die Geschäftsstelle des Mitglieds steht nicht im Verzeichnis — '
+                          'genommen wird die allgemeine Anschrift derselben Kasse. Das ist '
+                          'zulässig (§ 73b Abs. 3 SGB V verlangt den Eingang „bei der '
+                          'Krankenkasse"), dauert aber länger als der Weg über deren '
+                          'HZV-Team. ⚠️ NICHT an hzv.de / haevg-rz.de senden — das ist das '
+                          'Rechenzentrum, nicht die Kasse.'
+                      : 'Empfänger ist die Krankenkasse. ⚠️ NICHT das HÄVG-Rechenzentrum '
+                          '(hzv.de / haevg-rz.de): das verarbeitet nur die Einschreibung. '
+                          'Widerruf und Kündigung müssen bei der Kasse eingehen '
+                          '(§ 73b Abs. 3 SGB V).',
+          style: TextStyle(fontSize: 11, color: F.h(leer ? Colors.orange : Colors.teal, 900)),
+        ),
+      ]),
+    );
   }
 }
