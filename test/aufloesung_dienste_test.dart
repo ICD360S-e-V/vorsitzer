@@ -675,14 +675,20 @@ void main() {
   // Sie stehen NAMENTLICH hier und nicht wieder im Mock versteckt, damit die
   // Liste kürzer werden kann. Vermessen ist bisher:
   //   * `ArchivScreen` — lib/screens/archiv_screen.dart:277
-  //   * `RoutinenaufgabenScreen`, `DashboardScreen` — noch nicht einzeln
+  //   * `DashboardScreen` — noch nicht einzeln
   //   * `SturmwarnungBroadcastDialog` — nur bei Systemschrift 2,0
+  //
+  // ⚠️ `RoutinenaufgabenScreen` ist am 03.09.2026 herausgefallen — und die
+  // Ausnahme war teuer: seit #197 stand in der Tagesspalte ein `Expanded` in
+  // einem `SingleChildScrollView`, der Wochenraster wurde deshalb gar nicht
+  // gelegt und war für den Vorsitzenden LEER. Der Prüfstand hätte das
+  // gesehen; er hatte den Bildschirm nur ausgenommen. Wer hier wieder einen
+  // Namen einträgt, nimmt genau diese Wirkung zurück.
   //
   // Dieselbe Familie wie der Terminkalender, aber eine eigene Runde: jeder
   // Fall ist eine Layout-Entscheidung im Produktivcode, keine Zeile im Test.
   const offeneUeberlaeufe = <String>{
     'ArchivScreen',
-    'RoutinenaufgabenScreen',
     'DashboardScreen',
     'SturmwarnungBroadcastDialog',
   };
