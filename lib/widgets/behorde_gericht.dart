@@ -18,6 +18,9 @@ import '../utils/ra_antwort.dart';
 import '../services/signatur_service.dart';
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
+import '../utils/mail_sendungen.dart';
+import '../models/mail_models.dart';
+import '../screens/mail_compose_screen.dart';
 
 /// Kategorien der Dokumente an einem Gerichts-Vorfall (Reiter „Dokumente").
 ///
@@ -6709,20 +6712,39 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
         Container(padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
           decoration: BoxDecoration(color: F.h(widget.color, 50),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(10))),
-          child: Row(children: [
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('$titel (${docs.length})',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
-                    color: F.h(widget.color, 800))),
-                if (u.hinweis != null)
-                  Padding(padding: const EdgeInsets.only(top: 2),
-                    child: Text(u.hinweis!,
-                      style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)))),
-              ])),
-            const SizedBox(width: 8),
+          // ⚠️ Titel oben, Knöpfe darunter im Umbruch. Mit dem dritten Knopf
+          // blieben in einer Zeile auf einem 360-dp-Telefon rund hundert
+          // Punkte für die Überschrift übrig — „Einkommensnachweis Gehalt —
+          // letzte 3 Monate" wäre dort zu einer Spalte zerlaufen.
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('$titel (${docs.length})',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
+                      color: F.h(widget.color, 800))),
+                  if (u.hinweis != null)
+                    Padding(padding: const EdgeInsets.only(top: 2),
+                      child: Text(u.hinweis!,
+                        style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)))),
+                ])),
+            ]),
+            const SizedBox(height: 6),
+            Wrap(alignment: WrapAlignment.end, spacing: 6, runSpacing: 4, children: [
+            // Nur wenn es etwas zu senden GIBT. Ein Knopf, der bei einem leeren
+            // Abschnitt nur sagen kann „keine Unterlagen", ist eine Enttäuschung
+            // mit Vorlaufzeit.
+            if (docs.isNotEmpty)
+              OutlinedButton.icon(
+                onPressed: () => _mailAbschnitt(u),
+                icon: const Icon(Icons.alternate_email, size: 13),
+                label: const Text('Mail', style: TextStyle(fontSize: 10)),
+                style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.teal, 700),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero),
+              ),
             OutlinedButton.icon(
               onPressed: () async {
                 final res = await CloudPickerHelper.uebernehmen(context,
@@ -6743,7 +6765,6 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
               style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
             ),
-            const SizedBox(width: 6),
             ElevatedButton.icon(
               onPressed: () => _upload(kategorie),
               icon: const Icon(Icons.upload_file, size: 13),
@@ -6751,6 +6772,7 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
               style: ElevatedButton.styleFrom(backgroundColor: widget.color, foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
             ),
+            ]),
           ])),
         // Der Verweis steht ÜBER der Dateiliste, nicht darunter: er ist die
         // Antwort auf „muss ich das überhaupt anfordern?", und die wird
@@ -6807,6 +6829,348 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
         ]))),
         const SizedBox(height: 6),
       ]));
+  }
+
+  // ── Unterlagen eines Abschnitts per E-Mail an die Verwaltung ──────────
+  //
+  // Gesendet wird im Mail-Client der App, nicht serverseitig: der Vorstand
+  // sieht den fertigen Brief mit den Anhängen und kann ihn ändern, bevor
+  // etwas das Haus verlässt. Der Server liefert nur Betreff und Text.
+  //
+  // ⚠️ Eine Mail trägt 20 Anhänge (PHPs `max_file_uploads`, darüber wirft der
+  // Server den Rest STILL weg) und 25 MB. Ein Abschnitt hat gemessen an einer
+  // echten Akte 25 Scans — es wird deshalb auf mehrere Sendungen aufgeteilt,
+  // und jede sagt in Betreff und Text „Teil 1 von 2".
+  Future<void> _mailAbschnitt(InsolvenzUnterlage u) async {
+    final docs = _docs
+        .where((d) => (d['kategorie'] ?? 'sonstiges').toString() == u.schluessel)
+        .toList();
+    if (docs.isEmpty) return;
+
+    final info = await widget.apiService.insolvenzUnterlagenMailVorlagen(
+        akteId: _akteId, kategorie: u.schluessel, abschnitt: u.titel);
+    if (!mounted) return;
+    if (info['success'] != true) {
+      _melden('${info['message'] ?? 'Die Anschreiben konnten nicht geladen werden'}',
+          Colors.red);
+      return;
+    }
+
+    final vorlagen = info['vorlagen'] is Map
+        ? Map<String, dynamic>.from(info['vorlagen'] as Map)
+        : <String, dynamic>{};
+    if (vorlagen.isEmpty) {
+      _melden('Der Server hat kein Anschreiben geliefert', Colors.red);
+      return;
+    }
+    // ⚠️ Die ausgehenden Namen kommen vom SERVER, nicht aus `_docs`. Er
+    // nummeriert sie über den ganzen Abschnitt (`Steuerbescheid-01.jpg`);
+    // hier ein zweites Mal zu nummerieren hieße, dass der Brief andere Namen
+    // aufzählt als im Umschlag liegen.
+    final alle = (info['alle_dateien'] is List)
+        ? (info['alle_dateien'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : <Map<String, dynamic>>[];
+    if (alle.isEmpty) {
+      _melden('Der Server kennt zu diesem Abschnitt keine Dateien', Colors.orange);
+      return;
+    }
+
+    final kanzlei = (info['kanzlei'] ?? '').toString().trim();
+    final empfCtrl = TextEditingController(text: (info['empfaenger'] ?? '').toString().trim());
+    var gewaehlt = vorlagen.keys.first.toString();
+
+    final los = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: const Text('Unterlagen per E-Mail', style: TextStyle(fontSize: 16)),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(u.titel,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  Text('${alle.length} ${alle.length == 1 ? 'Datei' : 'Dateien'}',
+                      style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
+                  const SizedBox(height: 12),
+                  if (kanzlei.isNotEmpty)
+                    Text('An: $kanzlei',
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                  TextField(
+                    controller: empfCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: const InputDecoration(
+                        labelText: 'E-Mail der Verwaltung',
+                        isDense: true,
+                        border: OutlineInputBorder()),
+                    onChanged: (_) => setDlg(() {}),
+                  ),
+                  // ⚠️ Der Grund gehört dazu: „keine Adresse hinterlegt" ist
+                  // bei einer Kanzlei kein Versehen, sondern die Lage — die
+                  // Anschrift steht dann nur im Nachschlagewerk der Anwälte.
+                  if ((info['empfaenger'] ?? '').toString().trim().isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                          'Zu dieser Kanzlei ist keine E-Mail-Adresse hinterlegt. '
+                          'Sie lässt sich hier eintragen; dauerhaft gehört sie in '
+                          'die Rechtsanwaltsdatenbank.',
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800))),
+                    ),
+                  const SizedBox(height: 12),
+                  const Text('Anschreiben', style: TextStyle(fontSize: 12)),
+                  for (final e in vorlagen.entries)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                          gewaehlt == e.key
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          size: 18,
+                          color: gewaehlt == e.key
+                              ? F.h(widget.color, 700)
+                              : F.h(Colors.grey, 500)),
+                      title: Text('${(e.value as Map)['titel'] ?? e.key}',
+                          style: const TextStyle(fontSize: 12.5)),
+                      subtitle: Text('${(e.value as Map)['hinweis'] ?? ''}',
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                      onTap: () => setDlg(() => gewaehlt = e.key),
+                    ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                        color: F.h(Colors.orange, 50),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.orange.shade100)),
+                    // Nicht als Sperre, sondern als Hinweis: die Kanzleien
+                    // nehmen Post per Mail an, und beA erreichen wir nicht.
+                    // Aber Ausweis und Kontoauszüge über unverschlüsseltes
+                    // SMTP sind genau der Fall, für den Art. 32 DSGVO da ist.
+                    child: Text(
+                        'Die Anhänge gehen unverschlüsselt hinaus. Bei Ausweis- und '
+                        'Kontounterlagen ist das eine bewusste Entscheidung — der '
+                        'Transport ist per TLS gesichert, die Nachricht selbst nicht.',
+                        style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 900))),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                      'Der fertige Brief wird im Mail-Client geöffnet. Gesendet wird '
+                      'erst dort — bis dahin lässt sich alles ändern.',
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Abbrechen')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: widget.color),
+              onPressed: empfCtrl.text.trim().isEmpty
+                  ? null
+                  : () => Navigator.pop(ctx, true),
+              child: const Text('Weiter'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (los != true || !mounted) return;
+    final empfaenger = empfCtrl.text.trim();
+
+    // ── Dateien holen ──
+    _melden('${alle.length} ${alle.length == 1 ? 'Datei wird' : 'Dateien werden'} '
+        'geladen …', F.h(Colors.blue, 700));
+    final anhaenge = <MailAnhangPlan>[];
+    final inhalte = <int, Uint8List>{};
+    final fehlgeschlagen = <String>[];
+    for (final d in alle) {
+      final id = d['id'] is int ? d['id'] as int : int.tryParse('${d['id']}') ?? 0;
+      final name = (d['anhang_name'] ?? d['datei_name'] ?? 'Unterlage').toString();
+      try {
+        final r = await widget.apiService.downloadInsolvenzAkteDoc(id);
+        if (r.statusCode != 200) {
+          fehlgeschlagen.add(name);
+          continue;
+        }
+        inhalte[id] = r.bodyBytes;
+        anhaenge.add(MailAnhangPlan(docId: id, name: name, groesse: r.bodyBytes.length));
+      } catch (_) {
+        fehlgeschlagen.add(name);
+      }
+    }
+    if (!mounted) return;
+    // ⚠️ Abbruch, nicht „den Rest senden". Das Anschreiben zählt die Anlagen
+    // namentlich auf; ginge es mit einer fehlenden hinaus, verspräche es
+    // etwas, was nicht im Umschlag liegt.
+    if (fehlgeschlagen.isNotEmpty) {
+      _melden('Nicht abrufbar: ${fehlgeschlagen.join(', ')} — es wurde nichts gesendet.',
+          Colors.red);
+      return;
+    }
+
+    final plan = mailSendungenPlanen(anhaenge,
+        maxDateien: kMailMaxAnhaenge, maxBytes: ApiService.mailMaxAttachmentBytes);
+
+    if (plan.zuGross.isNotEmpty) {
+      final weiter = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Zu groß für eine E-Mail', style: TextStyle(fontSize: 16)),
+          content: Text(
+              '${plan.zuGross.map((a) => a.name).join(', ')} '
+              '${plan.zuGross.length == 1 ? 'ist' : 'sind'} allein schon größer als '
+              '25 MB und ${plan.zuGross.length == 1 ? 'kann' : 'können'} nicht '
+              'angehängt werden.\n\n'
+              '${plan.sendungen.isEmpty ? 'Damit bleibt nichts zu senden.' : 'Die übrigen '
+                  '${anhaenge.length - plan.zuGross.length} trotzdem senden?'}',
+              style: const TextStyle(fontSize: 13)),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Abbrechen')),
+            if (plan.sendungen.isNotEmpty)
+              FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: widget.color),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Rest senden')),
+          ],
+        ),
+      );
+      if (weiter != true || !mounted) return;
+    }
+    if (plan.sendungen.isEmpty) return;
+
+    // ── Sendung für Sendung ──
+    for (var i = 0; i < plan.sendungen.length; i++) {
+      final sendung = plan.sendungen[i];
+      final teil = i + 1;
+      final teile = plan.teile;
+
+      final v = await widget.apiService.insolvenzUnterlagenMailVorlagen(
+        akteId: _akteId,
+        kategorie: u.schluessel,
+        abschnitt: u.titel,
+        docIds: sendung.anhaenge.map((a) => a.docId).toList(),
+        teil: teil,
+        teile: teile,
+      );
+      if (!mounted) return;
+      if (v['success'] != true) {
+        _melden('${v['message'] ?? 'Anschreiben nicht abrufbar'} — '
+            'Teil $teil von $teile wurde nicht gesendet.', Colors.red);
+        return;
+      }
+      final bausteine = (v['vorlagen'] is Map)
+          ? Map<String, dynamic>.from(v['vorlagen'] as Map)
+          : <String, dynamic>{};
+      final baustein = bausteine[gewaehlt] is Map
+          ? Map<String, dynamic>.from(bausteine[gewaehlt] as Map)
+          : <String, dynamic>{};
+      final betreff = (baustein['betreff'] ?? '').toString();
+      final text = (baustein['text'] ?? '').toString();
+
+      var messageId = '';
+      final gesendet = await Navigator.of(context).push<bool>(MaterialPageRoute(
+        builder: (_) => MailComposeScreen(
+          // Wie bei der Krankmeldung: die Postfachwahl trifft der
+          // Verfassen-Bildschirm; leer heißt „das Standardpostfach".
+          selfEmail: 'icd@icd360s.de',
+          to: empfaenger,
+          subject: betreff,
+          body: text,
+          initialAttachments: [
+            for (final a in sendung.anhaenge)
+              if (inhalte[a.docId] != null)
+                MailOutgoingAttachment(filename: a.name, bytes: inhalte[a.docId]!),
+          ],
+          onSent: (antwort) => messageId = (antwort['message_id'] ?? '').toString(),
+        ),
+      ));
+      if (!mounted) return;
+
+      if (gesendet != true) {
+        _melden(
+            teil == 1
+                ? 'Nicht gesendet — es ist nichts hinausgegangen.'
+                : 'Abgebrochen nach Teil ${teil - 1} von $teile. '
+                    'Die übrigen Unterlagen sind noch nicht versandt.',
+            Colors.orange);
+        return;
+      }
+
+      // ⚠️ ERST JETZT die Korrespondenzzeile, nach bestätigtem Versand. Eine
+      // Zeile, die eine Sendung behauptet, die nie ankam, ist schlimmer als
+      // keine — und genau sie liest später jemand als Beleg.
+      //
+      // ⚠️ Eine Zeile JE MAIL, nicht eine je Abschnitt: jede Mail hat ihre
+      // eigene Message-ID, und daran hängt der Zustellstand.
+      final anlagen = sendung.anhaenge.map((a) => a.name).join(', ');
+      await widget.apiService.saveInsolvenzAkteKorr(_akteId, {
+        'richtung': 'ausgang',
+        'methode': 'E-Mail',
+        'gespraechspartner': kanzlei.isNotEmpty ? kanzlei : empfaenger,
+        'datum': DateTime.now().toIso8601String().substring(0, 10),
+        // ⚠️ erledigt = false. Eine gerade verschickte Unterlage ist das
+        // Gegenteil von erledigt: ab jetzt wartet man auf die Verwaltung.
+        'erledigt': false,
+        'betreff': betreff,
+        'notiz': 'An $empfaenger — ${sendung.anhaenge.length} '
+            '${sendung.anhaenge.length == 1 ? 'Anlage' : 'Anlagen'}: $anlagen',
+        'nachricht': text,
+        'mail_message_id': messageId,
+      });
+      if (!mounted) return;
+
+      if (teil < teile) {
+        final weiter = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text('Teil $teil von $teile ist gesendet',
+                style: const TextStyle(fontSize: 16)),
+            content: Text(
+                'Es fehlen noch ${teile - teil} '
+                '${teile - teil == 1 ? 'Sendung' : 'Sendungen'}. '
+                'Jetzt weiter?',
+                style: const TextStyle(fontSize: 13)),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Später')),
+              FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: widget.color),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Weiter')),
+            ],
+          ),
+        );
+        if (weiter != true || !mounted) {
+          _melden('Teil $teil von $teile ist gesendet — der Rest steht noch aus.',
+              Colors.orange);
+          _load();
+          widget.onChanged();
+          return;
+        }
+      }
+    }
+
+    _melden(
+        plan.teile == 1
+            ? 'Gesendet.'
+            : 'Alle ${plan.teile} Sendungen sind hinausgegangen.',
+        Colors.green);
+    _load();
+    widget.onChanged();
   }
 
   Future<void> _upload(String kategorie, {FilePickerResult? ausCloud}) async {
