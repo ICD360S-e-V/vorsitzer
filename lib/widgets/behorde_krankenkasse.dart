@@ -20,6 +20,7 @@ import '../widgets/responsive_layout.dart';
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
 import 'krankenkasse_vollmacht.dart';
+import 'krankenkasse_hzv.dart';
 
 class BehordeKrankenkasseContent extends StatefulWidget {
   final ApiService apiService;
@@ -98,6 +99,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   // shown in the tab title so the operator sees at a glance whether
   // the member has open KG cases.
   int _krankengeldCount = 0;
+  // Laufende HZV-Teilnahmen (eingereicht/aktiv). Beendete zählen nicht mit:
+  // ein Punkt, der bei reiner Historie grün bleibt, sagt das Falsche.
+  int _hzvCount = 0;
   /// Wie viele Vollmachten es gibt — nur für die Zahl am Reiter.
   ///
   /// ⚠️ Der Reiter lädt seine Liste selbst und meldet den Stand zurück;
@@ -643,7 +647,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     _initControllers(data);
 
     return DefaultTabController(
-      length: 9,
+      length: 10,
       child: Column(
         children: [
           TabBar(
@@ -661,6 +665,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['kvnr']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.credit_card, size: 16), const SizedBox(width: 4), const Text('Versicherungskarte')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['befreiungskarte'] == true || data['befreiungskarte'] == 'true' || data['befreiungskarte'] == '1') ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.card_membership, size: 16), const SizedBox(width: 4), const Text('Befreiungskarte')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _krankengeldCount > 0 ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.medical_information, size: 16), const SizedBox(width: 4), Text('Krankengeld${_krankengeldCount > 0 ? " ($_krankengeldCount)" : ""}')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _hzvCount > 0 ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.medical_services, size: 16), const SizedBox(width: 4), Text('Hausarztprogramm${_hzvCount > 0 ? " ($_hzvCount)" : ""}')])),
             ],
           ),
           Expanded(
@@ -683,6 +688,17 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 _buildVersicherungskarteTab(data),
                 _buildBefreiungskarteTab(data),
                 _KrankengeldTab(apiService: widget.apiService, userId: widget.user.id, onCountChanged: (n) => setState(() => _krankengeldCount = n)),
+                KrankenkasseHzvTab(
+                  apiService: widget.apiService,
+                  userId: widget.user.id,
+                  // Nur Vorbelegung im Anlegen-Dialog: die Teilnahme bleibt am
+                  // Namen der Kasse hängen, unter der sie geschlossen wurde —
+                  // sonst schriebe ein späterer Kassenwechsel die Historie um.
+                  kasseVorschlag: data['name']?.toString() ?? '',
+                  onCountChanged: (n) {
+                    if (mounted && n != _hzvCount) setState(() => _hzvCount = n);
+                  },
+                ),
               ],
             ),
           ),
