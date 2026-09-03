@@ -13108,6 +13108,14 @@ class ApiService {
 
   // ========== BANKEN DATENBANK ==========
 
+  /// Die hinterlegten Hausbanken des Vereins (mit Strasse, Telefon, Gebühr).
+  ///
+  /// ⚠️ Das ist NICHT mehr das ganze Verzeichnis. Seit dem 03.09.2026 stehen
+  /// rund 3.500 Institute aus dem amtlichen Bundesbank-Verzeichnis in der
+  /// Tabelle; sie am Stück zu holen wären 830 kB je Öffnen des Reiters, auf
+  /// einem vhost ohne gzip und auf der Mobilfunkleitung, deren Einbrüche wir
+  /// an anderer Stelle gegenüber der Telekom protokollieren. Gesucht wird
+  /// deshalb über [sucheBanken], eine einzelne Bank kommt über [getBank].
   Future<List<Map<String, dynamic>>> getBanken() async {
     try {
       final uri = Uri.parse('$baseUrl/admin/banken_manage.php?action=list');
@@ -13121,6 +13129,59 @@ class ApiService {
       return [];
     } catch (e) {
       return [];
+    }
+  }
+
+  /// Sucht im amtlichen Bankleitzahlenverzeichnis.
+  ///
+  /// Der Server nimmt Name, Ort, PLZ, BIC, BLZ — und eine ganze deutsche IBAN,
+  /// aus der er die BLZ zieht. Leeres [q] liefert die Hausbanken.
+  ///
+  /// Gibt `banken`, `gesamt` (alle Treffer, nicht nur die gelieferten) und
+  /// `gekuerzt` zurück. ⚠️ `gesamt` gehört auf den Schirm: eine Liste mit 50
+  /// Einträgen neben 459 Treffern sieht sonst vollständig aus, und der
+  /// Suchende hört auf zu tippen.
+  Future<Map<String, dynamic>> sucheBanken(String q, {int limit = 50}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/banken_manage.php'
+          '?action=search&limit=$limit&q=${Uri.encodeQueryComponent(q)}');
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
+      final body = jsonDecode(response.body);
+      if (body['success'] == true && body['banken'] is List) {
+        return {
+          'banken': List<Map<String, dynamic>>.from(
+            (body['banken'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+          ),
+          'gesamt': body['gesamt'] ?? 0,
+          'gekuerzt': body['gekuerzt'] == true,
+          'hinweis': body['hinweis'],
+        };
+      }
+      return {'banken': <Map<String, dynamic>>[], 'gesamt': 0, 'gekuerzt': false, 'fehler': true};
+    } catch (e) {
+      // ⚠️ `fehler` statt einer leeren Liste: „nichts gefunden" und „die Suche
+      // kam nicht durch" sind zwei verschiedene Aussagen, und nur eine davon
+      // darf als „diese Bank gibt es nicht" auf dem Schirm landen.
+      return {'banken': <Map<String, dynamic>>[], 'gesamt': 0, 'gekuerzt': false, 'fehler': true};
+    }
+  }
+
+  /// Eine einzelne Bank samt aller Felder — auch eine entfallene.
+  ///
+  /// ⚠️ Liefert bewusst auch Zeilen mit `geloescht`: ein Mitglied kann längst
+  /// auf eine solche zeigen, und dann muss der Bildschirm sie anzeigen können,
+  /// statt das Feld leer zu lassen.
+  Future<Map<String, dynamic>?> getBank(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/banken_manage.php?action=get&id=$id');
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
+      final body = jsonDecode(response.body);
+      if (body['success'] == true && body['bank'] is Map) {
+        return Map<String, dynamic>.from(body['bank'] as Map);
+      }
+      return null;
+    } catch (e) {
+      return null;
     }
   }
 

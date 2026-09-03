@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:flutter/services.dart';
@@ -134,14 +135,27 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
     if (savedIban.length >= 22) _ibanLocked = true;
     // Restore selected bank from saved bank_id
     final savedBankId = data['bank_id']?.toString();
-    if (savedBankId != null && widget.bankenDb.isNotEmpty) {
+    if (savedBankId != null && savedBankId.isNotEmpty) {
       for (final b in widget.bankenDb) {
         if (b['id'].toString() == savedBankId) {
           _selectedBank = b;
           break;
         }
       }
+      // ⚠️ `bankenDb` enthält nur noch die Hausbanken. Wer eine der rund 3.500
+      // amtlichen Banken gewählt hat, ist dort NICHT drin — ohne diesen
+      // Nachschlag stünde bei ihm „keine Bank hinterlegt", obwohl eine
+      // gespeichert ist.
+      if (_selectedBank == null) _bankNachladen(savedBankId);
     }
+  }
+
+  /// Holt eine gespeicherte Bank einzeln nach.
+  Future<void> _bankNachladen(String id) async {
+    final nr = int.tryParse(id);
+    if (nr == null) return;
+    final b = await widget.apiService.getBank(nr);
+    if (b != null && mounted) setState(() => _selectedBank = b);
   }
 
   /// Check if card is expiring within 2 months
@@ -309,8 +323,41 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                 ),
               ]),
               const SizedBox(height: 8),
+              // ⚠️ Eine BLZ, die zum Periodenende entfällt, muss man SEHEN.
+              // Bei den 75 betroffenen Instituten ändert sich die IBAN des
+              // Mitglieds — steht das nicht da, merkt es niemand, bis eine
+              // Überweisung zurückkommt.
+              if (_selectedBank!['geloescht'] == true) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: F.h(Colors.orange, 50),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: F.h(Colors.orange, 300)),
+                  ),
+                  child: Row(children: [
+                    Icon(Icons.warning_amber, size: 16, color: F.h(Colors.orange, 800)),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(
+                      (_selectedBank!['nachfolge_blz']?.toString() ?? '').isNotEmpty
+                        ? 'Diese Bankleitzahl entfällt. Nachfolge-BLZ: '
+                          '${_selectedBank!['nachfolge_blz']} — bitte die IBAN des Mitglieds prüfen.'
+                        : 'Diese Bankleitzahl entfällt laut Bundesbank-Verzeichnis. '
+                          'Bitte die IBAN des Mitglieds prüfen.',
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900)))),
+                  ]),
+                ),
+              ],
+              // ⚠️ Ort AUCH ohne Strasse. Die rund 3.500 Zeilen aus dem
+              // amtlichen Verzeichnis tragen PLZ und Ort, aber keine Strasse —
+              // die frühere Bedingung liess bei ihnen die Ortszeile ganz weg,
+              // und die Bank stand ohne jeden Ort da.
               if ((_selectedBank!['strasse']?.toString() ?? '').isNotEmpty)
-                _bankInfoRow(Icons.place, '${_selectedBank!['strasse']}, ${_selectedBank!['plz_ort']}'),
+                _bankInfoRow(Icons.place, '${_selectedBank!['strasse']}, ${_selectedBank!['plz_ort']}')
+              else if ((_selectedBank!['plz_ort']?.toString() ?? '').isNotEmpty)
+                _bankInfoRow(Icons.place, _selectedBank!['plz_ort'].toString()),
               if ((_selectedBank!['telefon']?.toString() ?? '').isNotEmpty)
                 _bankInfoRow(Icons.phone, _selectedBank!['telefon'].toString()),
               if ((_selectedBank!['bic']?.toString() ?? '').isNotEmpty)
@@ -328,80 +375,18 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
   }
 
   void _showBankSearchDialog() {
-    String q = '';
+    // ⚠️ Es wird auf dem SERVER gesucht, nicht in einer mitgeschickten Liste.
+    // Das Verzeichnis hat rund 3.500 Institute; sie beim Öffnen des Reiters
+    // herunterzuladen wären 830 kB — auf einem vhost ohne gzip, auf genau der
+    // Mobilfunkleitung, deren Einbrüche wir gegenüber der Telekom
+    // protokollieren. Ohne Suchwort zeigt der Server die Hausbanken.
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
-        final filtered = q.trim().isEmpty
-            ? widget.bankenDb
-            : widget.bankenDb.where((b) {
-                final needle = q.toLowerCase();
-                return (b['name']?.toString().toLowerCase() ?? '').contains(needle)
-                    || (b['plz_ort']?.toString().toLowerCase() ?? '').contains(needle)
-                    || (b['bic']?.toString().toLowerCase() ?? '').contains(needle)
-                    || (b['blz']?.toString().toLowerCase() ?? '').contains(needle);
-              }).toList();
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          title: Row(children: [
-            Icon(Icons.search, color: F.h(Colors.teal, 700)),
-            const SizedBox(width: 8),
-            const Flexible(child: Text('Bank auswählen', overflow: TextOverflow.ellipsis)),
-          ]),
-          content: SizedBox(
-            width: 500, height: 500,
-            child: Column(children: [
-              TextField(
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Name, PLZ, Ort, BIC oder BLZ...',
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onChanged: (v) => setD(() => q = v),
-              ),
-              const SizedBox(height: 8),
-              Expanded(child: filtered.isEmpty
-                ? Center(child: Text('Keine Treffer', style: TextStyle(color: F.h(Colors.grey, 500))))
-                : ListView.separated(
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 4),
-                    itemBuilder: (_, i) {
-                      final b = filtered[i];
-                      return InkWell(
-                        onTap: () { _selectBank(b); Navigator.pop(ctx); },
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: F.flaeche,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: F.h(Colors.grey, 300)),
-                          ),
-                          child: Row(children: [
-                            Icon(Icons.account_balance, size: 20, color: F.h(Colors.teal, 600)),
-                            const SizedBox(width: 10),
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(b['name']?.toString() ?? '',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 900))),
-                              Text('${b['strasse'] ?? ''}, ${b['plz_ort'] ?? ''}',
-                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
-                              if ((b['bic']?.toString() ?? '').isNotEmpty)
-                                Text('BIC: ${b['bic']} · BLZ: ${b['blz'] ?? '–'}',
-                                  style: TextStyle(fontSize: 10, color: Colors.teal.shade400, fontStyle: FontStyle.italic)),
-                            ])),
-                          ]),
-                        ),
-                      );
-                    },
-                  ),
-              ),
-            ]),
-          ),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
-        );
-      }),
+      builder: (ctx) => _BankSuchDialog(
+        apiService: widget.apiService,
+        hausbanken: widget.bankenDb,
+        onGewaehlt: (b) { _selectBank(b); Navigator.pop(ctx); },
+      ),
     );
   }
 
@@ -1437,5 +1422,198 @@ class _KontoauszuegeTabState extends State<_KontoauszuegeTab> {
               },
             )),
     ]);
+  }
+}
+
+
+/// Suchdialog für das Bankleitzahlenverzeichnis.
+///
+/// Eigenes StatefulWidget statt eines StatefulBuilder, weil hier ein Timer und
+/// ein laufender Netzaufruf leben, die beim Schliessen abgeräumt werden müssen.
+class _BankSuchDialog extends StatefulWidget {
+  final ApiService apiService;
+  final List<Map<String, dynamic>> hausbanken;
+  final void Function(Map<String, dynamic>) onGewaehlt;
+
+  const _BankSuchDialog({
+    required this.apiService,
+    required this.hausbanken,
+    required this.onGewaehlt,
+  });
+
+  @override
+  State<_BankSuchDialog> createState() => _BankSuchDialogState();
+}
+
+class _BankSuchDialogState extends State<_BankSuchDialog> {
+  /// ⚠️ 350 ms. Ohne Verzögerung schickt „Sparkasse" neun Anfragen los, von
+  /// denen acht schon veraltet sind, wenn sie ankommen.
+  static const _wartezeit = Duration(milliseconds: 350);
+
+  final _feld = TextEditingController();
+  Timer? _timer;
+  int _lauf = 0;                    // gegen überholende Antworten
+  List<Map<String, dynamic>> _treffer = [];
+  int _gesamt = 0;
+  bool _gekuerzt = false;
+  bool _laedt = false;
+  bool _fehler = false;
+  bool _jeGesucht = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Hausbanken sofort zeigen — sie liegen schon vor, dafür braucht es keinen
+    // Netzaufruf und keinen leeren Bildschirm beim Öffnen.
+    _treffer = widget.hausbanken;
+    _gesamt = widget.hausbanken.length;
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _feld.dispose();
+    super.dispose();
+  }
+
+  void _getippt(String v) {
+    _timer?.cancel();
+    _timer = Timer(_wartezeit, () => _suchen(v));
+  }
+
+  Future<void> _suchen(String q) async {
+    final meins = ++_lauf;
+    setState(() { _laedt = true; _fehler = false; _jeGesucht = true; });
+    final r = await widget.apiService.sucheBanken(q.trim());
+    // ⚠️ Eine ältere Antwort darf eine neuere nicht überschreiben: die Suche
+    // nach „Spa" kann nach der Suche nach „Sparkasse Ulm" eintreffen.
+    if (!mounted || meins != _lauf) return;
+    setState(() {
+      _laedt = false;
+      _fehler = r['fehler'] == true;
+      _treffer = (r['banken'] as List).cast<Map<String, dynamic>>();
+      _gesamt = (r['gesamt'] as num?)?.toInt() ?? _treffer.length;
+      _gekuerzt = r['gekuerzt'] == true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: Row(children: [
+        Icon(Icons.search, color: F.h(Colors.teal, 700)),
+        const SizedBox(width: 8),
+        const Flexible(child: Text('Bank auswählen', overflow: TextOverflow.ellipsis)),
+      ]),
+      content: SizedBox(
+        width: 500, height: 500,
+        child: Column(children: [
+          TextField(
+            controller: _feld,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Name, Ort, PLZ, BIC, BLZ oder IBAN...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _laedt
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+                  : null,
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onChanged: _getippt,
+            onSubmitted: (v) { _timer?.cancel(); _suchen(v); },
+          ),
+          const SizedBox(height: 6),
+          _kopfzeile(),
+          const SizedBox(height: 6),
+          Expanded(child: _liste()),
+        ]),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen'))],
+    );
+  }
+
+  Widget _kopfzeile() {
+    // ⚠️ Die Gesamtzahl steht auch dann da, wenn gekürzt wurde. „50 Banken"
+    // neben 459 Treffern sähe vollständig aus, und der Suchende hörte auf zu
+    // tippen, obwohl seine Bank noch gar nicht dabei ist.
+    final String text;
+    if (_fehler) {
+      text = 'Suche nicht erreichbar — bitte erneut versuchen.';
+    } else if (!_jeGesucht) {
+      text = 'Hinterlegte Hausbanken. Tippen Sie, um im amtlichen Verzeichnis zu suchen.';
+    } else if (_gesamt == 0) {
+      text = 'Keine Treffer im amtlichen Verzeichnis.';
+    } else if (_gekuerzt) {
+      text = '$_gesamt Treffer — die ersten ${_treffer.length}. Bitte genauer eingrenzen.';
+    } else {
+      text = '$_gesamt Treffer';
+    }
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(text, style: TextStyle(
+        fontSize: 11,
+        color: _fehler ? F.h(Colors.red, 700) : F.h(Colors.grey, 700),
+        fontStyle: FontStyle.italic)),
+    );
+  }
+
+  Widget _liste() {
+    if (_treffer.isEmpty) {
+      return Center(child: Text(
+        _fehler ? 'Keine Verbindung' : 'Keine Treffer',
+        style: TextStyle(color: F.h(Colors.grey, 500))));
+    }
+    return ListView.separated(
+      itemCount: _treffer.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 4),
+      itemBuilder: (_, i) {
+        final b = _treffer[i];
+        final istHaus = b['quelle'] == 'manuell';
+        return InkWell(
+          onTap: () => widget.onGewaehlt(b),
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: F.flaeche,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: istHaus ? F.h(Colors.teal, 300) : F.h(Colors.grey, 300)),
+            ),
+            child: Row(children: [
+              Icon(Icons.account_balance, size: 20, color: F.h(Colors.teal, 600)),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(b['name']?.toString() ?? '',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 900))),
+                Text([
+                    if ((b['strasse']?.toString() ?? '').isNotEmpty) b['strasse'].toString(),
+                    if ((b['plz_ort']?.toString() ?? '').isNotEmpty) b['plz_ort'].toString(),
+                  ].join(', '),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
+                if ((b['bic']?.toString() ?? '').isNotEmpty)
+                  Text('BIC: ${b['bic']} · BLZ: ${b['blz'] ?? '–'}',
+                    style: TextStyle(fontSize: 10, color: Colors.teal.shade400, fontStyle: FontStyle.italic)),
+              ])),
+              // Hausbanken tragen zusätzlich Strasse, Telefon und Gebühr — das
+              // ist der Grund, warum sie oben stehen und markiert sind.
+              if (istHaus)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: F.h(Colors.teal, 50),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: F.h(Colors.teal, 200)),
+                  ),
+                  child: Text('vor Ort', style: TextStyle(fontSize: 9, color: F.h(Colors.teal, 800))),
+                ),
+            ]),
+          ),
+        );
+      },
+    );
   }
 }
