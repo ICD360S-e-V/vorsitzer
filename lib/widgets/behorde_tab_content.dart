@@ -1257,7 +1257,13 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         Row(children: [
           Icon(brandIcon, size: 16, color: brandColor),
           const SizedBox(width: 6),
-          Flexible(child: Text('Zuständige Behörde', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: brandColor), overflow: TextOverflow.ellipsis)),
+          // ⚠️ NICHT „Zuständige Behörde". Direkt darunter steht bei der
+          // Krankenkasse das Feld „Zuständige Krankenkasse" — zwei fast
+          // gleich beschriftete Auswahlen übereinander, von denen nur diese
+          // hier den Kontaktweg (Fax, E-Mail, Anschrift) bestimmt. Wer die
+          // untere ausfüllt, hält alles für erledigt und wundert sich, dass
+          // „Per Fax" nichts tut.
+          Flexible(child: Text('Zuständige Geschäftsstelle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: brandColor), overflow: TextOverflow.ellipsis)),
         ]),
         const SizedBox(height: 8),
 

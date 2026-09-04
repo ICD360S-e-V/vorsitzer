@@ -40,6 +40,44 @@ const List<String> kKkBereiche = ['leistungen', 'mitgliedschaft', 'pflege'];
 /// beiden Positivlisten von `vollmacht_data.php` und `vollmacht_create.php`.
 const String kKkBehoerde = 'krankenkasse';
 
+/// Warum kein Kontaktweg da ist — im Klartext, je nach `kontakt_quelle`.
+///
+/// 🔴 Der Unterschied ist der ganze Punkt. Bis zum 04.09.2026 kannte der
+/// Server nur `keine` und meinte damit ZWEI verschiedene Lagen:
+///
+///   * es ist gar keine Geschäftsstelle ausgewählt → die Lösung liegt im
+///     eigenen Datensatz, einen Griff weit;
+///   * eine ist ausgewählt, aber im Verzeichnis steht zu ihr kein Fax und
+///     keine E-Mail → die Lösung liegt im Verzeichnis.
+///
+/// Der Schirm meldete beides als das zweite. Wer das las, suchte die
+/// Faxnummer der Kasse — und fand sie, denn sie stand die ganze Zeit im
+/// Verzeichnis. Nur zeigte niemals irgendetwas darauf, dass der eigene
+/// Datensatz das leere Feld war.
+///
+/// ⚠️ Die Schlüssel stehen zeichengleich in `kkvEmpfaenger()` in
+/// `api/admin/krankenkasse_vollmacht_versand.php`. Das PHP liegt in keinem
+/// Repo — `test/kk_kontakt_grund_test.dart` ist die einzige Stelle im Baum,
+/// an der ein Auseinanderlaufen überhaupt auffallen kann.
+///
+/// ⚠️ Ein UNBEKANNTER Schlüssel fällt auf den vorsichtigen Satz zurück, nicht
+/// auf eine der beiden Behauptungen: eine ältere App gegen einen neueren
+/// Server darf raten, aber nicht falsch behaupten.
+String kkKontaktGrund(String quelle) {
+  switch (quelle) {
+    case 'nicht_gewaehlt':
+      return 'Es ist noch keine Geschäftsstelle ausgewählt — ohne sie wird im '
+          'Verzeichnis gar nicht erst gesucht. Auszuwählen unter '
+          'Behörde ▸ Krankenkasse ▸ Zuständige Geschäftsstelle.';
+    case 'keine':
+      return 'Zur ausgewählten Geschäftsstelle steht im Verzeichnis kein '
+          'Kontaktweg.';
+    default:
+      return 'Die meisten Kassen nehmen die Vollmacht ohnehin nur per Post '
+          'oder über ihr Portal an.';
+  }
+}
+
 /// Der Dokumenttyp des Unterschriftsvorgangs.
 ///
 /// ⚠️ Landet als Text in `dokument_signaturen.dokument_typ`. Ein Tippfehler
@@ -277,6 +315,20 @@ class _KrankenkasseVollmachtTabState extends State<KrankenkasseVollmachtTab> {
     final k = _daten['kasse'];
     if (k is Map) return '${k['name'] ?? ''}'.trim();
     return '';
+  }
+
+  /// Ob unter Behörde ▸ Krankenkasse eine Geschäftsstelle ausgewählt ist.
+  ///
+  /// ⚠️ Der Wert steckt schon in `vollmacht_data` — das kostet also KEINE
+  /// zusätzliche Anfrage. An ihm allein hängen Faxnummer und E-Mail-Adresse:
+  /// ist er leer, sucht der Server im Verzeichnis gar nicht erst, und beide
+  /// Wege zur Kasse brechen ab. Deshalb steht die Warnung auf der Karte und
+  /// nicht erst im Fehlerfall — am 04.09.2026 hat genau das jemanden eine
+  /// Faxnummer suchen lassen, die längst im Verzeichnis stand.
+  bool get _stelleGewaehlt {
+    final k = _daten['kasse'];
+    if (k is! Map) return false;
+    return '${k['dienststelle'] ?? ''}'.trim().isNotEmpty;
   }
 
   @override
@@ -720,6 +772,13 @@ class _KrankenkasseVollmachtTabState extends State<KrankenkasseVollmachtTab> {
           // ── An die Kasse ─────────────────────────────────────────
           Text('An die Kasse', style: TextStyle(
             fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
+          if (!_stelleGewaehlt)
+            _hinweis(
+              'Es ist keine Geschäftsstelle ausgewählt. Ohne sie kennt der Server '
+              'weder Faxnummer noch E-Mail-Adresse — „Per Fax" und „Per E-Mail" '
+              'brechen dann ab, obwohl im Verzeichnis ein Kontaktweg stehen kann. '
+              'Auszuwählen unter Behörde ▸ Krankenkasse ▸ Zuständige Geschäftsstelle.',
+              ton: Colors.orange, symbol: Icons.warning_amber_outlined),
           const SizedBox(height: 4),
           Wrap(spacing: 6, runSpacing: 4, children: [
             _knopf('Per E-Mail', Icons.mail_outline,
@@ -1015,11 +1074,15 @@ class _KrankenkasseVollmachtTabState extends State<KrankenkasseVollmachtTab> {
     if (ziel.trim().isEmpty) {
       // ⚠️ Der Grund gehört dazu: „keine Nummer hinterlegt" ist bei einer
       // Kasse meist kein Versehen, sondern die Lage.
+      // ⚠️ DREI Zustände, nicht zwei. Bis 04.09.2026 hieß `keine` zweierlei —
+      // „gar keine Geschäftsstelle gewählt" und „gewählt, aber ohne
+      // Kontaktweg" — und der Schirm meldete beides als das zweite. Wer das
+      // liest, sucht die fehlende Nummer im Verzeichnis statt im eigenen
+      // Datensatz; genau so ging ein Abend verloren, während die Faxnummer
+      // die ganze Zeit im Verzeichnis stand.
       _melden('Für $stelle ist ${fax ? 'keine Faxnummer' : 'keine E-Mail-Adresse'} '
-          'hinterlegt. ${d['kontakt_quelle'] == 'keine'
-              ? 'Zu dieser Geschäftsstelle steht überhaupt kein Eintrag im Verzeichnis.'
-              : 'Die meisten Kassen nehmen die Vollmacht nur per Post oder über ihr '
-                'Portal an.'}', Colors.orange);
+          'hinterlegt. ${kkKontaktGrund('${d['kontakt_quelle'] ?? ''}')}',
+          Colors.orange);
       return;
     }
 
