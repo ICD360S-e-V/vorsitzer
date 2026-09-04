@@ -1406,6 +1406,8 @@ class _HzvVersandDialogState extends State<HzvVersandDialog> {
   Map<String, dynamic> _vorlagen = {};
   String _key = 'widerruf';
   String _stelle = '', _kasse = '', _quelle = 'keine', _absender = '';
+  String _arzt = '', _praxis = '', _praxisOrt = '', _programm = '';
+  String _signatur = '';
   final _mailC = TextEditingController();
   final _faxC = TextEditingController();
   final _betreffC = TextEditingController();
@@ -1448,6 +1450,11 @@ class _HzvVersandDialogState extends State<HzvVersandDialog> {
       _kasse = r['kasse']?.toString() ?? '';
       _quelle = r['kontakt_quelle']?.toString() ?? 'keine';
       _absender = r['absender']?.toString() ?? '';
+      _arzt = r['arzt']?.toString() ?? '';
+      _praxis = r['praxis']?.toString() ?? '';
+      _praxisOrt = r['praxis_ort']?.toString() ?? '';
+      _programm = r['programm']?.toString() ?? '';
+      _signatur = r['signatur_vorschau']?.toString() ?? '';
       _laedt = false;
       _vorlageUebernehmen();
     });
@@ -1502,6 +1509,8 @@ class _HzvVersandDialogState extends State<HzvVersandDialog> {
                 ? Text(_fehler!, style: const TextStyle(color: Colors.red))
                 : SingleChildScrollView(
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      _betrifftKarte(),
+                      const SizedBox(height: 8),
                       _empfaengerKarte(),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
@@ -1545,6 +1554,38 @@ class _HzvVersandDialogState extends State<HzvVersandDialog> {
                         decoration: const InputDecoration(
                             labelText: 'Text', isDense: true, border: OutlineInputBorder()),
                       ),
+                      if (_signatur.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Theme(
+                            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                            child: ExpansionTile(
+                              tilePadding: EdgeInsets.zero,
+                              childrenPadding: const EdgeInsets.only(bottom: 8),
+                              dense: true,
+                              leading: Icon(Icons.draw, size: 18, color: F.h(Colors.teal, 700)),
+                              title: Text(
+                                'Unterschrift wird automatisch angehängt — '
+                                '${_signatur.split('\n').where((z) => z.trim().isNotEmpty).skip(1).firstOrNull ?? ''}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              subtitle: Text(
+                                'Dieselbe wie im Mail-Client der App — haben Sie sie dort '
+                                'geändert, gilt die geänderte. Steht auch im PDF, also auch im Fax.',
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
+                              ),
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(8),
+                                  color: F.h(Colors.grey, 100),
+                                  child: SelectableText(_signatur,
+                                      style: const TextStyle(fontSize: 11, height: 1.35)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 10),
                       Row(children: [
                         Expanded(
@@ -1574,7 +1615,8 @@ class _HzvVersandDialogState extends State<HzvVersandDialog> {
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Absender: ${_absender.isEmpty ? '— in den Vereinsdaten fehlt eine E-Mail-Adresse' : _absender}. '
-                          'Das Schreiben geht als PDF hinaus und wird an diesen Eintrag geheftet. '
+                          'Das Schreiben geht als PDF hinaus — beim Fax IST das PDF der Brief — '
+                          'und wird an diesen Eintrag geheftet. '
                           'Nach erfolgreichem Versand wird nur das ABSENDEDATUM eingetragen — den '
                           'Status setzt die Kasse mit ihrer Antwort, nicht wir.',
                           style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
@@ -1606,6 +1648,61 @@ class _HzvVersandDialogState extends State<HzvVersandDialog> {
                     backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
               ),
             ],
+    );
+  }
+
+  /// Worauf sich die Erklärung bezieht.
+  ///
+  /// ⚠️ Steht ÜBER dem Empfänger, nicht darunter. Ein Widerruf nimmt eine
+  /// bestimmte **Arztwahl** zurück; wer das Fenster öffnet, muss zuerst sehen,
+  /// welche — nicht erst im Brieftext nachlesen. Bei mehreren Einträgen
+  /// (Wechsel, Historie) ist das der einzige Unterschied zwischen ihnen.
+  Widget _betrifftKarte() {
+    final praxis = [
+      if (_praxis.isNotEmpty && _praxis != _arzt) _praxis,
+      if (_praxisOrt.isNotEmpty) _praxisOrt,
+    ].join(' · ');
+    final leer = _arzt.isEmpty && _praxis.isEmpty;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: F.h(leer ? Colors.orange : Colors.indigo, 50),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: F.h(leer ? Colors.orange : Colors.indigo, 200)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(leer ? Icons.warning_amber : Icons.medical_services,
+            size: 16, color: F.h(leer ? Colors.orange : Colors.indigo, 800)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Betrifft die Hausarztwahl',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: F.h(leer ? Colors.orange : Colors.indigo, 700))),
+            const SizedBox(height: 2),
+            Text(
+              leer
+                  ? 'Im HZV-Eintrag steht kein Hausarzt — dann sagt auch das Schreiben '
+                      'nicht, welche Arztwahl gemeint ist. Bitte vorher eintragen.'
+                  : (_arzt.isNotEmpty ? _arzt : _praxis),
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: F.h(leer ? Colors.orange : Colors.indigo, 900)),
+            ),
+            if (praxis.isNotEmpty)
+              Text(praxis,
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.indigo, 800))),
+            if (_programm.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text('Programm: $_programm',
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
+              ),
+          ]),
+        ),
+      ]),
     );
   }
 
