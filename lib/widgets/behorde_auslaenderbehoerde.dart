@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
+import 'file_viewer_dialog.dart';
 import '../services/api_service.dart';
 import '../utils/app_farben.dart';
 import '../utils/auslaenderbehoerde_vorfaelle.dart';
+import '../utils/auslaenderbehoerde_dokumente.dart';
+import '../utils/file_picker_helper.dart';
 
 String _deFmt(DateTime p) =>
     '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
@@ -1096,6 +1099,14 @@ class _AbVorfallDetailState extends State<_AbVorfallDetail> {
   bool _loaded = false;
   List<Map<String, dynamic>> _korr = [], _verlauf = [], _termine = [];
 
+  /// Je Art höchstens eines — der Server erzwingt das über
+  /// UNIQUE(vorfall_id, art), hier ist es nur die Abbildung davon.
+  Map<String, Map<String, dynamic>> _dokumente = {};
+
+  /// Welche Art gerade hochlädt (`null` = keine). Kein bloßes `bool`: sonst
+  /// sperrte ein laufender Titel-Upload auch den Knopf des Zusatzblatts.
+  String? _laedt;
+
   @override
   void initState() {
     super.initState();
@@ -1116,6 +1127,20 @@ class _AbVorfallDetailState extends State<_AbVorfallDetail> {
         _termine = (res['termine'] as List? ?? [])
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
+        // ⚠️ Beide Formen lesen. PHP kodiert eine LEERE Karte als `[]`, nicht
+        // als `{}` — hier zwar mit `(object)` erzwungen, aber ein `as Map` auf
+        // eine Liste wirft, statt `null` zu liefern, und das ergäbe in einem
+        // Release-Bau eine graue Fläche ohne jede Meldung.
+        final dk = res['dokumente'];
+        _dokumente = {};
+        if (dk is Map) {
+          for (final e in dk.entries) {
+            if (e.value is Map) {
+              _dokumente[e.key.toString()] =
+                  Map<String, dynamic>.from(e.value as Map);
+            }
+          }
+        }
       }
     } catch (_) {}
     if (mounted) setState(() => _loaded = true);
@@ -1130,8 +1155,11 @@ class _AbVorfallDetailState extends State<_AbVorfallDetail> {
         : status == 'in_bearbeitung'
             ? Colors.orange
             : Colors.blue;
+    // Der Dokumentenreiter erscheint nur, wo es überhaupt ein Papier gibt —
+    // zu einer Rückkehrberatung gehört keines.
+    final arten = abDokArtenFuerTyp(v['typ']?.toString());
     return DefaultTabController(
-        length: 4,
+        length: arten.isEmpty ? 4 : 5,
         child: Column(children: [
           Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
@@ -1177,6 +1205,14 @@ class _AbVorfallDetailState extends State<_AbVorfallDetail> {
               indicatorColor: Colors.indigo.shade700,
               tabs: [
                 const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+                if (arten.isNotEmpty)
+                  Tab(
+                      icon: Icon(
+                          _dokumente.length >= arten.length
+                              ? Icons.task_alt
+                              : Icons.upload_file,
+                          size: 16),
+                      text: 'Aufenthaltstitel (${_dokumente.length}/${arten.length})'),
                 Tab(
                     icon: const Icon(Icons.email, size: 16),
                     text: 'Korrespondenz (${_korr.length})'),
@@ -1188,6 +1224,7 @@ class _AbVorfallDetailState extends State<_AbVorfallDetail> {
                   ? const Center(child: CircularProgressIndicator())
                   : TabBarView(children: [
                       _buildDetails(v),
+                      if (arten.isNotEmpty) _buildDokumente(v, arten),
                       _buildKorr(),
                       _buildVerlauf(),
                       _buildTermine(),
@@ -1285,6 +1322,276 @@ class _AbVorfallDetailState extends State<_AbVorfallDetail> {
                 child: Text(v['notiz'].toString(), style: const TextStyle(fontSize: 12))),
           ],
         ]));
+  }
+
+  // ══ Dokumente: Aufenthaltstitel und Zusatzblatt ═══════════════════════
+  Widget _buildDokumente(Map<String, dynamic> v, List<String> arten) {
+    final typ = v['typ']?.toString() ?? '';
+    final info = abTypFinden(typ);
+    return SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (final art in arten) ...[
+            _dokPlatz(art, info),
+            const SizedBox(height: 16),
+          ],
+          Text('PDF, JPG, JPEG oder PNG · höchstens 20 MB · je Platz eine Datei',
+              style: TextStyle(
+                  fontSize: 10,
+                  color: F.h(Colors.grey, 500),
+                  fontStyle: FontStyle.italic)),
+          const SizedBox(height: 6),
+          Text(
+              'Ändern sich die Nebenbestimmungen, stellt die Behörde ein neues '
+              'Zusatzblatt aus — ohne neue Karte. Dann bitte nur diesen Platz '
+              'ersetzen.',
+              style: TextStyle(
+                  fontSize: 10,
+                  color: F.h(Colors.grey, 500),
+                  fontStyle: FontStyle.italic)),
+        ]));
+  }
+
+  Widget _dokPlatz(String art, AbVorfallTyp? info) {
+    final d = _dokumente[art];
+    final titel = abDokTitelFuerArt(art, info?.frist?.dokument);
+    final zweck = abDokZweckFuerArt(art);
+    final optional = abDokOptional(art);
+    final laeuft = _laedt == art;
+    return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+            color: F.h(Colors.grey, 50),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: F.h(Colors.grey, 300))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(_dokIcon(art), size: 15, color: F.h(Colors.indigo, 600)),
+            const SizedBox(width: 6),
+            Expanded(
+                child: Text(titel,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: F.h(Colors.indigo, 700)))),
+            if (optional)
+              Text('optional',
+                  style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500))),
+          ]),
+          const SizedBox(height: 4),
+          Text(zweck, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+          const SizedBox(height: 10),
+          if (d == null)
+            Row(children: [
+              Icon(Icons.upload_file, size: 20, color: F.h(Colors.grey, 400)),
+              const SizedBox(width: 8),
+              Expanded(
+                  child: Text(
+                      optional
+                          ? 'Nichts hinterlegt — gibt es nicht in jedem Fall'
+                          : 'Noch nichts hinterlegt',
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
+            ])
+          else
+            Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                    color: F.h(Colors.indigo, 50),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: F.h(Colors.indigo, 200))),
+                child: Row(children: [
+                  Icon(
+                      (d['mime']?.toString() ?? '').contains('pdf')
+                          ? Icons.picture_as_pdf
+                          : Icons.image,
+                      size: 20,
+                      color: F.h(Colors.indigo, 700)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text(d['original_name']?.toString() ?? '',
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis),
+                        Text(
+                            [
+                              _groesse((d['groesse'] as num?)?.toInt() ?? 0),
+                              // ⚠️ Das Datum gehört dazu: ein neues Zusatzblatt
+                              // wird auch OHNE neue Karte ausgestellt, sobald
+                              // sich eine Nebenbestimmung ändert. Ohne Datum
+                              // ließe sich nicht sagen, ob das hinterlegte
+                              // Blatt noch den heutigen Stand zeigt.
+                              _hochgeladenAm(d['created_at']?.toString()),
+                            ].where((t) => t.isNotEmpty).join(' · '),
+                            style: TextStyle(
+                                fontSize: 10, color: F.h(Colors.grey, 600))),
+                      ])),
+                  IconButton(
+                      icon: Icon(Icons.visibility,
+                          size: 18, color: F.h(Colors.indigo, 700)),
+                      tooltip: 'Ansehen',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      onPressed: () => _dokAnsehen(d)),
+                  IconButton(
+                      icon: Icon(Icons.delete_outline,
+                          size: 18, color: Colors.red.shade400),
+                      tooltip: 'Löschen',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      onPressed: () => _dokLoeschen(d, titel)),
+                ])),
+          const SizedBox(height: 10),
+          Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                  icon: laeuft
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.attach_file, size: 16),
+                  label: Text(d == null ? 'Hochladen' : 'Ersetzen',
+                      style: const TextStyle(fontSize: 12)),
+                  style: FilledButton.styleFrom(
+                      backgroundColor: Colors.indigo.shade600,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      minimumSize: Size.zero),
+                  // ⚠️ Nur der eigene Knopf sperrt. Sonst blockierte ein
+                  // laufender Titel-Upload auch das Zusatzblatt.
+                  onPressed: laeuft ? null : () => _dokHochladen(art, titel))),
+        ]));
+  }
+
+  IconData _dokIcon(String art) => switch (art) {
+        kAbDokRueckseite => Icons.flip_to_back,
+        kAbDokZusatzblatt => Icons.article,
+        kAbDokFortgeltung => Icons.verified,
+        _ => Icons.badge,
+      };
+
+  /// „hochgeladen am 04.09.2026" aus dem Serverzeitstempel. Leer, wenn er
+  /// fehlt oder unlesbar ist — lieber nichts als ein erfundenes Datum.
+  String _hochgeladenAm(String? roh) {
+    final t = (roh ?? '').trim();
+    if (t.isEmpty) return '';
+    final d = DateTime.tryParse(t);
+    if (d == null) return '';
+    return 'hochgeladen am ${_deFmt(d)}';
+  }
+
+  String _groesse(int b) => b >= 1024 * 1024
+      ? '${(b / 1024 / 1024).toStringAsFixed(1)} MB'
+      : '${(b / 1024).toStringAsFixed(0)} kB';
+
+  void _sagen(String text, {bool fehler = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(text),
+      backgroundColor: fehler ? Colors.red.shade700 : null,
+    ));
+  }
+
+  Future<void> _dokHochladen(String art, String titel) async {
+    final auswahl = await FilePickerHelper.pickFiles(
+      allowMultiple: false,
+      type: FileType.custom,
+      allowedExtensions: kAbDokEndungen,
+    );
+    final datei = (auswahl?.files ?? []).firstOrNull;
+    if (datei == null) return;
+    final grund = abDokAblehnung(datei.name, datei.size);
+    if (grund != null) {
+      _sagen(grund, fehler: true);
+      return;
+    }
+    if (datei.path == null) {
+      _sagen('Diese Datei lässt sich hier nicht lesen.', fehler: true);
+      return;
+    }
+
+    setState(() => _laedt = art);
+    final r = await widget.apiService.uploadAuslaenderbehoerdeDokument(
+        userId: widget.userId,
+        vorfallId: widget.vorfallId,
+        art: art,
+        pfad: datei.path!,
+        dateiname: datei.name);
+    if (!mounted) return;
+    setState(() => _laedt = null);
+    if (r['success'] == true) {
+      _sagen('$titel gespeichert');
+      await _load();
+      widget.onChanged();
+    } else {
+      // ⚠️ Den Grund des Servers zeigen. Ein stilles Zurücksetzen ist für den
+      // Nutzer nicht von „ich habe danebengetippt" zu unterscheiden.
+      _sagen('Nicht hochgeladen: ${r['message'] ?? 'unbekannter Fehler'}',
+          fehler: true);
+    }
+  }
+
+  /// Zeigt das Papier IM PROGRAMM, aus dem Arbeitsspeicher.
+  ///
+  /// ⚠️ Nicht auf die Platte und nicht an ein fremdes Programm: ein
+  /// Aufenthaltstitel trägt Name, Geburtsdatum, Lichtbild und Aufenthaltsstatus
+  /// eines Mitglieds. Auf dem Server liegt er mit einigem Aufwand
+  /// verschlüsselt — ihn hier entschlüsselt abzulegen gäbe das wieder her, und
+  /// ein fremder Betrachter behielte ihn ohnehin (eigener Verlauf, eigene
+  /// Wolkensicherung).
+  Future<void> _dokAnsehen(Map<String, dynamic> d) async {
+    final id =
+        d['id'] is int ? d['id'] as int : int.tryParse(d['id'].toString()) ?? 0;
+    final r = await widget.apiService
+        .downloadAuslaenderbehoerdeDokument(widget.userId, id);
+    if (!mounted) return;
+    if (r.statusCode != 200 || r.bodyBytes.isEmpty) {
+      _sagen('Nicht abrufbar (HTTP ${r.statusCode}).', fehler: true);
+      return;
+    }
+    final name = d['original_name']?.toString() ?? 'dokument.pdf';
+    final gezeigt =
+        await FileViewerDialog.showFromBytes(context, r.bodyBytes, name);
+    if (!gezeigt && mounted) {
+      _sagen('Dieser Dateityp lässt sich hier nicht anzeigen: $name',
+          fehler: true);
+    }
+  }
+
+  Future<void> _dokLoeschen(Map<String, dynamic> d, String titel) async {
+    final sicher = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+              title: Text('$titel löschen?', style: const TextStyle(fontSize: 15)),
+              content: Text('„${d['original_name'] ?? ''}" wird endgültig entfernt.',
+                  style: const TextStyle(fontSize: 13)),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Abbrechen')),
+                FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Löschen')),
+              ],
+            ));
+    if (sicher != true) return;
+    final id =
+        d['id'] is int ? d['id'] as int : int.tryParse(d['id'].toString()) ?? 0;
+    final r =
+        await widget.apiService.deleteAuslaenderbehoerdeDokument(widget.userId, id);
+    if (!mounted) return;
+    if (r['success'] == true) {
+      _sagen('$titel gelöscht');
+      await _load();
+      widget.onChanged();
+    } else {
+      _sagen('Nicht gelöscht: ${r['message'] ?? 'unbekannter Fehler'}', fehler: true);
+    }
   }
 
   Widget _infoRow(IconData icon, String label, dynamic wert) {

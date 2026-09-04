@@ -12813,6 +12813,69 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // === AUSLÄNDERBEHÖRDE: Dokumente (Aufenthaltstitel + Zusatzblatt) ===
+  // Zwei Plätze je Vorfall, `art` entscheidet welcher. Ein zweiter Upload
+  // derselben Art ersetzt die bisherige Datei — der andere Platz bleibt
+  // unberührt, das erzwingt der Server.
+
+  Future<Map<String, dynamic>> uploadAuslaenderbehoerdeDokument({
+    required int userId,
+    required int vorfallId,
+    required String art,
+    required String pfad,
+    required String dateiname,
+  }) async {
+    try {
+      final req = http.MultipartRequest(
+          'POST', Uri.parse('$baseUrl/admin/auslaenderbehoerde_dok_upload.php'));
+      // ⚠️ Erst kopieren, dann entfernen. `_headers` ist ein Getter, der jedes
+      // Mal eine frische Map liefert; ein `..remove()` darauf träfe nur die
+      // Kopie. Und OHNE `addAll` fehlt der Bearer — genau der Fehler, der im
+      // August platform/korrespondenz_create.php mit 401 lahmlegte.
+      final kopf = Map<String, String>.from(_headers)..remove('Content-Type');
+      req.headers.addAll(kopf);
+      req.fields['user_id'] = '$userId';
+      req.fields['vorfall_id'] = '$vorfallId';
+      req.fields['art'] = art;
+      req.files.add(await http.MultipartFile.fromPath('file', pfad,
+          filename: dateiname));
+      final res = await http.Response.fromStream(
+          await req.send().timeout(const Duration(seconds: 120)));
+      final m = Map<String, dynamic>.from(jsonDecode(res.body) as Map);
+      m['httpStatus'] = res.statusCode;
+      return m;
+    } on FormatException {
+      return {'success': false, 'message': 'Ungültige Serverantwort'};
+    } catch (e) {
+      return {'success': false, 'message': 'Verbindungsfehler beim Hochladen'};
+    }
+  }
+
+  /// Holt ein Dokument. Der Server entschlüsselt es und prüft dabei die beim
+  /// Hochladen gespeicherte Prüfsumme.
+  Future<http.Response> downloadAuslaenderbehoerdeDokument(
+      int userId, int dokumentId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/auslaenderbehoerde_dok.php?id=$dokumentId&user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 60));
+  }
+
+  Future<Map<String, dynamic>> deleteAuslaenderbehoerdeDokument(
+      int userId, int dokumentId) async {
+    final r = await _client
+        .post(Uri.parse('$baseUrl/admin/auslaenderbehoerde_dok.php'),
+            headers: _headers,
+            body: jsonEncode(
+                {'user_id': userId, 'id': dokumentId, 'action': 'delete'}))
+        .timeout(const Duration(seconds: 30));
+    try {
+      return jsonDecode(r.body);
+    } on FormatException {
+      return {'success': false};
+    }
+  }
+
   // === BÜRGERAMT: Meldebestätigung (genau EINE je Vorfall) ===
 
   /// Lädt die Bestätigung hoch. Eine vorhandene wird dabei ersetzt — das
