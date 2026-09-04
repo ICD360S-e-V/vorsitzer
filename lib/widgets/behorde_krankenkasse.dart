@@ -980,6 +980,52 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   }
 
   // ============ TAB 3: KORRESPONDENZ ============
+  /// Kleine Marken für den Zustellstand eines ausgegangenen Schreibens.
+  ///
+  /// ⚠️ Die Farbe sagt nur, was BELEGT ist. „Zugestellt" heisst beim Fax, dass
+  /// die Gegenstelle es angenommen hat, und bei der Mail, dass der empfangende
+  /// Server es angenommen hat — nicht gelesen und nicht bearbeitet. Alles
+  /// Unklare bleibt grau und heisst „Stand unbekannt"; ein grüner Haken, den
+  /// niemand belegen kann, ist schlimmer als gar keiner.
+  List<Widget> _kkVersandMarken(Map<String, dynamic> k) {
+    final liste = (k['versand'] as List?) ?? const [];
+    if (liste.isEmpty) return const [];
+    return [
+      for (final e in liste.whereType<Map>())
+        Builder(builder: (_) {
+          final st = e['status']?.toString() ?? '';
+          final istFax = e['weg']?.toString() == 'fax';
+          final farbe = switch (st) {
+            'zugestellt' || 'sent' => Colors.green,
+            'in_zustellung' || 'vorbereitet' || 'queued' || 'deferred' => Colors.amber,
+            'fehlgeschlagen' || 'storniert' || 'bounced' || 'expired' => Colors.red,
+            _ => Colors.grey,
+          };
+          return Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: Tooltip(
+              message: '${e['text'] ?? ''}'
+                  '${(e['zugestellt_am']?.toString() ?? '').isNotEmpty ? '\n${e['zugestellt_am']}' : ''}',
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: F.h(farbe, 50),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: F.h(farbe, 200)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(istFax ? Icons.print : Icons.email, size: 10, color: F.h(farbe, 800)),
+                  const SizedBox(width: 3),
+                  Text(e['text']?.toString() ?? '',
+                      style: TextStyle(fontSize: 9, color: F.h(farbe, 900))),
+                ]),
+              ),
+            ),
+          );
+        }),
+    ];
+  }
+
   Widget _buildKorrespondenzTab(Map<String, dynamic> data) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -2617,6 +2663,10 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                       const SizedBox(width: 4),
                       Text('\u2192 ${k['zugestellt_am']}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                     ],
+                    // Zustellstand je Weg — der Server liefert eine LISTE,
+                    // weil dasselbe Schreiben am selben Tag per Mail UND per
+                    // Fax hinausgegangen sein kann.
+                    ...(_kkVersandMarken(k)),
                     if (k['dokumente'] is List && (k['dokumente'] as List).isNotEmpty) ...[
                       const SizedBox(width: 6),
                       Icon(Icons.attach_file, size: 12, color: F.h(Colors.grey, 500)),
