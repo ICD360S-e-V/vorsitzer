@@ -174,7 +174,8 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
                                   'vermieter_db_id': s['id'],
                                   for (final f in const [
                                     'name', 'strasse', 'plz', 'ort',
-                                    'telefon', 'email', 'website', 'typ', 'notiz',
+                                    'telefon', 'fax', 'email', 'website',
+                                    'typ', 'notiz',
                                   ])
                                     f: s[f]?.toString() ?? '',
                                   'status': 'aktiv',
@@ -201,7 +202,9 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
   void _bearbeiten([Map<String, dynamic>? v]) {
     final istNeu = v == null;
     final c = <String, TextEditingController>{
-      for (final f in const ['name', 'strasse', 'plz', 'ort', 'telefon', 'email', 'website', 'typ', 'notiz'])
+      for (final f in const [
+        'name', 'strasse', 'plz', 'ort', 'telefon', 'fax', 'email', 'website', 'typ', 'notiz',
+      ])
         f: TextEditingController(text: v?[f]?.toString() ?? ''),
     };
     String status = v?['status']?.toString() ?? 'aktiv';
@@ -282,15 +285,24 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
-                    controller: c['email'],
+                    controller: c['fax'],
                     decoration: InputDecoration(
-                      labelText: 'E-Mail',
+                      labelText: 'Fax',
                       isDense: true,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ),
               ]),
+              const SizedBox(height: 8),
+              TextField(
+                controller: c['email'],
+                decoration: InputDecoration(
+                  labelText: 'E-Mail',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: c['website'],
@@ -784,6 +796,10 @@ class _VermieterDetails extends StatelessWidget {
             _zeile(Icons.location_on, 'Adresse',
                 '${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}'.trim()),
             _zeile(Icons.phone, 'Telefon', s['telefon']?.toString() ?? ''),
+            // ⚠️ `Icons.print` steht bewusst NICHT in `_phoneIcons` — eine
+            // Faxnummer darf keine Wählfläche werden. Ein Tipp daneben
+            // riefe sonst ein Faxgerät an.
+            _zeile(Icons.print, 'Fax', s['fax']?.toString() ?? ''),
             _zeile(Icons.email, 'E-Mail', s['email']?.toString() ?? ''),
             _zeile(Icons.language, 'Website', s['website']?.toString() ?? ''),
             if ((s['notiz']?.toString() ?? '').isNotEmpty) ...[
