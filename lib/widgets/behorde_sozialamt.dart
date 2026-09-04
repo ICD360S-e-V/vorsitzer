@@ -12,6 +12,8 @@ import 'feld_reihe.dart';
 import 'vermieter_dokumente.dart' show dialogBreite;
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
+import '../utils/ra_antwort.dart' show raWert, raDatumDe;
+import '../utils/sozialamt_korr_optionen.dart';
 
 class BehordeSozialamtContent extends StatefulWidget {
   final ApiService? apiService;
@@ -756,6 +758,21 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     ]);
   }
 
+  // ══════════════════════════════════════════════════════════
+  // KORRESPONDENZ — Eingang/Ausgang mit Weg und Anhängen
+  // ══════════════════════════════════════════════════════════
+
+  /// Anhänge einer Zeile — der Server liefert sie mit der Liste, ein
+  /// zweiter Aufruf je Eintrag entfällt damit.
+  ///
+  /// ⚠️ Fehlt das Feld (ältere Serverfassung), ist das eine LEERE Liste und
+  /// kein Fehler: die Zeile bleibt lesbar, nur ohne Anhänge.
+  List<Map<String, dynamic>> _korrDateien(Map<String, dynamic> k) {
+    final roh = k['dateien'];
+    if (roh is! List) return const [];
+    return roh.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
   Widget _buildKorr() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
@@ -766,30 +783,351 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
           onPressed: () => _addKorr('ausgang')),
       ])),
       Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
-        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) { final k = _korr[i]; final isEin = k['richtung'] == 'eingang';
-          return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEin ? F.h(Colors.green, 200) : F.h(Colors.blue, 200))),
-            child: Row(children: [
-              Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)), const SizedBox(width: 8),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? F.h(Colors.green, 800) : F.h(Colors.blue, 800))),
-                Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
-              ])),
-              IconButton(icon: Icon(Icons.delete_outline, size: 16, color: F.h(Colors.red, 400)), onPressed: () async { await widget.apiService.deleteAntragKorrespondenz(k['id'] as int); _load(); }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
-            ]));
-        })),
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) => _korrZeile(_korr[i]))),
     ]);
   }
 
-  void _addKorr(String richtung) {
-    final betreffC = TextEditingController(); final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}'); final notizC = TextEditingController();
-    showDialog(context: context, builder: (ctx) => AlertDialog(title: Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang'),
-      content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
-        TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
-        TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
-      ])), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () async { await widget.apiService.addAntragKorrespondenz(widget.antragId, {'richtung': richtung, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()}); if (ctx.mounted) Navigator.pop(ctx); _load(); }, child: const Text('Speichern'))],
+  Widget _korrZeile(Map<String, dynamic> k) {
+    // ⚠️ Nur 'ausgang' gilt als Ausgang. Ein leeres oder unbekanntes Feld
+    // als Ausgang zu lesen würde die Beweisrichtung umdrehen — ein
+    // eingegangener Bescheid stünde als eigenes Schreiben in der Akte.
+    final isEin = raWert(k['richtung']) != 'ausgang';
+    final id = (k['id'] as num?)?.toInt() ?? 0;
+    final dateien = _korrDateien(k);
+    final wegKey = raWert(k['weg']);
+    final weg = kSozKorrWege[wegKey] ?? wegKey;
+    final betreff = raWert(k['betreff']);
+    final notiz = raWert(k['notiz']);
+    final datum = raDatumDe(k['datum']);
+    final farbe = isEin ? Colors.green : Colors.blue;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(farbe, 200))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: F.h(farbe, 700)), const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(betreff.isEmpty ? '(ohne Betreff)' : betreff,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: betreff.isEmpty ? F.h(Colors.grey, 500) : F.h(farbe, 800))),
+            Wrap(spacing: 8, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              if (datum.isNotEmpty) Text(datum, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+              if (weg.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(_wegIcon(wegKey), size: 11, color: F.h(Colors.grey, 600)), const SizedBox(width: 3),
+                Text(weg, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+              ]),
+              if (dateien.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.attach_file, size: 11, color: F.h(Colors.indigo, 500)), const SizedBox(width: 2),
+                Text('${dateien.length}', style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 600))),
+              ]),
+            ]),
+          ])),
+          IconButton(icon: Icon(Icons.delete_outline, size: 16, color: F.h(Colors.red, 400)), onPressed: () => _korrLoeschen(k), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
+        ]),
+        if (notiz.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 26, top: 4), child: Text(notiz, style: TextStyle(fontSize: 11, color: F.textStark))),
+        for (final d in dateien) Padding(
+          padding: const EdgeInsets.only(left: 22, top: 4),
+          child: Row(children: [
+            Icon(Icons.description_outlined, size: 13, color: F.h(Colors.indigo, 500)), const SizedBox(width: 5),
+            Expanded(child: Text(raWert(d['datei_name']), style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 800)), overflow: TextOverflow.ellipsis)),
+            Text(_dateiGroesse((d['file_size'] as num?)?.toInt() ?? 0), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))), const SizedBox(width: 8),
+            InkWell(onTap: () => _korrDateiAnsehen(d), child: Icon(Icons.visibility, size: 15, color: F.h(Colors.indigo, 600))), const SizedBox(width: 10),
+            InkWell(onTap: () => _korrDateiLoeschen(d), child: Icon(Icons.delete_outline, size: 15, color: F.h(Colors.red, 400))),
+          ]),
+        ),
+        if (id > 0) Padding(padding: const EdgeInsets.only(left: 22, top: 4), child: Row(children: [
+          TextButton.icon(
+            icon: const Icon(Icons.add, size: 14),
+            label: const Text('Gerät', style: TextStyle(fontSize: 11)),
+            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            onPressed: dateien.length >= kSozKorrMaxDateien ? null : () => _korrDateienNachtragen(id, dateien.length),
+          ),
+          const SizedBox(width: 6),
+          CloudPickButton(
+            memberId: widget.userId,
+            apiService: widget.apiService,
+            allowedExtensions: kSozKorrEndungen,
+            // ⚠️ Der freie Rest, nicht die volle Zahl: sonst holt der Dialog
+            // 20 Dateien, und der Server weist ab der Grenze jede einzelne ab —
+            // nachdem sie schon entschlüsselt und übertragen wurden.
+            maxFiles: kSozKorrMaxDateien - dateien.length,
+            kompakt: true,
+            enabled: dateien.length < kSozKorrMaxDateien,
+            onPicked: (r) => _korrHochladen(id, r.files),
+          ),
+          const SizedBox(width: 8),
+          if (dateien.length >= kSozKorrMaxDateien)
+            Text('max. $kSozKorrMaxDateien', style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 700))),
+        ])),
+      ]),
+    );
+  }
+
+  static IconData _wegIcon(String weg) => switch (weg) {
+        'email' || 'de_mail' => Icons.email_outlined,
+        'fax' => Icons.print_outlined,
+        'online' => Icons.language,
+        'telefon' => Icons.call_outlined,
+        'persoenlich' => Icons.person_outline,
+        'einschreiben' => Icons.markunread_mailbox_outlined,
+        'post' => Icons.mail_outline,
+        _ => Icons.help_outline,
+      };
+
+  static String _dateiGroesse(int b) =>
+      b >= 1048576 ? '${(b / 1048576).toStringAsFixed(1)} MB' : '${(b / 1024).ceil()} KB';
+
+  Future<void> _korrLoeschen(Map<String, dynamic> k) async {
+    final dateien = _korrDateien(k);
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Schriftstück löschen?'),
+      content: Text(dateien.isEmpty
+          ? 'Der Eintrag wird entfernt.'
+          : 'Der Eintrag und seine ${dateien.length} Datei(en) werden entfernt. Das lässt sich nicht rückgängig machen.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
+      ],
     ));
+    if (ok != true) return;
+    final r = await widget.apiService.deleteAntragKorrespondenz((k['id'] as num).toInt());
+    if (!mounted) return;
+    // Nicht blind neu laden: ein fehlgeschlagenes Löschen sähe sonst aus wie
+    // ein Eintrag, der wieder auftaucht (dieselbe Falle wie bei _antragLoeschen).
+    if (r['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Nicht gelöscht: ${r['message'] ?? 'unbekannter Fehler'}'), backgroundColor: Colors.red));
+      return;
+    }
+    _load();
+  }
+
+  Future<void> _korrDateiAnsehen(Map<String, dynamic> d) async {
+    final name = raWert(d['datei_name']);
+    try {
+      final resp = await widget.apiService.downloadAntragKorrDoc((d['id'] as num).toInt());
+      if (resp.statusCode != 200) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Datei nicht abrufbar (HTTP ${resp.statusCode})'), backgroundColor: Colors.red));
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final file = sichereDatei(dir, name);
+      await file.writeAsBytes(resp.bodyBytes);
+      if (mounted) await FileViewerDialog.show(context, file.path, name);
+    } catch (e) {
+      if (mounted) dateiFehlerMelden(context, e);
+    }
+  }
+
+  Future<void> _korrDateiLoeschen(Map<String, dynamic> d) async {
+    final r = await widget.apiService.deleteAntragKorrDoc((d['id'] as num).toInt());
+    if (!mounted) return;
+    if (r['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Nicht gelöscht: ${r['message'] ?? 'unbekannter Fehler'}'), backgroundColor: Colors.red));
+      return;
+    }
+    _load();
+  }
+
+  Future<void> _korrDateienNachtragen(int korrId, int vorhanden) async {
+    final r = await FilePickerHelper.pickFiles(
+        type: FileType.custom, allowedExtensions: kSozKorrEndungen, allowMultiple: true);
+    if (r == null || r.files.isEmpty) return;
+    await _korrHochladen(korrId, r.files, vorhanden: vorhanden);
+  }
+
+  /// Lädt die Dateien einzeln hoch — der Endpunkt nimmt eine je Aufruf.
+  ///
+  /// ⚠️ Meldet, was NICHT durchkam, samt Grund. Ein stiller Teilerfolg wäre
+  /// hier am teuersten: der Eintrag steht in der Akte, der Beleg fehlt, und
+  /// nichts weist darauf hin.
+  Future<void> _korrHochladen(int korrId, List<PlatformFile> dateien, {int vorhanden = 0}) async {
+    var liste = dateien.where((f) => f.path != null).toList();
+    final frei = kSozKorrMaxDateien - vorhanden;
+    if (frei <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Höchstens $kSozKorrMaxDateien Dateien je Schriftstück'), backgroundColor: Colors.orange));
+      }
+      return;
+    }
+    var abgeschnitten = 0;
+    if (liste.length > frei) { abgeschnitten = liste.length - frei; liste = liste.sublist(0, frei); }
+    if (liste.isEmpty) return;
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${liste.length} Datei(en) werden hochgeladen …'), duration: const Duration(seconds: 2)));
+    }
+    var ok = 0; String? grund;
+    for (final f in liste) {
+      final r = await widget.apiService.uploadAntragKorrDoc(korrId: korrId, filePath: f.path!, fileName: f.name);
+      if (r['success'] == true) { ok++; } else { grund ??= raWert(r['message']); }
+    }
+    if (!mounted) return;
+    final fehl = liste.length - ok;
+    final text = StringBuffer('$ok von ${liste.length} Datei(en) angehängt');
+    if (fehl > 0 && (grund ?? '').isNotEmpty) text.write(' — $grund');
+    if (abgeschnitten > 0) text.write(' · $abgeschnitten übersprungen (max. $kSozKorrMaxDateien)');
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(text.toString()),
+        backgroundColor: fehl == 0 && abgeschnitten == 0 ? Colors.green : Colors.orange));
+    _load();
+  }
+
+  void _addKorr(String richtung) {
+    final betreffC = TextEditingController();
+    final notizC = TextEditingController();
+    var datum = DateTime.now();
+    var weg = kSozKorrWegVorgabe;
+    final vorgemerkt = <PlatformFile>[];
+    var speichert = false;
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(
+      builder: (ctx2, setDlg) => AlertDialog(
+        title: Row(children: [
+          Icon(richtung == 'eingang' ? Icons.call_received : Icons.call_made, size: 18,
+              color: F.h(richtung == 'eingang' ? Colors.green : Colors.blue, 700)),
+          const SizedBox(width: 8),
+          Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang', style: const TextStyle(fontSize: 16)),
+        ]),
+        content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: InkWell(
+              onTap: () async {
+                final d = await showDatePicker(
+                  context: ctx2,
+                  initialDate: datum,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2040),
+                  locale: const Locale('de'),
+                );
+                if (d != null) setDlg(() => datum = d);
+              },
+              child: InputDecorator(
+                decoration: const InputDecoration(labelText: 'Datum', isDense: true, prefixIcon: Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder()),
+                // Deutsch auf dem Schirm, ISO an den Server — MariaDB liest
+                // „04.09.2026" als 0000-00-00, und das sähe aus wie „kein Datum".
+                child: Text(raDatumDe(datum.toIso8601String()), style: const TextStyle(fontSize: 13)),
+              ),
+            )),
+            const SizedBox(width: 8),
+            Expanded(child: DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: weg,
+              decoration: const InputDecoration(labelText: 'Weg', isDense: true, border: OutlineInputBorder()),
+              items: kSozKorrWege.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
+              onChanged: (v) => setDlg(() => weg = v ?? weg),
+            )),
+          ]),
+          const SizedBox(height: 10),
+          TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', alignLabelWithHint: true, isDense: true, border: OutlineInputBorder())),
+          const Divider(height: 22),
+          Row(children: [
+            Icon(Icons.attach_file, size: 15, color: F.h(Colors.grey, 700)), const SizedBox(width: 5),
+            Text('Anhänge', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
+            const Spacer(),
+            TextButton.icon(
+              icon: const Icon(Icons.add, size: 15),
+              label: const Text('Gerät', style: TextStyle(fontSize: 11.5)),
+              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8), minimumSize: Size.zero),
+              onPressed: speichert ? null : () async {
+                final r = await FilePickerHelper.pickFiles(
+                    allowMultiple: true, type: FileType.custom, allowedExtensions: kSozKorrEndungen);
+                if (r == null) return;
+                setDlg(() => _vormerken(vorgemerkt, r.files));
+              },
+            ),
+            CloudPickButton(
+              memberId: widget.userId,
+              apiService: widget.apiService,
+              allowedExtensions: kSozKorrEndungen,
+              // Beim Anlegen gibt es die Zeile noch nicht, also auch keine
+              // korr_id — der Server kann hier nicht selbst kopieren. Die
+              // Dateien kommen über das Gerät und gehen mit dem Speichern raus.
+              maxFiles: kSozKorrMaxDateien - vorgemerkt.length,
+              kompakt: true,
+              enabled: !speichert && vorgemerkt.length < kSozKorrMaxDateien,
+              onPicked: (r) => setDlg(() => _vormerken(vorgemerkt, r.files)),
+            ),
+          ]),
+          if (vorgemerkt.isEmpty)
+            Text('PDF, JPG, JPEG, PNG · max. $kSozKorrMaxDateien Dateien',
+                style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 500)))
+          else
+            for (final f in vorgemerkt)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                leading: Icon(Icons.description_outlined, size: 17, color: F.h(Colors.indigo, 500)),
+                title: Text(f.name, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+                subtitle: Text(_dateiGroesse(f.size), style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
+                trailing: IconButton(
+                  icon: Icon(Icons.close, size: 16, color: F.h(Colors.red, 400)),
+                  onPressed: speichert ? null : () => setDlg(() => vorgemerkt.remove(f)),
+                ),
+              ),
+        ]))),
+        actions: [
+          TextButton(onPressed: speichert ? null : () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: speichert ? null : () async {
+              setDlg(() => speichert = true);
+              final res = await widget.apiService.addAntragKorrespondenz(widget.antragId, {
+                'richtung': richtung,
+                'weg': weg,
+                'datum': datum.toIso8601String().substring(0, 10),
+                'betreff': betreffC.text.trim(),
+                'notiz': notizC.text.trim(),
+              });
+              if (res['success'] != true) {
+                setDlg(() => speichert = false);
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                      content: Text('Nicht gespeichert: ${res['message'] ?? 'unbekannter Fehler'}'), backgroundColor: Colors.red));
+                }
+                return;
+              }
+              final neueId = (res['id'] as num?)?.toInt() ?? 0;
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (vorgemerkt.isEmpty) { _load(); return; }
+              // ⚠️ Ohne id lässt sich nichts anhängen. Das dann stillschweigend
+              // zu verschlucken hiesse: der Eintrag steht da, die Belege sind
+              // weg, und niemand erfährt es.
+              if (neueId <= 0) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Eintrag gespeichert, aber der Server hat keine Kennung geliefert — die ${vorgemerkt.length} Datei(en) sind NICHT angehängt.'),
+                      backgroundColor: Colors.red));
+                }
+                _load();
+                return;
+              }
+              await _korrHochladen(neueId, vorgemerkt);
+            },
+            child: speichert
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Speichern'),
+          ),
+        ],
+      ),
+    ));
+  }
+
+  /// Merkt neue Dateien vor, ohne Doppelte und ohne die Grenze zu reissen.
+  void _vormerken(List<PlatformFile> ziel, List<PlatformFile> neu) {
+    for (final f in neu) {
+      if (ziel.length >= kSozKorrMaxDateien) break;
+      if (f.path == null) continue;
+      // Zweimal dieselbe Datei wäre zweimal derselbe Beleg in der Akte.
+      if (ziel.any((v) => v.path == f.path)) continue;
+      ziel.add(f);
+    }
   }
 
   Widget _row(IconData icon, String label, dynamic value) {
