@@ -466,7 +466,7 @@ void main() {
     'VereinverwaltungScreen': () => VereinverwaltungScreen(apiService: api, users: <User>[], getRoleColor: (_) => Colors.blue, getRoleText: (_) => _langerText, mitgliedernummer: _langerText),
     'WebViewScreen': () => WebViewScreen(title: _langerText, url: _langerText),
     'AdminChatDialog': () => AdminChatDialog(mitgliedernummer: _langerText, userName: _langerText),
-    'BehordeAuslaenderbehoerdeContent': () => BehordeAuslaenderbehoerdeContent(getData: (_) => _zeile, isLoading: (_) => false, isSaving: (_) => false, loadData: (_) {}, saveData: (_, __) {}, dienststelleBuilder: (_, __) => const SizedBox.shrink()),
+    'BehordeAuslaenderbehoerdeContent': () => BehordeAuslaenderbehoerdeContent(apiService: api, userId: 13),
     'BehordeBamfContent': () => BehordeBamfContent(apiService: api, getData: (_) => _zeile, isLoading: (_) => false, isSaving: (_) => false, loadData: (_) {}, saveData: (_, __) {}, dienststelleBuilder: (_, __) => const SizedBox.shrink()),
     'BehordeEinwohnermeldeamtContent': () => BehordeEinwohnermeldeamtContent(apiService: api, userId: 13, getData: (_) => _zeile, isLoading: (_) => false, isSaving: (_) => false, loadData: (_) {}, saveData: (_, __) {}, dienststelleBuilder: (_, __) => const SizedBox.shrink()),
     'BehordeFinanzamtContent': () => BehordeFinanzamtContent(getData: (_) => _zeile, isLoading: (_) => false, isSaving: (_) => false, loadData: (_) {}, saveData: (_, __) {}, dienststelleBuilder: (_, __) => const SizedBox.shrink()),
