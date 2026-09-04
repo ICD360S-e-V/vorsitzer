@@ -185,6 +185,20 @@ void main() {
           reason: 'Eingliederungshilfe ist SGB IX, nicht SGB XII');
     });
 
+    test('Aufenthaltstitel in JEDER Liste', () {
+      // Steht direkt hinter dem Personalausweis: dieselbe Frage, nur für alle
+      // ohne deutschen Pass — und der Verein hat Mitglieder aus Rumänien, der
+      // Ukraine und Russland. Ohne die Zeile gibt es keinen Ort, an dem der
+      // Titel abgelegt werden kann.
+      for (final b in [
+        ...mitEigenerListe.map(leistungsListe),
+        block('  static const _defaultDocs = [', '\n  ];'),
+      ]) {
+        expect(keysAus(b).contains('aufenthaltstitel'), isTrue,
+            reason: 'fehlt in: ${keysAus(b).join(', ')}');
+      }
+    });
+
     test('Fragebogen zu den Angehörigen in JEDER Liste', () {
       // ⚠️ Erst fehlte er bei beiden Grundsicherungen — ausgelassen mit dem
       // Argument, § 43 Abs. 5 SGB XII schirme Kinder und Eltern unterhalb der

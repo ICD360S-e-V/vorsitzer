@@ -501,6 +501,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
   static const Map<String, List<(String, String, IconData)>> _requiredDocs = {
     'Grundsicherung im Alter': [
       ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
+      ('aufenthaltstitel', 'Aufenthaltstitel', Icons.card_membership),
       ('rentenbescheid', 'Rentenbescheid', Icons.description),
       ('kontoauszuege', 'Kontoauszüge (3 Monate, alle Konten)', Icons.account_balance),
       ('mietvertrag', 'Mietvertrag', Icons.home),
@@ -522,6 +523,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     ],
     'Grundsicherung bei Erwerbsminderung': [
       ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
+      ('aufenthaltstitel', 'Aufenthaltstitel', Icons.card_membership),
       ('em_bescheid', 'EM-Rentenbescheid / Gutachten Erwerbsminderung', Icons.medical_information),
       ('rentenbescheid', 'Rentenbescheid', Icons.description),
       ('kontoauszuege', 'Kontoauszüge (3 Monate, alle Konten)', Icons.account_balance),
@@ -545,6 +547,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     ],
     'Hilfe zur Pflege': [
       ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
+      ('aufenthaltstitel', 'Aufenthaltstitel', Icons.card_membership),
       ('pflegegrad_bescheid', 'Pflegegrad-Bescheid / MDK-Gutachten', Icons.medical_information),
       ('krankenversicherung', 'Kranken- und Pflegeversicherungsnachweis', Icons.local_hospital),
       ('antrag_kv_beitraege', 'Antrag Übernahme der Krankenversicherungsbeiträge', Icons.health_and_safety_outlined),
@@ -571,6 +574,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     ],
     'Eingliederungshilfe': [
       ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
+      ('aufenthaltstitel', 'Aufenthaltstitel', Icons.card_membership),
       ('aerztliches_gutachten', 'Ärztliches Gutachten / Diagnose', Icons.medical_information),
       ('schwerbehindertenausweis', 'Schwerbehindertenausweis', Icons.accessible),
       ('kontoauszuege', 'Kontoauszüge (3 Monate)', Icons.account_balance),
@@ -599,6 +603,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
   /// stehen, sonst sieht ausgerechnet der häufigste Fall nichts davon.
   static const _defaultDocs = [
     ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
+    ('aufenthaltstitel', 'Aufenthaltstitel', Icons.card_membership),
     ('kontoauszuege', 'Kontoauszüge (3 Monate)', Icons.account_balance),
     ('mietvertrag', 'Mietvertrag', Icons.home),
     ('mietbescheinigung', 'Mietbescheinigung (vom Vermieter auszufüllen)', Icons.apartment),
