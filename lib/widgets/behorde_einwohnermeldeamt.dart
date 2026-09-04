@@ -7,6 +7,8 @@ import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../widgets/responsive_layout.dart';
 import '../utils/app_farben.dart';
+import '../utils/buergeramt_dokument.dart';
+import 'file_viewer_dialog.dart';
 String _deFmt(DateTime p) => '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
 
 class BehordeEinwohnermeldeamtContent extends StatefulWidget {
@@ -433,7 +435,8 @@ class _BuergeramtVorfallDetail extends StatefulWidget {
 
 class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
   List<Map<String, dynamic>> _termine = [], _korr = [], _verlauf = [];
-  bool _loaded = false;
+  Map<String, dynamic>? _dokument;
+  bool _loaded = false, _dokLaeuft = false;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -445,6 +448,11 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
         _termine = (res['termine'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _korr = (res['korrespondenz'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _verlauf = (res['verlauf'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        // ⚠️ `null` heißt „noch keine Bestätigung erfasst" und muss auch
+        // beim Neuladen wieder auf null gehen — sonst bliebe eine gerade
+        // gelöschte Bestätigung auf dem Schirm stehen.
+        final dRes = res['dokument'];
+        _dokument = dRes is Map ? Map<String, dynamic>.from(dRes) : null;
       }
     } catch (_) {}
     if (mounted) setState(() => _loaded = true);
@@ -455,7 +463,10 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
     final v = widget.vorfall;
     final status = v['status']?.toString() ?? 'offen';
     final sc = status == 'erledigt' ? Colors.green : status == 'in_bearbeitung' ? Colors.orange : Colors.blue;
-    return DefaultTabController(length: 4, child: Column(children: [
+    // Nur An-, Um- und Abmeldung tragen eine Bestätigung; zu einem
+    // Personalausweis gibt es keine, dort fehlt der Reiter.
+    final dokTitel = buergeramtDokTitel(v['typ']?.toString());
+    return DefaultTabController(length: dokTitel == null ? 4 : 5, child: Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 8, 0), child: Row(children: [
         Icon(Icons.assignment, size: 18, color: F.h(Colors.teal, 700)), const SizedBox(width: 8),
         Expanded(child: Text(v['titel']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)), overflow: TextOverflow.ellipsis)),
@@ -477,12 +488,15 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
         // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
         isScrollable: ResponsiveLayout.istTelefon(context),labelColor: F.h(Colors.teal, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.teal.shade700, tabs: [
         const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+        if (dokTitel != null)
+          Tab(icon: Icon(_dokument == null ? Icons.upload_file : Icons.task_alt, size: 16), text: dokTitel),
         Tab(icon: const Icon(Icons.email, size: 16), text: 'Korrespondenz (${_korr.length})'),
         const Tab(icon: Icon(Icons.timeline, size: 16), text: 'Verlauf'),
         Tab(icon: const Icon(Icons.event, size: 16), text: 'Termine (${_termine.length})'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(v),
+        if (dokTitel != null) _buildDokument(v, dokTitel),
         _buildKorr(),
         _buildVerlauf(),
         _buildTermine(),
@@ -561,6 +575,137 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
       Icon(ok ? Icons.check_circle : Icons.radio_button_unchecked, size: 14, color: ok ? F.h(Colors.green, 600) : F.h(Colors.grey, 400)), const SizedBox(width: 8),
       Text(label, style: TextStyle(fontSize: 12, color: ok ? F.h(Colors.grey, 800) : F.h(Colors.grey, 500))),
     ]));
+  }
+
+  /// Die Meldebestätigung: genau EINE je Vorfall.
+  ///
+  /// ⚠️ Eine neue Datei ersetzt die alte, statt sie abzulehnen. Ein schiefer
+  /// Scan ließe sich sonst nur durch Löschen-und-neu-Hochladen korrigieren —
+  /// zwei Schritte für den Regelfall. Der Austausch geschieht auf dem Server
+  /// in einer Transaktion, damit nie beides gleichzeitig weg ist.
+  Widget _buildDokument(Map<String, dynamic> v, String titel) {
+    final d = _dokument;
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.description, size: 14, color: F.h(Colors.teal, 600)), const SizedBox(width: 6),
+        Expanded(child: Text(titel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700)))),
+      ]),
+      const SizedBox(height: 4),
+      Text(buergeramtDokHinweis(v['typ']?.toString()), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+      const SizedBox(height: 12),
+      if (d == null)
+        Container(width: double.infinity, padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 300))),
+          child: Column(children: [
+            Icon(Icons.upload_file, size: 28, color: F.h(Colors.grey, 400)), const SizedBox(height: 6),
+            Text('Noch keine $titel hinterlegt', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
+          ]))
+      else
+        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 200))),
+          child: Row(children: [
+            Icon((d['mime']?.toString() ?? '').contains('pdf') ? Icons.picture_as_pdf : Icons.image, size: 20, color: F.h(Colors.teal, 700)),
+            const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(d['original_name']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+              Text(_groesse((d['groesse'] as num?)?.toInt() ?? 0), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+            ])),
+            IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.teal, 700)), tooltip: 'Ansehen', onPressed: () => _dokAnsehen(d)),
+            IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _dokLoeschen(d)),
+          ])),
+      const SizedBox(height: 12),
+      Row(children: [
+        FilledButton.icon(
+          icon: _dokLaeuft
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.attach_file, size: 16),
+          label: Text(d == null ? '$titel hochladen' : 'Ersetzen', style: const TextStyle(fontSize: 12)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600),
+          onPressed: _dokLaeuft ? null : _dokHochladen),
+      ]),
+      const SizedBox(height: 8),
+      Text('PDF, JPG oder JPEG · höchstens 20 MB · eine Datei', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
+    ]));
+  }
+
+  String _groesse(int b) => b >= 1024 * 1024
+      ? '${(b / 1024 / 1024).toStringAsFixed(1)} MB'
+      : '${(b / 1024).toStringAsFixed(0)} kB';
+
+  void _sagen(String text, {bool fehler = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(text),
+      backgroundColor: fehler ? Colors.red.shade700 : null,
+    ));
+  }
+
+  Future<void> _dokHochladen() async {
+    final auswahl = await FilePickerHelper.pickFiles(
+      allowMultiple: false,
+      type: FileType.custom,
+      allowedExtensions: kBuergeramtDokEndungen,
+    );
+    final datei = (auswahl?.files ?? []).firstOrNull;
+    if (datei == null) return;
+    // ⚠️ Der Dateiwähler lässt sich auf manchen Plattformen umgehen („alle
+    // Dateien"); die Endung wird deshalb hier NOCH einmal geprüft und auf
+    // dem Server ein drittes Mal gegen den Inhalt.
+    final grund = buergeramtDokAblehnung(datei.name, datei.size);
+    if (grund != null) { _sagen(grund, fehler: true); return; }
+    if (datei.path == null) { _sagen('Diese Datei lässt sich hier nicht lesen.', fehler: true); return; }
+
+    setState(() => _dokLaeuft = true);
+    final r = await widget.apiService.uploadBuergeramtDokument(
+      userId: widget.userId, vorfallId: widget.vorfallId,
+      pfad: datei.path!, dateiname: datei.name);
+    if (!mounted) return;
+    setState(() => _dokLaeuft = false);
+    if (r['success'] == true) {
+      _sagen('Bestätigung gespeichert');
+      await _load();
+    } else {
+      // ⚠️ Den Grund des Servers zeigen. Ein stilles Zurücksetzen ist für den
+      // Nutzer nicht von „ich habe danebengetippt" zu unterscheiden.
+      _sagen('Nicht hochgeladen: ${r['message'] ?? 'unbekannter Fehler'}', fehler: true);
+    }
+  }
+
+  /// Zeigt die Bestätigung IM PROGRAMM, aus dem Arbeitsspeicher.
+  ///
+  /// ⚠️ Nicht auf die Platte und nicht an ein fremdes Programm: eine
+  /// Meldebestätigung trägt Name und Anschrift eines Mitglieds. Auf dem
+  /// Server liegt sie mit einigem Aufwand verschlüsselt — sie hier
+  /// entschlüsselt abzulegen gäbe das wieder her, und ein fremder Betrachter
+  /// behielte sie ohnehin (eigener Verlauf, eigene Wolkensicherung).
+  Future<void> _dokAnsehen(Map<String, dynamic> d) async {
+    final id = d['id'] is int ? d['id'] as int : int.tryParse(d['id'].toString()) ?? 0;
+    final r = await widget.apiService.downloadBuergeramtDokument(widget.userId, id);
+    if (!mounted) return;
+    if (r.statusCode != 200 || r.bodyBytes.isEmpty) {
+      _sagen('Bestätigung nicht abrufbar (HTTP ${r.statusCode}).', fehler: true);
+      return;
+    }
+    final name = d['original_name']?.toString() ?? 'bestaetigung.pdf';
+    final gezeigt = await FileViewerDialog.showFromBytes(context, r.bodyBytes, name);
+    if (!gezeigt && mounted) {
+      _sagen('Dieser Dateityp lässt sich hier nicht anzeigen: $name', fehler: true);
+    }
+  }
+
+  Future<void> _dokLoeschen(Map<String, dynamic> d) async {
+    final sicher = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Bestätigung löschen?', style: TextStyle(fontSize: 15)),
+      content: Text('„${d['original_name'] ?? ''}" wird endgültig entfernt.', style: const TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+          onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
+      ]));
+    if (sicher != true) return;
+    final id = d['id'] is int ? d['id'] as int : int.tryParse(d['id'].toString()) ?? 0;
+    final r = await widget.apiService.deleteBuergeramtDokument(widget.userId, id);
+    if (!mounted) return;
+    if (r['success'] == true) { _sagen('Bestätigung gelöscht'); await _load(); }
+    else { _sagen('Nicht gelöscht: ${r['message'] ?? 'unbekannter Fehler'}', fehler: true); }
   }
 
   Widget _buildKorr() {
