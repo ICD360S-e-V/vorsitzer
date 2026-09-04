@@ -466,18 +466,58 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
   List<Map<String, dynamic>> _docs = [];
   bool _loaded = false;
 
+  /// Was das Sozialamt schickt und was NICHT zurückgeht.
+  ///
+  /// ⚠️ Steht bewusst NICHT in [_requiredDocs] und zählt nicht in den Balken
+  /// „x / y": diese beiden Blätter muss niemand beibringen. Wären sie im
+  /// Zähler, meldete der Schirm den Antrag als unvollständig, weil ein
+  /// Anschreiben nicht eingescannt ist. Abgelegt gehören sie trotzdem — sie
+  /// tragen Datum, Aktenzeichen und die Frist, auf die sich das Amt beruft.
+  ///
+  /// ⚠️ Die Merkblätter, die UNTERSCHRIEBEN ZURÜCKGEHEN — Auszug aus dem
+  /// SGB I, Datenschutzhinweise nach Art. 13 DSGVO, Wichtige Hinweise zum
+  /// Sozialhilfeantrag — stehen deshalb nicht hier, sondern in der
+  /// Checkliste: sie sind Teil dessen, was abgegeben wird (Festlegung des
+  /// Vorsitzenden, 04.09.2026).
+  ///
+  /// Für jede Leistung gleich.
+  static const List<(String, String, IconData)> _amtsUnterlagen = [
+    ('anschreiben_sozialamt', 'Anschreiben vom Sozialamt', Icons.mark_email_read_outlined),
+    ('checkliste_sozialamt', 'Checkliste des Sozialamts', Icons.checklist_rtl),
+  ];
+
+  // ⚠️ DER SCHLÜSSEL IST DIE ABLAGE. Er landet als `doc_typ` in
+  // `sozialamt_antrag_docs` und in der Liste `checked_docs` in
+  // `sozialamt_data`. Ein umbenannter Schlüssel heisst: Haken weg, Datei
+  // verwaist — ohne Fehler, ohne Meldung. Der Server prüft ihn nicht
+  // (`$_POST['doc_typ'] ?? 'sonstiges'`), die Spalte ist varchar(50).
+  // `test/sozialamt_dokumente_test.dart` hält die vorhandenen Schlüssel fest.
+  //
+  // Neue Zeilen stehen dort, wo ihr Geschwisterteil schon steht: die
+  // Mietbescheinigung bei der Miete, die Übernahme der KV-Beiträge bei der
+  // Krankenversicherung. Eine Zeile in einer Liste, in der ihr Thema gar nicht
+  // vorkommt, ist kein Sicherheitsnetz, sondern ein Haken, den nie jemand
+  // setzt — und der Balken erreicht die volle Zahl nie.
   static const Map<String, List<(String, String, IconData)>> _requiredDocs = {
     'Grundsicherung im Alter': [
       ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
       ('rentenbescheid', 'Rentenbescheid', Icons.description),
       ('kontoauszuege', 'Kontoauszüge (3 Monate, alle Konten)', Icons.account_balance),
       ('mietvertrag', 'Mietvertrag', Icons.home),
+      ('mietbescheinigung', 'Mietbescheinigung (vom Vermieter auszufüllen)', Icons.apartment),
       ('nebenkostenabrechnung', 'Nebenkostenabrechnung', Icons.receipt),
       ('heizkostenabrechnung', 'Heizkostenabrechnung', Icons.thermostat),
       ('krankenversicherung', 'Krankenversicherungsnachweis', Icons.local_hospital),
+      ('antrag_kv_beitraege', 'Antrag Übernahme der Krankenversicherungsbeiträge', Icons.health_and_safety_outlined),
       ('einkommensnachweis', 'Einkommensnachweise', Icons.euro),
       ('vermoegensnachweis', 'Vermögensnachweise (Sparbücher etc.)', Icons.savings),
-      ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
+      ('erklaerung_vermoegen', 'Erklärung über die Vermögensverhältnisse', Icons.account_balance_wallet_outlined),
+      ('erklaerung_grundbesitz', 'Erklärung zu Haus- und Grundbesitz', Icons.terrain_outlined),
+      ('erklaerung_ausland', 'Erklärung zu Lebens- und Arbeitszeiten im Ausland', Icons.public),
+      ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
+      ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
+      ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
+      ('antrag_sgb12', 'Antrag Leistungen nach dem SGB XII', Icons.assignment_outlined),
     ],
     'Grundsicherung bei Erwerbsminderung': [
       ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
@@ -485,24 +525,46 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
       ('rentenbescheid', 'Rentenbescheid', Icons.description),
       ('kontoauszuege', 'Kontoauszüge (3 Monate, alle Konten)', Icons.account_balance),
       ('mietvertrag', 'Mietvertrag', Icons.home),
+      ('mietbescheinigung', 'Mietbescheinigung (vom Vermieter auszufüllen)', Icons.apartment),
       ('nebenkostenabrechnung', 'Nebenkostenabrechnung', Icons.receipt),
       ('heizkostenabrechnung', 'Heizkostenabrechnung', Icons.thermostat),
       ('krankenversicherung', 'Krankenversicherungsnachweis', Icons.local_hospital),
+      ('antrag_kv_beitraege', 'Antrag Übernahme der Krankenversicherungsbeiträge', Icons.health_and_safety_outlined),
       ('schwerbehindertenausweis', 'Schwerbehindertenausweis (falls vorhanden)', Icons.accessible),
       ('einkommensnachweis', 'Einkommensnachweise', Icons.euro),
       ('vermoegensnachweis', 'Vermögensnachweise', Icons.savings),
-      ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
+      ('erklaerung_vermoegen', 'Erklärung über die Vermögensverhältnisse', Icons.account_balance_wallet_outlined),
+      ('erklaerung_grundbesitz', 'Erklärung zu Haus- und Grundbesitz', Icons.terrain_outlined),
+      ('erklaerung_ausland', 'Erklärung zu Lebens- und Arbeitszeiten im Ausland', Icons.public),
+      ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
+      ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
+      ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
+      ('antrag_sgb12', 'Antrag Leistungen nach dem SGB XII', Icons.assignment_outlined),
     ],
     'Hilfe zur Pflege': [
       ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
       ('pflegegrad_bescheid', 'Pflegegrad-Bescheid / MDK-Gutachten', Icons.medical_information),
       ('krankenversicherung', 'Kranken- und Pflegeversicherungsnachweis', Icons.local_hospital),
+      ('antrag_kv_beitraege', 'Antrag Übernahme der Krankenversicherungsbeiträge', Icons.health_and_safety_outlined),
       ('kontoauszuege', 'Kontoauszüge (3 Monate)', Icons.account_balance),
       ('mietvertrag', 'Mietvertrag', Icons.home),
+      ('mietbescheinigung', 'Mietbescheinigung (vom Vermieter auszufüllen)', Icons.apartment),
       ('einkommensnachweis', 'Einkommensnachweise', Icons.euro),
       ('vermoegensnachweis', 'Vermögensnachweise', Icons.savings),
+      ('erklaerung_vermoegen', 'Erklärung über die Vermögensverhältnisse', Icons.account_balance_wallet_outlined),
+      ('erklaerung_grundbesitz', 'Erklärung zu Haus- und Grundbesitz', Icons.terrain_outlined),
+      ('erklaerung_ausland', 'Erklärung zu Lebens- und Arbeitszeiten im Ausland', Icons.public),
+      // Unterhaltsheranziehung: hier fragt das Amt regelmässig nach den
+      // Angehörigen. Bei der Grundsicherung steht der Bogen bewusst nicht —
+      // dort schirmt § 43 Abs. 5 SGB XII Kinder und Eltern unterhalb der
+      // Einkommensgrenze ab, und ein Haken, den nie jemand setzt, hält den
+      // Balken für immer unter der vollen Zahl.
+      ('fragebogen_angehoerige', 'Fragebogen zum Angehörigen', Icons.family_restroom),
       ('pflegekosten', 'Nachweise über Pflegekosten', Icons.receipt_long),
-      ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
+      ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
+      ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
+      ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
+      ('antrag_sgb12', 'Antrag Leistungen nach dem SGB XII', Icons.assignment_outlined),
     ],
     'Eingliederungshilfe': [
       ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
@@ -511,16 +573,44 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
       ('kontoauszuege', 'Kontoauszüge (3 Monate)', Icons.account_balance),
       ('einkommensnachweis', 'Einkommensnachweise', Icons.euro),
       ('vermoegensnachweis', 'Vermögensnachweise', Icons.savings),
+      ('erklaerung_vermoegen', 'Erklärung über die Vermögensverhältnisse', Icons.account_balance_wallet_outlined),
+      ('erklaerung_grundbesitz', 'Erklärung zu Haus- und Grundbesitz', Icons.terrain_outlined),
+      ('erklaerung_ausland', 'Erklärung zu Lebens- und Arbeitszeiten im Ausland', Icons.public),
+      ('fragebogen_angehoerige', 'Fragebogen zum Angehörigen', Icons.family_restroom),
+      ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
+      ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
+      ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
+      // ⚠️ HIER steht weiterhin das allgemeine Formular, und nur hier: die
+      // Eingliederungshilfe ist seit dem BTHG (2020) im SGB IX Teil 2, nicht
+      // mehr im SGB XII. Ein „Antrag Leistungen nach dem SGB XII" wäre hier
+      // ein Haken, den nie jemand setzen kann — und ganz ohne Antragszeile
+      // fehlte der Liste ausgerechnet das Blatt, um das es geht.
       ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
     ],
   };
 
+  /// ⚠️ Gilt für FÜNF der neun Leistungen aus dem Antragsdialog — darunter
+  /// „Hilfe zum Lebensunterhalt", der klassische Sozialhilfefall. Sie haben
+  /// keine eigene Liste, also ist diese hier ihre einzige. Was zum
+  /// Standardsatz eines Sozialhilfeantrags gehört, muss deshalb auch hier
+  /// stehen, sonst sieht ausgerechnet der häufigste Fall nichts davon.
   static const _defaultDocs = [
     ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
     ('kontoauszuege', 'Kontoauszüge (3 Monate)', Icons.account_balance),
     ('mietvertrag', 'Mietvertrag', Icons.home),
+    ('mietbescheinigung', 'Mietbescheinigung (vom Vermieter auszufüllen)', Icons.apartment),
+    ('krankenversicherung', 'Krankenversicherungsnachweis', Icons.local_hospital),
+    ('antrag_kv_beitraege', 'Antrag Übernahme der Krankenversicherungsbeiträge', Icons.health_and_safety_outlined),
     ('einkommensnachweis', 'Einkommensnachweise', Icons.euro),
-    ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
+    ('vermoegensnachweis', 'Vermögensnachweise', Icons.savings),
+    ('erklaerung_vermoegen', 'Erklärung über die Vermögensverhältnisse', Icons.account_balance_wallet_outlined),
+    ('erklaerung_grundbesitz', 'Erklärung zu Haus- und Grundbesitz', Icons.terrain_outlined),
+    ('erklaerung_ausland', 'Erklärung zu Lebens- und Arbeitszeiten im Ausland', Icons.public),
+    ('fragebogen_angehoerige', 'Fragebogen zum Angehörigen', Icons.family_restroom),
+    ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
+    ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
+    ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
+    ('antrag_sgb12', 'Antrag Leistungen nach dem SGB XII', Icons.assignment_outlined),
     ('sonstiges', 'Sonstiges Dokument', Icons.attach_file),
   ];
 
@@ -599,6 +689,9 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     final leistung = a['leistung']?.toString() ?? '';
     final checklist = _requiredDocs[leistung] ?? _defaultDocs;
     final uploadedTypes = _docs.map((d) => d['doc_typ']?.toString() ?? '').toSet();
+    // ⚠️ Gezählt wird NUR die Checkliste. Anschreiben und Checkliste des Amts
+    // bringt niemand bei — sie im Zähler zu führen hiesse, den Antrag als
+    // unvollständig zu melden, weil ein Anschreiben nicht eingescannt ist.
     final doneCount = checklist.where((c) => uploadedTypes.contains(c.$1) || _checkedDocs.contains(c.$1)).length;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(12),
@@ -626,96 +719,124 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
             ]),
           ),
         const SizedBox(height: 12),
-        ...checklist.map((c) {
-          final docTyp = c.$1;
-          final label = c.$2;
-          final icon = c.$3;
-          final hasUpload = uploadedTypes.contains(docTyp);
-          final isChecked = hasUpload || _checkedDocs.contains(docTyp);
-          final uploadedDocs = _docs.where((d) => d['doc_typ'] == docTyp).toList();
-          return Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            decoration: BoxDecoration(
-              color: isChecked ? F.h(Colors.green, 50) : F.h(Colors.grey, 50),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: isChecked ? F.h(Colors.green, 300) : F.h(Colors.grey, 300)),
-            ),
-            child: Column(children: [
-              Row(children: [
-                Checkbox(
-                  value: isChecked,
-                  activeColor: F.h(Colors.green, 700),
-                  onChanged: (v) {
-                    setState(() {
-                      if (v == true) {
-                        _checkedDocs.add(docTyp);
-                      } else {
-                        _checkedDocs.remove(docTyp);
-                      }
-                    });
-                    widget.onCheckedChanged(_checkedDocs);
-                  },
-                ),
-                Icon(icon, size: 18, color: isChecked ? F.h(Colors.green, 700) : F.h(Colors.grey, 500)),
-                const SizedBox(width: 8),
-                Expanded(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isChecked ? F.h(Colors.green, 900) : F.textStark, decoration: isChecked ? TextDecoration.lineThrough : null))),
-                IconButton(
-                  icon: Icon(Icons.cloud_download, size: 18, color: F.h(Colors.blue, 600)),
-                  tooltip: 'Aus Cloud',
-                  onPressed: () async {
-                    final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
-                        attach: (id) => widget.apiService.attachSozialamtAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, docTyp: docTyp),
-                        // Dieselbe Liste wie am Geräte-Knopf daneben (_uploadDoc),
-                        // sonst ließe sich über „Aus Cloud" ablegen, was „Dokument
-                        // hochladen" verweigert.
-                        allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
-                        // Einzeldatei wie am Geräte-Knopf: _uploadDoc nimmt nur
-                        // files.first. Ohne die Grenze würde eine Mehrfachauswahl
-                        // vollständig geholt und entschlüsselt, aber stillschweigend
-                        // bis auf die erste Datei verworfen.
-                        maxFiles: 1,
-                        hochladen: (r) => _uploadDoc(docTyp, label, ausCloud: r));
-                    if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
-                  },
-                ),
-                IconButton(
-                  icon: Icon(Icons.upload_file, size: 18, color: F.h(Colors.indigo, 600)),
-                  tooltip: 'Dokument hochladen',
-                  onPressed: () => _uploadDoc(docTyp, label),
-                ),
-              ]),
-              if (uploadedDocs.isNotEmpty)
-                ...uploadedDocs.map((d) => Padding(
-                  padding: const EdgeInsets.fromLTRB(48, 0, 16, 8),
-                  child: Row(children: [
-                    Icon(Icons.attach_file, size: 12, color: F.h(Colors.green, 600)),
-                    const SizedBox(width: 4),
-                    Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800)))),
-                    InkWell(onTap: () async {
-                      try {
-                        final resp = await widget.apiService.downloadAntragDoc(d['id'] as int);
-                        if (resp.statusCode == 200 && mounted) {
-                          final dir = await getTemporaryDirectory();
-                          final file = sichereDatei(dir, d['datei_name']);
-                          await file.writeAsBytes(resp.bodyBytes);
-                          if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? '');
-                        }
-                      } catch (e) {
-                        if (mounted) dateiFehlerMelden(context, e);
-                      }
-                    }, child: Icon(Icons.visibility, size: 14, color: F.h(Colors.indigo, 600))),
-                    const SizedBox(width: 8),
-                    InkWell(onTap: () async {
-                      await widget.apiService.deleteAntragDoc(d['id'] as int);
-                      _load();
-                    }, child: Icon(Icons.delete_outline, size: 14, color: F.h(Colors.red, 400))),
-                  ]),
-                )),
-            ]),
-          );
-        }),
+        _docAbschnitt('Beizubringen', Icons.upload_file, Colors.indigo,
+            'Was das Mitglied dem Amt vorlegen muss.'),
+        ...checklist.map((c) => _docZeile(c.$1, c.$2, c.$3, uploadedTypes)),
+        const SizedBox(height: 16),
+        _docAbschnitt('Vom Sozialamt erhalten', Icons.markunread_mailbox_outlined, Colors.teal,
+            'Geht nicht zurück — zählt nicht in den Balken, gehört aber in die Akte.'),
+        ..._amtsUnterlagen.map((c) => _docZeile(c.$1, c.$2, c.$3, uploadedTypes)),
       ]),
     );
+  }
+
+  /// Überschrift einer der beiden Gruppen im Reiter Dokumente.
+  Widget _docAbschnitt(String titel, IconData icon, MaterialColor farbe, String erklaerung) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 15, color: F.h(farbe, 600)),
+          const SizedBox(width: 6),
+          Text(titel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(farbe, 700))),
+          const SizedBox(width: 8),
+          Expanded(child: Divider(color: F.h(farbe, 100))),
+        ]),
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(erklaerung, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+        ),
+      ]),
+    );
+  }
+
+  /// Eine Zeile der Ablage. Identisch für beide Gruppen — Haken, „Aus Cloud",
+  /// Hochladen und die schon abgelegten Dateien hängen am Schlüssel, nicht an
+  /// der Gruppe.
+  Widget _docZeile(String docTyp, String label, IconData icon, Set<String> uploadedTypes) {
+        final hasUpload = uploadedTypes.contains(docTyp);
+        final isChecked = hasUpload || _checkedDocs.contains(docTyp);
+        final uploadedDocs = _docs.where((d) => d['doc_typ'] == docTyp).toList();
+        return Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          decoration: BoxDecoration(
+            color: isChecked ? F.h(Colors.green, 50) : F.h(Colors.grey, 50),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isChecked ? F.h(Colors.green, 300) : F.h(Colors.grey, 300)),
+          ),
+          child: Column(children: [
+            Row(children: [
+              Checkbox(
+                value: isChecked,
+                activeColor: F.h(Colors.green, 700),
+                onChanged: (v) {
+                  setState(() {
+                    if (v == true) {
+                      _checkedDocs.add(docTyp);
+                    } else {
+                      _checkedDocs.remove(docTyp);
+                    }
+                  });
+                  widget.onCheckedChanged(_checkedDocs);
+                },
+              ),
+              Icon(icon, size: 18, color: isChecked ? F.h(Colors.green, 700) : F.h(Colors.grey, 500)),
+              const SizedBox(width: 8),
+              Expanded(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isChecked ? F.h(Colors.green, 900) : F.textStark, decoration: isChecked ? TextDecoration.lineThrough : null))),
+              IconButton(
+                icon: Icon(Icons.cloud_download, size: 18, color: F.h(Colors.blue, 600)),
+                tooltip: 'Aus Cloud',
+                onPressed: () async {
+                  final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                      attach: (id) => widget.apiService.attachSozialamtAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, docTyp: docTyp),
+                      // Dieselbe Liste wie am Geräte-Knopf daneben (_uploadDoc),
+                      // sonst ließe sich über „Aus Cloud" ablegen, was „Dokument
+                      // hochladen" verweigert.
+                      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+                      // Einzeldatei wie am Geräte-Knopf: _uploadDoc nimmt nur
+                      // files.first. Ohne die Grenze würde eine Mehrfachauswahl
+                      // vollständig geholt und entschlüsselt, aber stillschweigend
+                      // bis auf die erste Datei verworfen.
+                      maxFiles: 1,
+                      hochladen: (r) => _uploadDoc(docTyp, label, ausCloud: r));
+                  if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen${res.grund != null ? ' — ${res.grund}' : ''}'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+                },
+              ),
+              IconButton(
+                icon: Icon(Icons.upload_file, size: 18, color: F.h(Colors.indigo, 600)),
+                tooltip: 'Dokument hochladen',
+                onPressed: () => _uploadDoc(docTyp, label),
+              ),
+            ]),
+            if (uploadedDocs.isNotEmpty)
+              ...uploadedDocs.map((d) => Padding(
+                padding: const EdgeInsets.fromLTRB(48, 0, 16, 8),
+                child: Row(children: [
+                  Icon(Icons.attach_file, size: 12, color: F.h(Colors.green, 600)),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800)))),
+                  InkWell(onTap: () async {
+                    try {
+                      final resp = await widget.apiService.downloadAntragDoc(d['id'] as int);
+                      if (resp.statusCode == 200 && mounted) {
+                        final dir = await getTemporaryDirectory();
+                        final file = sichereDatei(dir, d['datei_name']);
+                        await file.writeAsBytes(resp.bodyBytes);
+                        if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? '');
+                      }
+                    } catch (e) {
+                      if (mounted) dateiFehlerMelden(context, e);
+                    }
+                  }, child: Icon(Icons.visibility, size: 14, color: F.h(Colors.indigo, 600))),
+                  const SizedBox(width: 8),
+                  InkWell(onTap: () async {
+                    await widget.apiService.deleteAntragDoc(d['id'] as int);
+                    _load();
+                  }, child: Icon(Icons.delete_outline, size: 14, color: F.h(Colors.red, 400))),
+                ]),
+              )),
+          ]),
+        );
   }
 
   Future<void> _uploadDoc(String docTyp, String label, {FilePickerResult? ausCloud}) async {
