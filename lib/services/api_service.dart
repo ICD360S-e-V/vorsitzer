@@ -8082,6 +8082,41 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ===== ANHÄNGE EINES SCHRIFTSTÜCKS (Sozialamt ▸ Antrag ▸ Korrespondenz) =====
+  //
+  // Eigener Endpunkt neben `sozialamt_antrag_docs.php`: dort führt `doc_typ`
+  // die Checkliste des Antrags, und ein eingegangener Bescheid ist kein Punkt
+  // dieser Checkliste. Die Liste je Schriftstück liefert ohnehin schon
+  // `listAntragKorrespondenz` als Feld `dateien` mit — diese Methode ist für
+  // das Nachladen einer einzelnen Zeile.
+  Future<Map<String, dynamic>> listAntragKorrDocs(int korrId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/sozialamt_antrag_korr_docs.php?korr_id=$korrId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> uploadAntragKorrDoc({required int korrId, required String filePath, required String fileName}) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/sozialamt_antrag_korr_docs.php'));
+    request.headers.addAll(_headers);
+    request.fields['korr_id'] = korrId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send(); final response = await http.Response.fromStream(sr);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+  /// Serverseitiges Kopieren aus dem 1-GB-Cloud des Mitglieds — spart den
+  /// Umweg über das Gerät. Für den verschlüsselten 50-GB-Speicher gibt es das
+  /// nicht: dort kennt der Server den Schlüssel nicht, dort lädt der Client.
+  Future<Map<String, dynamic>> attachAntragKorrDocFromCloud({required int korrId, required int cloudFileId}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_antrag_korr_docs.php'), headers: _headers, body: jsonEncode({'action': 'attach_from_cloud', 'korr_id': korrId, 'cloud_file_id': cloudFileId})).timeout(const Duration(seconds: 60));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteAntragKorrDoc(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_antrag_korr_docs.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> downloadAntragKorrDoc(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/sozialamt_antrag_korr_docs.php?download_id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+
   // ========== SOZIALAMT ANTRAG DOCS ==========
 
   Future<Map<String, dynamic>> listAntragDocs(int antragId) async {
