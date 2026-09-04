@@ -517,6 +517,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
       ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
       ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
       ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
+      ('fragebogen_angehoerige', 'Fragebogen zu den Angehörigen', Icons.family_restroom),
       ('antrag_sgb12', 'Antrag Leistungen nach dem SGB XII', Icons.assignment_outlined),
     ],
     'Grundsicherung bei Erwerbsminderung': [
@@ -539,6 +540,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
       ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
       ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
       ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
+      ('fragebogen_angehoerige', 'Fragebogen zu den Angehörigen', Icons.family_restroom),
       ('antrag_sgb12', 'Antrag Leistungen nach dem SGB XII', Icons.assignment_outlined),
     ],
     'Hilfe zur Pflege': [
@@ -554,12 +556,13 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
       ('erklaerung_vermoegen', 'Erklärung über die Vermögensverhältnisse', Icons.account_balance_wallet_outlined),
       ('erklaerung_grundbesitz', 'Erklärung zu Haus- und Grundbesitz', Icons.terrain_outlined),
       ('erklaerung_ausland', 'Erklärung zu Lebens- und Arbeitszeiten im Ausland', Icons.public),
-      // Unterhaltsheranziehung: hier fragt das Amt regelmässig nach den
-      // Angehörigen. Bei der Grundsicherung steht der Bogen bewusst nicht —
-      // dort schirmt § 43 Abs. 5 SGB XII Kinder und Eltern unterhalb der
-      // Einkommensgrenze ab, und ein Haken, den nie jemand setzt, hält den
-      // Balken für immer unter der vollen Zahl.
-      ('fragebogen_angehoerige', 'Fragebogen zum Angehörigen', Icons.family_restroom),
+      // ⚠️ Steht bei JEDER Leistung. Erst war der Bogen bei der Grundsicherung
+      // ausgelassen, weil § 43 Abs. 5 SGB XII Kinder und Eltern unterhalb der
+      // Einkommensgrenze abschirmt — das war falsch: das Amt legt ihn dem
+      // Antragssatz trotzdem bei, und was nicht in der Liste steht, kann auch
+      // nicht abgelegt werden. Was das Amt aushändigt, entscheidet die Liste,
+      // nicht die Rechtslage dahinter.
+      ('fragebogen_angehoerige', 'Fragebogen zu den Angehörigen', Icons.family_restroom),
       ('pflegekosten', 'Nachweise über Pflegekosten', Icons.receipt_long),
       ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
       ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
@@ -576,7 +579,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
       ('erklaerung_vermoegen', 'Erklärung über die Vermögensverhältnisse', Icons.account_balance_wallet_outlined),
       ('erklaerung_grundbesitz', 'Erklärung zu Haus- und Grundbesitz', Icons.terrain_outlined),
       ('erklaerung_ausland', 'Erklärung zu Lebens- und Arbeitszeiten im Ausland', Icons.public),
-      ('fragebogen_angehoerige', 'Fragebogen zum Angehörigen', Icons.family_restroom),
+      ('fragebogen_angehoerige', 'Fragebogen zu den Angehörigen', Icons.family_restroom),
       ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
       ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
       ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
@@ -606,7 +609,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     ('erklaerung_vermoegen', 'Erklärung über die Vermögensverhältnisse', Icons.account_balance_wallet_outlined),
     ('erklaerung_grundbesitz', 'Erklärung zu Haus- und Grundbesitz', Icons.terrain_outlined),
     ('erklaerung_ausland', 'Erklärung zu Lebens- und Arbeitszeiten im Ausland', Icons.public),
-    ('fragebogen_angehoerige', 'Fragebogen zum Angehörigen', Icons.family_restroom),
+    ('fragebogen_angehoerige', 'Fragebogen zu den Angehörigen', Icons.family_restroom),
     ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
     ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
     ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
