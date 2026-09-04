@@ -69,7 +69,7 @@ void main() {
       const bestand = [
         'personalausweis', 'rentenbescheid', 'kontoauszuege', 'mietvertrag',
         'nebenkostenabrechnung', 'heizkostenabrechnung', 'krankenversicherung',
-        'einkommensnachweis', 'vermoegensnachweis', 'antrag_formular',
+        'einkommensnachweis', 'vermoegensnachweis',
         'em_bescheid', 'schwerbehindertenausweis', 'pflegegrad_bescheid',
         'pflegekosten', 'aerztliches_gutachten', 'sonstiges',
       ];
@@ -137,6 +137,38 @@ void main() {
         final k = keysAus(b);
         expect(k.contains('antrag_kv_beitraege'), k.contains('krankenversicherung'),
             reason: 'KV-Beiträge und Krankenversicherung laufen auseinander: ${k.join(', ')}');
+      }
+    });
+
+    test('das allgemeine Antragsformular steht NUR noch bei der Eingliederungshilfe', () {
+      // ⚠️ Entscheidung des Vorsitzenden (04.09.2026): in den SGB-XII-Listen
+      // heisst das Blatt „Antrag Leistungen nach dem SGB XII"; zwei Zeilen für
+      // dasselbe Papier hätten den Zähler nie voll werden lassen. Bei der
+      // Eingliederungshilfe bleibt das allgemeine Formular, weil dort kein
+      // SGB-XII-Antrag stehen darf und die Liste sonst gar keine Antragszeile
+      // mehr hätte.
+      //
+      // Beim Entfernen geprüft: `checked_docs` enthielt eine leere Liste und
+      // `sozialamt_antrag_docs` null Zeilen — es ging kein Haken und keine
+      // Datei verloren.
+      for (final n in ['Grundsicherung im Alter', 'Grundsicherung bei Erwerbsminderung', 'Hilfe zur Pflege']) {
+        expect(keysAus(leistungsListe(n)).contains('antrag_formular'), isFalse, reason: 'noch bei „$n"');
+      }
+      expect(keysAus(block('  static const _defaultDocs = [', '\n  ];')).contains('antrag_formular'), isFalse,
+          reason: 'noch in der Rückfallliste');
+      expect(keysAus(leistungsListe('Eingliederungshilfe')).contains('antrag_formular'), isTrue,
+          reason: 'die Eingliederungshilfe hätte sonst gar keine Antragszeile');
+    });
+
+    test('jede Liste hat genau EINE Antragszeile', () {
+      for (final b in [
+        ...mitEigenerListe.map(leistungsListe),
+        block('  static const _defaultDocs = [', '\n  ];'),
+      ]) {
+        final k = keysAus(b);
+        final antraege = k.where((e) => e == 'antrag_sgb12' || e == 'antrag_formular').toList();
+        expect(antraege.length, 1,
+            reason: 'Antragszeilen: ${antraege.join(', ')} in ${k.join(', ')}');
       }
     });
 
