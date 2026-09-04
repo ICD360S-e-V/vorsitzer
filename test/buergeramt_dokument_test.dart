@@ -148,6 +148,52 @@ void main() {
       expect(rumpf, contains("Map<String, String>.from(_headers)"));
     });
 
+    test('Gerät UND verschlüsselte Cloud führen zur Bestätigung', () {
+      // Die Unterlagen liegen oft gar nicht auf dem Gerät des Vorsitzenden,
+      // sondern in der Cloud (der Knopf neben dem Live-Chat). Ohne diesen Weg
+      // müsste er sie erst herunterladen, ablegen und wieder hochladen — und
+      // dabei entstünde genau die entschlüsselte Kopie, die wir vermeiden.
+      final src = ohneKommentare(quelle('lib/widgets/behorde_einwohnermeldeamt.dart'));
+      final i = src.indexOf('Widget _buildDokument(');
+      expect(i, isNot(-1));
+      final rumpf = src.substring(i, src.indexOf('String _groesse('));
+      expect(rumpf, contains('CloudPickButton('),
+          reason: 'ohne Cloud-Knopf bleibt nur der Weg über das Gerät');
+      expect(rumpf, contains('maxFiles: 1'),
+          reason: 'eine Bestätigung je Vorfall — sonst käme aus der Cloud eine zweite');
+      expect(rumpf, contains('allowedExtensions: kBuergeramtDokEndungen'),
+          reason: 'sonst ließe die Cloud einen Typ durch, den der Geräte-Knopf ablehnt');
+    });
+
+    test('beide Quellen laufen durch DENSELBEN Weg', () {
+      // ⚠️ Zwei getrennte Hochladewege bekämen je eigene Grenzen und
+      // Fehlermeldungen; an der zweiten würde eine Prüfung vergessen.
+      final src = ohneKommentare(quelle('lib/widgets/behorde_einwohnermeldeamt.dart'));
+      expect(RegExp(r'_dokUebernehmen\(').allMatches(src).length, greaterThanOrEqualTo(3),
+          reason: 'erwartet: Definition + Aufruf vom Gerät + Aufruf aus der Cloud');
+      // Die Prüfung darf nur EINMAL dastehen — im gemeinsamen Weg.
+      expect(RegExp(r'buergeramtDokAblehnung\(').allMatches(src).length, 1,
+          reason: 'eine zweite Prüfung wäre eine, die auseinanderlaufen kann');
+    });
+
+    test('die entschlüsselte Zwischendatei der Cloud wird gelöscht', () {
+      // ⚠️ `CloudPickerHelper` legt Cloud-Dateien ENTSCHLÜSSELT unter
+      // `cloud_pick_…` im temporären Verzeichnis ab, und niemand räumt sie
+      // weg. Bei einer Meldebestätigung (Name und Anschrift) ist das genau
+      // das, was auf dem Server mit Aufwand vermieden wird.
+      final src = ohneKommentare(quelle('lib/widgets/behorde_einwohnermeldeamt.dart'));
+      final i = src.indexOf('Future<void> _dokUebernehmen(');
+      expect(i, isNot(-1));
+      final rumpf = src.substring(i, src.indexOf('Future<void> _dokAnsehen('));
+      expect(rumpf, contains('if (ausCloud)'));
+      expect(rumpf, contains('.delete()'));
+      // Und zwar unabhängig davon, ob der Upload geglückt ist: ein
+      // Fehlschlag ist kein Grund, den Klartext liegen zu lassen.
+      expect(rumpf.indexOf('.delete()'), lessThan(rumpf.indexOf("r['success']")),
+          reason: 'das Löschen steht hinter dem Erfolgszweig — bei einem '
+              'Fehlschlag bliebe der Klartext auf dem Gerät');
+    });
+
     test('die Bestätigung wird nicht auf die Platte geschrieben', () {
       // Eine Meldebestätigung trägt Name und Anschrift. Auf dem Server liegt
       // sie verschlüsselt; sie hier entschlüsselt abzulegen gäbe das wieder
