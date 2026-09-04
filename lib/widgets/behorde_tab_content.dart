@@ -103,7 +103,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     'gericht': ['gericht_typ', 'gericht_name', 'aktenzeichen', 'dienststelle', 'sachbearbeiter'],
     'krankenkasse': ['krankenkasse_name', 'versichertennummer', 'versicherungsart'],
     'rentenversicherung': ['versicherungsnummer', 'rentenversicherung_name', 'dienststelle', 'rentenart', 'entgeltpunkte'],
-    'auslaenderbehoerde': ['aufenthaltstitel', 'gueltig_bis', 'dienststelle', 'aktenzeichen'],
+    // Aufenthaltstitel, Gültigkeit und Aktenzeichen liegen seit der Umstellung
+    // am Vorfall, nicht an den Stammdaten — der Reiter selbst führt nur das Amt.
+    // Vorher stand hier `gueltig_bis`, gespeichert wurde aber `ablaufdatum`:
+    // das Feld war nie befüllt, der Reiter kam nie über 75 %.
+    'auslaenderbehoerde': ['dienststelle'],
     'familienkasse': ['kindergeld_nummer', 'dienststelle', 'sachbearbeiter', 'anzahl_kinder', 'kinder'],
     'jugendamt': ['sachbearbeiter', 'sachbearbeiter_tel', 'dienststelle'],
     'einwohnermeldeamt': ['anmeldung_datum', 'dienststelle'],
@@ -606,12 +610,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   antraegeBuilder: ({required behoerdeType, required antraege, required artItems, required statusItems, required onChanged, required context}) => _buildAntraegeSection(behoerdeType: behoerdeType, antraege: antraege, artItems: artItems, statusItems: statusItems, onChanged: onChanged, context: context),
                 ),
                 BehordeAuslaenderbehoerdeContent(
-                  getData: (t) => _behoerdeData[t] ?? {},
-                  isLoading: (t) => _behoerdeLoading[t] == true,
-                  isSaving: (t) => _behoerdeSaving[t] == true,
-                  loadData: (t) => _loadBehoerdeData(t),
-                  saveData: (t, d) => _saveBehoerdeData(t, d),
-                  dienststelleBuilder: (t, c) => _buildDienststelleField(t, c),
+                  apiService: widget.apiService,
+                  userId: widget.user.id,
                 ),
                 BehordeFamilienkasseContent(
                   apiService: widget.apiService,

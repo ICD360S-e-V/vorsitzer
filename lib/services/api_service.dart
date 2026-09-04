@@ -12763,6 +12763,56 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // === AUSLÄNDERBEHÖRDE ===
+  // Aufbau wie Bürgeramt: Reiter 1 sind die Stammdaten (zuständiges Amt),
+  // Reiter 2 die Vorfälle. Der Aufenthaltsstatus sitzt am Vorfall, weil jede
+  // Verlängerung ein eigener Vorgang mit eigenem Ablaufdatum ist.
+
+  Future<Map<String, dynamic>> getAuslaenderbehoerdeData(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/auslaenderbehoerde_manage.php?user_id=$userId&action=all'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveAuslaenderbehoerdeData(int userId, Map<String, dynamic> data) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/auslaenderbehoerde_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_data', 'data': data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveAuslaenderbehoerdeVorfall(int userId, Map<String, dynamic> vorfall) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/auslaenderbehoerde_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_vorfall', 'vorfall': vorfall})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteAuslaenderbehoerdeVorfall(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/auslaenderbehoerde_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_vorfall', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> getAuslaenderbehoerdeVorfallDetail(int userId, int vorfallId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/auslaenderbehoerde_manage.php?user_id=$userId&action=vorfall_detail&vorfall_id=$vorfallId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveAuslaenderbehoerdeKorr(int userId, int vorfallId, Map<String, dynamic> korr) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/auslaenderbehoerde_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_korr', 'vorfall_id': vorfallId, 'korr': korr})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteAuslaenderbehoerdeKorr(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/auslaenderbehoerde_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_korr', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveAuslaenderbehoerdeTermin(int userId, int vorfallId, Map<String, dynamic> termin) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/auslaenderbehoerde_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_termin', 'vorfall_id': vorfallId, 'termin': termin})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteAuslaenderbehoerdeTermin(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/auslaenderbehoerde_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_termin', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveAuslaenderbehoerdeVerlauf(int userId, int vorfallId, Map<String, dynamic> verlauf) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/auslaenderbehoerde_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_verlauf', 'vorfall_id': vorfallId, 'verlauf': verlauf})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteAuslaenderbehoerdeVerlauf(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/auslaenderbehoerde_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_verlauf', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // === BÜRGERAMT: Meldebestätigung (genau EINE je Vorfall) ===
 
   /// Lädt die Bestätigung hoch. Eine vorhandene wird dabei ersetzt — das
