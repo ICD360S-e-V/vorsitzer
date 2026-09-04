@@ -185,9 +185,19 @@ void main() {
           reason: 'Eingliederungshilfe ist SGB IX, nicht SGB XII');
     });
 
-    test('Fragebogen zum Angehörigen bei Pflege und Eingliederungshilfe', () {
-      expect(keysAus(leistungsListe('Hilfe zur Pflege')).contains('fragebogen_angehoerige'), isTrue);
-      expect(keysAus(leistungsListe('Eingliederungshilfe')).contains('fragebogen_angehoerige'), isTrue);
+    test('Fragebogen zu den Angehörigen in JEDER Liste', () {
+      // ⚠️ Erst fehlte er bei beiden Grundsicherungen — ausgelassen mit dem
+      // Argument, § 43 Abs. 5 SGB XII schirme Kinder und Eltern unterhalb der
+      // Einkommensgrenze ab. Falsch: das Amt legt den Bogen dem Antragssatz
+      // trotzdem bei, und was nicht in der Liste steht, kann auch nicht
+      // abgelegt werden. Diese Prüfung hält das fest.
+      for (final b in [
+        ...mitEigenerListe.map(leistungsListe),
+        block('  static const _defaultDocs = [', '\n  ];'),
+      ]) {
+        expect(keysAus(b).contains('fragebogen_angehoerige'), isTrue,
+            reason: 'fehlt in: ${keysAus(b).join(', ')}');
+      }
     });
   });
 
