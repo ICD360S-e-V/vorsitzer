@@ -140,6 +140,19 @@ void main() {
       }
     });
 
+    test('Antrag nach dem SGB XII überall AUSSER bei der Eingliederungshilfe', () {
+      // ⚠️ Die Eingliederungshilfe steht seit dem BTHG (2020) im SGB IX
+      // Teil 2, nicht mehr im SGB XII. Die Zeile dort wäre ein Haken, den
+      // nie jemand setzen kann — und der Balken erreichte die volle Zahl nie.
+      for (final n in ['Grundsicherung im Alter', 'Grundsicherung bei Erwerbsminderung', 'Hilfe zur Pflege']) {
+        expect(keysAus(leistungsListe(n)).contains('antrag_sgb12'), isTrue, reason: 'fehlt bei „$n"');
+      }
+      expect(keysAus(block('  static const _defaultDocs = [', '\n  ];')).contains('antrag_sgb12'), isTrue,
+          reason: 'fehlt in der Rückfallliste');
+      expect(keysAus(leistungsListe('Eingliederungshilfe')).contains('antrag_sgb12'), isFalse,
+          reason: 'Eingliederungshilfe ist SGB IX, nicht SGB XII');
+    });
+
     test('Fragebogen zum Angehörigen bei Pflege und Eingliederungshilfe', () {
       expect(keysAus(leistungsListe('Hilfe zur Pflege')).contains('fragebogen_angehoerige'), isTrue);
       expect(keysAus(leistungsListe('Eingliederungshilfe')).contains('fragebogen_angehoerige'), isTrue);

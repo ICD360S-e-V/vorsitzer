@@ -517,6 +517,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
       ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
       ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
       ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
+      ('antrag_sgb12', 'Antrag nach dem SGB XII', Icons.assignment_outlined),
       ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
     ],
     'Grundsicherung bei Erwerbsminderung': [
@@ -539,6 +540,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
       ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
       ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
       ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
+      ('antrag_sgb12', 'Antrag nach dem SGB XII', Icons.assignment_outlined),
       ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
     ],
     'Hilfe zur Pflege': [
@@ -564,6 +566,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
       ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
       ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
       ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
+      ('antrag_sgb12', 'Antrag nach dem SGB XII', Icons.assignment_outlined),
       ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
     ],
     'Eingliederungshilfe': [
@@ -580,6 +583,9 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
       ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
       ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
       ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
+      // ⚠️ NICHT bei der Eingliederungshilfe: die steht seit dem BTHG (2020)
+      // im SGB IX Teil 2, nicht mehr im SGB XII. Ein Antrag nach dem SGB XII
+      // wäre dort ein Haken, den nie jemand setzen kann.
       ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
     ],
   };
@@ -605,6 +611,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     ('sgb1_auszug', 'Auszug aus dem SGB I', Icons.gavel),
     ('datenschutz_art13', 'Datenschutzhinweise nach Art. 13 DSGVO', Icons.privacy_tip_outlined),
     ('hinweise_sozialhilfeantrag', 'Wichtige Hinweise zum Sozialhilfeantrag', Icons.info_outline),
+    ('antrag_sgb12', 'Antrag nach dem SGB XII', Icons.assignment_outlined),
     ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
     ('sonstiges', 'Sonstiges Dokument', Icons.attach_file),
   ];
