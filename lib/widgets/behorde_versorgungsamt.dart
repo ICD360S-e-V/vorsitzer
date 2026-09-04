@@ -18,6 +18,41 @@ import '../utils/zbfs_kontaktformular.dart';
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
 
+/// ======================= Ablauf des Schwerbehindertenausweises ==============
+/// Der Ausweis ist meist befristet; die Verlängerung wird beim Versorgungsamt
+/// (ZBFS) beantragt, frühestens **drei Monate** vor Ablauf.
+///
+/// ⚠️ Dieselbe Regel steckt im Server-Cron `api/cron/sb_ausweis_ablauf_check.php`
+/// (täglich 07:47), der das Erinnerungsticket von sich aus anlegt. Das PHP liegt
+/// in keinem Repo, also ist `test/sb_ausweis_regel_test.dart` die einzige Stelle,
+/// an der ein Auseinanderlaufen überhaupt auffallen kann.
+const int kSbAusweisVorlaufMonate = 3;
+
+/// Drei Monate vor [ablauf], am Monatsende geklemmt.
+/// ⚠️ Nicht naiv „Monat minus drei": der 31.05. hätte im Februar keinen 31.,
+/// und ein Überlauf schöbe die Erinnerung um Tage nach hinten — genau in die
+/// Richtung, die schadet. Geklemmt wird auf den 28./29. Februar.
+DateTime sbAusweisAnstossTag(DateTime ablauf) {
+  final zielMonat = DateTime(ablauf.year, ablauf.month - kSbAusweisVorlaufMonate, 1);
+  final letzterTag = DateTime(zielMonat.year, zielMonat.month + 1, 0).day;
+  return DateTime(zielMonat.year, zielMonat.month,
+      ablauf.day < letzterTag ? ablauf.day : letzterTag);
+}
+
+/// Ist die Verlängerung fällig (inklusive: der Ausweis ist bereits abgelaufen)?
+bool sbAusweisFaellig(DateTime? ablauf, DateTime heute, {bool unbefristet = false}) {
+  if (unbefristet || ablauf == null) return false;
+  return !heute.isBefore(sbAusweisAnstossTag(ablauf));
+}
+
+/// Das Datumsfeld hält ISO (`YYYY-MM-DD`); leer heißt „nicht erfasst", nicht
+/// „unbefristet" — das ist ein eigenes Kästchen.
+DateTime? sbAusweisAblaufLesen(String roh) {
+  final t = roh.trim();
+  if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(t)) return null;
+  return DateTime.tryParse(t);
+}
+
 /// Antragsarten des Versorgungsamts (Schwerbehindertenrecht SGB IX +
 /// soziales Entschädigungsrecht SGB XIV). (key, langes Label, kurzes Label)
 const List<(String, String, String)> kVaAntragsarten = [
@@ -1349,6 +1384,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             const Flexible(child: Text('Unbefristet', style: TextStyle(fontSize: 12))),
           ])),
         ]),
+        _ausweisAblaufHinweis(),
         const SizedBox(height: 20),
 
         // ── SCAN DES AUSWEISES ──
@@ -1886,6 +1922,49 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
         const SizedBox(width: 8),
         Expanded(child: phoneAwareText(icon, text, style: const TextStyle(fontSize: 12))),
       ]),
+    );
+  }
+
+  /// Zeigt am „Gültig bis" an, wo der Ausweis steht. Das Erinnerungsticket legt
+  /// der Server-Cron ab drei Monaten vor Ablauf selbst an — der Hinweis sagt das
+  /// ausdrücklich, damit niemand hier auf eine Schaltfläche wartet, die es nicht
+  /// gibt, oder glaubt, er müsse sich das Datum selbst merken.
+  Widget _ausweisAblaufHinweis() {
+    if (_ausweisUnbefristet) return const SizedBox.shrink();
+    final ablauf = sbAusweisAblaufLesen(_ausweisGueltigBisC.text);
+    if (ablauf == null) return const SizedBox.shrink();
+    final heute = DateTime.now();
+    final abgelaufen = ablauf.isBefore(DateTime(heute.year, heute.month, heute.day));
+    if (!abgelaufen && !sbAusweisFaellig(ablauf, heute)) return const SizedBox.shrink();
+    final farbe = abgelaufen ? Colors.red : Colors.orange;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: F.h(farbe, 50),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: F.h(farbe, 300)),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(abgelaufen ? Icons.error : Icons.warning_amber, size: 18, color: F.h(farbe, 700)),
+          const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              abgelaufen
+                  ? 'Der Ausweis ist abgelaufen. Verlängerung beim Versorgungsamt beantragen.'
+                  : 'Der Ausweis läuft in weniger als $kSbAusweisVorlaufMonate Monaten ab — die Verlängerung ist jetzt beantragbar.',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(farbe, 900)),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Das Erinnerungsticket legt das System ab $kSbAusweisVorlaufMonate Monaten vor Ablauf automatisch an.',
+              style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: F.h(farbe, 800)),
+            ),
+          ])),
+        ]),
+      ),
     );
   }
 
