@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import '../services/api_service.dart';
@@ -612,7 +613,11 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
             IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _dokLoeschen(d)),
           ])),
       const SizedBox(height: 12),
-      Row(children: [
+      // Zwei Quellen, ein Weg dahinter: beide enden in `_dokUebernehmen`
+      // und damit im selben Endpunkt mit derselben Prüfung. Zwei getrennte
+      // Hochladewege hätten je eigene Grenzen und Fehlermeldungen — genau
+      // das Muster, an dem anderswo ein unbekannter Typ durchrutschte.
+      Wrap(spacing: 8, runSpacing: 6, children: [
         FilledButton.icon(
           icon: _dokLaeuft
               ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -620,6 +625,22 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
           label: Text(d == null ? '$titel hochladen' : 'Ersetzen', style: const TextStyle(fontSize: 12)),
           style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600),
           onPressed: _dokLaeuft ? null : _dokHochladen),
+        // ⚠️ `CloudPickButton` wählt den ZUSTÄNDIGEN Speicher selbst: die
+        // 50-GB-Cloud des Vorsitzenden (Ende-zu-Ende, der Knopf neben dem
+        // Live-Chat) für seine eigene Akte, sonst die 1-GB-Cloud des
+        // Mitglieds. Ein hier durchgereichtes Kennzeichen würde an der
+        // ersten vergessenen Stelle still den leeren Speicher öffnen.
+        CloudPickButton(
+          memberId: widget.userId,
+          apiService: widget.apiService,
+          allowedExtensions: kBuergeramtDokEndungen,
+          maxFiles: 1,
+          enabled: !_dokLaeuft,
+          onPicked: (r) {
+            final f = r.files.firstOrNull;
+            if (f != null) _dokUebernehmen(f, ausCloud: true);
+          },
+        ),
       ]),
       const SizedBox(height: 8),
       Text('PDF, JPG oder JPEG · höchstens 20 MB · eine Datei', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
@@ -646,6 +667,15 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
     );
     final datei = (auswahl?.files ?? []).firstOrNull;
     if (datei == null) return;
+    await _dokUebernehmen(datei);
+  }
+
+  /// Der gemeinsame Weg für Gerät und Cloud.
+  ///
+  /// [ausCloud] entscheidet allein, ob die entschlüsselte Zwischendatei
+  /// danach vom Gerät verschwindet — hochgeladen wird in beiden Fällen
+  /// gleich, damit es keine zweite Prüfung mit eigenen Grenzen gibt.
+  Future<void> _dokUebernehmen(PlatformFile datei, {bool ausCloud = false}) async {
     // ⚠️ Der Dateiwähler lässt sich auf manchen Plattformen umgehen („alle
     // Dateien"); die Endung wird deshalb hier NOCH einmal geprüft und auf
     // dem Server ein drittes Mal gegen den Inhalt.
@@ -657,6 +687,18 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
     final r = await widget.apiService.uploadBuergeramtDokument(
       userId: widget.userId, vorfallId: widget.vorfallId,
       pfad: datei.path!, dateiname: datei.name);
+
+    // ⚠️ Aus der Ende-zu-Ende-Cloud kommt die Datei ENTSCHLÜSSELT als
+    // Zwischendatei auf dem Gerät — `CloudPickerHelper` legt sie unter
+    // `cloud_pick_…` ab und niemand räumt sie weg. Bei einer
+    // Meldebestätigung (Name und Anschrift) ist das genau das, was auf dem
+    // Server mit einigem Aufwand vermieden wird. Sie geht deshalb hier
+    // wieder weg, gelungen oder nicht — ein fehlgeschlagener Upload ist kein
+    // Grund, den Klartext liegen zu lassen.
+    if (ausCloud) {
+      try { await File(datei.path!).delete(); } catch (_) {}
+    }
+
     if (!mounted) return;
     setState(() => _dokLaeuft = false);
     if (r['success'] == true) {
