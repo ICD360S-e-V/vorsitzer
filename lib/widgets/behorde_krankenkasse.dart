@@ -719,7 +719,10 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           _sectionHeader(Icons.local_hospital, 'Zuständige Krankenkasse', Colors.blue),
           const SizedBox(height: 8),
           widget.dienststelleBuilder(type, _dienststelleController),
-          Text('Zuständige Krankenkasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
+          // ⚠️ „Name" — die Auswahl direkt darüber heißt Geschäftsstelle und
+          // trägt den Kontaktweg. Beide „Zuständige Krankenkasse" zu nennen
+          // war der Grund, warum die obere leer blieb.
+          Text('Name der Krankenkasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           _buildKrankenkassePickerField(),
           Builder(builder: (context) {
