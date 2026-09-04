@@ -24,8 +24,8 @@ class UpdateService {
   // no internal-server SSH, no Device Key required, runs entirely on cloud.
   static const String versionUrl =
       'https://github.com/ICD360S-e-V/vorsitzer/releases/latest/download/version_vorsitzer.json';
-  static const String currentVersion = '6.190.0';
-  static const int currentBuildNumber = 1903;
+  static const String currentVersion = '6.190.1';
+  static const int currentBuildNumber = 1904;
 
   late http.Client _client;
   late HttpClient _httpClient;
