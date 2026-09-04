@@ -22,6 +22,33 @@ import '../utils/sicherer_dateiname.dart';
 import 'krankenkasse_vollmacht.dart';
 import 'krankenkasse_hzv.dart';
 
+/// ============================ Befreiungsausweis =============================
+/// Der Ausweis zur Zuzahlungsbefreiung gilt für ein Kalenderjahr und läuft
+/// immer am 31.12. ab.
+///
+/// ⚠️ Diese drei Regeln stehen ein zweites Mal im Server-Cron
+/// `api/cron/befreiungsausweis_ablauf_check.php` (täglich 07:42), der das
+/// Erinnerungsticket von sich aus anlegt — das PHP liegt in keinem Repo, also
+/// ist `test/befreiungsausweis_regel_test.dart` die einzige Stelle, an der ein
+/// Auseinanderlaufen überhaupt auffallen kann. Weicht der Betreff ab, erkennt
+/// der Server das Duplikat nicht mehr und das Mitglied bekommt zwei Tickets.
+
+/// Ab wann erinnert wird: 1. November des Ausweisjahres — genau zwei Monate
+/// vor Ablauf. Ein bereits abgelaufener Ausweis erinnert sofort.
+DateTime befreiungAnstossTag(int ausweisJahr) => DateTime(ausweisJahr, 11, 1);
+
+/// Jahr, für das der neue Ausweis beantragt werden muss.
+int befreiungZieljahr(int ausweisJahr, DateTime heute) =>
+    ausweisJahr < heute.year ? heute.year : ausweisJahr + 1;
+
+/// Betreff des Erinnerungstickets. ⚠️ Zeichengleich mit dem des Crons — daran
+/// und nur daran erkennt `tickets/admin_create.php` das Duplikat.
+String befreiungTicketBetreff(int zieljahr) => 'Befreiungsausweis $zieljahr beantragen';
+
+/// Läuft der Ausweis bald ab (Warnung + Ticket fällig)?
+bool befreiungLaeuftBaldAb(int ausweisJahr, DateTime heute) =>
+    ausweisJahr == heute.year && !heute.isBefore(befreiungAnstossTag(ausweisJahr));
+
 class BehordeKrankenkasseContent extends StatefulWidget {
   final ApiService apiService;
   final TicketService ticketService;
@@ -2386,11 +2413,13 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   Widget _buildBefreiungsausweis() {
     final now = DateTime.now();
     final befreiungJahrInt = int.tryParse(_befreiungJahr) ?? now.year;
-    final nov1 = DateTime(befreiungJahrInt, 11, 1);
-    final firstMondayNov = nov1.weekday == DateTime.monday
-        ? nov1
-        : nov1.add(Duration(days: (DateTime.monday - nov1.weekday + 7) % 7));
-    final isExpiringSoon = _befreiungskarte && befreiungJahrInt == now.year && now.isAfter(firstMondayNov.subtract(const Duration(days: 1)));
+    // ⚠️ EINE Schwelle, der 1. November — genau zwei Monate vor dem 31.12.
+    // Denselben Tag benutzt der Server-Cron befreiungsausweis_ablauf_check.php
+    // (täglich 07:42), der das Erinnerungs-Ticket von sich aus anlegt. Weichen
+    // die beiden ab, warnt der Bildschirm an einem anderen Tag, als das Ticket
+    // entsteht — und niemand kann sagen, welche der beiden Stellen recht hat.
+    final nov1 = befreiungAnstossTag(befreiungJahrInt);
+    final isExpiringSoon = _befreiungskarte && befreiungLaeuftBaldAb(befreiungJahrInt, now);
     final isExpired = _befreiungskarte && befreiungJahrInt < now.year;
 
     final borderColor = isExpired
@@ -2534,35 +2563,54 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isExpired ? F.h(Colors.red, 800) : F.h(Colors.orange, 900)),
                       )),
                     ]),
+                    const SizedBox(height: 6),
+                    // Damit niemand glaubt, ohne diesen Knopf passiere nichts:
+                    // seit 04.09.2026 legt der Cron das Ticket ab dem 1. November
+                    // selbst an. Der Knopf bleibt als Nachholer, doppelt aber nicht.
+                    Text(
+                      'Das Erinnerungsticket wird ab dem 1. November automatisch angelegt — der Knopf ist nur zum Nachholen.',
+                      style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: isExpired ? F.h(Colors.red, 700) : F.h(Colors.orange, 800)),
+                    ),
                     const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: () async {
                           final messenger = ScaffoldMessenger.of(context);
-                          final nextYear = befreiungJahrInt < now.year ? now.year : now.year + 1;
-                          final novFirst = DateTime(befreiungJahrInt, 11, 1);
-                          final firstMonday = novFirst.weekday == DateTime.monday
-                              ? novFirst
-                              : novFirst.add(Duration(days: (DateTime.monday - novFirst.weekday + 7) % 7));
-                          final scheduledStr = '${firstMonday.year}-${firstMonday.month.toString().padLeft(2, '0')}-${firstMonday.day.toString().padLeft(2, '0')}';
+                          // Zieljahr aus dem AUSWEISJAHR, nicht aus dem heutigen —
+                          // sonst hiesse das Ticket bei einem im Voraus erfassten
+                          // Ausweis anders als das des Crons, und der Betreff ist
+                          // genau das, woran der Server ein Duplikat erkennt.
+                          final nextYear = befreiungZieljahr(befreiungJahrInt, now);
+                          final scheduledStr = '${nov1.year}-${nov1.month.toString().padLeft(2, '0')}-${nov1.day.toString().padLeft(2, '0')}';
 
                           final result = await widget.ticketService.createTicketForMember(
                             adminMitgliedernummer: widget.adminMitgliedernummer,
                             memberMitgliedernummer: widget.user.mitgliedernummer,
-                            subject: 'Befreiungsausweis $nextYear beantragen',
+                            subject: befreiungTicketBetreff(nextYear),
                             message: 'Der Befreiungsausweis für $_befreiungJahr läuft zum Jahresende ab.\n\n'
                                 'Bitte neuen Antrag bei der Krankenkasse (${_krankenkasseNameController.text}) stellen für das Jahr $nextYear.\n\n'
                                 'Versichertennummer: ${_versichertennummerController.text}\n'
                                 'Krankenkasse: ${_krankenkasseNameController.text}',
                             priority: 'high',
                             scheduledDate: scheduledStr,
+                            // Der Cron legt dasselbe Ticket ab dem 1. November von
+                            // selbst an. Ohne diese Prüfung entstünde beim Druck
+                            // auf den Knopf ein zweites mit gleichem Betreff.
+                            dedupeSubject: true,
                           );
 
-                          if (result.containsKey('ticket')) {
+                          if (result['duplicate'] == true) {
                             messenger.showSnackBar(
                               SnackBar(
-                                content: Text('Erinnerungsticket für Befreiungsausweis $nextYear erstellt (geplant: ${firstMonday.day.toString().padLeft(2, '0')}.${firstMonday.month.toString().padLeft(2, '0')}.${firstMonday.year})'),
+                                content: Text('Für dieses Mitglied gibt es bereits ein Ticket „Befreiungsausweis $nextYear beantragen".'),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                          } else if (result.containsKey('ticket')) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Erinnerungsticket für Befreiungsausweis $nextYear erstellt (geplant: ${nov1.day.toString().padLeft(2, '0')}.${nov1.month.toString().padLeft(2, '0')}.${nov1.year})'),
                                 backgroundColor: Colors.green,
                               ),
                             );
