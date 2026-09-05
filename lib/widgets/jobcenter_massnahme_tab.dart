@@ -261,10 +261,13 @@ class _JobcenterMassnahmeTabState extends State<JobcenterMassnahmeTab>
             _zeile(Icons.schedule, 'Stunden/Woche', z['stunden_woche'].toString()),
           if ((z['durchfuehrungsort'] ?? '').toString().isNotEmpty)
             _zeile(Icons.place_outlined, 'Durchführungsort', z['durchfuehrungsort'].toString()),
-          if ((z['massnahmenummer'] ?? '').toString().isNotEmpty)
-            _zeile(Icons.tag, 'Maßnahmenummer', z['massnahmenummer'].toString()),
+          if ((z['nummer_wirksam'] ?? z['massnahmenummer'] ?? '').toString().isNotEmpty)
+            _zeile(Icons.tag, 'Nummer der Maßnahme',
+                (z['nummer_wirksam'] ?? z['massnahmenummer']).toString()),
+          if ((z['kundennummer'] ?? '').toString().isNotEmpty)
+            _zeile(Icons.badge_outlined, 'Kundennummer', z['kundennummer'].toString()),
           if ((z['aktenzeichen'] ?? '').toString().isNotEmpty)
-            _zeile(Icons.folder_outlined, 'Aktenzeichen', z['aktenzeichen'].toString()),
+            _zeile(Icons.folder_outlined, 'Aktenzeichen (Jobcenter)', z['aktenzeichen'].toString()),
           _zeile(Icons.gavel, 'Rechtsgrundlage',
               z['rechtsgrundlage']?.toString() ?? kMassnahmeRechtsgrundlage),
 
@@ -415,6 +418,8 @@ class _ZuweisungDialogState extends State<_ZuweisungDialog> {
   final _stunden = TextEditingController();
   final _ort = TextEditingController();
   final _az = TextEditingController();
+  final _nummer = TextEditingController();
+  final _kunde = TextEditingController();
   final _notiz = TextEditingController();
 
   @override
@@ -432,6 +437,8 @@ class _ZuweisungDialogState extends State<_ZuweisungDialog> {
       _stunden.text = (v['stunden_woche'] ?? '').toString();
       _ort.text = (v['durchfuehrungsort'] ?? '').toString();
       _az.text = (v['aktenzeichen'] ?? '').toString();
+      _nummer.text = (v['massnahmenummer'] ?? '').toString();
+      _kunde.text = (v['kundennummer'] ?? '').toString();
       _notiz.text = (v['notiz'] ?? '').toString();
     }
     _traegerLaden();
@@ -444,7 +451,8 @@ class _ZuweisungDialogState extends State<_ZuweisungDialog> {
 
   @override
   void dispose() {
-    for (final c in [_zuweisung, _bekanntgabe, _beginn, _ende, _stunden, _ort, _az, _notiz]) {
+    for (final c in [_zuweisung, _bekanntgabe, _beginn, _ende, _stunden, _ort, _az, _notiz,
+                     _nummer, _kunde]) {
       c.dispose();
     }
     super.dispose();
@@ -609,6 +617,8 @@ class _ZuweisungDialogState extends State<_ZuweisungDialog> {
       'ende': _ende.text,
       'stunden_woche': _stunden.text.trim().replaceAll(',', '.'),
       'durchfuehrungsort': _ort.text.trim(),
+      'massnahmenummer': _nummer.text.trim(),
+      'kundennummer': _kunde.text.trim(),
       'aktenzeichen': _az.text.trim(),
       'status': _status,
       'notiz': _notiz.text.trim(),
@@ -720,7 +730,19 @@ class _ZuweisungDialogState extends State<_ZuweisungDialog> {
                                         overflow: TextOverflow.ellipsis),
                                   ))
                               .toList(),
-                          onChanged: (v) => setState(() => _angebotId = v),
+                          onChanged: (v) => setState(() {
+                            _angebotId = v;
+                            // Nummer aus dem Katalog vorschlagen — aber NIE eine
+                            // vorhandene überschreiben: im Bescheid steht die
+                            // Nummer dieses Durchgangs, und die gilt.
+                            if (_nummer.text.trim().isEmpty) {
+                              final a = _angebote.firstWhere(
+                                  (x) => mnZahl(x['id']) == v,
+                                  orElse: () => const <String, dynamic>{});
+                              final nr = (a['massnahmenummer'] ?? '').toString();
+                              if (nr.isNotEmpty) _nummer.text = nr;
+                            }
+                          }),
                         )),
                         IconButton(icon: const Icon(Icons.playlist_add),
                             tooltip: 'Neues Angebot', onPressed: _neuesAngebot),
@@ -741,8 +763,34 @@ class _ZuweisungDialogState extends State<_ZuweisungDialog> {
                       ),
                       TextField(controller: _ort,
                           decoration: const InputDecoration(labelText: 'Durchführungsort')),
-                      TextField(controller: _az,
-                          decoration: const InputDecoration(labelText: 'Aktenzeichen')),
+                      // ⚠️ Der Bescheid trägt DREI verschiedene Nummern, und sie
+                      // bedeuten Verschiedenes. Ein einziges Feld zwingt dazu,
+                      // sie zu vermischen — genau das ist beim ersten echten
+                      // Bescheid passiert.
+                      TextField(
+                        controller: _nummer,
+                        decoration: const InputDecoration(
+                          labelText: 'Nummer der Maßnahme',
+                          helperText: 'im Bescheid „Nummer der Maßnahme", z. B. 819/171/25',
+                          helperMaxLines: 2,
+                        ),
+                      ),
+                      TextField(
+                        controller: _az,
+                        decoration: const InputDecoration(
+                          labelText: 'Aktenzeichen des Jobcenters',
+                          helperText: 'im Bescheid „Mein Zeichen", z. B. 481.O-…',
+                          helperMaxLines: 2,
+                        ),
+                      ),
+                      TextField(
+                        controller: _kunde,
+                        decoration: const InputDecoration(
+                          labelText: 'Kundennummer',
+                          helperText: 'die Nummer des Mitglieds beim Jobcenter',
+                          helperMaxLines: 2,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
                         initialValue: _status,

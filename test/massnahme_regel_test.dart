@@ -11,7 +11,53 @@ import 'package:icd360sev_vorsitzer/utils/massnahme_konstanten.dart';
 const _serverStatus = ['zugewiesen','angetreten','laufend','beendet','abgebrochen','abgelehnt'];
 const _serverArten  = ['MAT','MAG','AVGS','Weiterbildung','sonstige'];
 
+
+void _nummernPruefungen() {
+  final tab = File('lib/widgets/jobcenter_massnahme_tab.dart').readAsStringSync();
+  final modal = File('lib/widgets/massnahme_detail_modal.dart').readAsStringSync();
+
+  group('Die drei Nummern des Bescheids', () {
+    test('der Dialog hat für jede ein eigenes Feld', () {
+      for (final label in [
+        "labelText: 'Nummer der Maßnahme'",
+        "labelText: 'Aktenzeichen des Jobcenters'",
+        "labelText: 'Kundennummer'",
+      ]) {
+        expect(tab.contains(label), isTrue, reason: 'Feld fehlt: $label');
+      }
+    });
+
+    test('alle drei werden auch gespeichert', () {
+      for (final k in ["'massnahmenummer':", "'kundennummer':", "'aktenzeichen':"]) {
+        expect(tab.contains(k), isTrue, reason: 'wird nicht gesendet: $k');
+      }
+    });
+
+    // ⚠️ Der Katalogwert ist nur ein Vorschlag. Im Bescheid steht die Nummer
+    // DIESES Durchgangs („/25"), und die darf nicht überschrieben werden.
+    test('eine vorhandene Nummer wird vom Katalog nicht überschrieben', () {
+      final i = tab.indexOf('if (_nummer.text.trim().isEmpty)');
+      expect(i, greaterThan(0),
+          reason: 'der Katalogvorschlag muss auf ein leeres Feld beschränkt sein');
+    });
+
+    // ⚠️ z.massnahmenummer und m.massnahmenummer hätten im SELECT denselben
+    // Namen; PDO behält still die letzte. Deshalb liefert der Server
+    // nummer_wirksam, und der Schirm nimmt die.
+    test('angezeigt wird die wirksame Nummer, nicht blind die des Katalogs', () {
+      expect(tab.contains("z['nummer_wirksam']"), isTrue);
+      expect(modal.contains("z['nummer_wirksam']"), isTrue);
+    });
+
+    test('Aktenzeichen ist als das des Jobcenters beschriftet', () {
+      expect(tab.contains("'Aktenzeichen (Jobcenter)'"), isTrue);
+      expect(modal.contains("'Aktenzeichen (Jobcenter)'"), isTrue);
+    });
+  });
+}
+
 void main() {
+  _nummernPruefungen();
   group('Kopplung an den Server', () {
     test('Status-Liste ist zeichengleich', () {
       expect(kMassnahmeStatus, _serverStatus);
@@ -115,3 +161,9 @@ void main() {
     });
   });
 }
+
+// ═════════════════════════════════════════════════════════════════════
+// Der Bescheid trägt DREI verschiedene Nummern. Ein einziges Feld zwingt
+// dazu, sie zu vermischen — beim ersten echten Bescheid ist genau das
+// passiert: die Nummer der Maßnahme landete im Aktenzeichen.
+// ═════════════════════════════════════════════════════════════════════
