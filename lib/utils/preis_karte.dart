@@ -81,3 +81,13 @@ Duration? aeltesteLesung(List<Map<String, dynamic>> links, {DateTime? jetzt}) {
 
 String euro(num? w) =>
     w == null ? '—' : '${w.toStringAsFixed(2).replaceAll('.', ',')} €';
+
+/// Prozentangabe für den Unterschied.
+///
+/// ⚠️ Unter zehn Prozent mit einer Nachkommastelle. Ohne sie werden aus
+/// 0,67 % gerundete „1 %" — das übertreibt den Unterschied um die Hälfte,
+/// und zwar ausgerechnet bei den kleinen Abständen, die den Alltag ausmachen.
+String prozentText(double p) {
+  final s = p < 10 ? p.toStringAsFixed(1) : p.toStringAsFixed(0);
+  return '${s.replaceAll('.', ',')} %';
+}

@@ -384,7 +384,7 @@ class _ProduktKarte extends StatelessWidget {
             subtitle: spanne != null && spanne.vergleichbar
                 ? Text(
                     'Unterschied ${euro(spanne.differenz)} '
-                    '(${spanne.prozent.toStringAsFixed(0)} %)',
+                    '(${prozentText(spanne.prozent)})',
                     style: const TextStyle(
                         color: Colors.green, fontWeight: FontWeight.w600, fontSize: 13),
                   )
@@ -448,19 +448,14 @@ class _ProduktKarte extends StatelessWidget {
           ),
           // ⚠️ ALLE Märkte, auch die ohne Link — sonst sieht man nicht, wo
           // noch einer fehlt, und vergleicht ahnungslos zwei von drei.
-          for (final h in haendler)
-            _MarktZeile(
-              markt: h,
-              link: links.cast<Map<String, dynamic>?>().firstWhere(
-                    (l) => '${l?['haendler_id']}' == '${h['id']}',
-                    orElse: () => null,
-                  ),
-              alleLinks: links,
-              artikelId: artikel['id'] as int,
-              linkHinzufuegen: linkHinzufuegen,
-              neuLaden: neuLaden,
-              verlaufOeffnen: verlaufOeffnen,
-            ),
+          _MarktReihe(
+            haendler: haendler,
+            links: links,
+            artikelId: artikel['id'] as int,
+            linkHinzufuegen: linkHinzufuegen,
+            neuLaden: neuLaden,
+            verlaufOeffnen: verlaufOeffnen,
+          ),
           // ⚠️ Vergleicht man zwei Preise aus verschiedenen Tagen, ist die
           // Aussage über vorgestern. Also hinschreiben, nicht verschweigen.
           if (alter != null && alter.inHours >= 36)
@@ -485,7 +480,89 @@ class _ProduktKarte extends StatelessWidget {
   }
 }
 
-class _MarktZeile extends StatelessWidget {
+/// Die Märkte nebeneinander — eine Spalte je Markt.
+///
+/// ⚠️ Bei bis zu vier Märkten teilen sie sich die Breite gleichmässig. Darüber
+/// wird die Reihe waagerecht scrollbar, statt sie enger zu quetschen: eine
+/// Row mit sechs Expanded-Kindern bricht auf einem 411-dp-Telefon in einen
+/// Überlauf, und Flutter malt dann den gelb-schwarzen Balken über die Preise.
+/// Die Märkte kommen aus der Datenbank, also ist „mehr als drei" kein
+/// hypothetischer Fall.
+class _MarktReihe extends StatelessWidget {
+  final List<Map<String, dynamic>> haendler;
+  final List<Map<String, dynamic>> links;
+  final int artikelId;
+  final Future<void> Function(int?, Map<String, dynamic>?) linkHinzufuegen;
+  final Future<void> Function() neuLaden;
+  final Future<void> Function(Map<String, dynamic>) verlaufOeffnen;
+
+  const _MarktReihe({
+    required this.haendler,
+    required this.links,
+    required this.artikelId,
+    required this.linkHinzufuegen,
+    required this.neuLaden,
+    required this.verlaufOeffnen,
+  });
+
+  static const _breiteBeiVielen = 108.0;
+
+  Map<String, dynamic>? _linkVon(Map<String, dynamic> h) =>
+      links.cast<Map<String, dynamic>?>().firstWhere(
+            (l) => '${l?['haendler_id']}' == '${h['id']}',
+            orElse: () => null,
+          );
+
+  @override
+  Widget build(BuildContext context) {
+    final spalten = [
+      for (final h in haendler)
+        _MarktSpalte(
+          markt: h,
+          link: _linkVon(h),
+          alleLinks: links,
+          artikelId: artikelId,
+          linkHinzufuegen: linkHinzufuegen,
+          neuLaden: neuLaden,
+          verlaufOeffnen: verlaufOeffnen,
+        ),
+    ];
+
+    if (haendler.length <= 4) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < spalten.length; i++) ...[
+                if (i > 0)
+                  VerticalDivider(width: 1, thickness: 1, color: F.randLeise),
+                Expanded(child: spalten[i]),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 66,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+        itemCount: spalten.length,
+        separatorBuilder: (_, __) =>
+            VerticalDivider(width: 1, thickness: 1, color: F.randLeise),
+        itemBuilder: (_, i) =>
+            SizedBox(width: _breiteBeiVielen, child: spalten[i]),
+      ),
+    );
+  }
+}
+
+/// Ein Markt in der Reihe: Name oben, Preis darunter.
+class _MarktSpalte extends StatelessWidget {
   final Map<String, dynamic> markt;
   final Map<String, dynamic>? link;
   final List<Map<String, dynamic>> alleLinks;
@@ -494,7 +571,7 @@ class _MarktZeile extends StatelessWidget {
   final Future<void> Function() neuLaden;
   final Future<void> Function(Map<String, dynamic>) verlaufOeffnen;
 
-  const _MarktZeile({
+  const _MarktSpalte({
     required this.markt,
     required this.link,
     required this.alleLinks,
@@ -506,21 +583,29 @@ class _MarktZeile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = Text('${markt['name']}',
-        style: TextStyle(color: F.textSchwach, fontSize: 13));
+    // ⚠️ Der Marktname wird bei Bedarf verkleinert statt abgeschnitten:
+    // „Rossmann" neben „dm" darf nicht zu „Rossma…" werden, sonst steht in
+    // der Spalte ein Name, den man erst raten muss.
+    final name = FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text('${markt['name']}',
+          maxLines: 1,
+          style: TextStyle(color: F.textSchwach, fontSize: 12)),
+    );
 
     if (link == null) {
       return InkWell(
         onTap: () => linkHinzufuegen(artikelId, markt),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-          child: Row(children: [
-            SizedBox(width: 88, child: name),
-            Icon(Icons.add, size: 16, color: F.textLeise),
-            const SizedBox(width: 4),
-            Text('Link hinterlegen',
-                style: TextStyle(color: F.textLeise, fontSize: 12)),
-          ]),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              name,
+              const SizedBox(height: 4),
+              Icon(Icons.add_circle_outline, size: 18, color: F.textLeise),
+            ],
+          ),
         ),
       );
     }
@@ -551,50 +636,65 @@ class _MarktZeile extends StatelessWidget {
           ),
         );
         if (weg == true) {
-          await ApiService()
-              .preiseAction({'action': 'link_loeschen', 'id': l['id']});
+          await ApiService().preiseAction({'action': 'link_loeschen', 'id': l['id']});
           await neuLaden();
         }
       },
       child: Container(
-        color: billig ? Colors.green.withValues(alpha: 0.07) : null,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        child: Row(
+        decoration: BoxDecoration(
+          color: billig ? Colors.green.withValues(alpha: 0.09) : null,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(width: 88, child: name),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            name,
+            const SizedBox(height: 3),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (l['grundpreis'] != null)
-                    Text('${l['grundpreis']}',
-                        style: TextStyle(color: F.textLeise, fontSize: 11)),
-                  // ⚠️ Ein Fehler wird ausgeschrieben. Sonst steht dort weiter
-                  // der alte Preis und sieht aus wie „unverändert".
-                  if (fehler != null)
-                    Text('nicht lesbar: $fehler',
-                        style: const TextStyle(color: Colors.orange, fontSize: 11),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                  if (fehler == null && l['zuletzt_geprueft'] == null)
-                    Text('noch nicht gelesen',
-                        style: TextStyle(color: F.textLeise, fontSize: 11)),
+                  if (billig)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 3),
+                      child: Icon(Icons.check, size: 14, color: Colors.green),
+                    ),
+                  Text(
+                    euro(l['letzter_preis'] as num?),
+                    style: TextStyle(
+                      color: billig ? Colors.green.shade700 : F.textStark,
+                      fontWeight: billig ? FontWeight.bold : FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
                 ],
               ),
             ),
-            if (billig)
+            // ⚠️ Ein Fehler bekommt ein eigenes Zeichen. Sonst steht in der
+            // Spalte weiter der alte Preis und sieht aus wie „unverändert".
+            if (fehler != null)
               const Padding(
-                padding: EdgeInsets.only(right: 6),
-                child: Icon(Icons.check_circle, size: 16, color: Colors.green),
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(Icons.error_outline, size: 13, color: Colors.orange),
+              )
+            else if (l['zuletzt_geprueft'] == null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text('ungelesen',
+                    style: TextStyle(color: F.textLeise, fontSize: 9)),
+              )
+            else if (l['grundpreis'] != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('${l['grundpreis']}',
+                      maxLines: 1,
+                      style: TextStyle(color: F.textLeise, fontSize: 9)),
+                ),
               ),
-            Text(
-              euro(l['letzter_preis'] as num?),
-              style: TextStyle(
-                color: billig ? Colors.green.shade700 : F.textStark,
-                fontWeight: billig ? FontWeight.bold : FontWeight.w500,
-                fontSize: 15,
-              ),
-            ),
           ],
         ),
       ),

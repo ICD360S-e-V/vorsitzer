@@ -101,9 +101,28 @@ void main() {
     });
   });
 
+  prozentPruefungen();
+
   test('Euro deutsch, mit Komma', () {
     expect(euro(5.95), '5,95 €');
     expect(euro(0.04), '0,04 €');
     expect(euro(null), '—');
+  });
+}
+
+// ⚠️ Nachgetragen, nachdem die Ansicht 0,67 % als „1 %" gezeigt hat: das
+// übertreibt den Unterschied um die Hälfte, und zwar bei genau den kleinen
+// Abständen, die den Alltag ausmachen.
+void prozentPruefungen() {
+  group('Prozentangabe', () {
+    test('unter zehn Prozent mit Nachkommastelle', () {
+      expect(prozentText(0.67), '0,7 %');
+      expect(prozentText(1.0), '1,0 %');
+      expect(prozentText(9.94), '9,9 %');
+    });
+    test('ab zehn Prozent ohne', () {
+      expect(prozentText(30.0), '30 %');
+      expect(prozentText(23.456), '23 %');
+    });
   });
 }
