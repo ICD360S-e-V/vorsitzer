@@ -2604,6 +2604,24 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // Preisüberwachung Drogeriemärkte — Link rein, Preisverlauf raus.
+  //
+  // ⚠️ Die Seiten liest nicht der Server, sondern der Linux-Client mit
+  // Chromium (dm liefert eine Seite ohne Preis, Rossmann eine Bot-Abfrage).
+  // „queue" und „report" sind deshalb die beiden Enden desselben Laufs und
+  // kommen von demselben Gerät.
+  Future<Map<String, dynamic>> preiseAction(Map<String, dynamic> data) async {
+    final response = await _client
+        .post(Uri.parse('$baseUrl/preise/manage.php'),
+            headers: _headers, body: jsonEncode(data))
+        .timeout(const Duration(seconds: 30));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false};
+    }
+  }
+
   // Briefversand über LetterXpress — PDF rein, echter Brief raus.
   //
   // ⚠️ „senden" lädt die ganze PDF hoch (bis 50 MB) und der Server fragt
