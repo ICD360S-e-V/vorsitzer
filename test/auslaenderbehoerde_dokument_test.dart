@@ -234,6 +234,45 @@ void main() {
       expect(s, contains('length: arten.isEmpty ? 4 : 5'));
     });
 
+    test('es gibt einen zweiten Weg: aus dem Cloud', () {
+      final s = quelle('lib/widgets/behorde_auslaenderbehoerde.dart');
+      expect(s, contains('CloudPickerHelper.pickFiles('));
+      // ⚠️ maxFiles: 1 — je Platz nimmt der Server genau eine Datei. Ohne die
+      // Grenze dürfte man drei wählen, von denen zwei stillschweigend fallen.
+      expect(s, contains('maxFiles: 1'));
+      // ⚠️ Derselbe Filter wie beim Geräte-Weg. Die Cloud-Dialoge kennen keine
+      // Typfilter; ohne ihn wiese erst der Server ab.
+      final i = s.indexOf('Future<void> _dokAusCloud');
+      expect(i, greaterThan(-1));
+      final block = s.substring(i, s.indexOf('Future<void> _dokUebernehmen', i));
+      expect(block, contains('allowedExtensions: kAbDokEndungen'));
+    });
+
+    test('welcher Speicher sich öffnet, entscheidet der Helfer', () {
+      // ⚠️ Ein hier durchgereichtes Kennzeichen wäre die Stelle, an der später
+      // der falsche — und damit leere — Speicher aufgeht. Der Helfer nimmt nur
+      // die memberId und wählt selbst.
+      final s = quelle('lib/widgets/behorde_auslaenderbehoerde.dart');
+      final i = s.indexOf('Future<void> _dokAusCloud');
+      final block = s.substring(i, s.indexOf('Future<void> _dokUebernehmen', i));
+      expect(block, contains('memberId: widget.userId'));
+      // Die Beschriftung nennt den Speicher, damit klar ist, wessen Cloud.
+      expect(s, contains('CloudPickerHelper.istVerschluesselt(widget.userId)'));
+      expect(s, contains('Aus Cloud des Mitglieds'));
+      expect(s, contains('Aus eigenem Cloud'));
+    });
+
+    test('beide Wege laufen durch dieselbe Prüfung', () {
+      // Zwei getrennte Upload-Zweige wichen über kurz oder lang ab — einer
+      // hätte die Größengrenze, der andere nicht.
+      final s = quelle('lib/widgets/behorde_auslaenderbehoerde.dart');
+      expect(s, contains('_dokUebernehmen(art, titel,'));
+      expect('_dokUebernehmen('.allMatches(s).length, greaterThanOrEqualTo(3),
+          reason: 'Gerät und Cloud müssen beide dorthin führen');
+      // Die Prüfung steht genau einmal.
+      expect('abDokAblehnung('.allMatches(s).length, 1);
+    });
+
     test('das Hochladedatum steht an jedem Dokument', () {
       // Ohne Datum ließe sich nicht sagen, ob das hinterlegte Zusatzblatt noch
       // den heutigen Stand zeigt — es wird auch OHNE neue Karte neu ausgestellt.
