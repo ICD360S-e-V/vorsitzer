@@ -125,7 +125,9 @@ class _DetailsTab extends StatelessWidget {
     final bekannt = massnahmeDatum(z['bekanntgabe_datum']);
     final tage = massnahmeTageBisFrist(bekannt);
     final status = z['status']?.toString() ?? '';
-    final nr = (z['massnahmenummer'] ?? '').toString();
+    // Die Nummer der Zuweisung geht der des Katalogs vor — im Bescheid steht
+    // die dieses Durchgangs, und die gilt.
+    final nr = (z['nummer_wirksam'] ?? z['massnahmenummer'] ?? '').toString();
 
     return ListView(padding: const EdgeInsets.all(14), children: [
       if (z['lesbar'] == false)
@@ -143,7 +145,7 @@ class _DetailsTab extends StatelessWidget {
 
       _abschnitt('Maßnahme'),
       _z('Bezeichnung', z['titel']?.toString() ?? '—'),
-      if (nr.isNotEmpty) _z('Maßnahmenummer', nr),
+      if (nr.isNotEmpty) _z('Nummer der Maßnahme', nr),
       _z('Art', kMassnahmeArtLabel[z['art']?.toString()] ?? (z['art']?.toString() ?? '—')),
       _z('Rechtsgrundlage', z['rechtsgrundlage']?.toString() ?? kMassnahmeRechtsgrundlage),
       _z('Status', kMassnahmeStatusLabel[status] ?? status),
@@ -161,7 +163,9 @@ class _DetailsTab extends StatelessWidget {
         _z('Zuweisungsschreiben', df.format(massnahmeDatum(z['zuweisung_datum'])!)),
       if (bekannt != null) _z('Bekanntgabe', df.format(bekannt)),
       if ((z['aktenzeichen'] ?? '').toString().isNotEmpty)
-        _z('Aktenzeichen', z['aktenzeichen'].toString()),
+        _z('Aktenzeichen (Jobcenter)', z['aktenzeichen'].toString()),
+      if ((z['kundennummer'] ?? '').toString().isNotEmpty)
+        _z('Kundennummer', z['kundennummer'].toString()),
 
       if (tage != null && massnahmeIstOffen(status))
         _kasten(tage < 0 ? Colors.grey : (tage <= 7 ? Colors.red : Colors.amber),
