@@ -157,11 +157,11 @@ void main() {
     }
 
     // ⚠️ Genau diese Wörter haben die Sicherung nötig gemacht: ohne sie
-    // wurde aus „Termin" „terminat" und aus „Padurean" „pădurean".
+    // wurde aus „Termin" „terminat" und aus „Gradinar" „grădinar".
     const eigennamen = [
       'Vollmacht', 'Landratsamt', 'Jobcenter', 'Krankenkasse', 'Termin',
       'Bescheid', 'Antrag', 'Widerspruch', 'Pflegegrad', 'Rente', 'Formular',
-      'Duinea', 'Anica', 'Radu', 'Ionut', 'Padurean', 'Tanase', 'Menning',
+      'Doe', 'Adela', 'Radu', 'Ionut', 'Gradinar', 'Tanase', 'Musterfrau',
     ];
 
     for (final name in eigennamen) {
@@ -183,7 +183,7 @@ void main() {
       // haben, war nicht geplant, hilft aber.
       const gefaehrlich = {
         'Radu': 'radule',
-        'Padurean': 'pădurean',
+        'Gradinar': 'grădinar',
       };
       gefaehrlich.forEach((wort, falsch) {
         expect(index.kennt(wort), isFalse, reason: wort);
@@ -273,7 +273,7 @@ void main() {
     });
 
     test('fasst Eigennamen nicht an', () {
-      for (final n in ['Duinea', 'Padurean', 'Vollmacht', 'Landratsamt']) {
+      for (final n in ['Doe', 'Gradinar', 'Vollmacht', 'Landratsamt']) {
         expect(d.korrektur(n, links: 'la', rechts: 'rog'), isNull, reason: n);
       }
     });
@@ -349,11 +349,11 @@ void main() {
 
     test('fasst Fremdwörter und Namen im Satz nicht an', () {
       // ⚠️ Für sich genommen greift der Vertipper bei „Bescheid" (》Deschid《
-      // ist einen Schritt entfernt) und bei „Padurean" (》pădurean《 ist ein
+      // ist einen Schritt entfernt) und bei „Gradinar" (》grădinar《 ist ein
       // rumänisches Wort). Was sie rettet, ist der große Anfangsbuchstabe
       // mitten im Satz — deshalb wird hier der ECHTE Weg geprüft und nicht
       // die Einzelteile.
-      const fremd = ['Duinea', 'Padurean', 'Tanase', 'Menning', 'Anica',
+      const fremd = ['Doe', 'Gradinar', 'Tanase', 'Musterfrau', 'Adela',
         'Vollmacht', 'Landratsamt', 'Jobcenter', 'Krankenkasse',
         'Widerspruch', 'Pflegegrad', 'Bescheid', 'Termin', 'Antrag',
         'Rente', 'Formular', 'WhatsApp', 'ICD360S', 'Ulm', 'Bayern'];

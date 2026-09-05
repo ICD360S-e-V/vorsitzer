@@ -160,7 +160,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   /// Mobilnummer eine SMS geht: Bestätigungscode, Terminerinnerung und
   /// Medikamentenerinnerung laufen alle über SMS. Steht dort ein
   /// Festnetzanschluss, kommt nichts an und niemand erfährt warum — am
-  /// 13.08.2026 traf genau das auf M96255 zu, dessen 06184-Nummer im
+  /// 13.08.2026 traf genau das auf M10007 zu, dessen 06184-Nummer im
   /// Mobilfeld stand.
   final _stufe1FestnetzController = TextEditingController();
 
@@ -4690,14 +4690,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Widget _stufe1VereinsMailRow(User user) {
     final nummer = user.mitgliedernummer.trim();
     if (nummer.isEmpty) return const SizedBox.shrink();
-    // ⚠️ Die Mitgliedsnummer behält ihre Großschreibung: M90566@icd360s.de,
-    // nicht m90566@. Sie steht so auf dem Mitgliedsausweis, und eine Adresse,
+    // ⚠️ Die Mitgliedsnummer behält ihre Großschreibung: M10006@icd360s.de,
+    // nicht m10006@. Sie steht so auf dem Mitgliedsausweis, und eine Adresse,
     // die anders aussieht als die Nummer daneben, wirkt wie eine andere
     // Angabe. Nur die Domäne ist klein — die ist ohnehin unveränderlich.
     //
     // Zustellung ist davon unberührt: die Spalten in `mailserver` haben die
     // Kollation utf8mb4_unicode_ci, und am 13.08.2026 mit einer SMTP-Sonde
-    // gegenprobiert — M90566@, m90566@, SATZUNG@ und satzung@ werden alle
+    // gegenprobiert — M10006@, m10006@, SATZUNG@ und satzung@ werden alle
     // mit 250 2.1.5 angenommen.
     final adresse = '$nummer@icd360s.de';
     return Padding(

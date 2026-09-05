@@ -40,7 +40,7 @@ Future<void> _pump(
 
 void main() {
   testWidgets('einfache Nachricht rendert ohne Ausnahme', (tester) async {
-    await _pump(tester, '<p>Guten Tag <b>Herr Duinea</b></p><p>Zweiter Absatz</p>');
+    await _pump(tester, '<p>Guten Tag <b>Herr Doe</b></p><p>Zweiter Absatz</p>');
     expect(tester.takeException(), isNull);
     expect(find.textContaining('Guten Tag', findRichText: true), findsWidgets);
   });

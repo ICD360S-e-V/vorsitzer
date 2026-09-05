@@ -118,8 +118,8 @@ TerminanfrageDaten terminanfrageDatenBauen({
   final (anzahl, letzter) = terminanfrageHistorie(termine);
 
   // ⚠️ `user.name` ist der VOLLE Name. Ein naives `user.nachname ?? user.name`
-  // ergibt bei fehlendem Nachnamen „Ionut" + „Ionut Duinea" = „Ionut Ionut
-  // Duinea" — und zwar auf einem Dokument, das später als Nachweis dienen
+  // ergibt bei fehlendem Nachnamen „Ionut" + „Ionut Doe" = „Ionut Ionut
+  // Doe" — und zwar auf einem Dokument, das später als Nachweis dienen
   // soll. Dieselbe Klasse Fehler wie das verschluckte `ț`. Fällt der Nachname
   // aus, trägt `name` allein den ganzen Namen und der Vorname bleibt leer.
   final nachname = (user.nachname ?? '').trim();

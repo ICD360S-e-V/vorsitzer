@@ -24,14 +24,14 @@ void main() {
 
   group('CloudPickerHelper.adminCloudFuer', () {
     test('eigene Akte des angemeldeten Vorsitzenden -> verschlüsselter Cloud', () {
-      g.currentMitgliedernummer = 'V27655';
+      g.currentMitgliedernummer = 'V10001';
       g.currentAdminUserId = 2;
-      expect(CloudPickerHelper.adminCloudFuer(2), 'V27655');
+      expect(CloudPickerHelper.adminCloudFuer(2), 'V10001');
       expect(CloudPickerHelper.istVerschluesselt(2), isTrue);
     });
 
     test('fremde Akte -> Mitglieder-Cloud, nicht der eigene 50-GB-Speicher', () {
-      g.currentMitgliedernummer = 'V27655';
+      g.currentMitgliedernummer = 'V10001';
       g.currentAdminUserId = 2;
       expect(CloudPickerHelper.adminCloudFuer(17), isNull);
       expect(CloudPickerHelper.istVerschluesselt(17), isFalse);
@@ -40,7 +40,7 @@ void main() {
     test('ohne aufgelöste Admin-Kennung bleibt es beim Mitglieder-Cloud', () {
       // Tritt vor dem ersten Laden der Mitgliederliste auf. Lieber der
       // Mitglieder-Speicher als ein falsch geöffneter Vorsitzenden-Cloud.
-      g.currentMitgliedernummer = 'V27655';
+      g.currentMitgliedernummer = 'V10001';
       g.currentAdminUserId = null;
       expect(CloudPickerHelper.adminCloudFuer(2), isNull);
     });
@@ -58,12 +58,12 @@ void main() {
     });
 
     test('zweiter Vorsitzender bekommt seinen eigenen Speicher', () {
-      // Echte Kennungen: V27655 ist id 2, V75715 ist id 23. Beide haben
+      // Echte Kennungen: V10001 ist id 2, V10002 ist id 23. Beide haben
       // serverseitig je 50 GB, streng getrennt — der eine darf die Akte des
       // anderen nicht als "eigene" sehen.
-      g.currentMitgliedernummer = 'V75715';
+      g.currentMitgliedernummer = 'V10002';
       g.currentAdminUserId = 23;
-      expect(CloudPickerHelper.adminCloudFuer(23), 'V75715');
+      expect(CloudPickerHelper.adminCloudFuer(23), 'V10002');
       expect(CloudPickerHelper.adminCloudFuer(2), isNull);
     });
   });
@@ -84,7 +84,7 @@ void main() {
 
     testWidgets('eigene Akte des Vorsitzenden -> Schloss, 50 GB im Hinweis',
         (t) async {
-      g.currentMitgliedernummer = 'V27655';
+      g.currentMitgliedernummer = 'V10001';
       g.currentAdminUserId = 2;
       await zeige(t, 2);
 
@@ -96,7 +96,7 @@ void main() {
     });
 
     testWidgets('Akte eines Mitglieds -> Wolke, 1 GB im Hinweis', (t) async {
-      g.currentMitgliedernummer = 'V27655';
+      g.currentMitgliedernummer = 'V10001';
       g.currentAdminUserId = 2;
       await zeige(t, 17);
 
@@ -111,7 +111,7 @@ void main() {
         (t) async {
       // Sonst würde ein Vorsitzender beim Bearbeiten eines Mitglieds in
       // seinem eigenen Speicher wühlen.
-      g.currentMitgliedernummer = 'V75715';
+      g.currentMitgliedernummer = 'V10002';
       g.currentAdminUserId = 23;
       await zeige(t, 2);
 
@@ -120,7 +120,7 @@ void main() {
     });
 
     testWidgets('ohne aufgelöste Admin-Kennung -> Mitglieder-Cloud', (t) async {
-      g.currentMitgliedernummer = 'V27655';
+      g.currentMitgliedernummer = 'V10001';
       g.currentAdminUserId = null;
       await zeige(t, 2);
 
@@ -129,7 +129,7 @@ void main() {
     });
 
     testWidgets('abgeschaltet, solange ein Upload läuft', (t) async {
-      g.currentMitgliedernummer = 'V27655';
+      g.currentMitgliedernummer = 'V10001';
       g.currentAdminUserId = 2;
       await t.pumpWidget(MaterialApp(
         home: Scaffold(

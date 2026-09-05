@@ -7,7 +7,7 @@ import 'package:icd360sev_vorsitzer/widgets/blitz_karte.dart';
 /// jemand danebensteht. Sie zeigt deshalb die Mitgliedsnummer und nie den
 /// Namen — Entscheidung des Users.
 void main() {
-  BlitzNachricht n({String absender = 'Ionela Padurean', String? nummer}) =>
+  BlitzNachricht n({String absender = 'Ionela Gradinar', String? nummer}) =>
       BlitzNachricht(
         conversationId: 1,
         absender: absender,
@@ -30,9 +30,9 @@ void main() {
   }
 
   testWidgets('zeigt die Nummer, nicht den Namen', (t) async {
-    await zeigen(t, n(nummer: 'M51060'));
-    expect(find.text('M51060'), findsOneWidget);
-    expect(find.text('Ionela Padurean'), findsNothing);
+    await zeigen(t, n(nummer: 'M10001'));
+    expect(find.text('M10001'), findsOneWidget);
+    expect(find.text('Ionela Gradinar'), findsNothing);
   });
 
   testWidgets('ohne Nummer steht „Mitglied" — NICHT der Name', (t) async {
@@ -41,7 +41,7 @@ void main() {
     // stünde er ausgerechnet in dem Fall da, den niemand vorhergesehen hat.
     await zeigen(t, n());
     expect(find.text('Mitglied'), findsOneWidget);
-    expect(find.text('Ionela Padurean'), findsNothing);
+    expect(find.text('Ionela Gradinar'), findsNothing);
   });
 
   testWidgets('anonyme Besucher heißen „Anonim"', (t) async {
@@ -52,14 +52,14 @@ void main() {
 
   testWidgets('auch der Kreis verrät den Namen nicht', (t) async {
     // Die Initiale des Namens wäre der halbe Name.
-    await zeigen(t, n(nummer: 'M51060'));
+    await zeigen(t, n(nummer: 'M10001'));
     expect(find.text('M'), findsOneWidget);
     expect(find.text('I'), findsNothing);
   });
 
   testWidgets('der Nachrichtentext bleibt sichtbar', (t) async {
     // So entschieden: verdeckt wird nur, WER schreibt, nicht WAS.
-    await zeigen(t, n(nummer: 'M51060'));
+    await zeigen(t, n(nummer: 'M10001'));
     expect(find.text('Bună ziua'), findsOneWidget);
   });
 
@@ -67,9 +67,9 @@ void main() {
     // Unter Linux läuft die Karte in einer eigenen Engine — alles, was sie
     // anzeigt, muss als JSON durchpassen.
     test('die Nummer übersteht die Reise', () {
-      final zurueck = BlitzNachricht.entschluesselt(n(nummer: 'M51060').kodiert());
-      expect(zurueck?.nummer, 'M51060');
-      expect(zurueck?.anzeige, 'M51060');
+      final zurueck = BlitzNachricht.entschluesselt(n(nummer: 'M10001').kodiert());
+      expect(zurueck?.nummer, 'M10001');
+      expect(zurueck?.anzeige, 'M10001');
     });
 
     test('eine fehlende Nummer bleibt fehlend', () {
@@ -79,9 +79,9 @@ void main() {
     });
 
     test('beim Anhängen einer zweiten Zeile bleibt sie erhalten', () {
-      final erste = n(nummer: 'M51060');
+      final erste = n(nummer: 'M10001');
       final zweite = erste.ergaenztUm('a doua linie', DateTime(2026, 8, 31));
-      expect(zweite.nummer, 'M51060');
+      expect(zweite.nummer, 'M10001');
       expect(zweite.zeilen.length, 2);
     });
   });

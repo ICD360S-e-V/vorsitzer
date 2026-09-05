@@ -12,7 +12,7 @@ import 'package:icd360sev_vorsitzer/utils/terminanfrage_vorlagen.dart';
 /// Angabenblock. Wenn DER auf ein Blatt passt, passt jeder.
 const _laengster = TerminanfrageDaten(
   arztTyp: 'gesundheit_sanitaetshaus',
-  vorname: 'Ionuț-Claudiu',
+  vorname: 'Ilieș-Cristian',
   nachname: 'Düinea-Müller',
   geburtsdatum: '14.03.1985',
   strasse: 'Musterstraße 12',
@@ -70,7 +70,7 @@ void main() {
       // ⚠️ Der Name geht als `filename` an sipgate und steht später im
       // Sendebericht. `Ionuț` wurde vorher zu `Ionu_`.
       expect(terminanfrageDateiname(_laengster, '20.08.2026'),
-          'Terminanfrage_Dueinea-Mueller_Ionut-Claudiu_20-08-2026.pdf');
+          'Terminanfrage_Dueinea-Mueller_Ilies-Cristian_20-08-2026.pdf');
     });
 
     test('der Name bleibt reines ASCII', () {

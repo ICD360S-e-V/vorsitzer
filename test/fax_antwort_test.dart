@@ -444,9 +444,9 @@ void main() {
     test('das Protokoll nennt wer, wann und warum', () {
       final p = jsonDecode(
           '{"success":true,"eintraege":['
-          '{"id":2,"fax_id":24,"aktion":"zurueckgeholt","wer":"Ionut-Claudiu Duinea",'
+          '{"id":2,"fax_id":24,"aktion":"zurueckgeholt","wer":"Ilies-Cristian Doe",'
           '"vorher":[],"grund":"","erstellt_am":"2026-08-23 11:30:25"},'
-          '{"id":1,"fax_id":24,"aktion":"abgelegt","wer":"Ionut-Claudiu Duinea",'
+          '{"id":1,"fax_id":24,"aktion":"abgelegt","wer":"Ilies-Cristian Doe",'
           '"vorher":{"gegenstelle":"+4973180159737","name":"ICD360S e.V.",'
           '"dateiname":"Fax an +4973180159737.pdf","status":"zugestellt",'
           '"richtung":"aus","erstellt_am":"2026-08-22 15:21:36"},'
@@ -456,7 +456,7 @@ void main() {
       expect(e.length, 2);
       expect(e.last['aktion'], 'abgelegt');
       expect(e.last['grund'], contains('PROBE'));
-      expect(e.last['wer'], 'Ionut-Claudiu Duinea');
+      expect(e.last['wer'], 'Ilies-Cristian Doe');
     });
 
     test('vorher ist mal Objekt und mal LISTE — niemals blind als Map lesen', () {
@@ -599,7 +599,7 @@ void main() {
   group('Betroffenes Mitglied', () {
     // Echte Antwort auf {"action":"list","betrifft_user_id":48}.
     final zeile = jsonDecode(
-        '{"id":14,"betrifft_user_id":48,"betrifft_name":"Olha Pasichnyk",'
+        '{"id":14,"betrifft_user_id":48,"betrifft_name":"Olena Musterenko",'
         '"gesendet_von":"","user_id":0,"bezug_typ":"jc_av_schweigepflicht"}')
         as Map<String, dynamic>;
 
@@ -607,9 +607,9 @@ void main() {
       // 🔴 Bis zum 23.08.2026 war es EINE Spalte, und sie bedeutete je nach
       // Sendeweg etwas anderes: aus dem Faxbildschirm der Vorstand, aus drei
       // Modulen das Mitglied. `list` gab sie als `gesendet_von` heraus — der
-      // Verlauf hätte „gesendet von Olha Pasichnyk" gezeigt, ein Mitglied,
+      // Verlauf hätte „gesendet von Olena Musterenko" gezeigt, ein Mitglied,
       // das gar keine Faxe senden kann.
-      expect(zeile['betrifft_name'], 'Olha Pasichnyk');
+      expect(zeile['betrifft_name'], 'Olena Musterenko');
       expect(zeile['betrifft_user_id'], 48);
       expect(zeile.containsKey('gesendet_von'), isTrue);
     });
@@ -627,11 +627,11 @@ void main() {
       // Lücke. Der Bildschirm darf daraus nichts erfinden.
       final ausDemBildschirm = jsonDecode(
           '{"id":22,"betrifft_user_id":null,"betrifft_name":"",'
-          '"gesendet_von":"Ionut-Claudiu Duinea","user_id":2}')
+          '"gesendet_von":"Ilies-Cristian Doe","user_id":2}')
           as Map<String, dynamic>;
       expect(ausDemBildschirm['betrifft_user_id'], isNull);
       expect((ausDemBildschirm['betrifft_name'] as String).isEmpty, isTrue);
-      expect(ausDemBildschirm['gesendet_von'], 'Ionut-Claudiu Duinea');
+      expect(ausDemBildschirm['gesendet_von'], 'Ilies-Cristian Doe');
     });
 
     test('der Bildschirm kann auf einen Ausschnitt zeigen', () {

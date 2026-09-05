@@ -14,13 +14,13 @@ void main() {
   group('anruferVerdeckt', () {
     test('lässt die ersten zwei und die letzten drei Ziffern stehen', () {
       expect(SipgateService.anruferVerdeckt('0731 80159736'), '07·······736');
-      expect(SipgateService.anruferVerdeckt('016094482053'), '01·······053');
+      expect(SipgateService.anruferVerdeckt('016087654321'), '01·······321');
     });
 
     test('das Pluszeichen bleibt, und die Ziffern werden richtig gezählt', () {
       // ⚠️ Gezählt werden ZIFFERN, nicht Zeichen — sonst verbrauchte ein
       // „+49 " die sichtbaren Stellen und man sähe von der Nummer nichts.
-      expect(SipgateService.anruferVerdeckt('+4915175171999'), '+49········999');
+      expect(SipgateService.anruferVerdeckt('+4915112345678'), '+49········678');
       expect(SipgateService.anruferVerdeckt('+40755532286'), '+40······286');
     });
 

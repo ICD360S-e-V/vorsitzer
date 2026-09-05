@@ -94,22 +94,22 @@ void main() {
 
     test('mit den Werten der App bleibt nichts offen', () {
       const daten = MailVorlageDaten(
-        vorname: 'Anica',
-        nachname: 'Menning',
-        empfaenger: 'anica@example.org',
-        absender: 'Ionut Duinea',
+        vorname: 'Adela',
+        nachname: 'Musterfrau',
+        empfaenger: 'adela@example.org',
+        absender: 'Ionut Doe',
       );
       final text = kMailPlatzhalter.map((p) => '{${p.schluessel}}').join(' ');
       final gefuellt = mailVorlageFuellen(
           text,
           const MailVorlageDaten(
-            vorname: 'Anica',
-            nachname: 'Menning',
-            empfaenger: 'anica@example.org',
-            absender: 'Ionut Duinea',
+            vorname: 'Adela',
+            nachname: 'Musterfrau',
+            empfaenger: 'adela@example.org',
+            absender: 'Ionut Doe',
           ).mitDatum(DateTime(2026, 8, 20)));
       expect(mailVorlageOffenePlatzhalter(gefuellt), isEmpty);
-      expect(daten.name, 'Anica Menning');
+      expect(daten.name, 'Adela Musterfrau');
     });
 
     test('ohne Treffer im Adressbuch bleiben die Namen STEHEN', () {

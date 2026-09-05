@@ -14,7 +14,7 @@ import 'package:icd360sev_vorsitzer/widgets/vermieter_widerspruch.dart';
 void main() {
   group('Betreff', () {
     test('mit Aktenzeichen steht die Nummer vorn', () {
-      // Genau der Fall des Mitglieds V75715 nach der Trennung.
+      // Genau der Fall des Mitglieds V10002 nach der Trennung.
       expect(widerspruchBetreff('6865140/26/0', 'Miete und Nebenkosten'),
           'Aktenzeichen 6865140/26/0 - Widerspruch');
     });

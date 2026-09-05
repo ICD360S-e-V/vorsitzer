@@ -61,7 +61,7 @@ void main() {
   group('zbfsAdresseZerlegen', () {
     test('zerlegt die mehrzeilige Vereinsanschrift', () {
       final a = zbfsAdresseZerlegen(
-          'ICD360S e.V.\nc/o Ionut-Claudiu Duinea\nElsa-Brandström-Straße 13\n89231 Neu-Ulm');
+          'ICD360S e.V.\nc/o Ilies-Cristian Doe\nElsa-Brandström-Straße 13\n89231 Neu-Ulm');
       expect(a.strasse, 'Elsa-Brandström-Straße 13');
       expect(a.plz, '89231');
       expect(a.ort, 'Neu-Ulm');

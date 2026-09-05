@@ -24,7 +24,7 @@ import '../utils/wort_vervollstaendigung.dart';
 ///      „bine" bleibt „bine", auch wenn „binevoitor" danebensteht.
 ///   2. Ein großgeschriebenes Wort MITTEN IM SATZ wird nicht angefasst.
 ///      Gemessen an echtem Text wären sonst „Termin" zu „terminat", „Radu"
-///      zu „radule" und „Padurean" zu „pădurean" geworden — Fachwörter und
+///      zu „radule" und „Gradinar" zu „grădinar" geworden — Fachwörter und
 ///      Mitgliedernamen. Am Satzanfang wird weiter vervollständigt, dort
 ///      sagt der große Buchstabe nichts über das Wort aus.
 ///   3. Rücktaste unmittelbar danach nimmt die Ersetzung zurück — und das

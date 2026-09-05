@@ -22,7 +22,7 @@ Map<String, dynamic> _eintrag({int aenderungen = 0}) => {
       'text': 'Sehr geehrte Frau Muster, …',
       'aenderungen_count': aenderungen,
       'letzter_grund': aenderungen > 0 ? 'Datum war falsch erfasst' : null,
-      'letzter_grund_von': aenderungen > 0 ? 'V27655' : null,
+      'letzter_grund_von': aenderungen > 0 ? 'V10001' : null,
       'letzter_grund_am': aenderungen > 0 ? '2026-08-16 10:12:00' : null,
     };
 

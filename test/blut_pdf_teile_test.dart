@@ -69,7 +69,7 @@ void main() {
       }).toList();
       final pdf = blutBerichtPdf(
         datum: '17.08.2026', patient: 'Max Mustermann',
-        mitgliedsnummer: 'M68650', werte: alle, auffaellig: const [],
+        mitgliedsnummer: 'M10002', werte: alle, auffaellig: const [],
       );
       expect((await pdf.save()).length, greaterThan(1000));
     });

@@ -8,8 +8,8 @@ import 'package:icd360sev_vorsitzer/widgets/blitz_karte.dart';
 void main() {
   BlitzNachricht n(List<String> zeilen) => BlitzNachricht(
         conversationId: 1,
-        absender: 'Ionela Padurean',
-        nummer: 'M51060',
+        absender: 'Ionela Gradinar',
+        nummer: 'M10001',
         zeilen: zeilen,
         zeit: DateTime(2026, 8, 31, 9, 42),
       );
@@ -107,7 +107,7 @@ void main() {
   testWidgets('Nummer und Uhrzeit bleiben immer sichtbar', (t) async {
     await zeigen(t, n(kurz));
     await t.pump(const Duration(seconds: 20));
-    expect(find.text('M51060'), findsOneWidget);
+    expect(find.text('M10001'), findsOneWidget);
     expect(find.text('09:42'), findsOneWidget);
     await t.pump(const Duration(seconds: 1));
   });

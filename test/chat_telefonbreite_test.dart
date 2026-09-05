@@ -36,7 +36,7 @@ Future<void> _pump(WidgetTester tester, Size groesse, Widget kind) async {
 
 Map<String, dynamic> _konversation() => {
       'id': 7,
-      'mitgliedernummer': 'M51060',
+      'mitgliedernummer': 'M10001',
       'status': 'open',
       'telefon_mobil': '+4915112345678',
     };
@@ -163,7 +163,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.byIcon(Icons.more_vert), findsOneWidget);
-      expect(tester.getSize(find.text('M51060')).width, greaterThan(50));
+      expect(tester.getSize(find.text('M10001')).width, greaterThan(50));
     });
   });
 

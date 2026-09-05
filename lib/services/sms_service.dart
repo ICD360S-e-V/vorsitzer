@@ -955,7 +955,7 @@ class SmsService {
       'wetter_hinweis': 'Kérjük, lehetőség szerint maradjon otthon, és jelezze, ha segítségre van szüksége.',
       // „Tisztelt Asszonyom/Uram" heißt „Sehr geehrte Dame / sehr geehrter
       // Herr" und steht für sich allein — mit Namen dahinter wäre es doppelt
-      // gemoppelt („Tisztelt Uram Padurean"). Vor einem Namen bleibt nur
+      // gemoppelt („Tisztelt Uram Gradinar"). Vor einem Namen bleibt nur
       // „Tisztelt", wie im Türkischen „Sayın".
       'anrede_frau': 'Tisztelt', 'anrede_herr': 'Tisztelt',
       'anrede_neutral': 'Jó napot kívánok', 'gruss': 'Üdvözlettel',
@@ -994,8 +994,8 @@ class SmsService {
       'wetter_titel': 'Laikapstākļu brīdinājums jūsu dzīvesvietai',
       'wetter_hinweis': 'Lūdzu, palieciet mājās, ja iespējams, un sazinieties ar mums, ja nepieciešama palīdzība.',
       // Lettisch stellt „kungs"/„kundze" HINTER den Namen („Cienījamais
-      // Padurean kungs"). Der Code kann den Titel nur davorstellen, also
-      // bleibt er weg — „Cienījamais Padurean" ist korrekt und höflich.
+      // Gradinar kungs"). Der Code kann den Titel nur davorstellen, also
+      // bleibt er weg — „Cienījamais Gradinar" ist korrekt und höflich.
       'anrede_frau': 'Cienījamā', 'anrede_herr': 'Cienījamais',
       'anrede_neutral': 'Labdien', 'gruss': 'Ar cieņu',
       'schluss': 'Lūdzu, apstipriniet savu dalību vai atsauciet to laikus.',

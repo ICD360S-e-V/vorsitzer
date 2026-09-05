@@ -389,7 +389,7 @@ class _SchreibenDialogState extends State<_SchreibenDialog> {
 
   Map<String, dynamic> _nutzlast({required bool alsFax}) {
     // ⚠️ `user.name` ist der VOLLE Name. Ein naives `nachname ?? name` ergibt
-    // bei fehlendem Nachnamen „Ionut Ionut Duinea" — auf einem Blatt, das in
+    // bei fehlendem Nachnamen „Ionut Ionut Doe" — auf einem Blatt, das in
     // der Karteikarte der Praxis landet. Dieselbe Behandlung wie in
     // `terminanfrageDatenBauen`.
     final nachname = (widget.user.nachname ?? '').trim();

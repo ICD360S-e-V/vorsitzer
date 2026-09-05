@@ -1,7 +1,7 @@
 /// Faltet einen Namen oder eine Mitgliedsnummer auf eine Form, mit der sich
 /// vergleichen lässt: Kleinschreibung, keine diakritischen Zeichen.
 ///
-/// ⚠️ WARUM DAS NÖTIG IST: die Mitglieder heißen Țănase, Pădurean, Müller und
+/// ⚠️ WARUM DAS NÖTIG IST: die Mitglieder heißen Țănase, Grădinar, Müller und
 /// Öztürk. Wer die Häkchen nicht auf der Tastatur hat — und das ist am Telefon
 /// die Regel — findet sie mit einem einfachen `contains` nie. Ein Suchfeld,
 /// das den gesuchten Namen nicht findet, ist schlimmer als keins: man scrollt
@@ -54,7 +54,7 @@ String suchText(String roh) {
 /// Passt der Suchbegriff auf das Feld?
 ///
 /// ⚠️ JEDES WORT MUSS VORKOMMEN, DIE REIHENFOLGE NICHT STIMMEN. Im Verzeichnis
-/// steht „Ionut Duinea"; getippt wird genauso oft „duinea ionut", weil man den
+/// steht „Ionut Doe"; getippt wird genauso oft „doe ionut", weil man den
 /// Nachnamen zuerst im Kopf hat. Ein `contains` über den ganzen Begriff findet
 /// das nicht und sieht dabei aus, als gäbe es das Mitglied nicht.
 bool suchTreffer(String feld, String begriff) {

@@ -29,7 +29,7 @@ void main() {
 
       // Genau der Wortlaut, der die Schleife gedreht hat.
       log.debug('Uploaded 2 logs to server', tag: 'LOG');
-      log.info('Log upload started for V27655 (every 30s)', tag: 'LOG');
+      log.info('Log upload started for V10001 (every 30s)', tag: 'LOG');
 
       expect(log.ausstehendeUebertragungen, vorher,
           reason: 'Zeilen des Versands über den Versand dürfen die '

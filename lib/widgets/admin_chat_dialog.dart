@@ -2461,7 +2461,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
           final begriff = suchfeld.text.trim();
-          // Name UND Mitgliedsnummer werden durchsucht: „M51060" ist im
+          // Name UND Mitgliedsnummer werden durchsucht: „M10001" ist im
           // Vorstand oft die geläufigere Kennung als der Name.
           final treffer = begriff.isEmpty
               ? members

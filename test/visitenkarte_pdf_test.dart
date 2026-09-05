@@ -252,8 +252,8 @@ void main() {
       final v = daten.vcard;
       expect(v, startsWith('BEGIN:VCARD\r\nVERSION:3.0\r\n'));
       expect(v, endsWith('\r\nEND:VCARD'));
-      expect(v, contains('N:Duinea;Ionut-Claudiu;;;'));
-      expect(v, contains('FN:Ionut-Claudiu Duinea'));
+      expect(v, contains('N:Doe;Ilies-Cristian;;;'));
+      expect(v, contains('FN:Ilies-Cristian Doe'));
       expect(v, contains('ORG:ICD360S e.V.'));
       expect(v, contains('TITLE:1. Vorsitzender'));
       expect(v, contains('EMAIL;TYPE=INTERNET:icd@icd360s.de'));
@@ -274,7 +274,7 @@ void main() {
       // nicht mehr erkennbar. Auf einem echten Gerät gemessen, nicht vermutet.
       expect(v, contains('TEL;TYPE=FAX:+4973180159737'));
       expect(v, isNot(contains('WORK,FAX')));
-      expect(v, contains('TEL;TYPE=CELL:+4916094482053'));
+      expect(v, contains('TEL;TYPE=CELL:+4916087654321'));
     });
 
     test('die Zeilen sind mit CRLF getrennt', () {
@@ -427,21 +427,21 @@ void main() {
   });
 }
 
-/// Die Beispieldaten für V27655 — wörtlich das, was der Server liefert.
+/// Die Beispieldaten für V10001 — wörtlich das, was der Server liefert.
 VisitenkarteDaten _beispiel() => VisitenkarteDaten(
       vereinsname: 'ICD360S e.V.',
       slogan: 'Integration · Chancen · Diversity · 360° Support',
-      vorname: 'Ionut-Claudiu',
-      nachname: 'Duinea',
+      vorname: 'Ilies-Cristian',
+      nachname: 'Doe',
       funktion: '1. Vorsitzender',
       istGruender: true,
       sprachen: sprachAnzeigen(const ['de', 'ro', 'en']),
       email: 'icd@icd360s.de',
       festnetz: '+49 731 80159736',
       fax: '+49 731 80159737',
-      mobil: '016094482053',
+      mobil: '016087654321',
       web: 'icd360s.de',
-      mitgliedernummer: 'V27655',
+      mitgliedernummer: 'V10001',
       anschrift: 'Elsa-Brandström-Straße 13 · 89231 Neu-Ulm',
       register: 'VR 201335 · Amtsgericht Memmingen, Bayern',
     );

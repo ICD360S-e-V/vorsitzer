@@ -208,12 +208,12 @@ void main() {
       SipgateAnrufOverlay().aktivieren();
       dienst.zustand.value = SipgateZustand(
         gespraech: bein(nummerVoll, 'Jobcenter'),
-        zweites: bein('+4916094482053', 'Frau Padurean', gehalten: true),
+        zweites: bein('+4916087654321', 'Frau Gradinar', gehalten: true),
       );
       await t.pump();
 
       expect(find.text('Jobcenter'), findsOneWidget);
-      expect(find.textContaining('hält: Frau Padurean'), findsOneWidget);
+      expect(find.textContaining('hält: Frau Gradinar'), findsOneWidget);
     });
 
     testWidgets('die Konferenz nennt beide Teilnehmer', (t) async {
@@ -221,7 +221,7 @@ void main() {
       SipgateAnrufOverlay().aktivieren();
       dienst.zustand.value = SipgateZustand(
         gespraech: bein(nummerVoll, 'Jobcenter'),
-        zweites: bein('+4916094482053', 'Frau Padurean'),
+        zweites: bein('+4916087654321', 'Frau Gradinar'),
         konferenz: true,
       );
       await t.pump();
@@ -230,7 +230,7 @@ void main() {
       // einzelner Anruf aussehen — beide Namen gehören sichtbar hin.
       expect(find.textContaining('Konferenz:'), findsOneWidget);
       expect(find.textContaining('Jobcenter'), findsOneWidget);
-      expect(find.textContaining('Frau Padurean'), findsOneWidget);
+      expect(find.textContaining('Frau Gradinar'), findsOneWidget);
       expect(find.byIcon(Icons.groups), findsOneWidget);
     });
 
@@ -243,7 +243,7 @@ void main() {
       SipgateAnrufOverlay().aktivieren();
       dienst.zustand.value = SipgateZustand(
         gespraech: bein(nummerVoll, 'Jobcenter'),
-        zweites: bein('+4916094482053', 'Frau Padurean'),
+        zweites: bein('+4916087654321', 'Frau Gradinar'),
         konferenz: true,
       );
       await t.pump();

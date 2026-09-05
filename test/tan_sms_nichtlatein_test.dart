@@ -21,37 +21,37 @@ import 'package:icd360sev_vorsitzer/services/sms_service.dart';
 void main() {
   // Genau die Texte, die der Server erzeugt (SignaturHelper::smsText).
   const texte = <String, String>{
-    'de': 'Sehr geehrter Herr Duinea,\n'
+    'de': 'Sehr geehrter Herr Doe,\n'
         'Ihr Code zum Unterschreiben: 047961\n'
         'Gueltig 5 Minuten. Nicht weitergeben.\n'
         'Nicht angefordert? Bitte ignorieren.\n'
         'ICD360S e.V.',
-    'ro': 'Stimate domnule Duinea,\n'
+    'ro': 'Stimate domnule Doe,\n'
         'Codul pentru semnare: 047961\n'
         'Valabil 5 minute. Nu il transmiteti nimanui.\n'
         'Nu l-ati cerut? Ignorati acest mesaj.\n'
         'ICD360S e.V.',
-    'ru': 'Уважаемый г-н Duinea,\n'
+    'ru': 'Уважаемый г-н Doe,\n'
         'Ваш код для подписи: 047961\n'
         'Действует 5 минут. Никому не сообщайте.\n'
         'Не запрашивали? Игнорируйте.\n'
         'ICD360S e.V.',
-    'uk': 'Шановний пане Duinea,\n'
+    'uk': 'Шановний пане Doe,\n'
         'Ваш код для підпису: 047961\n'
         'Дійсний 5 хвилин. Нікому не повідомляйте.\n'
         'Не запитували? Проігноруйте.\n'
         'ICD360S e.V.',
-    'ar': 'السيد المحترم Duinea،\n'
+    'ar': 'السيد المحترم Doe،\n'
         'رمز التوقيع الخاص بك: 047961\n'
         'صالح 5 دقائق. لا تشاركه مع أحد.\n'
         'لم تطلبه؟ يرجى تجاهل الرسالة.\n'
         'ICD360S e.V.',
-    'tr': 'Sayin Duinea,\n'
+    'tr': 'Sayin Doe,\n'
         'Imzalama kodunuz: 047961\n'
         '5 dakika gecerli. Kimseyle paylasmayin.\n'
         'Talep etmediyseniz dikkate almayin.\n'
         'ICD360S e.V.',
-    'en': 'Dear Mr Duinea,\n'
+    'en': 'Dear Mr Doe,\n'
         'Your code for signing: 047961\n'
         'Valid 5 minutes. Do not share it.\n'
         'Did not request it? Please ignore.\n'

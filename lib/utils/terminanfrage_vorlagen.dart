@@ -58,7 +58,7 @@ const String kVereinErreichbarkeit = 'montags bis freitags von 14 bis 17 Uhr';
 ///  * Die **E-Mail** geht aus dem Vereinspostfach hinaus, und darunter hängt
 ///    die Signatur eines Vorstandsmitglieds — mit dessen Namen. Steht im Text
 ///    darüber „Mit freundlichen Grüßen / Olena Shevchenko" und darunter
-///    „Ionut-Claudiu Duinea, Vorstand", dann unterschreiben **zwei
+///    „Ilies-Cristian Doe, Vorstand", dann unterschreiben **zwei
 ///    verschiedene Menschen dieselbe Mail**. Das sieht nicht nach Sorgfalt
 ///    aus, sondern nach einem Serienbrief, bei dem jemand vergessen hat,
 ///    einen Platzhalter zu ersetzen.

@@ -131,7 +131,7 @@ class VisitenkarteDaten {
         .replaceAll('\n', ' ');
 
     // ⚠️ Rufnummern international und ohne Leerzeichen. Ein Telefon legt die
-    // Nummer genau so ab, wie sie im Code steht; „016094482053" wäre aus dem
+    // Nummer genau so ab, wie sie im Code steht; „016087654321" wäre aus dem
     // Ausland nicht wählbar.
     String nummer(String roh) {
       var n = roh.replaceAll(RegExp(r'[^\d+]'), '');

@@ -80,7 +80,7 @@ void main() {
           'original_message': null,
           'is_translated': false,
           'sender_id': 2,
-          'sender_name': 'I. Duinea',
+          'sender_name': 'I. Doe',
           'sender_role': 'vorsitzer',
           'is_own': true,
           'is_read': false,

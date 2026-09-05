@@ -118,14 +118,14 @@ final _zeile = <String, dynamic>{
   'beschreibung': _langerText, 'message': _langerText, 'status': 'offen',
   'datum': '2026-08-08', 'created_at': '2026-08-08 10:00:00',
   'betrag': '1234.56', 'kosten': '1234.56',
-  'mitgliedernummer': 'M68650', 'telefon_mobil': '+4915112345678',
+  'mitgliedernummer': 'M10002', 'telefon_mobil': '+4915112345678',
 };
 
 final _zeilen = List.generate(3, (_) => Map<String, dynamic>.from(_zeile));
 
 final _user = User(
   id: 13,
-  mitgliedernummer: 'M68650',
+  mitgliedernummer: 'M10002',
   email: 'alexandra.musterfrau-schmidt@icd360s.de',
   name: 'Alexandra Katharina Musterfrau-Schmidt',
   vorname: 'Alexandra Katharina',

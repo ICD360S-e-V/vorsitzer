@@ -17,7 +17,7 @@ void main() {
 
     test('eigene Akte des Vorsitzenden: Knopf erscheint', () {
       expect(
-        zeigeCloudKnopf(eigenerSpeicher: true, memberId: 2, adminCloud: 'V27655'),
+        zeigeCloudKnopf(eigenerSpeicher: true, memberId: 2, adminCloud: 'V10001'),
         isTrue,
       );
     });
@@ -27,7 +27,7 @@ void main() {
       // Datei über den Standard-Endpunkt im falschen Ordner abgelegt —
       // ohne dass irgendetwas nach einem Fehler ausgesehen hätte.
       expect(
-        zeigeCloudKnopf(eigenerSpeicher: true, memberId: null, adminCloud: 'V27655'),
+        zeigeCloudKnopf(eigenerSpeicher: true, memberId: null, adminCloud: 'V10001'),
         isFalse,
       );
       expect(
@@ -49,7 +49,7 @@ void main() {
       // Hier ist es unschädlich: der Standard-Endpunkt ist ohnehin der
       // richtige, die Mitglieds-ID wird für den Weg nicht gebraucht.
       expect(
-        zeigeCloudKnopf(eigenerSpeicher: false, memberId: null, adminCloud: 'V27655'),
+        zeigeCloudKnopf(eigenerSpeicher: false, memberId: null, adminCloud: 'V10001'),
         isTrue,
       );
     });
