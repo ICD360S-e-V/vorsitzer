@@ -14866,6 +14866,75 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // Dokumente zu einer Zuweisung: der Bewilligungs-/Zuweisungsbescheid selbst
+  // und die Anhänge einzelner Korrespondenz-Einträge. Die Bytes liegen
+  // AES-256-GCM-verschlüsselt als BLOB auf dem Server.
+  Future<Map<String, dynamic>> massnahmeDokListe({
+    required int zuweisungId,
+    required int userId,
+    String? bereich,
+    int? korrespondenzId,
+  }) async {
+    final q = <String, String>{
+      'zuweisung_id': zuweisungId.toString(),
+      'user_id': userId.toString(),
+      if (bereich != null) 'bereich': bereich,
+      if (korrespondenzId != null) 'korrespondenz_id': korrespondenzId.toString(),
+    };
+    final uri = Uri.parse('$baseUrl/admin/massnahme_dok.php')
+        .replace(queryParameters: q);
+    final response = await _client.get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 25));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> massnahmeDokUpload({
+    required int zuweisungId,
+    required int userId,
+    required String bereich,
+    int? korrespondenzId,
+    required String filePath,
+    required String fileName,
+  }) async {
+    final request = http.MultipartRequest(
+        'POST', Uri.parse('$baseUrl/admin/massnahme_dok.php'));
+    // ⚠️ addAll(_headers) — NICHT von Hand gesetzte Kopfzeilen. Genau daran
+    // ist im August platform/korrespondenz_create.php gescheitert: ein
+    // MultipartRequest ohne den Bearer bekommt 401, und das sieht auf dem
+    // Schirm wie ein Fehler der App aus.
+    request.headers.addAll(_headers);
+    request.fields['zuweisung_id'] = zuweisungId.toString();
+    request.fields['user_id'] = userId.toString();
+    request.fields['bereich'] = bereich;
+    if (korrespondenzId != null) {
+      request.fields['korrespondenz_id'] = korrespondenzId.toString();
+    }
+    request.files.add(
+        await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<http.Response> massnahmeDokDownload(int docId, int userId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/massnahme_dok.php?download_id=$docId&user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 60));
+  }
+
+  Future<Map<String, dynamic>> massnahmeDokLoeschen(int docId, int userId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/massnahme_dok.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': docId, 'user_id': userId}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // === SCHWEIGEPFLICHTENTBINDUNG für einen Arbeitsvermittler ===
   //
   // Eigene Endpunkte, kein `arzt_typ` auf schweigepflicht_create.php: dort

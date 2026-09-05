@@ -87,3 +87,13 @@ int? massnahmeTageBisFrist(DateTime? bekanntgabe, {DateTime? heute}) {
   final h = heute ?? DateTime.now();
   return frist.difference(DateTime(h.year, h.month, h.day)).inDays;
 }
+
+/// ⚠️ PDO liefert Zahlen je nach Treiber als int ODER als String zurück.
+/// `as int?` würde in dem einen Fall werfen — und zwar erst auf dem Gerät.
+/// Steht hier und nicht in einem der Reiter: beide brauchen es.
+int? mnZahl(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  return int.tryParse(v.toString());
+}
