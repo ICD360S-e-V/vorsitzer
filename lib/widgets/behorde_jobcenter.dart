@@ -5049,6 +5049,10 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
             apiService: widget.apiService,
             userId: widget.userId,
             userAvId: _userAvId,
+            // Aktenzeichen und Kundennummer stehen hier längst — der Reiter
+            // soll sie vorbelegen, statt sie erneut abzufragen.
+            userAv: av,
+            jcData: widget.jcData,
             onChanged: () { _changed = true; },
           ),
         ])),

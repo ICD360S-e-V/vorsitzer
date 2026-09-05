@@ -58,6 +58,8 @@ void _nummernPruefungen() {
 
 void main() {
   _nummernPruefungen();
+  _ortVorschlagPruefungen();
+  _vorbelegungPruefungen();
   group('Kopplung an den Server', () {
     test('Status-Liste ist zeichengleich', () {
       expect(kMassnahmeStatus, _serverStatus);
@@ -167,3 +169,134 @@ void main() {
 // dazu, sie zu vermischen — beim ersten echten Bescheid ist genau das
 // passiert: die Nummer der Maßnahme landete im Aktenzeichen.
 // ═════════════════════════════════════════════════════════════════════
+
+void _ortVorschlagPruefungen() {
+  group('Durchführungsort wird vorgeschlagen', () {
+    test('das Angebot selbst geht vor', () {
+      expect(
+        massnahmeOrtVorschlag({
+          'durchfuehrungsort': 'Reuttier Straße 41, 89231 Neu-Ulm',
+          'traeger_strasse': 'Frauentorstr. 29',
+          'traeger_plz': '86152', 'traeger_ort': 'Augsburg',
+        }),
+        'Reuttier Straße 41, 89231 Neu-Ulm',
+      );
+    });
+
+    test('sonst die Anschrift des Standorts', () {
+      expect(
+        massnahmeOrtVorschlag({
+          'traeger_strasse': 'Reuttier Straße 41',
+          'traeger_plz': '89231', 'traeger_ort': 'Neu-Ulm',
+        }),
+        'Reuttier Straße 41, 89231 Neu-Ulm',
+      );
+    });
+
+    // ⚠️ „89231 Neu-Ulm" allein ist kein Ort, an den jemand hingeht. Lieber
+    // nichts vorschlagen als etwas Halbes, das dann so stehen bleibt.
+    test('ohne Straße wird nichts vorgeschlagen', () {
+      expect(massnahmeOrtVorschlag({'traeger_plz': '89231', 'traeger_ort': 'Neu-Ulm'}), '');
+      expect(massnahmeOrtVorschlag(const {}), '');
+    });
+
+    test('Straße ohne PLZ/Ort bleibt brauchbar', () {
+      expect(massnahmeOrtVorschlag({'traeger_strasse': 'Reuttier Straße 41'}),
+          'Reuttier Straße 41');
+    });
+
+    // ⚠️ Der Rechtsträger sitzt oft in einer anderen Stadt — im Bescheid sind
+    // es zwei getrennte Zeilen. Wer ihn einsetzt, schickt jemanden 100 km weit.
+    test('der juristische Sitz wird NIE verwendet', () {
+      final v = massnahmeOrtVorschlag({
+        'rechtstraeger': 'Kolping-Bildungswerk gGmbH in der Diözese Augsburg',
+        'traeger_strasse': 'Reuttier Straße 41',
+        'traeger_plz': '89231', 'traeger_ort': 'Neu-Ulm',
+      });
+      expect(v.contains('Augsburg'), isFalse);
+      expect(v, 'Reuttier Straße 41, 89231 Neu-Ulm');
+    });
+
+    // ⚠️ Der Fall, der die Zusicherung erst prüfbar macht: OHNE Standort-
+    // Anschrift. Solange traeger_strasse gesetzt ist, kann ein Rückfall auf
+    // rechtstraeger gar nicht greifen — der Test oben allein wäre zahnlos.
+    test('ohne Standort-Anschrift wird der Sitz NICHT ersatzweise genommen', () {
+      expect(
+        massnahmeOrtVorschlag({
+          'rechtstraeger': 'Kolping-Bildungswerk gGmbH in der Diözese Augsburg',
+          'traeger_ort': 'Neu-Ulm',
+        }),
+        '',
+      );
+    });
+  });
+
+  group('Verdrahtung im Dialog', () {
+    final tab = File('lib/widgets/jobcenter_massnahme_tab.dart').readAsStringSync();
+
+    test('der Ort wird beim Wählen eines Angebots vorgeschlagen', () {
+      expect(tab.contains('massnahmeOrtVorschlag(a)'), isTrue);
+    });
+
+    // Ein bereits eingetragener Ort ist eine Angabe des Vorsitzenden und
+    // darf nicht von einem Vorschlag überschrieben werden.
+    test('ein vorhandener Ort wird nicht überschrieben', () {
+      expect(tab.contains("if (_ort.text.trim().isEmpty)"), isTrue);
+    });
+  });
+}
+
+void _vorbelegungPruefungen() {
+  final tab = File('lib/widgets/jobcenter_massnahme_tab.dart').readAsStringSync();
+
+  group('Kundennummer aus dem Aktenzeichen', () {
+    test('wird nach dem letzten Bindestrich gelesen', () {
+      expect(massnahmeKundennummerAus('481.O-819D168082'), '819D168082');
+    });
+
+    // ⚠️ Lieber leer als geraten: eine falsche Kundennummer stünde später in
+    // einem Widerspruch und fiele dort niemandem mehr auf.
+    test('was nicht wie eine Kundennummer aussieht, wird nicht geraten', () {
+      for (final s in ['481.O-irgendwas', 'ohne-Bindestrich', '', '123-456']) {
+        expect(massnahmeKundennummerAus(s), '', reason: s);
+      }
+    });
+  });
+
+  group('Ende aus der Laufzeit', () {
+    test('Beginn plus Wochen, letzter Tag inklusive', () {
+      // 14.09. + 11 Wochen = 77 Tage; der letzte Tag zählt mit
+      expect(massnahmeEndeVorschlag(DateTime(2026, 9, 14), 11), DateTime(2026, 11, 29));
+    });
+
+    test('ohne Beginn oder ohne Laufzeit wird nichts vorgeschlagen', () {
+      expect(massnahmeEndeVorschlag(null, 11), isNull);
+      expect(massnahmeEndeVorschlag(DateTime(2026, 9, 14), null), isNull);
+      expect(massnahmeEndeVorschlag(DateTime(2026, 9, 14), 0), isNull);
+    });
+
+    test('nimmt die Wochenzahl auch als String (PDO liefert beides)', () {
+      expect(massnahmeEndeVorschlag(DateTime(2026, 9, 14), '11'), DateTime(2026, 11, 29));
+    });
+  });
+
+  group('Verdrahtung der Vorbelegung', () {
+    test('alle vier Quellen werden benutzt', () {
+      for (final q in [
+        "widget.userAv['mein_zeichen']",           // Aktenzeichen
+        "massnahmeKundennummerAus(az)",            // Kundennummer
+        "a['stunden_woche']",                      // Stunden aus dem Angebot
+        "massnahmeEndeVorschlag(",                 // Ende aus der Laufzeit
+      ]) {
+        expect(tab.contains(q), isTrue, reason: 'nicht vorbelegt: $q');
+      }
+    });
+
+    // Jede Vorbelegung ist ein Vorschlag, kein Überschreiben.
+    test('kein Feld wird überschrieben, wenn schon etwas drinsteht', () {
+      for (final f in ['_ort', '_stunden', '_ende', '_nummer']) {
+        expect(tab.contains('if ($f.text.trim().isEmpty)'), isTrue, reason: f);
+      }
+    });
+  });
+}
