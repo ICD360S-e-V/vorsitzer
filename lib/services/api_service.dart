@@ -14846,6 +14846,26 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // === MASSNAHME (TRÄGER) ===
+  //
+  // Zuweisung zu einer Maßnahme zur Aktivierung und beruflichen Eingliederung
+  // bei einem Träger, § 16 SGB II i.V.m. § 45 Abs. 1 SGB III.
+  //
+  // ⚠️ Katalog (Träger/Angebote) ist Klartext — öffentliche Firmendaten.
+  // Die Zuweisung des Mitglieds ist ein Sozialdatum nach § 35 SGB I; ihre
+  // freien Textfelder liegen serverseitig verschlüsselt. Kommt in einer Zeile
+  // `lesbar: false` zurück, konnte der Server ein Feld NICHT entschlüsseln —
+  // das ist etwas anderes als "nichts erfasst" und darf nie als leeres Feld
+  // dargestellt und dann überschrieben werden.
+  Future<Map<String, dynamic>> massnahmeAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/massnahme_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // === SCHWEIGEPFLICHTENTBINDUNG für einen Arbeitsvermittler ===
   //
   // Eigene Endpunkte, kein `arzt_typ` auf schweigepflicht_create.php: dort

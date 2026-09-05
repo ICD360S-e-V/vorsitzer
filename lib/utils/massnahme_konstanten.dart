@@ -1,0 +1,89 @@
+/// Jobcenter ▸ Arbeitsvermittler ▸ Maßnahme (Träger).
+///
+/// Die Regeln stehen hier und nicht im `build`, damit ein Test sie festhalten
+/// kann — dieselbe Vorgehensweise wie bei `befreiungsausweis_regel` und
+/// `sb_ausweis`.
+library;
+
+/// Kurze Beschriftung des Reiters.
+///
+/// ⚠️ „(Träger)" ist kein Zierrat: die Bundesagentur unterscheidet MAT
+/// (bei einem **T**räger) von MAG (bei einem Arbeitgeber). Fällt der Zusatz
+/// weg, ist auf dem Schirm nicht mehr zu sehen, um welche der beiden es geht.
+const String kMassnahmeTabTitel = 'Maßnahme (Träger)';
+
+/// Der amtliche Wortlaut. Steht als Überschrift IM Reiter, weil er die
+/// Formulierung des Zuweisungsschreibens ist und nicht verloren gehen darf —
+/// die kurze Beschriftung ist unsere, nicht die des Jobcenters.
+const String kMassnahmeVollTitel =
+    'Zuweisung zu einer Maßnahme zur Aktivierung und beruflichen '
+    'Eingliederung bei einem Träger';
+
+const String kMassnahmeRechtsgrundlage = '§ 16 SGB II i.V.m. § 45 Abs. 1 SGB III';
+
+/// ⚠️ Zeichengleich mit der ENUM-Spalte `jobcenter_user_massnahme.status`
+/// UND mit MN_STATUS in massnahme_manage.php. Das PHP liegt in keinem Repo —
+/// weicht diese Liste ab, weist der Server mit „Unbekannter Status" ab, und
+/// für den Nutzer sieht das aus wie ein Fehler der App.
+const List<String> kMassnahmeStatus = [
+  'zugewiesen', 'angetreten', 'laufend', 'beendet', 'abgebrochen', 'abgelehnt',
+];
+
+/// ⚠️ Zeichengleich mit MN_ART in massnahme_manage.php.
+const List<String> kMassnahmeArten = [
+  'MAT', 'MAG', 'AVGS', 'Weiterbildung', 'sonstige',
+];
+
+const Map<String, String> kMassnahmeStatusLabel = {
+  'zugewiesen': 'Zugewiesen',
+  'angetreten': 'Angetreten',
+  'laufend': 'Läuft',
+  'beendet': 'Beendet',
+  'abgebrochen': 'Abgebrochen',
+  'abgelehnt': 'Abgelehnt',
+};
+
+const Map<String, String> kMassnahmeArtLabel = {
+  'MAT': 'MAT — bei einem Träger',
+  'MAG': 'MAG — bei einem Arbeitgeber',
+  'AVGS': 'AVGS — Aktivierungs- und Vermittlungsgutschein',
+  'Weiterbildung': 'Weiterbildung',
+  'sonstige': 'Sonstige',
+};
+
+/// Eine Zuweisung, die den Alltag des Mitglieds gerade bestimmt.
+bool massnahmeIstOffen(String? status) =>
+    status == 'zugewiesen' || status == 'angetreten' || status == 'laufend';
+
+/// Ende der Widerspruchsfrist: ein Monat ab Bekanntgabe, § 84 Abs. 1 SGG.
+///
+/// ⚠️ „Monat plus eins" reicht nicht: Bekanntgabe am 31.01. hat keinen
+/// 31.02. Gerechnet wird auf den letzten Tag des Zielmonats geklemmt —
+/// dieselbe Falle wie bei `monateVorher()` im SB-Ausweis-Cron, dort in die
+/// schädliche Richtung.
+///
+/// Gibt `null` zurück, wenn kein Bekanntgabedatum erfasst ist. Ein fehlendes
+/// Datum wird NICHT durch das Zuweisungsdatum ersetzt: die Frist läuft ab
+/// Bekanntgabe, und wann der Brief ankam, weiß nur das Mitglied.
+DateTime? massnahmeWiderspruchsfrist(DateTime? bekanntgabe) {
+  if (bekanntgabe == null) return null;
+  final jahr = bekanntgabe.month == 12 ? bekanntgabe.year + 1 : bekanntgabe.year;
+  final monat = bekanntgabe.month == 12 ? 1 : bekanntgabe.month + 1;
+  final letzterTag = DateTime(monat == 12 ? jahr + 1 : jahr, monat == 12 ? 1 : monat + 1, 0).day;
+  return DateTime(jahr, monat, bekanntgabe.day > letzterTag ? letzterTag : bekanntgabe.day);
+}
+
+/// Nur ISO. Ein leeres Feld heißt „nicht erfasst" und wird nicht geraten.
+DateTime? massnahmeDatum(dynamic v) {
+  final s = (v ?? '').toString().trim();
+  if (s.length < 10) return null;
+  return DateTime.tryParse(s.substring(0, 10));
+}
+
+/// Wie viele Tage bleiben bis zum Fristende. Negativ = abgelaufen.
+int? massnahmeTageBisFrist(DateTime? bekanntgabe, {DateTime? heute}) {
+  final frist = massnahmeWiderspruchsfrist(bekanntgabe);
+  if (frist == null) return null;
+  final h = heute ?? DateTime.now();
+  return frist.difference(DateTime(h.year, h.month, h.day)).inDays;
+}
