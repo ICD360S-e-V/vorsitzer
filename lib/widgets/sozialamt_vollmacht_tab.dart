@@ -84,8 +84,15 @@ class _SozialamtVollmachtTabState extends State<SozialamtVollmachtTab> {
       } else {
         _fehler = (d['message'] ?? 'Daten nicht abrufbar').toString();
       }
-      if (l['success'] == true && l['data'] is List) {
-        _liste = (l['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      // 🔴 `vollmachten`, NICHT `data`. vollmacht_list.php antwortet mit
+      // `jsonResponse(true, ['vollmachten' => $rows])`; die Antrags-Endpunkte
+      // dieses Bildschirms nebenan benutzen `data`, und genau von dort war der
+      // Schlüssel übernommen. Folge: die Vollmacht wurde jedes Mal erzeugt und
+      // erschien nie — kein Fehler, keine Meldung, nur eine leere Liste. Wer
+      // daraufhin noch einmal drückt, legt eine zweite an.
+      if (l['success'] == true && l['vollmachten'] is List) {
+        _liste = (l['vollmachten'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
     });
   }

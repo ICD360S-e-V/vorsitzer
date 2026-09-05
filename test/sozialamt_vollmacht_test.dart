@@ -96,6 +96,26 @@ void main() {
     });
   });
 
+  group('Die Antwort wird unter dem richtigen Schlüssel gelesen', () {
+    test("die Liste kommt aus 'vollmachten', nicht aus 'data'", () {
+      // 🔴 Der Fehler, der es in den Betrieb geschafft hat: vollmacht_list.php
+      // antwortet mit `['vollmachten' => …]`, die Antrags-Endpunkte desselben
+      // Bildschirms mit `['data' => …]`. Mit dem falschen Schlüssel wurde die
+      // Vollmacht jedes Mal erzeugt und erschien nie — kein Fehler, keine
+      // Meldung, nur eine leere Liste.
+      expect(tab.contains("l['vollmachten'] is List"), isTrue);
+      expect(tab.contains("l['data']"), isFalse);
+    });
+
+    test('Katalog, Amt und Vorsitzender kommen aus der Wurzel der Antwort', () {
+      // vollmacht_data.php legt sie direkt in die Wurzel — es gibt dort keine
+      // `data`-Hülle (siehe jsonResponse).
+      expect(tab.contains("d['recht']"), isTrue);
+      expect(tab.contains("_daten['amt']"), isTrue);
+      expect(tab.contains("_daten['vorsitzer']"), isTrue);
+    });
+  });
+
   group('Widerruf', () {
     test('sagt, dass er erst mit Zugang bei der Behörde wirkt', () {
       // Sonst hält jemand die Vollmacht für erledigt, während das Amt sie
