@@ -8134,6 +8134,18 @@ class ApiService {
     return await _client.get(Uri.parse('$baseUrl/admin/sozialamt_antrag_korr_docs.php?download_id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
   }
 
+  /// Schickt dem Mitglied den Lese- oder Signierlink zur Sozialamts-Vollmacht.
+  ///
+  /// ⚠️ Eigener Endpunkt, obwohl der Weg selbst nicht behoerdenspezifisch ist:
+  /// der Server prueft dort, dass die Vollmacht wirklich eine des Sozialamts
+  /// ist. Ohne diesen Riegel liesse sich eine fremde hereinreichen.
+  Future<Map<String, dynamic>> sozialamtVollmachtLinkSenden({required int vollmachtId, required String zweck}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_vollmacht_versand.php'), headers: _headers,
+        body: jsonEncode({'action': 'link_senden', 'vollmacht_id': vollmachtId, 'zweck': zweck})).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+
 
   // ========== SOZIALAMT ANTRAG DOCS ==========
 

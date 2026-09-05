@@ -14,6 +14,7 @@ import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
 import '../utils/ra_antwort.dart' show raWert, raDatumDe;
 import '../utils/sozialamt_korr_optionen.dart';
+import 'sozialamt_vollmacht_tab.dart';
 
 class BehordeSozialamtContent extends StatefulWidget {
   final ApiService? apiService;
@@ -25,10 +26,16 @@ class BehordeSozialamtContent extends StatefulWidget {
   final void Function(String type, Map<String, dynamic> data) saveData;
   final Widget Function(String type, TextEditingController controller) dienststelleBuilder;
 
+  /// Für den Signaturauftrag: unter dieser Nummer stellt der Vorstand die
+  /// Vollmacht zur Unterschrift. Leer = kein Auftrag möglich; der Reiter sagt
+  /// das dann, statt den Knopf ins Leere laufen zu lassen.
+  final String adminMitgliedernummer;
+
   const BehordeSozialamtContent({
     super.key,
     this.apiService,
     this.userId,
+    this.adminMitgliedernummer = '',
     required this.getData,
     required this.isLoading,
     required this.isSaving,
@@ -437,7 +444,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(width: 580, height: 560, child: _AntragDetailView(apiService: widget.apiService!, userId: widget.userId ?? 0, antragId: antragId, antrag: antrag, checkedDocs: _checkedDocsGlobal, onCheckedChanged: (docs) { _checkedDocsGlobal = docs; _dbData['checked_docs'] = {'list': docs.toList()}; _save(); })),
+        child: SizedBox(width: 580, height: 560, child: _AntragDetailView(apiService: widget.apiService!, userId: widget.userId ?? 0, antragId: antragId, antrag: antrag, adminMitgliedernummer: widget.adminMitgliedernummer, checkedDocs: _checkedDocsGlobal, onCheckedChanged: (docs) { _checkedDocsGlobal = docs; _dbData['checked_docs'] = {'list': docs.toList()}; _save(); })),
       ),
     );
   }
@@ -453,9 +460,10 @@ class _AntragDetailView extends StatefulWidget {
   final int userId;
   final int antragId;
   final Map<String, dynamic> antrag;
+  final String adminMitgliedernummer;
   final Set<String> checkedDocs;
   final ValueChanged<Set<String>> onCheckedChanged;
-  const _AntragDetailView({required this.apiService, required this.userId, required this.antragId, required this.antrag, required this.checkedDocs, required this.onCheckedChanged});
+  const _AntragDetailView({required this.apiService, required this.userId, required this.antragId, required this.antrag, required this.checkedDocs, required this.onCheckedChanged, this.adminMitgliedernummer = ''});
   @override
   State<_AntragDetailView> createState() => _AntragDetailViewState();
 }
@@ -641,7 +649,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
   @override
   Widget build(BuildContext context) {
     final a = widget.antrag;
-    return DefaultTabController(length: 5, child: Column(children: [
+    return DefaultTabController(length: 6, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(color: F.h(Colors.indigo, 700), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -660,6 +668,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
         Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
         Tab(icon: Icon(Icons.verified, size: 18), text: 'Bewilligung'),
         Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+        Tab(icon: Icon(Icons.assignment_ind, size: 18), text: 'Vollmacht'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(a),
@@ -667,6 +676,15 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
         _buildVerlauf(),
         _AntragBewilligungTab(apiService: widget.apiService, userId: widget.userId, antragId: widget.antragId),
         _buildKorr(),
+        // ⚠️ Die Vollmacht gilt der GANZEN Akte des Mitglieds bei diesem Amt,
+        // nicht diesem Antrag — sie steht deshalb in jedem Antrag desselben
+        // Mitglieds mit demselben Inhalt da. Der Reiter sagt das oben selbst;
+        // ohne den Satz läse man ihn als „Vollmacht für diesen Antrag".
+        SozialamtVollmachtTab(
+          apiService: widget.apiService,
+          userId: widget.userId,
+          adminMitgliedernummer: widget.adminMitgliedernummer,
+        ),
       ])),
     ]));
   }
