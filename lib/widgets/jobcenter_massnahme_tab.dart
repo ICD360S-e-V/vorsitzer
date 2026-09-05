@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../utils/app_farben.dart';
 import '../utils/massnahme_konstanten.dart';
+import 'massnahme_detail_modal.dart';
 import 'phone_link.dart';
 
 /// Jobcenter ▸ Arbeitsvermittler ▸ „Maßnahme (Träger)".
@@ -13,15 +14,6 @@ import 'phone_link.dart';
 ///
 /// ⚠️ Eigene Datei, obwohl der Reiter im AV-Modal steckt:
 /// behorde_jobcenter.dart hat über 12.000 Zeilen.
-/// ⚠️ PDO liefert Zahlen je nach Treiber als int oder als String zurück.
-/// `as int?` würde in dem einen Fall werfen — und zwar erst auf dem Gerät.
-int? mnZahl(dynamic v) {
-  if (v == null) return null;
-  if (v is int) return v;
-  if (v is num) return v.toInt();
-  return int.tryParse(v.toString());
-}
-
 class JobcenterMassnahmeTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
@@ -218,7 +210,10 @@ class _JobcenterMassnahmeTabState extends State<JobcenterMassnahmeTab>
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
+      // Tippen öffnet die Detailansicht: Details · Bewilligung · Korrespondenz.
+      child: InkWell(
+        onTap: () => _detailOeffnen(z),
+        child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -336,7 +331,11 @@ class _JobcenterMassnahmeTabState extends State<JobcenterMassnahmeTab>
           ],
 
           const SizedBox(height: 4),
-          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          Row(children: [
+            Icon(Icons.touch_app_outlined, size: 13, color: F.h(Colors.indigo, 400)),
+            const SizedBox(width: 4),
+            Expanded(child: Text('Tippen für Bewilligung und Korrespondenz',
+                style: TextStyle(fontSize: 10.5, color: F.h(Colors.indigo, 400)))),
             TextButton.icon(
               onPressed: () => _bearbeiten(z),
               icon: const Icon(Icons.edit, size: 15),
@@ -351,7 +350,22 @@ class _JobcenterMassnahmeTabState extends State<JobcenterMassnahmeTab>
           ]),
         ]),
       ),
+      ),
     );
+  }
+
+  /// ⚠️ Die Detailansicht kann Korrespondenz und Dokumente ändern; danach neu
+  /// laden, sonst zeigt die Karte den Anhangzähler von vorhin.
+  Future<void> _detailOeffnen(Map<String, dynamic> z) async {
+    final geaendert = await showDialog<bool>(
+      context: context,
+      builder: (_) => MassnahmeDetailModal(
+        apiService: widget.apiService,
+        userId: widget.userId,
+        zuweisung: z,
+      ),
+    );
+    if (geaendert == true) { widget.onChanged?.call(); _laden(); }
   }
 
   Widget _zeile(IconData ic, String label, String wert) => Padding(
