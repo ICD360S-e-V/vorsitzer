@@ -824,6 +824,10 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
   String _pruefHinweis = '';
   String _quelle = '';
 
+  /// Ob unter „Was war besprochen?" etwas hinterlegt ist. Kommt aus der
+  /// Antwort des Servers, nicht aus dem Plan — der Server entscheidet, ob der
+  /// Abgleich laufen konnte.
+  bool _vereinbartLeer = false;
   List<Map<String, dynamic>> _absaetze = [];
   List<Map<String, dynamic>> _unvollstaendig = [];
   final _freitextC = TextEditingController();
@@ -1105,6 +1109,46 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
     _laden1();
   }
 
+  /// Zeigt, was die Maschine aus der Datei gelesen hat.
+  Future<void> _textAnsehen(Map<String, dynamic> d) async {
+    setState(() => _arbeitet = true);
+    final r = await widget.apiService.jcKooperationsplanDocTextLesen(d['id'] as int);
+    if (!mounted) return;
+    setState(() => _arbeitet = false);
+    final text = (r['text'] ?? '').toString();
+    final quelle = (r['text_quelle'] ?? 'keiner').toString();
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Gelesener Text — ${d['datei_name']}', style: const TextStyle(fontSize: 14)),
+        content: SizedBox(
+          width: 640,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              quelle == 'pdf'
+                  ? 'Aus der Datei selbst — Wort für Wort, was dort steht.'
+                  : quelle == 'ocr'
+                      ? 'Aus dem Bild erkannt. Lesefehler sind normal; darauf beruht auch, '
+                        'warum unsichere Feststellungen nicht vorgehakt werden.'
+                      : 'Es wurde kein Text gelesen.',
+              style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700)),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  text.isEmpty ? '(leer)' : text,
+                  style: const TextStyle(fontSize: 12.5, height: 1.4, fontFamily: 'monospace'),
+                ),
+              ),
+            ),
+          ]),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+      ),
+    );
+  }
+
   Future<File?> _holen(Map<String, dynamic> d) async {
     final antwort = await widget.apiService.jcKooperationsplanDocDownload(d['id'] as int);
     if (antwort.statusCode != 200) return null;
@@ -1199,9 +1243,15 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
                               _laden1();
                             },
                           ),
+                        if (quelle != 'keiner')
+                          IconButton(
+                            icon: Icon(Icons.subject, size: 18, color: F.h(Colors.blueGrey, 700)),
+                            tooltip: 'Gelesenen Text ansehen',
+                            onPressed: _arbeitet ? null : () => _textAnsehen(d),
+                          ),
                         IconButton(
                           icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.indigo, 600)),
-                          tooltip: 'Ansehen',
+                          tooltip: 'Datei ansehen',
                           onPressed: () async {
                             final f = await _holen(d);
                             if (f != null && mounted) {
@@ -1263,6 +1313,7 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
           (r['gruppen'] as Map?)?.map((k, v) => MapEntry(k.toString(), v.toString())) ?? _gruppen);
       _pruefHinweis = (r['hinweis'] ?? '').toString();
       _quelle = (r['quelle'] ?? '').toString();
+      _vereinbartLeer = r['vereinbart_leer'] == true;
       vorschlag.forEach((id, s) {
         final unsicher = s['sicher'] != true;
         final stand = (s['stand'] ?? 'unklar').toString();
@@ -1388,6 +1439,61 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
           ),
         ]),
       ),
+      // ⚠️ Der stille Ausfall, der an der ersten echten Prüfung aufgefallen ist:
+      // „Was war besprochen?" war leer, also lief der Abgleich gar nicht — und
+      // auf dem Schirm sah das aus wie „geprüft, nichts gefunden". Genau der
+      // Abgleich ist aber der Zweck der ganzen Funktion. Deshalb steht das
+      // jetzt oben und rot, nicht als Randnotiz.
+      if (_vereinbartLeer)
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: F.h(Colors.red, 50),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: F.h(Colors.red, 300)),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.report_problem_outlined, size: 18, color: F.h(Colors.red, 800)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Der Abgleich lief nicht',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: F.h(Colors.red, 900))),
+                const SizedBox(height: 2),
+                Text(
+                  'Unter „Was war besprochen?" ist nichts hinterlegt. Ohne die vereinbarten '
+                  'Zielberufe und Maßnahmen kann nicht festgestellt werden, ob der Plan sie '
+                  'enthält — und genau darum geht es hier.',
+                  style: TextStyle(fontSize: 11.5, color: F.h(Colors.red, 900)),
+                ),
+                const SizedBox(height: 4),
+                TextButton.icon(
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 30)),
+                  icon: const Icon(Icons.edit, size: 15),
+                  label: const Text('Jetzt nachtragen', style: TextStyle(fontSize: 12)),
+                  onPressed: () async {
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => _KoopPlanDialog(
+                        apiService: widget.apiService,
+                        userAvId: widget.userAvId,
+                        kontext: widget.kontext,
+                        bestehend: _plan,
+                      ),
+                    );
+                    if (ok == true) {
+                      _geaendert = true;
+                      await _laden1();
+                      if (mounted) await _vorpruefen();
+                    }
+                  },
+                ),
+              ]),
+            ),
+          ]),
+        ),
       if (_pruefHinweis.isNotEmpty)
         Container(
           width: double.infinity,

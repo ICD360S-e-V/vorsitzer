@@ -169,6 +169,37 @@ void main() {
     });
   });
 
+  group('Man kann sehen, was die Maschine gelesen hat', () {
+    test('der gelesene Text ist abrufbar', () {
+      // ⚠️ Ohne diese Ansicht stand auf dem Schirm nur „aus dem Bild erkannt
+      // (1137 Zeichen)". An der ersten echten Prüfung war der Text gut und
+      // trotzdem unsichtbar — also war nicht zu erkennen, warum ein Kriterium
+      // so entschieden hat.
+      expect(api.contains("'action': 'text_lesen'"), isTrue);
+      expect(tab.contains('Gelesenen Text ansehen'), isTrue);
+    });
+
+    test('bei Bilderkennung steht dabei, dass Lesefehler normal sind', () {
+      expect(tab.contains('Lesefehler sind normal'), isTrue);
+    });
+  });
+
+  group('Ein leerer Abgleich fällt auf', () {
+    test('die Prüfung sagt es laut', () {
+      // ⚠️ Der stille Ausfall vom 05.09.2026: „Was war besprochen?" war leer,
+      // der Abgleich lief nicht — und das sah aus wie „geprüft, nichts
+      // gefunden". Genau der Abgleich ist der Zweck der Funktion.
+      expect(tab.contains('Der Abgleich lief nicht'), isTrue);
+      expect(tab.contains('Jetzt nachtragen'), isTrue);
+    });
+
+    test('der Befund kommt vom Server, nicht aus einer eigenen Rechnung', () {
+      // Der Server entscheidet, ob der Abgleich laufen konnte — er kennt die
+      // Kriterien. Eine zweite Rechnung im Client wäre eine zweite Wahrheit.
+      expect(tab.contains("r['vereinbart_leer'] == true"), isTrue);
+    });
+  });
+
   group('Datumsanzeige', () {
     test('ISO wird deutsch', () {
       expect(koopDatumDe('2026-08-12'), '12.08.2026');
