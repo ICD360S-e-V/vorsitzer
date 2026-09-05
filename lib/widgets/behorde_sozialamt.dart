@@ -31,11 +31,15 @@ class BehordeSozialamtContent extends StatefulWidget {
   /// das dann, statt den Knopf ins Leere laufen zu lassen.
   final String adminMitgliedernummer;
 
+  /// Das Postfach des Mitglieds — Ziel des Chat-Versands.
+  final String memberMitgliedernummer;
+
   const BehordeSozialamtContent({
     super.key,
     this.apiService,
     this.userId,
     this.adminMitgliedernummer = '',
+    this.memberMitgliedernummer = '',
     required this.getData,
     required this.isLoading,
     required this.isSaving,
@@ -444,7 +448,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(width: 580, height: 560, child: _AntragDetailView(apiService: widget.apiService!, userId: widget.userId ?? 0, antragId: antragId, antrag: antrag, adminMitgliedernummer: widget.adminMitgliedernummer, checkedDocs: _checkedDocsGlobal, onCheckedChanged: (docs) { _checkedDocsGlobal = docs; _dbData['checked_docs'] = {'list': docs.toList()}; _save(); })),
+        child: SizedBox(width: 580, height: 560, child: _AntragDetailView(apiService: widget.apiService!, userId: widget.userId ?? 0, antragId: antragId, antrag: antrag, adminMitgliedernummer: widget.adminMitgliedernummer, memberMitgliedernummer: widget.memberMitgliedernummer, checkedDocs: _checkedDocsGlobal, onCheckedChanged: (docs) { _checkedDocsGlobal = docs; _dbData['checked_docs'] = {'list': docs.toList()}; _save(); })),
       ),
     );
   }
@@ -461,9 +465,10 @@ class _AntragDetailView extends StatefulWidget {
   final int antragId;
   final Map<String, dynamic> antrag;
   final String adminMitgliedernummer;
+  final String memberMitgliedernummer;
   final Set<String> checkedDocs;
   final ValueChanged<Set<String>> onCheckedChanged;
-  const _AntragDetailView({required this.apiService, required this.userId, required this.antragId, required this.antrag, required this.checkedDocs, required this.onCheckedChanged, this.adminMitgliedernummer = ''});
+  const _AntragDetailView({required this.apiService, required this.userId, required this.antragId, required this.antrag, required this.checkedDocs, required this.onCheckedChanged, this.adminMitgliedernummer = '', this.memberMitgliedernummer = ''});
   @override
   State<_AntragDetailView> createState() => _AntragDetailViewState();
 }
@@ -684,6 +689,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
           apiService: widget.apiService,
           userId: widget.userId,
           adminMitgliedernummer: widget.adminMitgliedernummer,
+          memberMitgliedernummer: widget.memberMitgliedernummer,
         ),
       ])),
     ]));

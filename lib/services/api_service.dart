@@ -8145,6 +8145,30 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Hält eine Sendung fest — Chat, Post, persönlich.
+  ///
+  /// ⚠️ ERST aufrufen, nachdem der Server den Empfang bestätigt hat. Eine
+  /// Zeile, die eine Sendung behauptet, die nie ankam, ist genau die, auf die
+  /// sich später jemand verlässt.
+  Future<Map<String, dynamic>> sozialamtVollmachtVersandEintragen({
+    required int vollmachtId, required String empfaenger, required String weg,
+    String fassung = 'original', String sprache = 'de', String notiz = '',
+  }) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_vollmacht_versand.php'), headers: _headers,
+        body: jsonEncode({'action': 'versand_eintragen', 'vollmacht_id': vollmachtId,
+          'empfaenger': empfaenger, 'weg': weg, 'fassung': fassung,
+          'sprache': sprache, 'notiz': notiz})).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Das Versandprotokoll: `items` sind Sendungen, `links` die SMS-Links samt
+  /// dem, was das Mitglied damit getan hat.
+  Future<Map<String, dynamic>> sozialamtVollmachtVersandListe(int vollmachtId) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_vollmacht_versand.php'), headers: _headers,
+        body: jsonEncode({'action': 'versand_list', 'vollmacht_id': vollmachtId})).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
 
 
   // ========== SOZIALAMT ANTRAG DOCS ==========
