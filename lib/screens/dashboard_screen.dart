@@ -63,6 +63,8 @@ import 'sipgate_fax_screen.dart';
 import '../services/fax_badge_service.dart';
 import 'post_screen.dart';
 import 'sipgate_screen.dart';
+import '../services/preis_leser_service.dart';
+import 'preise_screen.dart';
 import 'speedtest_screen.dart';
 import 'website_screen.dart';
 import 'terminverwaltung_screen.dart';
@@ -240,6 +242,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
     // Warnung anzeigen, solange die Testphase des Kontos noch läuft.
     _loadTrialStatus();
+
+    // Preise einmal am Tag nachsehen — nur auf dem Rechner, auf dem ein
+    // Chromium steht (die Prüfung steckt in `laufWennFaellig`).
+    //
+    // ⚠️ Kein eigener Zeitgeber: der Rechner läuft nicht durch, ein Wecker,
+    // der nur bei geöffneter App tickt, verspricht mehr als er hält. Bleibt
+    // die App tagelang zu, meldet sich der Wächter auf dem Server.
+    //
+    // ⚠️ Ohne `unawaited`-Semantik: der Aufruf darf den Aufbau des
+    // Dashboards nicht aufhalten, ein Lauf dauert Minuten.
+    PreisLeserService().laufWennFaellig();
 
     // Mitgliedernummer bekanntgeben — 25 Stellen lesen sie von dort.
     GlobalChatService().currentMitgliedernummer = widget.currentMitgliedernummer;
@@ -1606,8 +1619,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           // Wetter; alles andere zieht ins ⋮-Menü, mit einem Punkt darauf,
           // wenn eines der versteckten Abzeichen etwas meldet.
           if (istTelefon) ..._appBarTelefonAktionen() else ...[
+          // Preise der Drogeriemärkte — ein Link je Produkt, einmal am Tag
+          // nachgesehen.
+          //
+          // ⚠️ Gelesen wird auf dem Linux-Rechner mit Chromium, nicht auf dem
+          // Server: dm liefert eine Produktseite ohne Preis, Rossmann eine
+          // Bot-Abfrage. Auf dem Telefon zeigt der Bildschirm deshalb nur an,
+          // was zuletzt gelesen wurde.
+          IconButton(
+            icon: const Icon(Icons.storefront_outlined),
+            tooltip: 'Preise — Drogeriemärkte',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const PreiseScreen(),
+            )),
+          ),
           // Der öffentliche Webauftritt icd360s.de — Besucherzahlen und
-          // Sicherheitsbefund. Steht direkt neben dem Schlüssel, weil es der
+          // Sicherheitsbefund. Steht gleich neben den Preisen, weil es der
           // eine Knopf ist, an dem sich ablesen lässt, ob der Auftritt
           // überhaupt jemanden erreicht.
           //
@@ -2323,6 +2350,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     ? Colors.red.shade600
                     : Colors.orange.shade600,
               ),
+              _menuePunktIcon('preise', Icons.storefront_outlined, 'Preise — Drogeriemärkte'),
               _menuePunktIcon('speedtest', Icons.speed, 'Speedtest'),
               _menuePunktIcon('website', Icons.public, 'Website — icd360s.de'),
               _menuePunktIcon('mail', Icons.mail_outline, 'E-Mail',
@@ -2439,6 +2467,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       case 'erscheinungsbild':
         await ThemeService.instance
             .weiterschalten(Theme.of(context).brightness);
+      case 'preise':
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const PreiseScreen(),
+        ));
       case 'speedtest':
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => const SpeedtestScreen(),
