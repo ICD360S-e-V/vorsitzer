@@ -15129,26 +15129,130 @@ class ApiService {
   // jobcenter_av_kooperationsplan_dokumente abgelegt.
   // Endpoint: admin/jobcenter_av_kooperationsplan_docs.php
 
-  Future<Map<String, dynamic>> jcKooperationsplanDocsList(int userAvId) async {
+  /// [planId] `null` = alle Dateien der Zuordnung (das alte Verhalten),
+  /// eine Zahl = die eines Plans, `0` = ausdrücklich die OHNE Plan.
+  Future<Map<String, dynamic>> jcKooperationsplanDocsList(int userAvId, {int? planId}) async {
+    final zusatz = planId == null ? '' : '&plan_id=$planId';
     final r = await _client.get(
-      Uri.parse('$baseUrl/admin/jobcenter_av_kooperationsplan_docs.php?user_av_id=$userAvId'),
+      Uri.parse('$baseUrl/admin/jobcenter_av_kooperationsplan_docs.php?user_av_id=$userAvId$zusatz'),
       headers: _headers,
     ).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  /// ⚠️ Der Server liest beim Hochladen den Text aus — bei einem Scan über
+  /// Tesseract, und das dauert je Seite ein bis zwei Sekunden. Deshalb hier
+  /// keine der üblichen 15 Sekunden: ein zwölfseitiger Scan bräuchte länger,
+  /// und ein Zeitablauf sähe aus wie ein fehlgeschlagener Upload, obwohl die
+  /// Datei längst verschlüsselt in der Datenbank liegt.
   Future<Map<String, dynamic>> jcKooperationsplanDocUpload({
     required int userAvId,
     required String filePath,
     required String fileName,
+    int? planId,
   }) async {
     final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/jobcenter_av_kooperationsplan_docs.php'));
     request.headers.addAll(_headers);
     request.fields['user_av_id'] = userAvId.toString();
+    if (planId != null && planId > 0) request.fields['plan_id'] = planId.toString();
     request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
-    final response = await http.Response.fromStream(await request.send());
+    final response = await http.Response.fromStream(
+        await request.send().timeout(const Duration(seconds: 300)));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
+
+  /// Text einer schon vorhandenen Datei nachträglich auslesen.
+  ///
+  /// Für alles, was vor dieser Funktion hochgeladen wurde — sonst liesse sich
+  /// ausgerechnet der erste echte Kooperationsplan im Bestand nie prüfen.
+  Future<Map<String, dynamic>> jcKooperationsplanDocTextNachlesen(int docId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_kooperationsplan_docs.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'text_nachlesen', 'id': docId}),
+    ).timeout(const Duration(seconds: 300));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Eine Datei an einen Plan hängen (oder mit `planId: 0` wieder lösen).
+  Future<Map<String, dynamic>> jcKooperationsplanDocZuordnen(int docId, int planId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_kooperationsplan_docs.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'zuordnen', 'id': docId, 'plan_id': planId}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  // === KOOPERATIONSPLAN als VORGANG (§ 15 SGB II) ===
+  // Endpoint: admin/jobcenter_av_kooperationsplan.php
+  //
+  // ⚠️ Der Kriterienkatalog steht NICHT hier. Er kommt mit der Antwort von
+  // `pruefen` und `pruefungLesen` vom Server (`kriterien` + `gruppen`), samt
+  // Titel, Frage, Rechtsgrundlage und Schwere. Eine zweite Liste in Dart wäre
+  // eine zweite Wahrheit: der Server entscheidet, welche Punkte für einen Plan
+  // und welche für einen Verwaltungsakt gelten, und ein Schlüssel, den nur eine
+  // der beiden Seiten kennt, verschwindet lautlos.
+
+  Future<Map<String, dynamic>> _koop(Map<String, dynamic> body, {int sekunden = 20}) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/jobcenter_av_kooperationsplan.php'),
+        headers: _headers,
+        body: jsonEncode(body),
+      ).timeout(Duration(seconds: sekunden));
+      try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Ungültige Antwort'}; }
+    } catch (e) {
+      return {'success': false, 'message': '$e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> jcKoopListe(int userAvId) =>
+      _koop({'action': 'list', 'user_av_id': userAvId});
+
+  Future<Map<String, dynamic>> jcKoopKontext(int userAvId) =>
+      _koop({'action': 'kontext', 'user_av_id': userAvId});
+
+  Future<Map<String, dynamic>> jcKoopSpeichern(Map<String, dynamic> plan) =>
+      _koop({'action': 'save', 'plan': plan});
+
+  Future<Map<String, dynamic>> jcKoopLoeschen(int id) =>
+      _koop({'action': 'delete', 'id': id});
+
+  /// ⚠️ Ändert nichts. Liefert einen VORSCHLAG, den der Vorsitzende billigt.
+  /// Braucht Zeit: bei einem Scan läuft dahinter die Texterkennung.
+  Future<Map<String, dynamic>> jcKoopPruefen(int id) =>
+      _koop({'action': 'pruefen', 'id': id}, sekunden: 300);
+
+  Future<Map<String, dynamic>> jcKoopPruefungSpeichern(int id, Map<String, dynamic> stand) =>
+      _koop({'action': 'pruefung_speichern', 'id': id, 'stand': stand});
+
+  Future<Map<String, dynamic>> jcKoopPruefungLesen(int id) =>
+      _koop({'action': 'pruefung_lesen', 'id': id});
+
+  /// Die Absätze für den Brief — nur aus Punkten, die als Mangel BESTÄTIGT
+  /// sind, und nur mit vollständig gefüllten Angaben. Was sich nicht füllen
+  /// lässt, kommt in `unvollstaendig` und bleibt aus dem Brief draußen.
+  Future<Map<String, dynamic>> jcKoopBeanstandungen(int id) =>
+      _koop({'action': 'beanstandungen', 'id': id});
+
+  /// Der Brief als PDF — zum Ansehen, bevor er hinausgeht.
+  Future<Map<String, dynamic>> jcKoopBriefPdf(int id, {String freitext = '', int fristTage = 14}) =>
+      _koop({'action': 'brief_pdf', 'id': id, 'freitext': freitext, 'frist_tage': fristTage},
+          sekunden: 60);
+
+  /// ⚠️ Geht SOFORT an eine Behörde und ist nicht zurückholbar. Der Aufrufer
+  /// muss vorher fragen; hier wird nichts mehr geprüft, was ein Mensch
+  /// entscheiden müsste.
+  Future<Map<String, dynamic>> jcKoopFaxSenden(int id, String faxNummer,
+          {String freitext = '', int fristTage = 14}) =>
+      _koop({
+        'action': 'fax_senden',
+        'id': id,
+        'fax_nummer': faxNummer,
+        'freitext': freitext,
+        'frist_tage': fristTage,
+      }, sekunden: 120);
 
   Future<http.Response> jcKooperationsplanDocDownload(int docId) async {
     return await _client.get(

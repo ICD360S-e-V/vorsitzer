@@ -21,6 +21,7 @@ import '../utils/cloud_picker_helper.dart';
 import '../utils/jc_termin_gruende.dart';
 import '../utils/massnahme_konstanten.dart';
 import 'jobcenter_massnahme_tab.dart';
+import 'jobcenter_kooperationsplan_tab.dart';
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
 
@@ -5031,7 +5032,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
             ticketService: widget.ticketService, adminMnr: widget.adminMnr, memberMnr: widget.memberMnr, memberName: widget.memberName,
             onChanged: () { _changed = true; }),
           _AvEigenbemTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, avName: name),
-          _AvKooperationsplanTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId),
+          JobcenterKooperationsplanTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId),
           _AvKorrespondenzTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, onChanged: () { _changed = true; }),
           _AvSchweigepflichtTab(
             apiService: widget.apiService,
@@ -6955,149 +6956,15 @@ class _EinladungDokumenteTabState extends State<_EinladungDokumenteTab> {
   }
 }
 
-// ==================== Kooperationsplan → Dokumente (§ 15 SGB II) ====================
-// Datei-Upload (max 20, pdf/jpg/jpeg) pro Arbeitsvermittler-Zuordnung, verschlüsselt
-// als BLOB in jobcenter_av_kooperationsplan_dokumente. Analog zu _EinladungDokumenteTab,
-// aber keyed via user_av_id statt einladung_id.
-
-class _AvKooperationsplanTab extends StatefulWidget {
-  final ApiService apiService;
-  final int userId;
-  final int userAvId;
-  const _AvKooperationsplanTab({required this.apiService, required this.userId, required this.userAvId});
-  @override State<_AvKooperationsplanTab> createState() => _AvKooperationsplanTabState();
-}
-
-class _AvKooperationsplanTabState extends State<_AvKooperationsplanTab> {
-  List<Map<String, dynamic>> _docs = [];
-  bool _loaded = false, _busy = false;
-  static const _max = 20;
-
-  @override
-  void initState() { super.initState(); _load(); }
-
-  Future<void> _load() async {
-    final r = await widget.apiService.jcKooperationsplanDocsList(widget.userAvId);
-    if (!mounted) return;
-    setState(() {
-      _docs = (r['success'] == true && r['data'] is List)
-          ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
-          : [];
-      _loaded = true;
-    });
-  }
-
-  void _snack(String m) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m))); }
-
-  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
-  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
-  Future<void> _upload({FilePickerResult? ausCloud}) async {
-    if (_docs.length >= _max) { _snack('Maximal $_max Dokumente'); return; }
-    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg'], allowMultiple: true);
-    if (result == null || result.files.isEmpty) return;
-    final files = result.files.where((f) => f.path != null).toList();
-    var slots = _max - _docs.length;
-    setState(() => _busy = true);
-    for (final f in files) {
-      if (slots <= 0) { _snack('Maximal $_max Dokumente — nicht alle hochgeladen'); break; }
-      final res = await widget.apiService.jcKooperationsplanDocUpload(userAvId: widget.userAvId, filePath: f.path!, fileName: f.name);
-      if (res['success'] != true) _snack(res['message']?.toString() ?? 'Upload fehlgeschlagen: ${f.name}');
-      slots--;
-    }
-    if (!mounted) return;
-    setState(() => _busy = false);
-    _load();
-  }
-
-  Future<File?> _fetch(Map<String, dynamic> d) async {
-    final resp = await widget.apiService.jcKooperationsplanDocDownload(d['id'] as int);
-    if (resp.statusCode != 200) return null;
-    final dir = await getTemporaryDirectory();
-    final name = (d['datei_name'] ?? 'dokument').toString();
-    final file = sichereDatei(dir, name);
-    await file.writeAsBytes(resp.bodyBytes);
-    return file;
-  }
-
-  Future<void> _view(Map<String, dynamic> d) async {
-    final f = await _fetch(d);
-    if (f != null && mounted) await FileViewerDialog.show(context, f.path, (d['datei_name'] ?? '').toString());
-  }
-
-  Future<void> _openExtern(Map<String, dynamic> d) async {
-    final f = await _fetch(d);
-    if (f != null) await OpenFilex.open(f.path);
-  }
-
-  Future<void> _delete(Map<String, dynamic> d) async {
-    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      title: const Text('Dokument löschen?'),
-      content: Text((d['datei_name'] ?? '').toString()),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
-    ));
-    if (ok != true) return;
-    await widget.apiService.jcKooperationsplanDocDelete(d['id'] as int);
-    _load();
-  }
-
-  String _fmtSize(dynamic bytes) {
-    final b = (bytes is num) ? bytes.toDouble() : double.tryParse('$bytes') ?? 0;
-    if (b < 1024) return '${b.toStringAsFixed(0)} B';
-    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(0)} KB';
-    return '${(b / 1024 / 1024).toStringAsFixed(1)} MB';
-  }
-
-  IconData _iconFor(String name) {
-    final n = name.toLowerCase();
-    if (n.endsWith('.pdf')) return Icons.picture_as_pdf;
-    if (n.endsWith('.jpg') || n.endsWith('.jpeg')) return Icons.image;
-    return Icons.insert_drive_file;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_loaded) return const Center(child: CircularProgressIndicator());
-    return Column(children: [
-      Container(padding: const EdgeInsets.all(10), child: Row(children: [
-        Icon(Icons.lock, size: 14, color: F.h(Colors.green, 700)), const SizedBox(width: 4),
-        Expanded(child: Text('${_docs.length}/$_max Dokumente · verschlüsselt', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))),
-        CloudPickButton(
-          memberId: widget.userId,
-          apiService: widget.apiService,
-          allowedExtensions: const ['pdf', 'jpg', 'jpeg'],
-          maxFiles: _max - _docs.length,
-          kompakt: true,
-          enabled: !_busy && _docs.length < _max,
-          onPicked: (r) => _upload(ausCloud: r),
-        ),
-        const SizedBox(width: 4),
-        ElevatedButton.icon(
-          onPressed: (_busy || _docs.length >= _max) ? null : _upload,
-          icon: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 14),
-          label: const Text('Hochladen'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, minimumSize: const Size(0, 32)),
-        ),
-      ])),
-      Expanded(child: _docs.isEmpty
-        ? Center(child: Text('Keine Dokumente hochgeladen', style: TextStyle(color: F.h(Colors.grey, 500))))
-        : ListView.builder(itemCount: _docs.length, itemBuilder: (_, i) {
-            final d = _docs[i];
-            final name = (d['datei_name'] ?? '').toString();
-            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: ListTile(
-              dense: true,
-              leading: Icon(_iconFor(name), color: F.h(Colors.teal, 700)),
-              title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
-              subtitle: Text(_fmtSize(d['datei_groesse']), style: const TextStyle(fontSize: 11)),
-              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.indigo, 600)), tooltip: 'Ansehen', onPressed: () => _view(d)),
-                IconButton(icon: Icon(Icons.open_in_new, size: 18, color: F.h(Colors.green, 700)), tooltip: 'Öffnen', onPressed: () => _openExtern(d)),
-                IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _delete(d)),
-              ]),
-            ));
-          })),
-    ]);
-  }
-}
+// ==================== Kooperationsplan (§ 15 SGB II) ====================
+// Der Reiter liegt jetzt in jobcenter_kooperationsplan_tab.dart. Er ist aus
+// einer Dateiliste ein Vorgang geworden: Entstehung, Zugang, das Besprochene,
+// die Prüfung gegen 31 Kriterien und das Schreiben ans Jobcenter.
+//
+// ⚠️ Die frühere Fassung `_AvKooperationsplanTab` hing die Dateien an die
+// Arbeitsvermittler-Zuordnung, nicht an einen Plan. Diese Dateien gibt es noch;
+// sie stehen im neuen Reiter unter „Dateien ohne Plan" und werden NICHT von
+// selbst zugeordnet — welchem Plan sie gehören, weiss nur, wer sie hochlud.
 
 // ==================== Korrespondenz (Kontaktverlauf pro AV) ====================
 // Liste von Korrespondenz-Einträgen (Richtung + Kontaktart + Datum + Betreff + Text),
