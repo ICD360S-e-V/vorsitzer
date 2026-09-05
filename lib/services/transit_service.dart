@@ -2567,7 +2567,7 @@ class TransitService {
       'leimbach', 'leiwen', 'leudersdorf', 'lieser', 'lirstal', 'lissendorf',
       'longen', 'longkamp', 'longuich', 'lösnich', 'lutzerath', 'lützkampen',
       'malberg', 'malborn', 'manderscheid', 'mandern', 'mannebach', 'matzerath',
-      'meckel', 'meerfeld', 'mehren', 'mehring', 'meisburg', 'menningen',
+      'meckel', 'meerfeld', 'mehren', 'mehring', 'meisburg', 'musterfrauen',
       'merscheid', 'mertesdorf', 'merzkirchen', 'messerich', 'metterich',
       'minden', 'minderlittgen', 'minheim', 'monzelfeld', 'morbach',
       'morscheid', 'mosbruch', 'mötsch', 'mückeln', 'mülbach', 'mülheim',

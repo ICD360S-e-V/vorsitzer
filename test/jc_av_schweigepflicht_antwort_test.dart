@@ -32,7 +32,7 @@ const String kListeAntwort = r'''
  "signatur_id":null,"ergebnis":"fehler","fehler":"Gegenstelle besetzt"},
 {"id":2,"methode":"signatur","datum":"2026-08-21 11:30:12","fassung":"de","ziel":"",
  "notiz":"Frist bis 04.09.2026","signatur_id":99,"ergebnis":"ok","fehler":""},
-{"id":1,"methode":"chat","datum":"2026-08-21 11:30:11","fassung":"ro","ziel":"M36442",
+{"id":1,"methode":"chat","datum":"2026-08-21 11:30:11","fassung":"ro","ziel":"M10005",
  "notiz":"Zum Lesen","signatur_id":null,"ergebnis":"ok","fehler":""}]}]}
 ''';
 
@@ -232,7 +232,7 @@ void main() {
     test('verschlüsselte Felder kommen entschlüsselt an', () {
       final v = versandLesen(eintrag['versand']);
       final chat = v.firstWhere((x) => x['methode'] == 'chat');
-      expect(chat['ziel'], 'M36442');
+      expect(chat['ziel'], 'M10005');
       final fax = v.firstWhere((x) => x['methode'] == 'fax');
       expect(fax['fehler'], 'Gegenstelle besetzt');
     });

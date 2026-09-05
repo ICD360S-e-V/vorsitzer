@@ -15,7 +15,7 @@ void main() {
       // der Name irgendwann eingetragen wurde.
       expect(suchText('Țănase'), 'tanase');
       expect(suchText('Ţănase'), 'tanase');
-      expect(suchText('Pădurean'), 'padurean');
+      expect(suchText('Grădinar'), 'gradinar');
       expect(suchText('Ș'), suchText('Ş'));
     });
 
@@ -35,38 +35,38 @@ void main() {
     });
 
     test('was nichts zu falten hat, bleibt', () {
-      expect(suchText('M51060'), 'm51060');
+      expect(suchText('M10001'), 'm10001');
       expect(suchText('Дуйня'), 'дуйня');
     });
   });
 
   group('suchTreffer', () {
     test('findet ohne Häkchen getippt', () {
-      expect(suchTreffer('Țănase Pădurean', 'tanase'), isTrue);
+      expect(suchTreffer('Țănase Grădinar', 'tanase'), isTrue);
       expect(suchTreffer('Müller', 'muller'), isTrue);
     });
 
     test('Reihenfolge der Wörter ist egal', () {
-      // Im Verzeichnis steht „Ionut Duinea", getippt wird „duinea ionut".
-      expect(suchTreffer('Ionut Duinea M27655', 'duinea ionut'), isTrue);
+      // Im Verzeichnis steht „Ionut Doe", getippt wird „doe ionut".
+      expect(suchTreffer('Ionut Doe M10001', 'doe ionut'), isTrue);
     });
 
     test('jedes Wort muss vorkommen, nicht irgendeines', () {
-      expect(suchTreffer('Ionut Duinea', 'ionut tanase'), isFalse);
+      expect(suchTreffer('Ionut Doe', 'ionut tanase'), isFalse);
     });
 
     test('Mitgliedsnummer trifft', () {
-      expect(suchTreffer('Pădurean M51060', 'm51060'), isTrue);
-      expect(suchTreffer('Pădurean M51060', '51060'), isTrue);
+      expect(suchTreffer('Grădinar M10001', 'm10001'), isTrue);
+      expect(suchTreffer('Grădinar M10001', '10001'), isTrue);
     });
 
     test('leerer Begriff schliesst niemanden aus', () {
-      expect(suchTreffer('Ionut Duinea', ''), isTrue);
-      expect(suchTreffer('Ionut Duinea', '   '), isTrue);
+      expect(suchTreffer('Ionut Doe', ''), isTrue);
+      expect(suchTreffer('Ionut Doe', '   '), isTrue);
     });
 
     test('was nicht passt, passt nicht', () {
-      expect(suchTreffer('Ionut Duinea', 'schmidt'), isFalse);
+      expect(suchTreffer('Ionut Doe', 'schmidt'), isFalse);
     });
   });
 }

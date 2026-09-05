@@ -62,9 +62,9 @@ void main() {
 
   group('Absender zerlegen', () {
     test('Name und Adresse', () {
-      final t = mailAbsenderTeile('Anica Menning <anica@icd360s.de>');
-      expect(t.name, 'Anica Menning');
-      expect(t.adresse, 'anica@icd360s.de');
+      final t = mailAbsenderTeile('Adela Musterfrau <adela@icd360s.de>');
+      expect(t.name, 'Adela Musterfrau');
+      expect(t.adresse, 'adela@icd360s.de');
     });
 
     test('Anführungszeichen fallen weg', () {
@@ -128,7 +128,7 @@ void main() {
     });
 
     test('durchgehend kyrillischer Name ist einfach ein Name', () {
-      expect(mailAbsenderVerdacht('"Ольга Мельник" <olha@example.com>'),
+      expect(mailAbsenderVerdacht('"Ольга Мельник" <olena@example.com>'),
           MailVerdacht.keiner);
     });
 

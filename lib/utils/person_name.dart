@@ -7,8 +7,8 @@
 /// final fullVorname = [vorname, vorname2].where((s) => s.isNotEmpty).join(' ');
 /// ```
 ///
-/// Bei V27655 steht `vorname = 'Ionut-Claudiu'` und `vorname2 = 'Claudiu'`.
-/// Stumpf aneinandergehängt ergibt das **„Ionut-Claudiu Claudiu Duinea"**, also
+/// Bei V10001 steht `vorname = 'Ilies-Cristian'` und `vorname2 = 'Cristian'`.
+/// Stumpf aneinandergehängt ergibt das **„Ilies-Cristian Cristian Doe"**, also
 /// einen Namen, den es nicht gibt — der zweite Vorname wiederholt nur die
 /// zweite Hälfte des ersten. Auf einer Visitenkarte fällt das sofort auf; auf
 /// einer Vollmacht fällt es niemandem auf, bis eine Behörde nachfragt.
@@ -21,8 +21,8 @@
 /// vier Stellen.
 ///
 /// Der Vergleich ist absichtlich **teilstring- und schreibweisenunabhängig**
-/// (`stripos` in PHP, `toLowerCase().contains` hier). „Claudiu" steckt in
-/// „Ionut-Claudiu"; ein Vergleich auf Gleichheit hätte den Dublettenfall genau
+/// (`stripos` in PHP, `toLowerCase().contains` hier). „Cristian" steckt in
+/// „Ilies-Cristian"; ein Vergleich auf Gleichheit hätte den Dublettenfall genau
 /// nicht erwischt.
 library;
 
@@ -80,15 +80,15 @@ String nachnameOder(String? nachname, {String? fallbackName}) {
 /// ## Zwei Regeln, nach Rolle
 ///
 /// * **Vorstand und benannte Ämter** → die Anfangsbuchstaben aller Namensteile.
-///   Ionut-Claudiu Duinea wird zu `icd@`, Michaela-Christine Weber zu `mcw@` —
+///   Ilies-Cristian Doe wird zu `icd@`, Michaela-Christine Weber zu `mcw@` —
 ///   genau die Adressen, die beide seit jeher benutzen. Die Regel ist also
 ///   nicht erfunden, sondern die bereits gelebte Praxis, aufgeschrieben.
-/// * **Alle übrigen** → die Mitgliedsnummer, `M51060@`.
+/// * **Alle übrigen** → die Mitgliedsnummer, `M10001@`.
 ///
 /// ## ⚠️ Warum nicht einfach `users.email`
 ///
 /// Weil dort bei mehreren Vorstandsmitgliedern eine **private** Adresse steht
-/// (`anica.menning@gmail.com`, `raduicadeny@gmail.com`). Auf einer Karte, die
+/// (`erika.musterfrau@example.com`, `max.mustermann@example.com`). Auf einer Karte, die
 /// der Verein ausgibt und die weitergereicht wird, hat die nichts verloren —
 /// und sie bliebe erreichbar, lange nachdem die Person nicht mehr im Vorstand
 /// ist. Die abgeleitete Adresse gehört dem Verein.
@@ -96,7 +96,7 @@ String nachnameOder(String? nachname, {String? fallbackName}) {
 /// ## ⚠️ Es muss kein Postfach angelegt werden
 ///
 /// Für `icd360s.de` gibt es einen Auffang-Alias (`@icd360s.de -> icd@`). Am
-/// 14.08.2026 mit je einem eigenen SMTP-Versuch geprüft — `V27655@`, `V75715@`,
+/// 14.08.2026 mit je einem eigenen SMTP-Versuch geprüft — `V10001@`, `V10002@`,
 /// `am@`, `adcr@`, `msrd@`, `dmp@`, `icd@` und `mcw@` antworten alle mit
 /// `250 2.1.5 Ok`.
 ///
@@ -135,12 +135,12 @@ String vereinsAdresse({
 
 /// Die Anfangsbuchstaben aller Namensteile, klein geschrieben.
 ///
-/// ⚠️ Getrennt wird an Leerzeichen **und Bindestrichen**: „Ionut-Claudiu" sind
+/// ⚠️ Getrennt wird an Leerzeichen **und Bindestrichen**: „Ilies-Cristian" sind
 /// zwei Namen, nicht einer. Ohne den Bindestrich käme `id@` statt `icd@` heraus
 /// — und `icd@icd360s.de` ist die Adresse, die es seit jeher gibt.
 ///
 /// `vorname2` fließt nur ein, wenn er nicht schon im Vornamen steckt (dieselbe
-/// Regel wie in [vornameVoll]); sonst hätte V27655 ein `c` doppelt.
+/// Regel wie in [vornameVoll]); sonst hätte V10001 ein `c` doppelt.
 String initialen(String? vorname, String? vorname2, String? nachname) {
   final teile = [
     vornameVoll(vorname, vorname2),

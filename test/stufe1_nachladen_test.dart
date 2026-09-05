@@ -1,7 +1,7 @@
 // Verifizierung ▸ Stufe 1: das Formular muss den Datensatz vom Server zeigen,
 // nicht das halbe Objekt, mit dem der Dialog geöffnet wurde.
 //
-// Anlass ist ein realer Fall vom 16.08.2026: ein fünfjähriges Kind (J23960)
+// Anlass ist ein realer Fall vom 16.08.2026: ein fünfjähriges Kind (J19999)
 // unter dem Konto der Mutter. Wer es über den Familien-Auswähler öffnete,
 // bekam ein LEERES Stufe-1-Formular — Adresse, Geschlecht, Staatsangehörigkeit,
 // Aufenthaltsstatus und Muttersprache standen längst in der Datenbank. Trug
@@ -35,7 +35,7 @@ import 'package:icd360sev_vorsitzer/widgets/user_details_dialog.dart';
 /// Der Datensatz, wie ihn `user_details.php` für das Kind liefert.
 const _kindAufDemServer = {
   'id': 54,
-  'mitgliedernummer': 'J23960',
+  'mitgliedernummer': 'J19999',
   'email': 'kind-j23960@verwaltet.icd360sev.local',
   'name': 'mykhailo tsynhalov',
   'vorname': 'mykhailo',
@@ -60,7 +60,7 @@ const _kindAufDemServer = {
 /// So kam das Kind bisher im Dialog an: neun Felder aus der `kinder`-Liste.
 User _kindWieUebergeben() => User.fromJson({
       'id': 54,
-      'mitgliedernummer': 'J23960',
+      'mitgliedernummer': 'J19999',
       'email': 'kind-j23960@verwaltet.icd360sev.local',
       'name': 'mykhailo tsynhalov',
       'vorname': 'mykhailo',
@@ -131,7 +131,7 @@ Future<void> _oeffneDialog(WidgetTester tester, User user) async {
       body: UserDetailsDialog(
         user: user,
         apiService: ApiService(),
-        adminMitgliedernummer: 'V27655',
+        adminMitgliedernummer: 'V10001',
         onUpdated: () {},
       ),
     ),

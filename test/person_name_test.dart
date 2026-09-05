@@ -3,9 +3,9 @@ import 'package:icd360sev_vorsitzer/utils/person_name.dart';
 
 /// Der Anlass ist ein echter Datensatz, kein gedachter.
 ///
-/// V27655 hat `vorname = 'Ionut-Claudiu'` **und** `vorname2 = 'Claudiu'`. Die
+/// V10001 hat `vorname = 'Ilies-Cristian'` **und** `vorname2 = 'Cristian'`. Die
 /// vier Stellen im Client, die beide Felder mit `join(' ')` zusammenhängen,
-/// erzeugen daraus „Ionut-Claudiu Claudiu Duinea" — einen Namen, den es nicht
+/// erzeugen daraus „Ilies-Cristian Cristian Doe" — einen Namen, den es nicht
 /// gibt. Auf der Visitenkarte fällt das sofort auf; auf einer Vollmacht fällt
 /// es erst auf, wenn eine Behörde nachfragt.
 ///
@@ -16,8 +16,8 @@ import 'package:icd360sev_vorsitzer/utils/person_name.dart';
 void main() {
   group('vornameVoll', () {
     test('lässt einen vorname2 weg, der schon im vorname steckt', () {
-      // V27655, der Auslöser.
-      expect(vornameVoll('Ionut-Claudiu', 'Claudiu'), 'Ionut-Claudiu');
+      // V10001, der Auslöser.
+      expect(vornameVoll('Ilies-Cristian', 'Cristian'), 'Ilies-Cristian');
     });
 
     test('hängt einen echten zweiten Vornamen an', () {
@@ -41,13 +41,13 @@ void main() {
   group('personName', () {
     test('setzt Vor- und Nachnamen ohne Dublette zusammen', () {
       expect(
-        personName('Ionut-Claudiu', 'Claudiu', 'Duinea'),
-        'Ionut-Claudiu Duinea',
+        personName('Ilies-Cristian', 'Cristian', 'Doe'),
+        'Ilies-Cristian Doe',
       );
     });
 
     test('behält mehrteilige Vornamen vollständig', () {
-      // K91719: der alte Leerzeichen-Split hat hieraus Vorname „Andreea" und
+      // K10001: der alte Leerzeichen-Split hat hieraus Vorname „Andreea" und
       // Nachname „Denisa Camelia Raduica" gemacht.
       expect(
         personName('Andreea Denisa Camelia', null, 'Raduica'),
@@ -73,7 +73,7 @@ void main() {
 
   group('nachnameOder', () {
     test('nimmt den Nachnamen, wenn es einen gibt', () {
-      expect(nachnameOder('Duinea', fallbackName: 'X Y'), 'Duinea');
+      expect(nachnameOder('Doe', fallbackName: 'X Y'), 'Doe');
     });
 
     test('nimmt sonst den letzten Bestandteil von `name`', () {
@@ -92,11 +92,11 @@ void main() {
 
   group('initialen', () {
     test('trennt auch am Bindestrich', () {
-      // ⚠️ „Ionut-Claudiu" sind zwei Namen. Ohne den Bindestrich käme `id`
+      // ⚠️ „Ilies-Cristian" sind zwei Namen. Ohne den Bindestrich käme `id`
       // heraus statt `icd` — und icd@icd360s.de ist die Adresse, die es gibt.
-      expect(initialen('Ionut-Claudiu', 'Claudiu', 'Duinea'), 'icd');
+      expect(initialen('Ilies-Cristian', 'Cristian', 'Doe'), 'icd');
       expect(initialen('Michaela-Christine', null, 'Weber'), 'mcw');
-      expect(initialen('Marian-Sevastian-Robert', null, 'Daba'), 'msrd');
+      expect(initialen('Marian-Sevastian-Robert', null, 'Demo'), 'msrd');
     });
 
     test('nimmt jeden Teil eines mehrteiligen Vornamens', () {
@@ -104,8 +104,8 @@ void main() {
     });
 
     test('zählt einen doppelten vorname2 nicht zweimal', () {
-      // Sonst hätte V27655 ein `c` zu viel.
-      expect(initialen('Ionut-Claudiu', 'Claudiu', 'Duinea'),
+      // Sonst hätte V10001 ein `c` zu viel.
+      expect(initialen('Ilies-Cristian', 'Cristian', 'Doe'),
           isNot(contains('cc')));
     });
 
@@ -129,21 +129,21 @@ void main() {
       // ⚠️ Die beiden ersten sind keine Erfindung: `icd@` und `mcw@` benutzen
       // die zwei Vorsitzenden seit jeher. Die Regel schreibt die gelebte
       // Praxis auf, statt eine neue zu erfinden.
-      expect(adr('vorsitzer', 'V27655', 'Ionut-Claudiu', 'Claudiu', 'Duinea'),
+      expect(adr('vorsitzer', 'V10001', 'Ilies-Cristian', 'Cristian', 'Doe'),
           'icd@icd360s.de');
-      expect(adr('vorsitzer', 'V75715', 'Michaela-Christine', null, 'Weber'),
+      expect(adr('vorsitzer', 'V10002', 'Michaela-Christine', null, 'Weber'),
           'mcw@icd360s.de');
-      expect(adr('schatzmeister', 'S42759', 'Anica', null, 'Menning'),
+      expect(adr('schatzmeister', 'S10001', 'Adela', null, 'Musterfrau'),
           'am@icd360s.de');
-      expect(adr('kassierer', 'K91719', 'Andreea Denisa Camelia', null, 'Raduica'),
+      expect(adr('kassierer', 'K10001', 'Andreea Denisa Camelia', null, 'Raduica'),
           'adcr@icd360s.de');
     });
 
     test('alle übrigen bekommen die Mitgliedsnummer', () {
-      expect(adr('mitglied', 'M68650', 'Muster', null, 'Paula'),
-          'M68650@icd360s.de');
-      expect(adr('jugendmitglied', 'J23960', 'mykhailo', null, 'tsynhalov'),
-          'J23960@icd360s.de');
+      expect(adr('mitglied', 'M10002', 'Muster', null, 'Paula'),
+          'M10002@icd360s.de');
+      expect(adr('jugendmitglied', 'J19999', 'mykhailo', null, 'tsynhalov'),
+          'J19999@icd360s.de');
       expect(adr('anonymous', 'ANON_0103', '', null, ''),
           'ANON_0103@icd360s.de');
     });
@@ -157,21 +157,21 @@ void main() {
       // ⚠️ Gleiche Initialen ergäben dieselbe Adresse — und weil alles im
       // Auffang-Postfach landet, fiele das niemandem auf. Hier fällt es auf.
       final adressen = [
-        adr('vorsitzer', 'V27655', 'Ionut-Claudiu', 'Claudiu', 'Duinea'),
-        adr('vorsitzer', 'V75715', 'Michaela-Christine', null, 'Weber'),
-        adr('schatzmeister', 'S42759', 'Anica', null, 'Menning'),
-        adr('kassierer', 'K91719', 'Andreea Denisa Camelia', null, 'Raduica'),
-        adr('mitgliedergrunder', 'M82872', 'Marian-Sevastian-Robert', null, 'Daba'),
-        adr('mitgliedergrunder', 'M51060', 'Danut-Marius', null, 'Padurean'),
+        adr('vorsitzer', 'V10001', 'Ilies-Cristian', 'Cristian', 'Doe'),
+        adr('vorsitzer', 'V10002', 'Michaela-Christine', null, 'Weber'),
+        adr('schatzmeister', 'S10001', 'Adela', null, 'Musterfrau'),
+        adr('kassierer', 'K10001', 'Andreea Denisa Camelia', null, 'Raduica'),
+        adr('mitgliedergrunder', 'M10004', 'Marian-Sevastian-Robert', null, 'Demo'),
+        adr('mitgliedergrunder', 'M10001', 'Danut-Marius', null, 'Gradinar'),
       ];
       expect(adressen.toSet().length, adressen.length,
           reason: 'zwei Ämter teilen sich eine Adresse: $adressen');
     });
 
     test('die Rolle wird ohne Rücksicht auf Schreibweise erkannt', () {
-      expect(adr('Vorsitzer', 'V27655', 'Ionut-Claudiu', 'Claudiu', 'Duinea'),
+      expect(adr('Vorsitzer', 'V10001', 'Ilies-Cristian', 'Cristian', 'Doe'),
           'icd@icd360s.de');
-      expect(adr('  VORSITZER  ', 'V27655', 'Ionut-Claudiu', 'Claudiu', 'Duinea'),
+      expect(adr('  VORSITZER  ', 'V10001', 'Ilies-Cristian', 'Cristian', 'Doe'),
           'icd@icd360s.de');
     });
   });

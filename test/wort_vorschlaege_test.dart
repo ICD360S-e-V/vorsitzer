@@ -17,7 +17,7 @@ void main() {
       [
         'mulțumesc', 'mulțumiri', 'bine', 'binevoitor', 'trimiteți', 'dacă',
         // Genau die Wörter, an denen der echte Test gescheitert ist.
-        'terminat', 'radule', 'pădurean', 'formularul',
+        'terminat', 'radule', 'grădinar', 'formularul',
       ],
     ), Diakritika.ausJson(const {
       'kurz': {'si': 'și', 'in': 'în'},
@@ -132,11 +132,11 @@ void main() {
     testWidgets('lässt ein unbekanntes Wort ohne Vorschlag in Ruhe',
         (t) async {
       await aufbauen(t);
-      tippen('Duinea');
+      tippen('Doe');
       await t.pump();
       anhaengen(' ');
       await t.pump();
-      expect(c.text, 'Duinea ');
+      expect(c.text, 'Doe ');
     });
 
     testWidgets('überträgt die Schreibung', (t) async {
@@ -358,11 +358,11 @@ void main() {
 
   group('Eigennamen mitten im Satz', () {
     // Gemessen an echtem Text: ohne diese Sicherung würde aus „Termin"
-    // „terminat", aus „Radu" „radule", aus „Padurean" „pădurean".
+    // „terminat", aus „Radu" „radule", aus „Gradinar" „grădinar".
     const namen = {
       'Am trimis la Termin': 'Am trimis la Termin ',
       'Vorbit cu Radu': 'Vorbit cu Radu ',
-      'membrul Padurean': 'membrul Padurean ',
+      'membrul Gradinar': 'membrul Gradinar ',
       'am completat Formular': 'am completat Formular ',
     };
 

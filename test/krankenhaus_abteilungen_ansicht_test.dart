@@ -22,7 +22,7 @@ import 'package:icd360sev_vorsitzer/services/ticket_service.dart';
 import 'package:icd360sev_vorsitzer/widgets/mitgliederverwaltung_arzten_krankenhaus.dart';
 
 final _user = User(
-  id: 13, mitgliedernummer: 'M68650', email: 'probe@icd360s.de',
+  id: 13, mitgliedernummer: 'M10002', email: 'probe@icd360s.de',
   name: 'Alexandra Musterfrau', vorname: 'Alexandra', nachname: 'Musterfrau',
   status: 'aktiv', role: 'mitglied', preferredLanguage: 'de',
 );
@@ -123,7 +123,7 @@ void main() {
               apiService: api,
               ticketService: TicketService(),
               terminService: TerminService(),
-              adminMitgliedernummer: 'V27655',
+              adminMitgliedernummer: 'V10001',
             ),
           ),
         ),
@@ -152,7 +152,7 @@ void main() {
           body: MitgliederverwaltungArztenKrankenhaus(
             user: _user, apiService: api,
             ticketService: TicketService(), terminService: TerminService(),
-            adminMitgliedernummer: 'V27655',
+            adminMitgliedernummer: 'V10001',
           ),
         ),
       ),

@@ -6,7 +6,7 @@ import 'package:icd360sev_vorsitzer/widgets/blitz_karte.dart';
 
 BlitzNachricht _n({
   int conv = 1,
-  String absender = 'Olha Menning',
+  String absender = 'Olena Musterfrau',
   List<String>? zeilen,
   String kanal = 'app',
 }) =>
@@ -83,14 +83,14 @@ void main() {
   group('BlitzKarte', () {
     testWidgets('zeigt Text und bei SMS den Kanal — aber NIE den Namen',
         (tester) async {
-      // ⚠️ Hier stand einmal `expect(find.text('Olha Menning'), ...)`. Die
+      // ⚠️ Hier stand einmal `expect(find.text('Olena Musterfrau'), ...)`. Die
       // Karte legt sich mitten auf den Bildschirm, auch wenn jemand
       // danebensteht; sie zeigt deshalb nur noch die Mitgliedsnummer.
       // Entscheidung des Users. Ohne Nummer steht „Mitglied" da, niemals
       // der Name — siehe [BlitzNachricht.nummer].
       await _karteBauen(tester,
           nachricht: _n(zeilen: ['Post vom Jobcenter da'], kanal: 'sms'));
-      expect(find.text('Olha Menning'), findsNothing);
+      expect(find.text('Olena Musterfrau'), findsNothing);
       expect(find.text('Mitglied'), findsOneWidget);
       expect(find.text('Post vom Jobcenter da'), findsOneWidget);
       expect(find.textContaining('SMS'), findsOneWidget);

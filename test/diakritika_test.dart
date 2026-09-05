@@ -61,7 +61,7 @@ void main() {
     });
 
     test('unbekanntes Wort wird nie angefasst', () {
-      expect(d.korrektur('Duinea', rechts: 'rog'), isNull);
+      expect(d.korrektur('Doe', rechts: 'rog'), isNull);
       expect(d.korrektur('Vollmacht'), isNull);
     });
   });

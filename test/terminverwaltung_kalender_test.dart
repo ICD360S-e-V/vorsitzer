@@ -56,7 +56,7 @@ Map<String, dynamic> _termin(String titel) {
     'duration_minutes': 60,
     'location': 'Neu-Ulm',
     'created_by': 2,
-    'created_by_name': 'Ionut Duinea',
+    'created_by_name': 'Ionut Doe',
     'braucht_mich': 1,
     'is_notfall': 0,
     'status': 'scheduled',
@@ -114,7 +114,7 @@ Future<List<String>> _bauen(
         textScaler: TextScaler.linear(schrift),
       ),
       child: const Scaffold(
-        body: TerminverwaltungScreen(currentMitgliedernummer: 'V27655'),
+        body: TerminverwaltungScreen(currentMitgliedernummer: 'V10001'),
       ),
     ),
   ));

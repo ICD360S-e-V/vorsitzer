@@ -27,7 +27,7 @@ import 'terminanfrage_vorlagen.dart';
 /// beim Durchlesen des Codes einwandfrei aus. Gerendert und mit `pdftotext`
 /// zurückgelesen stand dort:
 ///
-///     Ionu -Claudiu Düinea-Müller
+///     Ionu -Cristian Düinea-Müller
 ///     … ist hier nicht bekannt  ein früherer Termin ist nicht vermerkt.
 ///
 /// Das rumänische `ț` und der Gedankenstrich sind in WinAnsi nicht enthalten

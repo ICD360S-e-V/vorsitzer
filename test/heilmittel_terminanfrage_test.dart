@@ -50,8 +50,8 @@ void main() {
         // Genau deshalb muss `rezept` gewinnen — sonst schlägt das Hausarzt-
         // Fach durch.
         arztTyp: 'gesundheit_hausarzt',
-        vorname: 'Ionuț-Claudiu',
-        nachname: 'Duinea',
+        vorname: 'Ilieș-Cristian',
+        nachname: 'Doe',
         geburtsdatum: '14.03.1985',
         rezept: HeilmittelVerordnung.ausZeile(r),
       );
@@ -191,7 +191,7 @@ void main() {
           TerminanfrageVorlage.erstvorstellung, daten(zeile()));
       expect(t.betreff, contains('Physiotherapie'));
       expect(t.betreff, contains('Verordnung vom 12.08.2026'));
-      expect(t.betreff, contains('Duinea'));
+      expect(t.betreff, contains('Doe'));
       // Nicht die Arzt-Fassung.
       expect(t.betreff, isNot(contains('Erstvorstellung')));
     });

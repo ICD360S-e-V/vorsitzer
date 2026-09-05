@@ -168,8 +168,8 @@ class AngefangenesWort {
   ///
   /// ⚠️ Daran hängt der Schutz für Eigennamen. Gemessen an dem, was in
   /// diesem Verein wirklich getippt wird, würde die Leertaste sonst
-  /// „Termin" zu „terminat", „Radu" zu „radule" und „Padurean" zu
-  /// „pădurean" machen — deutsche Fachwörter und die Namen von Mitgliedern,
+  /// „Termin" zu „terminat", „Radu" zu „radule" und „Gradinar" zu
+  /// „grădinar" machen — deutsche Fachwörter und die Namen von Mitgliedern,
   /// beides täglich im Text. Alle fingen mit einem Großbuchstaben an.
   ///
   /// Am Satzanfang wird trotzdem vervollständigt: dort ist der große

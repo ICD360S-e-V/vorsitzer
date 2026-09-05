@@ -17,7 +17,7 @@ import 'package:icd360sev_vorsitzer/utils/mail_transport.dart';
 ///     „verschlüsselt" zu zeigen verschweigt genau den Teil, der zählt.
 
 const String _perEmpfaengerGut = r'''
-[{"to":"raduicadeny@gmail.com","status":"sent","dsn":"2.0.0","relay":"gmail-smtp-in.l.google.com[142.250.153.26]:25","response":"250 2.0.0 OK","at":"2026-08-23 09:12:03","service":"smtp","tls_status":"verschluesselt","tls":{"stufe":"Trusted","version":"TLSv1.3","cipher":"TLS_AES_256_GCM_SHA384","ziel":"gmail-smtp-in.l.google.com[142.250.153.26]:25"}}]
+[{"to":"max.mustermann@example.com","status":"sent","dsn":"2.0.0","relay":"gmail-smtp-in.l.google.com[142.250.153.26]:25","response":"250 2.0.0 OK","at":"2026-08-23 09:12:03","service":"smtp","tls_status":"verschluesselt","tls":{"stufe":"Trusted","version":"TLSv1.3","cipher":"TLS_AES_256_GCM_SHA384","ziel":"gmail-smtp-in.l.google.com[142.250.153.26]:25"}}]
 ''';
 
 const String _perEmpfaengerUngeprueft = r'''

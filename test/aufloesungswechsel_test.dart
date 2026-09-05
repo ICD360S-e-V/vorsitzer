@@ -24,7 +24,7 @@ const Size kMonitor2K = Size(2560, 1440);
 
 Map<String, dynamic> _konversation() => {
       'id': 7,
-      'mitgliedernummer': 'M51060',
+      'mitgliedernummer': 'M10001',
       'status': 'open',
       'telefon_mobil': '+4915112345678',
     };

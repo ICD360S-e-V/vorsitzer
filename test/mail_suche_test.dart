@@ -142,17 +142,17 @@ void main() {
 
   group('Vorlagen füllen', () {
     const daten = MailVorlageDaten(
-      anrede: 'Sehr geehrte Frau Menning',
-      vorname: 'Anica',
-      nachname: 'Menning',
-      mitgliedsnummer: 'M51060',
-      absender: 'Ionut Duinea',
+      anrede: 'Sehr geehrte Frau Musterfrau',
+      vorname: 'Adela',
+      nachname: 'Musterfrau',
+      mitgliedsnummer: 'M10001',
+      absender: 'Ionut Doe',
     );
 
     test('setzt die Werte ein', () {
       expect(
           mailVorlageFuellen('{anrede},\n\n{name} ({mitgliedsnummer})', daten),
-          'Sehr geehrte Frau Menning,\n\nAnica Menning (M51060)');
+          'Sehr geehrte Frau Musterfrau,\n\nAdela Musterfrau (M10001)');
     });
 
     test('Datum wird deutsch formatiert', () {

@@ -46,7 +46,7 @@ void main() {
     /// Geraet in keinem Raum mehr — Anrufsignale, ICE und Fernwartung fielen
     /// stumm aus, waehrend der Bildschirm weiter „verbunden" zeigte.
     test('der gemerkte Raum wird nach dem Abriss erneut betreten', () async {
-      expect(await ChatService().connect('V27655'), isTrue);
+      expect(await ChatService().connect('V10001'), isTrue);
       ChatService().joinConversation(19);
       await Future<void>.delayed(const Duration(milliseconds: 150));
       empfangen.clear();
@@ -63,7 +63,7 @@ void main() {
     }, timeout: const Timeout(Duration(seconds: 30)));
 
     test('ein verlassener Raum wird nicht erneut betreten', () async {
-      await ChatService().connect('V27655');
+      await ChatService().connect('V10001');
       ChatService().joinConversation(19);
       ChatService().leaveConversation(19);
       await Future<void>.delayed(const Duration(milliseconds: 150));
@@ -113,9 +113,9 @@ void main() {
     test('ohne laufende Sitzung gibt es keinen Rueckweg', () {
       FernwartungRueckkehr.merken(const RemoteControlScreen(
         conversationId: 19,
-        targetUserId: 'M68650',
+        targetUserId: 'M10002',
         targetName: 'Testmitglied',
-        controllerMitgliedernummer: 'V27655',
+        controllerMitgliedernummer: 'V10001',
       ));
       // Der Dienst ruht — also darf der Knopf nicht „zurueck" anbieten.
       expect(RemoteControlService().state, RemoteControlState.idle);
@@ -125,9 +125,9 @@ void main() {
     test('vergessen loescht den Rueckweg', () {
       FernwartungRueckkehr.merken(const RemoteControlScreen(
         conversationId: 19,
-        targetUserId: 'M68650',
+        targetUserId: 'M10002',
         targetName: 'Testmitglied',
-        controllerMitgliedernummer: 'V27655',
+        controllerMitgliedernummer: 'V10001',
       ));
       FernwartungRueckkehr.vergessen();
       expect(FernwartungRueckkehr.laeuft, isFalse);

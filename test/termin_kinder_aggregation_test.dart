@@ -40,13 +40,13 @@ void main() {
         participantUserId: 54,
         participantVorname: 'mykhailo',
         participantNachname: 'tsynhalov',
-        participantMnr: 'J23960',
+        participantMnr: 'J19999',
         participantRole: 'jugendmitglied',
       ));
       expect(t.participantUserId, 54);
       expect(t.participantVorname, 'mykhailo');
       expect(t.participantNachname, 'tsynhalov');
-      expect(t.participantMitgliedernummer, 'J23960');
+      expect(t.participantMitgliedernummer, 'J19999');
       expect(t.participantRole, 'jugendmitglied');
     });
 
@@ -66,35 +66,35 @@ void main() {
   group('forKindBadge', () {
     test('returns null when self == participant (own termin, no badge)', () {
       final t = Termin.fromJson(_baseTerminJson(
-        participantMnr: 'M82983',
-        participantVorname: 'Olha',
-        participantNachname: 'Pasichnyk',
+        participantMnr: 'M10003',
+        participantVorname: 'Olena',
+        participantNachname: 'Musterenko',
         participantRole: 'mitglied',
       ));
-      expect(t.forKindBadge('M82983'), isNull);
+      expect(t.forKindBadge('M10003'), isNull);
     });
 
     test('returns child full name when participant differs from self', () {
       final t = Termin.fromJson(_baseTerminJson(
-        participantMnr: 'J23960',
+        participantMnr: 'J19999',
         participantVorname: 'mykhailo',
         participantNachname: 'tsynhalov',
         participantRole: 'jugendmitglied',
       ));
-      expect(t.forKindBadge('M82983'), 'mykhailo tsynhalov');
+      expect(t.forKindBadge('M10003'), 'mykhailo tsynhalov');
     });
 
     test('falls back to Mitgliedernummer when name parts missing', () {
       final t = Termin.fromJson(_baseTerminJson(
-        participantMnr: 'J23960',
+        participantMnr: 'J19999',
         participantRole: 'jugendmitglied',
       ));
-      expect(t.forKindBadge('M82983'), 'J23960');
+      expect(t.forKindBadge('M10003'), 'J19999');
     });
 
     test('returns null when no participant info present (legacy server)', () {
       final t = Termin.fromJson(_baseTerminJson());
-      expect(t.forKindBadge('M82983'), isNull);
+      expect(t.forKindBadge('M10003'), isNull);
     });
   });
 

@@ -268,7 +268,7 @@ void main() {
 
     test('eine deutsche Nummer wird lesbar getrennt', () {
       expect(SipgateService.anruferAnzeige('073180159736'), '0731 80159736');
-      expect(SipgateService.anruferAnzeige('016094482053'), '0160 94482053');
+      expect(SipgateService.anruferAnzeige('016087654321'), '0160 87654321');
     });
 
     test('E.164 bleibt unangetastet', () {
@@ -443,7 +443,7 @@ void main() {
 
     test('ein Name aus der Anrufererkennung zählt', () {
       expect(SipgateService.istEchterName('Rathaus-Apotheke, Ulm', '073180159736'), isTrue);
-      expect(SipgateService.istEchterName('Ionut-Claudiu Duinea', '016094482053'), isTrue);
+      expect(SipgateService.istEchterName('Ilies-Cristian Doe', '016087654321'), isTrue);
     });
 
     test('anonymous und leer sind keine Namen', () {

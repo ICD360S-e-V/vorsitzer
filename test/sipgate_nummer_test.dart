@@ -21,7 +21,7 @@ void main() {
       expect(SipgateService.normalisieren('0711 / 123 456-78'), '+4971112345678');
       expect(SipgateService.normalisieren('+49 711 123456'), '+49711123456');
       expect(SipgateService.normalisieren('004971112345'), '+4971112345');
-      expect(SipgateService.normalisieren('016094482053'), '+4916094482053');
+      expect(SipgateService.normalisieren('016087654321'), '+4916087654321');
     });
 
     test('Kurznummern bleiben unangetastet', () {

@@ -27,7 +27,7 @@ void main() {
     NtfyService.onGatewayWake = () => sms++;
     NtfyService.onAnrufWake = () => anruf++;
 
-    dienst.start('V27655', jwtToken: 'egal', nurMaschine: true);
+    dienst.start('V10001', jwtToken: 'egal', nurMaschine: true);
     dienst.angezeigteMeldungen = 0;
 
     dienst.handleLineFuerTest(smsMarke);
@@ -43,7 +43,7 @@ void main() {
 
   test('die Oberfläche zeigt Meldungen weiterhin an', () {
     final ui = NtfyService();
-    ui.start('V27655', jwtToken: 'egal');
+    ui.start('V10001', jwtToken: 'egal');
     ui.angezeigteMeldungen = 0;
 
     ui.handleLineFuerTest(meldung);

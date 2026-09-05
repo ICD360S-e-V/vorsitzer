@@ -313,7 +313,7 @@ void main() {
     User bauUser({String? vorname, String? nachname, required String name}) =>
         User.fromJson({
           'id': 13,
-          'mitgliedernummer': 'M68650',
+          'mitgliedernummer': 'M10002',
           'email': 'm@test.de',
           'name': name,
           'vorname': vorname,
@@ -325,24 +325,24 @@ void main() {
     test('vollständige Angaben ergeben den vollen Namen', () {
       final d = terminanfrageDatenBauen(
         arztTyp: 'gesundheit_hausarzt',
-        user: bauUser(vorname: 'Ionuț', nachname: 'Duinea', name: 'Ionuț Duinea'),
+        user: bauUser(vorname: 'Ionuț', nachname: 'Doe', name: 'Ionuț Doe'),
         arzt: const {},
         termine: const [],
       );
-      expect(d.vollerName, 'Ionuț Duinea');
+      expect(d.vollerName, 'Ionuț Doe');
     });
 
     test('ohne Nachnamen wird der Name NICHT verdoppelt', () {
       // 🔴 `user.name` ist der volle Name. `user.nachname ?? user.name` ergab
-      // „Ionuț" + „Ionuț Duinea" = „Ionuț Ionuț Duinea" — auf einem Dokument,
+      // „Ionuț" + „Ionuț Doe" = „Ionuț Ionuț Doe" — auf einem Dokument,
       // das später als Nachweis dienen soll.
       final d = terminanfrageDatenBauen(
         arztTyp: 'gesundheit_hausarzt',
-        user: bauUser(vorname: 'Ionuț', nachname: null, name: 'Ionuț Duinea'),
+        user: bauUser(vorname: 'Ionuț', nachname: null, name: 'Ionuț Doe'),
         arzt: const {},
         termine: const [],
       );
-      expect(d.vollerName, 'Ionuț Duinea');
+      expect(d.vollerName, 'Ionuț Doe');
     });
 
     test('Kanäle und Vorgeschichte kommen aus dem Arzt-Datensatz', () {

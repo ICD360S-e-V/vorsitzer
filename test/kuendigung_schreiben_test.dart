@@ -17,7 +17,7 @@ KuendigungsDaten _d({
       empfaengerName: 'Generali Deutschland Versicherung AG',
       empfaengerStrasse: 'Adenauerring 7',
       empfaengerPlzOrt: '81737 München',
-      absenderName: 'Olha Pasichnyk',
+      absenderName: 'Olena Musterenko',
       absenderStrasse: 'Schönfeldstr. 6',
       absenderPlzOrt: '89155 Erbach',
       vertragsBezeichnung: 'Unfallversicherung',
@@ -130,12 +130,12 @@ void main() {
           kuendigungBrieftext(_d(wer: KuendigungsUnterzeichner.verein));
       expect(v, contains('Vollmacht'));
       expect(v, contains('ICD360S e.V.'));
-      expect(v, contains('i. V. für Olha Pasichnyk'));
+      expect(v, contains('i. V. für Olena Musterenko'));
     });
 
     test('Mitgliedsfassung unterschreibt mit dem Namen des Inhabers', () {
       final t = kuendigungBrieftext(_d());
-      expect(t.trimRight().endsWith('Olha Pasichnyk'), isTrue);
+      expect(t.trimRight().endsWith('Olena Musterenko'), isTrue);
       expect(t, isNot(contains('i. V.')));
     });
 

@@ -76,7 +76,7 @@ void main() {
     'OrdnungsmassnahmenScreen': () =>
         OrdnungsmassnahmenScreen(users: const [], onBack: () {}),
     'PendingParentConsentScreen': () =>
-        const PendingParentConsentScreen(currentMitgliedernummer: 'V27655'),
+        const PendingParentConsentScreen(currentMitgliedernummer: 'V10001'),
   };
 
   group('Der Aufbau folgt der Bildschirmbreite', () {

@@ -47,7 +47,7 @@ void main() {
           ws.add(jsonEncode({
             'type': 'auth_success',
             'user_id': 2,
-            'name': 'I. C. Duinea',
+            'name': 'I. C. Doe',
             'role': 'vorsitzer',
             'is_admin': true,
           }));
@@ -68,7 +68,7 @@ void main() {
 
   test('eine abgelehnte Anmeldung stoesst einen neuen Versuch an', () async {
     nochAblehnen = 99; // nimmt sie nie an
-    final ergebnis = await ChatService().connect('V27655');
+    final ergebnis = await ChatService().connect('V10001');
 
     expect(ergebnis, isFalse, reason: 'die Anmeldung wurde abgelehnt');
     // Der Kern des Befunds: vorher wartete hier NICHTS, und der Kopf blieb
@@ -80,7 +80,7 @@ void main() {
 
   test('der abgelehnte Draht bleibt nicht offen liegen', () async {
     nochAblehnen = 99;
-    await ChatService().connect('V27655');
+    await ChatService().connect('V10001');
     // Bis zu einer Sekunde Luft: das Schliessen laeuft ueber die Leitung.
     for (var i = 0; i < 20 && verbindungen.first.closeCode == null; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -93,7 +93,7 @@ void main() {
     // Einmal ablehnen, danach annehmen — wie ein abgelaufenes Token, das vor
     // dem zweiten Anlauf erneuert wird.
     nochAblehnen = 1;
-    final ersterVersuch = await ChatService().connect('V27655');
+    final ersterVersuch = await ChatService().connect('V10001');
     expect(ersterVersuch, isFalse);
 
     final verbunden = Completer<bool>();
@@ -117,11 +117,11 @@ void main() {
     // Neustart der Anwendung offline. Ein Aufruf von aussen heisst „jemand
     // will JETZT verbunden sein" und faengt darum von vorn an.
     nochAblehnen = 99;
-    await ChatService().connect('V27655');
+    await ChatService().connect('V10001');
     expect(ChatService().versucheBisher, 1);
 
     for (var i = 0; i < 5; i++) {
-      await ChatService().connect('V27655');
+      await ChatService().connect('V10001');
     }
     // Nicht 6: jeder Aufruf setzt zurueck, und ein bereits wartender Versuch
     // wird nicht doppelt verbucht.
@@ -133,7 +133,7 @@ void main() {
 
   test('disconnect laesst keinen wartenden Versuch zurueck', () async {
     nochAblehnen = 99;
-    await ChatService().connect('V27655');
+    await ChatService().connect('V10001');
     expect(ChatService().wiederverbindungWartet, isTrue);
     ChatService().disconnect();
     expect(ChatService().wiederverbindungWartet, isFalse,

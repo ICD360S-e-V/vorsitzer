@@ -12,7 +12,7 @@ import 'package:icd360sev_vorsitzer/widgets/visitenkarte.dart';
 /// Die Visitenkarte gegen die ECHTE Antwort des Servers.
 ///
 /// Die Nutzdaten unten sind wörtlich das, was
-/// `POST /api/auth/get_profile.php` für V27655 zurückgibt, und
+/// `POST /api/auth/get_profile.php` für V10001 zurückgibt, und
 /// `GET /api/admin/vereineinstellungen.php` für den Verein — beides am
 /// 13.08.2026 abgefragt, nicht erfunden. Der Grund für diese Strenge steht in
 /// der Speedtest-Geschichte: dort war der Bildschirm in Produktion grau, weil
@@ -59,9 +59,9 @@ class _AntwortClient extends http.BaseClient {
       );
 }
 
-/// Wörtliche Serverantwort für V27655 (gekürzt auf die Felder, die die Karte
+/// Wörtliche Serverantwort für V10001 (gekürzt auf die Felder, die die Karte
 /// anfasst — die übrigen sind für sie unsichtbar).
-Map<String, dynamic> _profilV27655({
+Map<String, dynamic> _profilV10001({
   String? telefonFix,
   List<String>? languages,
   String funktion = '1. Vorsitzender',
@@ -71,16 +71,16 @@ Map<String, dynamic> _profilV27655({
 }) =>
     {
       'success': true,
-      'mitgliedernummer': 'V27655',
+      'mitgliedernummer': 'V10001',
       'email': 'icd@icd360s.de',
-      'name': 'Ionut-Claudiu Duinea',
-      'vorname': 'Ionut-Claudiu',
+      'name': 'Ilies-Cristian Doe',
+      'vorname': 'Ilies-Cristian',
       // ⚠️ Das ist der Auslöser: vorname2 wiederholt die zweite Hälfte von
-      // vorname. Stumpf angehängt stünde „Ionut-Claudiu Claudiu" auf der Karte.
-      'vorname2': 'Claudiu',
-      'nachname': 'Duinea',
+      // vorname. Stumpf angehängt stünde „Ilies-Cristian Cristian" auf der Karte.
+      'vorname2': 'Cristian',
+      'nachname': 'Doe',
       'geschlecht': 'M',
-      'telefon_mobil': '016094482053',
+      'telefon_mobil': '016087654321',
       'telefon_fix': telefonFix,
       'languages': languages ?? ['de', 'ro', 'en'],
       'role': 'vorsitzer',
@@ -98,11 +98,11 @@ const Map<String, dynamic> _vereinsdaten = {
   'slogan': 'Integration · Chancen · Diversity · 360° Support',
   // Spalte seit 14.08.2026.
   'website': 'icd360s.de',
-  'adresse': 'c/o Ionut-Claudiu Duinea\nElsa-Brandström-Straße 13\n89231 Neu-Ulm',
+  'adresse': 'c/o Ilies-Cristian Doe\nElsa-Brandström-Straße 13\n89231 Neu-Ulm',
   'telefon_fix': '+49 731 80159736',
   'fax': '+49 731 80159737',
   // Vereins-Mobilnummer, seit 14.08.2026 in der Tabelle gefüllt.
-  'mobil': '+49 160 94482053',
+  'mobil': '+49 160 87654321',
   'email': 'verein@icd360s.de',
   'registernummer': 'VR 201335',
   'registergericht': 'Amtsgericht Memmingen, Bayern',
@@ -123,7 +123,7 @@ Future<void> _zeigeKarte(WidgetTester tester, _AntwortClient client) async {
         width: 900,
         height: 700,
         child: Visitenkarte(
-          mitgliedernummer: 'V27655',
+          mitgliedernummer: 'V10001',
           apiService: ApiService(),
         ),
       ),
@@ -145,7 +145,7 @@ void main() {
   group('Vorderseite', () {
     testWidgets('zeigt Vereinsname und Slogan aus der Datenbank',
         (tester) async {
-      final c = _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten);
+      final c = _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten);
       await _zeigeKarte(tester, c);
 
       expect(c.aufgerufen.where((p) => p.endsWith('get_profile.php')).length, 1);
@@ -162,7 +162,7 @@ void main() {
         ..['slogan'] = 'Ein ganz anderer Satz';
 
       await _zeigeKarte(
-          tester, _AntwortClient(profil: _profilV27655(), verein: v));
+          tester, _AntwortClient(profil: _profilV10001(), verein: v));
 
       expect(find.text('Ein ganz anderer Satz'), findsOneWidget);
       expect(find.text(kVisitenkarteSlogan), findsNothing);
@@ -173,7 +173,7 @@ void main() {
       final v = Map<String, dynamic>.from(_vereinsdaten)..['slogan'] = '';
 
       await _zeigeKarte(
-          tester, _AntwortClient(profil: _profilV27655(), verein: v));
+          tester, _AntwortClient(profil: _profilV10001(), verein: v));
 
       expect(find.text(kVisitenkarteSlogan), findsOneWidget);
     });
@@ -182,7 +182,7 @@ void main() {
         (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
 
       // U+00BA (º, spanischer Ordnungsindikator) sieht in vielen Schriften
@@ -197,27 +197,27 @@ void main() {
         (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
 
       // ⚠️ `findRichText: true` ist Pflicht: die Namenszeile ist ein
       // `Text.rich`, weil der Nachname auf derselben Zeile halbfett steht.
       // Ohne das Flag findet der Sucher den Text nicht und der Test wäre
       // grün, ohne je etwas geprüft zu haben.
-      expect(find.text('Ionut-Claudiu Duinea', findRichText: true),
+      expect(find.text('Ilies-Cristian Doe', findRichText: true),
           findsOneWidget);
       // Der Fehler, der behoben wurde: vorname2 stumpf angehängt.
-      expect(find.text('Ionut-Claudiu Claudiu Duinea', findRichText: true),
+      expect(find.text('Ilies-Cristian Cristian Doe', findRichText: true),
           findsNothing);
       // Und Vor- und Nachname stehen NICHT mehr getrennt untereinander.
-      expect(find.text('Duinea'), findsNothing);
+      expect(find.text('Doe'), findsNothing);
     });
 
     testWidgets('behält einen mehrteiligen Vornamen vollständig',
         (tester) async {
-      // K91719: der alte Leerzeichen-Split machte hieraus Vorname „Andreea"
+      // K10001: der alte Leerzeichen-Split machte hieraus Vorname „Andreea"
       // und Nachname „Denisa Camelia Raduica".
-      final p = _profilV27655()
+      final p = _profilV10001()
         ..['vorname'] = 'Andreea Denisa Camelia'
         ..['vorname2'] = null
         ..['nachname'] = 'Raduica'
@@ -235,7 +235,7 @@ void main() {
         (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
 
       // ⚠️ Amt und „Gründer" stehen seit der minimalistischen Fassung in
@@ -250,7 +250,7 @@ void main() {
       await _zeigeKarte(
         tester,
         _AntwortClient(
-          profil: _profilV27655(funktion: '2. Vorsitzende', istGruender: false),
+          profil: _profilV10001(funktion: '2. Vorsitzende', istGruender: false),
           verein: _vereinsdaten,
         ),
       );
@@ -271,21 +271,21 @@ void main() {
         tester,
         _AntwortClient(
           // Diese Person HAT eine eigene Durchwahl und eine eigene Mobilnummer.
-          profil: _profilV27655(telefonFix: '+49 731 111111'),
+          profil: _profilV10001(telefonFix: '+49 731 111111'),
           verein: _vereinsdaten,
         ),
       );
 
       expect(find.text('+49 731 80159736'), findsOneWidget); // Verein
-      expect(find.text('+49 160 94482053'), findsOneWidget); // Verein
+      expect(find.text('+49 160 87654321'), findsOneWidget); // Verein
       expect(find.text('+49 731 111111'), findsNothing);     // privat
-      expect(find.text('016094482053'), findsNothing);       // privat
+      expect(find.text('016087654321'), findsNothing);       // privat
     });
 
     testWidgets('das Fax steht unter dem Festnetz', (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
 
       expect(find.text('+49 731 80159737'), findsOneWidget);
@@ -294,18 +294,18 @@ void main() {
       // Paar, auseinandergerissen als zwei Zufälle.
       final tel = tester.getCenter(find.text('+49 731 80159736'));
       final fax = tester.getCenter(find.text('+49 731 80159737'));
-      final mob = tester.getCenter(find.text('+49 160 94482053'));
+      final mob = tester.getCenter(find.text('+49 160 87654321'));
       expect(fax.dy, greaterThan(tel.dy));
       expect(mob.dy, greaterThan(fax.dy));
     });
 
     testWidgets('die E-Mail kommt weiter aus users.email', (tester) async {
-      // Duinea hat icd@icd360s.de, Weber mcw@icd360s.de — Vereinsadressen, die
+      // Doe hat icd@icd360s.de, Weber mcw@icd360s.de — Vereinsadressen, die
       // schon in der Tabelle stehen. Es braucht also keine abgeleitete
       // Adresse aus der Mitgliedsnummer.
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
       expect(find.text('icd@icd360s.de'), findsOneWidget);
     });
@@ -314,7 +314,7 @@ void main() {
         (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
 
       // ⚠️ Die Kürzel „DE · RO · EN" standen bis zum 14.08.2026 unter den
@@ -371,7 +371,7 @@ void main() {
     testWidgets('trägt den Webauftritt unten rechts', (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
 
       expect(find.text(kVisitenkarteWeb), findsOneWidget);
@@ -380,11 +380,11 @@ void main() {
       // ⚠️ Die Benutzernummer steht wieder unten links — auf Entscheidung des
       // Users (13.08.2026), nachdem sie kurz entfernt war. Sie ist zugleich
       // der Anmeldename; dass sie hier steht, ist gewollt und kein Versehen.
-      expect(find.text('V27655'), findsOneWidget);
+      expect(find.text('V10001'), findsOneWidget);
 
       // Der Globus gehört in die rechte untere Ecke, die Nummer nach links.
       final globus = tester.getCenter(find.byIcon(Icons.language));
-      final nummer = tester.getCenter(find.text('V27655'));
+      final nummer = tester.getCenter(find.text('V10001'));
       final karte = tester.getRect(find.byKey(const ValueKey('front')));
       expect(globus.dx, greaterThan(nummer.dx));
       expect(globus.dy, greaterThan(karte.center.dy));
@@ -394,7 +394,7 @@ void main() {
         (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
 
       // ⚠️ Bilddatei, nicht Emoji. Auf Windows bildet Segoe UI Emoji die
@@ -419,7 +419,7 @@ void main() {
         ..['website'] = 'beispiel.test';
 
       await _zeigeKarte(
-          tester, _AntwortClient(profil: _profilV27655(), verein: v));
+          tester, _AntwortClient(profil: _profilV10001(), verein: v));
 
       expect(find.text('beispiel.test'), findsOneWidget);
       expect(find.text(kVisitenkarteWeb), findsNothing);
@@ -428,14 +428,14 @@ void main() {
     testWidgets('leere Spalte lässt die Fußzeile nicht leer', (tester) async {
       final v = Map<String, dynamic>.from(_vereinsdaten)..['website'] = '';
       await _zeigeKarte(
-          tester, _AntwortClient(profil: _profilV27655(), verein: v));
+          tester, _AntwortClient(profil: _profilV10001(), verein: v));
       expect(find.text(kVisitenkarteWeb), findsOneWidget);
     });
 
     testWidgets('bietet den Druckbogen an', (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
 
       // Die Zahl im Knopf kommt aus der Bogen-Geometrie, nicht aus dem Text —
@@ -448,7 +448,7 @@ void main() {
       await _zeigeKarte(
         tester,
         _AntwortClient(
-          profil: _profilV27655(languages: const []),
+          profil: _profilV10001(languages: const []),
           verein: _vereinsdaten,
         ),
       );
@@ -468,7 +468,7 @@ void main() {
     testWidgets('steht auch ohne erreichbare Vereinsdaten', (tester) async {
       // vereineinstellungen.php verlangt eine Admin-Rolle. Schlägt es fehl,
       // dürfen Name, Amt und E-Mail nicht mit verschwinden.
-      final c = _AntwortClient(profil: _profilV27655(), verein: null);
+      final c = _AntwortClient(profil: _profilV10001(), verein: null);
       await _zeigeKarte(tester, c);
 
       expect(find.textContaining('1. Vorsitzender'), findsOneWidget);
@@ -478,7 +478,7 @@ void main() {
       // ⚠️ Beide Rufnummern entfallen ersatzlos — sie stehen NUR in den
       // Vereinsdaten. Lieber eine Karte ohne Nummer als eine mit erfundener.
       expect(find.text('+49 731 80159736'), findsNothing);
-      expect(find.text('+49 160 94482053'), findsNothing);
+      expect(find.text('+49 160 87654321'), findsNothing);
     });
   });
 
@@ -491,7 +491,7 @@ void main() {
     testWidgets('zeigt die Schlagwörter aus der Satzung', (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
       await umdrehen(tester);
 
@@ -512,7 +512,7 @@ void main() {
         (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
       await umdrehen(tester);
 
@@ -525,7 +525,7 @@ void main() {
     testWidgets('lässt die c/o-Zeile in der Anschrift weg', (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
       await umdrehen(tester);
 
@@ -540,7 +540,7 @@ void main() {
     testWidgets('lässt sich wieder auf die Vorderseite drehen', (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
       await umdrehen(tester);
       expect(find.textContaining('1. Vorsitzender'), findsNothing);
@@ -556,7 +556,7 @@ void main() {
         (tester) async {
       await _zeigeKarte(
         tester,
-        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+        _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten),
       );
 
       final karte = tester.getSize(find.byKey(const ValueKey('front')));
@@ -577,14 +577,14 @@ void main() {
     testWidgets('wird auf einem schmalen Schirm schmaler statt abgeschnitten',
         (tester) async {
       ApiService().testClient =
-          _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten);
+          _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten);
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: SizedBox(
             width: 360, // Pixel-Telefon
             height: 700,
             child: Visitenkarte(
-              mitgliedernummer: 'V27655',
+              mitgliedernummer: 'V10001',
               apiService: ApiService(),
             ),
           ),
@@ -601,14 +601,14 @@ void main() {
   group('Kartensprache', () {
     testWidgets('startet auf Deutsch', (tester) async {
       await _zeigeKarte(tester,
-          _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten));
+          _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten));
       expect(find.text('Sprache der Karte · Deutsch'), findsOneWidget);
       expect(find.text('1. Vorsitzender  ·  Gründer'), findsOneWidget);
     });
 
     testWidgets('bietet zu jeder Fahne einen Knopf', (tester) async {
       await _zeigeKarte(tester,
-          _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten));
+          _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten));
       for (final e in kVisitenkarteSprachen.entries) {
         expect(find.bySemanticsLabel('Karte auf ${e.value.eigenname}'),
             findsOneWidget,
@@ -619,7 +619,7 @@ void main() {
     testWidgets('ein Tipp setzt Amt und Rückseite in die Sprache',
         (tester) async {
       await _zeigeKarte(tester,
-          _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten));
+          _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten));
 
       await tester.tap(find.bySemanticsLabel('Karte auf Română'));
       await tester.pumpAndSettle();
@@ -643,7 +643,7 @@ void main() {
       // der Vereinsname weg. Das ist die Zeile, die niemand aus Versehen
       // „auch noch übersetzen" darf.
       await _zeigeKarte(tester,
-          _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten));
+          _AntwortClient(profil: _profilV10001(), verein: _vereinsdaten));
       for (final code in ['ro', 'ru', 'tr', 'el']) {
         final knopf = find.bySemanticsLabel(
             'Karte auf ${kVisitenkarteSprachen[code]!.eigenname}');
@@ -675,7 +675,7 @@ void main() {
       await _zeigeKarte(
           tester,
           _AntwortClient(
-              profil: _profilV27655(anredeform: '', vorsitzNr: null),
+              profil: _profilV10001(anredeform: '', vorsitzNr: null),
               verein: _vereinsdaten));
       await tester.tap(find.bySemanticsLabel('Karte auf Română'));
       await tester.pumpAndSettle();
