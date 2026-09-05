@@ -54,8 +54,9 @@ void main() {
       expect(kMassnahmeVollTitel,
           'Zuweisung zu einer Maßnahme zur Aktivierung und beruflichen '
           'Eingliederung bei einem Träger');
-      expect(kMassnahmeRechtsgrundlage.contains('§ 45'), isTrue);
-      expect(kMassnahmeRechtsgrundlage.contains('§ 16 SGB II'), isTrue);
+      expect(kMassnahmeRechtsgrundlage, '§ 16 Abs. 1 SGB II i.V.m. § 45 SGB III');
+      // ⚠️ Wortlaut aus dem echten Bescheid vom 04.09.2026: „Abs. 1" gehört an
+      // § 16 SGB II, NICHT an § 45 SGB III. Ich hatte es zuerst vertauscht.
     });
   });
 

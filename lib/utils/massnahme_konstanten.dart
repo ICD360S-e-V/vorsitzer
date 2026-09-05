@@ -19,7 +19,7 @@ const String kMassnahmeVollTitel =
     'Zuweisung zu einer Maßnahme zur Aktivierung und beruflichen '
     'Eingliederung bei einem Träger';
 
-const String kMassnahmeRechtsgrundlage = '§ 16 SGB II i.V.m. § 45 Abs. 1 SGB III';
+const String kMassnahmeRechtsgrundlage = '§ 16 Abs. 1 SGB II i.V.m. § 45 SGB III';
 
 /// ⚠️ Zeichengleich mit der ENUM-Spalte `jobcenter_user_massnahme.status`
 /// UND mit MN_STATUS in massnahme_manage.php. Das PHP liegt in keinem Repo —

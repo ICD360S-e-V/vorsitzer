@@ -14849,7 +14849,7 @@ class ApiService {
   // === MASSNAHME (TRÄGER) ===
   //
   // Zuweisung zu einer Maßnahme zur Aktivierung und beruflichen Eingliederung
-  // bei einem Träger, § 16 SGB II i.V.m. § 45 Abs. 1 SGB III.
+  // bei einem Träger, § 16 Abs. 1 SGB II i.V.m. § 45 SGB III.
   //
   // ⚠️ Katalog (Träger/Angebote) ist Klartext — öffentliche Firmendaten.
   // Die Zuweisung des Mitglieds ist ein Sozialdatum nach § 35 SGB I; ihre
