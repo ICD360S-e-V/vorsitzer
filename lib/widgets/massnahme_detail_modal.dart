@@ -22,11 +22,15 @@ class MassnahmeDetailModal extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Map<String, dynamic> zuweisung;
+  /// Mitgliedsnummer des Bearbeiters. Ein Schriftwechsel ohne Verfasser ist
+  /// kein Verlauf — später ist nicht mehr zu klären, wer was notiert hat.
+  final String? bearbeiter;
   const MassnahmeDetailModal({
     super.key,
     required this.apiService,
     required this.userId,
     required this.zuweisung,
+    this.bearbeiter,
   });
 
   @override
@@ -101,6 +105,7 @@ class _MassnahmeDetailModalState extends State<MassnahmeDetailModal>
               apiService: widget.apiService,
               userId: widget.userId,
               zuweisungId: _zid,
+              bearbeiter: widget.bearbeiter,
               onChanged: () => _geaendert = true,
             ),
           ])),
@@ -454,11 +459,13 @@ class _KorrespondenzTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final int zuweisungId;
+  final String? bearbeiter;
   final VoidCallback? onChanged;
   const _KorrespondenzTab({
     required this.apiService,
     required this.userId,
     required this.zuweisungId,
+    this.bearbeiter,
     this.onChanged,
   });
   @override
@@ -571,6 +578,7 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
         'datum': datum.text,
         'betreff': betreff.text.trim(),
         'text': text.text.trim(),
+        if (widget.bearbeiter != null) 'erstellt_von': widget.bearbeiter,
       });
       if (r['success'] == true) { widget.onChanged?.call(); _laden1(); }
       else { _melden(r['message']?.toString() ?? 'Konnte nicht gespeichert werden'); }
@@ -650,7 +658,10 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
                               '${d != null ? df.format(d) : "ohne Datum"} · '
                               '${_kRichtungLabel[e['richtung']?.toString()] ?? ""} · '
                               '${_kKontaktLabel[e['kontaktart']?.toString()] ?? ""}'
-                              '${anh > 0 ? " · $anh Anhang" : ""}',
+                              '${anh > 0 ? " · $anh Anhang" : ""}'
+                              // Wer den Eintrag gemacht hat — ohne Verfasser
+                              // ist ein Verlauf später nicht mehr zuzuordnen.
+                              '${(e['erstellt_von'] ?? '').toString().isNotEmpty ? " · ${e['erstellt_von']}" : ""}',
                               style: const TextStyle(fontSize: 11)),
                           childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
                           children: [

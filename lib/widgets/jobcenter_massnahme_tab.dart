@@ -18,12 +18,22 @@ class JobcenterMassnahmeTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final int userAvId;
+  /// Die AV-Zuordnung — trägt `mein_zeichen`, also das Aktenzeichen des
+  /// Jobcenters. Steht es schon da, hat es niemand abzutippen.
+  final Map<String, dynamic> userAv;
+  /// Stammdaten des Jobcenter-Reiters (Kunden- und BG-Nummer).
+  final Map<String, dynamic> jcData;
+  /// Mitgliedsnummer des Bearbeiters — landet als Verfasser am Schriftwechsel.
+  final String? bearbeiter;
   final VoidCallback? onChanged;
   const JobcenterMassnahmeTab({
     super.key,
     required this.apiService,
     required this.userId,
     required this.userAvId,
+    this.userAv = const {},
+    this.jcData = const {},
+    this.bearbeiter,
     this.onChanged,
   });
 
@@ -77,6 +87,8 @@ class _JobcenterMassnahmeTabState extends State<JobcenterMassnahmeTab>
         apiService: widget.apiService,
         userId: widget.userId,
         userAvId: widget.userAvId,
+        userAv: widget.userAv,
+        jcData: widget.jcData,
         vorhanden: vorhanden,
       ),
     );
@@ -271,6 +283,25 @@ class _JobcenterMassnahmeTabState extends State<JobcenterMassnahmeTab>
           _zeile(Icons.gavel, 'Rechtsgrundlage',
               z['rechtsgrundlage']?.toString() ?? kMassnahmeRechtsgrundlage),
 
+          if (massnahmeStatusVeraltet(status, ende))
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: F.h(Colors.orange, 50),
+                border: Border.all(color: F.h(Colors.orange, 200)),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Die Maßnahme ist seit dem ${df.format(ende!)} vorbei, der Status '
+                'steht aber noch auf „${kMassnahmeStatusLabel[status] ?? status}". '
+                'Bitte auf „Beendet" oder „Abgebrochen" setzen — die beiden haben '
+                'nach §§ 31 ff. SGB II verschiedene Folgen.',
+                style: TextStyle(fontSize: 11.5, color: F.h(Colors.orange, 900)),
+              ),
+            ),
+
           // Widerspruchsfrist, § 84 Abs. 1 SGG.
           if (tage != null && offen)
             Container(
@@ -366,6 +397,7 @@ class _JobcenterMassnahmeTabState extends State<JobcenterMassnahmeTab>
         apiService: widget.apiService,
         userId: widget.userId,
         zuweisung: z,
+        bearbeiter: widget.bearbeiter,
       ),
     );
     if (geaendert == true) { widget.onChanged?.call(); _laden(); }
@@ -392,11 +424,15 @@ class _ZuweisungDialog extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final int userAvId;
+  final Map<String, dynamic> userAv;
+  final Map<String, dynamic> jcData;
   final Map<String, dynamic>? vorhanden;
   const _ZuweisungDialog({
     required this.apiService,
     required this.userId,
     required this.userAvId,
+    this.userAv = const {},
+    this.jcData = const {},
     this.vorhanden,
   });
   @override
@@ -440,6 +476,13 @@ class _ZuweisungDialogState extends State<_ZuweisungDialog> {
       _nummer.text = (v['massnahmenummer'] ?? '').toString();
       _kunde.text = (v['kundennummer'] ?? '').toString();
       _notiz.text = (v['notiz'] ?? '').toString();
+    } else {
+      // Neuanlage: was das System schon weiß, steht sofort im Feld — es hat
+      // niemand abzutippen, was an der AV-Zuordnung oder am Jobcenter hängt.
+      final az = (widget.userAv['mein_zeichen'] ?? '').toString().trim();
+      if (az.isNotEmpty) _az.text = az;
+      final kn = (widget.jcData['stammdaten.kundennummer'] ?? '').toString().trim();
+      _kunde.text = kn.isNotEmpty ? kn : massnahmeKundennummerAus(az);
     }
     _traegerLaden();
   }
@@ -735,12 +778,32 @@ class _ZuweisungDialogState extends State<_ZuweisungDialog> {
                             // Nummer aus dem Katalog vorschlagen — aber NIE eine
                             // vorhandene überschreiben: im Bescheid steht die
                             // Nummer dieses Durchgangs, und die gilt.
+                            final a = _angebote.firstWhere(
+                                (x) => mnZahl(x['id']) == v,
+                                orElse: () => const <String, dynamic>{});
                             if (_nummer.text.trim().isEmpty) {
-                              final a = _angebote.firstWhere(
-                                  (x) => mnZahl(x['id']) == v,
-                                  orElse: () => const <String, dynamic>{});
                               final nr = (a['massnahmenummer'] ?? '').toString();
                               if (nr.isNotEmpty) _nummer.text = nr;
+                            }
+                            // Durchführungsort ebenso vorschlagen — er steht im
+                            // Bescheid und ändert sich je Angebot, also braucht ihn
+                            // niemand abzutippen.
+                            if (_ort.text.trim().isEmpty) {
+                              final ort = massnahmeOrtVorschlag(a);
+                              if (ort.isNotEmpty) _ort.text = ort;
+                            }
+                            if (_stunden.text.trim().isEmpty) {
+                              final st = (a['stunden_woche'] ?? '').toString();
+                              if (st.isNotEmpty) _stunden.text = st;
+                            }
+                            // Ende aus Beginn + Laufzeit — nur als Vorschlag,
+                            // der Bescheid nennt es ausdrücklich.
+                            if (_ende.text.trim().isEmpty) {
+                              final e = massnahmeEndeVorschlag(
+                                  massnahmeDatum(_beginn.text), a['dauer_wochen']);
+                              if (e != null) {
+                                _ende.text = e.toIso8601String().substring(0, 10);
+                              }
                             }
                           }),
                         )),
