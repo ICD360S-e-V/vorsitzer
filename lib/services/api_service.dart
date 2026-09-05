@@ -15198,6 +15198,23 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Den gespeicherten Text eines Dokuments — genau den, auf dem die Prüfung
+  /// beruht.
+  ///
+  /// ⚠️ Ohne diese Ansicht stand auf dem Schirm nur „aus dem Bild erkannt
+  /// (1137 Zeichen)", und niemand konnte nachsehen, WAS die Maschine gelesen
+  /// hat. An der ersten echten Prüfung war der Text gut und trotzdem
+  /// unsichtbar — also war auch nicht zu erkennen, warum ein Kriterium so
+  /// entschieden hat.
+  Future<Map<String, dynamic>> jcKooperationsplanDocTextLesen(int docId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_kooperationsplan_docs.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'text_lesen', 'id': docId}),
+    ).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   /// Eine Datei an einen Plan hängen (oder mit `planId: 0` wieder lösen).
   Future<Map<String, dynamic>> jcKooperationsplanDocZuordnen(int docId, int planId) async {
     final r = await _client.post(
