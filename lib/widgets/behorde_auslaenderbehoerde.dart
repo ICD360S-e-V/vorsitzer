@@ -6,6 +6,7 @@ import '../utils/app_farben.dart';
 import '../utils/auslaenderbehoerde_vorfaelle.dart';
 import '../utils/auslaenderbehoerde_dokumente.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/cloud_picker_helper.dart';
 
 String _deFmt(DateTime p) =>
     '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
@@ -1445,25 +1446,44 @@ class _AbVorfallDetailState extends State<_AbVorfallDetail> {
                       onPressed: () => _dokLoeschen(d, titel)),
                 ])),
           const SizedBox(height: 10),
-          Align(
-              alignment: Alignment.centerLeft,
-              child: FilledButton.icon(
-                  icon: laeuft
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.attach_file, size: 16),
-                  label: Text(d == null ? 'Hochladen' : 'Ersetzen',
-                      style: const TextStyle(fontSize: 12)),
-                  style: FilledButton.styleFrom(
-                      backgroundColor: Colors.indigo.shade600,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      minimumSize: Size.zero),
-                  // ⚠️ Nur der eigene Knopf sperrt. Sonst blockierte ein
-                  // laufender Titel-Upload auch das Zusatzblatt.
-                  onPressed: laeuft ? null : () => _dokHochladen(art, titel))),
+          // Zwei Wege zur selben Ablage: vom Gerät oder aus dem Cloud des
+          // Mitglieds. Dahinter läuft derselbe Upload — der Cloud-Wähler legt
+          // die Auswahl als gewöhnliche Datei ab.
+          Wrap(spacing: 8, runSpacing: 6, children: [
+            FilledButton.icon(
+                icon: laeuft
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.attach_file, size: 16),
+                label: Text(d == null ? 'Hochladen' : 'Ersetzen',
+                    style: const TextStyle(fontSize: 12)),
+                style: FilledButton.styleFrom(
+                    backgroundColor: Colors.indigo.shade600,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    minimumSize: Size.zero),
+                // ⚠️ Nur der eigene Knopf sperrt. Sonst blockierte ein
+                // laufender Titel-Upload auch das Zusatzblatt.
+                onPressed: laeuft ? null : () => _dokVomGeraet(art, titel)),
+            OutlinedButton.icon(
+                icon: Icon(Icons.cloud_download, size: 15, color: F.h(Colors.blue, 700)),
+                // ⚠️ Die Beschriftung nennt den Speicher, der sich wirklich
+                // öffnet: in der eigenen Akte des Vorsitzenden ist es der
+                // verschlüsselte 50-GB-Speicher, sonst der 1-GB-Cloud des
+                // Mitglieds. „Aus Cloud" allein ließe offen, wessen.
+                label: Text(
+                    CloudPickerHelper.istVerschluesselt(widget.userId)
+                        ? 'Aus eigenem Cloud'
+                        : 'Aus Cloud des Mitglieds',
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 700))),
+                style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: F.h(Colors.blue, 300)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    minimumSize: Size.zero),
+                onPressed: laeuft ? null : () => _dokAusCloud(art, titel)),
+          ]),
         ]));
   }
 
@@ -1496,13 +1516,41 @@ class _AbVorfallDetailState extends State<_AbVorfallDetail> {
     ));
   }
 
-  Future<void> _dokHochladen(String art, String titel) async {
+  Future<void> _dokVomGeraet(String art, String titel) async {
     final auswahl = await FilePickerHelper.pickFiles(
       allowMultiple: false,
       type: FileType.custom,
       allowedExtensions: kAbDokEndungen,
     );
-    final datei = (auswahl?.files ?? []).firstOrNull;
+    await _dokUebernehmen(art, titel, (auswahl?.files ?? []).firstOrNull);
+  }
+
+  /// Aus dem Cloud statt vom Gerät.
+  ///
+  /// ⚠️ Welcher der beiden Speicher sich öffnet, entscheidet
+  /// [CloudPickerHelper] selbst — der verschlüsselte 50-GB-Speicher in der
+  /// eigenen Akte des Vorsitzenden, sonst der 1-GB-Cloud des Mitglieds. Ein
+  /// hier durchgereichtes Kennzeichen wäre die Stelle, an der später der
+  /// falsche, also leere Speicher aufgeht.
+  ///
+  /// ⚠️ `maxFiles: 1` — je Platz nimmt der Server genau eine Datei. Ohne die
+  /// Grenze dürfte man drei wählen, von denen zwei stillschweigend fallen.
+  Future<void> _dokAusCloud(String art, String titel) async {
+    final auswahl = await CloudPickerHelper.pickFiles(
+      context,
+      apiService: widget.apiService,
+      memberId: widget.userId,
+      allowedExtensions: kAbDokEndungen,
+      maxFiles: 1,
+    );
+    if (!mounted) return;
+    await _dokUebernehmen(art, titel, (auswahl?.files ?? []).firstOrNull);
+  }
+
+  /// Der gemeinsame Weg beider Knöpfe. Prüfungen und Fehlermeldungen stehen
+  /// deshalb nur einmal da — sonst wichen sie über kurz oder lang ab.
+  Future<void> _dokUebernehmen(
+      String art, String titel, PlatformFile? datei) async {
     if (datei == null) return;
     final grund = abDokAblehnung(datei.name, datei.size);
     if (grund != null) {
