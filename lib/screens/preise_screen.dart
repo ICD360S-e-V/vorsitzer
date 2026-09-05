@@ -126,7 +126,7 @@ class _PreiseScreenState extends State<PreiseScreen> {
               : null,
         ),
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => _linkHinzufuegen(null, null),
+          onPressed: () => _neuesProdukt(kategorien.first),
           icon: const Icon(Icons.add),
           label: const Text('Produkt'),
         ),
@@ -163,6 +163,22 @@ class _PreiseScreenState extends State<PreiseScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => _LinkDialog(artikelId: artikelId, erwarteterMarkt: markt),
+    );
+    if (ok == true) await _laden();
+  }
+
+  /// Ein Produkt anlegen und die Links aller Märkte gleich mitgeben.
+  ///
+  /// ⚠️ In EINEM Aufruf, nicht dreimal `add`: bricht der zweite Aufruf ab,
+  /// bliebe eine halbe Karte stehen — mit einem Markt, den niemand angelegt
+  /// haben wollte, und ohne dass irgendwo ein Fehler steht.
+  Future<void> _neuesProdukt(Map<String, dynamic> kategorie) async {
+    final maerkte = _haendler
+        .where((h) => '${h['kategorie_id']}' == '${kategorie['id']}')
+        .toList();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => _NeuesProduktDialog(maerkte: maerkte),
     );
     if (ok == true) await _laden();
   }
@@ -327,8 +343,9 @@ class _Kartenliste extends StatelessWidget {
       return const _Hinweis(
         icon: Icons.storefront_outlined,
         text: 'Noch kein Produkt.\n\n'
-            'Link von einer Produktseite kopieren und unten auf „Produkt" tippen.\n'
-            'Danach kannst du auf dieselbe Karte die Links der anderen Märkte legen.',
+            'Unten auf „Produkt" tippen und die Links der Märkte einsetzen — '
+            'alle drei auf einmal oder nur den, den du gerade hast.\n'
+            'Fehlende kannst du später an der Karte nachtragen.',
       );
     }
     return ListView.builder(
@@ -945,4 +962,263 @@ class _Hinweis extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// Ein neues Produkt: Name und je Markt ein Link, in einem Zug.
+///
+/// ⚠️ Alle Felder sind freiwillig — man hat selten alle drei Links zur Hand.
+/// Was leer bleibt, kann später an der Karte nachgetragen werden; ein leeres
+/// Feld ist deshalb KEIN Fehler und wird auch nicht als solcher gemeldet.
+class _NeuesProduktDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> maerkte;
+  const _NeuesProduktDialog({required this.maerkte});
+
+  @override
+  State<_NeuesProduktDialog> createState() => _NeuesProduktDialogState();
+}
+
+class _NeuesProduktDialogState extends State<_NeuesProduktDialog> {
+  final _name = TextEditingController();
+  late final Map<int, TextEditingController> _felder = {
+    for (final m in widget.maerkte) m['id'] as int: TextEditingController(),
+  };
+  final Map<int, PreisLesung?> _gelesen = {};
+  final Map<int, String> _lesefehler = {};
+
+  bool _liest = false;
+  String? _fortschritt;
+  bool _speichert = false;
+  String? _fehler;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    for (final c in _felder.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> get _gefuellt => [
+        for (final m in widget.maerkte)
+          if (_felder[m['id'] as int]!.text.trim().isNotEmpty) m,
+      ];
+
+  Future<void> _nachsehen() async {
+    setState(() {
+      _liest = true;
+      _fehler = null;
+      _gelesen.clear();
+      _lesefehler.clear();
+    });
+    final offen = _gefuellt;
+    for (var i = 0; i < offen.length; i++) {
+      final m = offen[i];
+      final id = m['id'] as int;
+      if (!mounted) return;
+      setState(() => _fortschritt = '${i + 1}/${offen.length} · ${m['name']}');
+      final url = _felder[id]!.text.trim();
+      final l = await PreisLeserService().einmalLesen(url);
+      if (!mounted) return;
+      setState(() {
+        if (l == null) {
+          _lesefehler[id] = 'kein Preis auf der Seite';
+        } else {
+          _gelesen[id] = l;
+          // Der erste gelesene Produktname füllt den noch leeren Namen.
+          if (_name.text.trim().isEmpty && (l.name ?? '').isNotEmpty) {
+            _name.text = l.name!;
+          }
+        }
+      });
+    }
+    if (!mounted) return;
+    setState(() {
+      _liest = false;
+      _fortschritt = null;
+    });
+  }
+
+  Future<void> _speichern() async {
+    final links = [
+      for (final m in widget.maerkte)
+        if (_felder[m['id'] as int]!.text.trim().isNotEmpty)
+          {
+            'url': _felder[m['id'] as int]!.text.trim(),
+            ...?_gelesen[m['id'] as int]?.alsBericht(),
+          },
+    ];
+    if (links.isEmpty) {
+      setState(() => _fehler = 'Mindestens einen Link eintragen');
+      return;
+    }
+    setState(() => _speichert = true);
+    final r = await ApiService().preiseAction({
+      'action': 'artikel_anlegen',
+      if (_name.text.trim().isNotEmpty) 'name': _name.text.trim(),
+      'links': links,
+    });
+    if (!mounted) return;
+    setState(() => _speichert = false);
+    if (r['success'] != true) {
+      setState(() => _fehler = (r['message'] as String?) ?? 'Konnte nicht gespeichert werden');
+      return;
+    }
+    final abgewiesen = List<Map<String, dynamic>>.from(r['abgewiesen'] ?? []);
+    Navigator.pop(context, true);
+    // ⚠️ Abgewiesene Links werden GESAGT. Wer drei Felder ausfüllt und zwei
+    // Spalten bekommt, muss erfahren warum — sonst sucht er den Fehler bei sich.
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: Duration(seconds: abgewiesen.isEmpty ? 3 : 8),
+      backgroundColor: abgewiesen.isEmpty ? null : Colors.orange.shade800,
+      content: Text(abgewiesen.isEmpty
+          ? '„${r['name']}" angelegt mit ${(r['angelegt'] as List).length} Märkten'
+          : '„${r['name']}" angelegt. Nicht übernommen: '
+              '${abgewiesen.map((a) => a['grund']).join(', ')}'),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: F.flaeche,
+      title: Text('Neues Produkt', style: TextStyle(color: F.textStark)),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _name,
+                style: TextStyle(color: F.textStark, fontSize: 14),
+                decoration: InputDecoration(
+                  labelText: 'Name',
+                  // ⚠️ Der Name ist die Klammer über die Märkte hinweg: die
+                  // drei Läden nennen dasselbe Ding verschieden.
+                  helperText: 'Frei wählbar. Leer lassen: der Name kommt vom '
+                      'ersten gelesenen Markt',
+                  helperMaxLines: 2,
+                  filled: true,
+                  fillColor: F.flaecheGedaempft,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 14),
+              for (final m in widget.maerkte) ...[
+                _MarktFeld(
+                  markt: m,
+                  feld: _felder[m['id'] as int]!,
+                  lesung: _gelesen[m['id'] as int],
+                  fehler: _lesefehler[m['id'] as int],
+                  beiAenderung: () => setState(() {
+                    _gelesen.remove(m['id'] as int);
+                    _lesefehler.remove(m['id'] as int);
+                  }),
+                ),
+                const SizedBox(height: 10),
+              ],
+              if (!PreisLeserService.verfuegbar)
+                Text(
+                  'Auf diesem Gerät lässt sich keine Seite vorab lesen.\n'
+                  'Namen und Preise holt der nächste Lauf am Linux-Rechner.',
+                  style: TextStyle(color: F.textLeise, fontSize: 12),
+                ),
+              if (_fortschritt != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(children: [
+                    const SizedBox(
+                        width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                    const SizedBox(width: 8),
+                    Text('wird gelesen: $_fortschritt',
+                        style: TextStyle(color: F.textSchwach, fontSize: 12)),
+                  ]),
+                ),
+              if (_fehler != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(_fehler!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12)),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen')),
+        if (PreisLeserService.verfuegbar)
+          TextButton(
+            // Erst nachsehen, wenn überhaupt ein Feld ausgefüllt ist.
+            onPressed: (_liest || _gefuellt.isEmpty) ? null : _nachsehen,
+            child: const Text('Nachsehen'),
+          ),
+        FilledButton(
+          onPressed: (_speichert || _liest) ? null : _speichern,
+          child: Text(_speichert ? '…' : 'Speichern'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Ein Linkfeld mit dem, was dahinter gefunden wurde.
+class _MarktFeld extends StatelessWidget {
+  final Map<String, dynamic> markt;
+  final TextEditingController feld;
+  final PreisLesung? lesung;
+  final String? fehler;
+  final VoidCallback beiAenderung;
+
+  const _MarktFeld({
+    required this.markt,
+    required this.feld,
+    required this.lesung,
+    required this.fehler,
+    required this.beiAenderung,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: feld,
+          minLines: 1,
+          maxLines: 2,
+          style: TextStyle(color: F.textStark, fontSize: 12),
+          decoration: InputDecoration(
+            labelText: '${markt['name']}',
+            hintText: 'https://${markt['host']}/…',
+            hintStyle: TextStyle(color: F.textLeise, fontSize: 11),
+            isDense: true,
+            filled: true,
+            fillColor: F.flaecheGedaempft,
+            border: const OutlineInputBorder(),
+          ),
+          onChanged: (_) => beiAenderung(),
+        ),
+        if (lesung != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 3, left: 4),
+            child: Text(
+              '${lesung!.name ?? 'ohne Namen'} — ${euro(lesung!.preis)}',
+              style: const TextStyle(color: Colors.green, fontSize: 11),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        if (fehler != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 3, left: 4),
+            child: Text(fehler!,
+                style: const TextStyle(color: Colors.orange, fontSize: 11)),
+          ),
+      ],
+    );
+  }
 }
