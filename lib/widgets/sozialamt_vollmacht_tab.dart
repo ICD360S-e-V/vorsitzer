@@ -12,7 +12,10 @@
 /// unterschriebe sonst dreimal dasselbe Blatt.
 library;
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../services/api_service.dart';
 import '../services/signatur_service.dart';
@@ -27,11 +30,15 @@ class SozialamtVollmachtTab extends StatefulWidget {
   /// Für den Signaturauftrag: unter dieser Nummer stellt der Vorstand.
   final String adminMitgliedernummer;
 
+  /// Das Postfach des Mitglieds — Ziel des Chat-Versands.
+  final String memberMitgliedernummer;
+
   const SozialamtVollmachtTab({
     super.key,
     required this.apiService,
     required this.userId,
     this.adminMitgliedernummer = '',
+    this.memberMitgliedernummer = '',
   });
 
   @override
@@ -54,6 +61,11 @@ class _SozialamtVollmachtTabState extends State<SozialamtVollmachtTab> {
   /// hätte jemand etwas bevollmächtigt, das er nie gelesen hat.
   Map<String, String> _katalog = {};
   final Set<String> _umfang = {};
+
+  /// Wie viele Zeilen das Versandprotokoll je Vollmacht hat — nur für die
+  /// Zahl am Knopf. Ohne sie müsste man den Dialog öffnen, um zu sehen, ob
+  /// überhaupt schon etwas hinausgegangen ist.
+  Map<int, int> _versandAnzahl = {};
 
   DateTime _abDatum = DateTime.now();
   DateTime? _bisDatum;
@@ -95,6 +107,23 @@ class _SozialamtVollmachtTabState extends State<SozialamtVollmachtTab> {
             .map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
     });
+    await _versandStaendeLaden();
+  }
+
+  /// ⚠️ Ein Aufruf JE Vollmacht — es gibt keinen Sammelendpunkt. Bei zwei,
+  /// drei Vollmachten je Mitglied ist das in Ordnung; wenn daraus je zwanzig
+  /// werden, gehört die Zahl in die Liste selbst.
+  Future<void> _versandStaendeLaden() async {
+    final neu = <int, int>{};
+    for (final vm in _liste) {
+      final id = (vm['id'] as num?)?.toInt();
+      if (id == null) continue;
+      final p = await widget.apiService.sozialamtVollmachtVersandListe(id);
+      if (p['success'] != true) continue;
+      neu[id] = ((p['items'] as List?)?.length ?? 0) + ((p['links'] as List?)?.length ?? 0);
+    }
+    if (!mounted) return;
+    setState(() => _versandAnzahl = neu);
   }
 
   void _sagen(String t, Color c) {
@@ -238,6 +267,146 @@ class _SozialamtVollmachtTabState extends State<SozialamtVollmachtTab> {
                                 : (r['message'] ?? 'Fehler').toString(),
         r['success'] == true ? Colors.orange : Colors.red);
     if (r['success'] == true) await _laden();
+  }
+
+  /// Das Blatt in das Postfach DES MITGLIEDS.
+  ///
+  /// ⚠️ Es geht das LESEEXEMPLAR in der Sprache des Mitglieds, wenn es eines
+  /// gibt — es ist sein Recht zu wissen, was es unterschreibt. Unterschrieben
+  /// und beim Sozialamt eingereicht wird weiter allein die deutsche Fassung;
+  /// das steht auch auf jeder Seite des Leseexemplars.
+  ///
+  /// ⚠️ Ohne den Typ `translation` ginge stillschweigend das deutsche Blatt
+  /// hinaus, während der Dialog eine Übersetzung angekündigt hat.
+  Future<void> _inDenChat(Map<String, dynamic> vm) async {
+    final id = vm['id'] as int;
+    final nummer = widget.memberMitgliedernummer.trim();
+    if (nummer.isEmpty || widget.adminMitgliedernummer.isEmpty) {
+      _sagen('Empfänger nicht ermittelbar', Colors.red);
+      return;
+    }
+    final sprache = (vm['translation_language'] ?? '').toString().trim();
+    final uebersetzt = sprache.isNotEmpty
+        && (vm['pdf_translation_filename'] ?? '').toString().trim().isNotEmpty;
+    final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+      title: const Text('In den Chat senden?'),
+      content: Text(
+        uebersetzt
+            ? 'Das Leseexemplar (${sprache.toUpperCase()}) geht an $nummer.\n\n'
+              'Unterschrieben und beim Sozialamt eingereicht wird weiter allein '
+              'die deutsche Fassung — das steht auch auf jeder Seite des '
+              'Leseexemplars.'
+            : 'Die deutsche Fassung geht an $nummer.\n\n'
+              'Ein Leseexemplar in der Sprache des Mitglieds gibt es für diese '
+              'Vollmacht nicht. Der Verein erläutert den Inhalt mündlich.',
+        style: const TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+              backgroundColor: F.h(_akzent, 700), foregroundColor: Colors.white),
+          onPressed: () => Navigator.pop(c, true), child: const Text('Senden')),
+      ]));
+    if (ok != true || !mounted) return;
+
+    File? temp;
+    setState(() => _beschaeftigt = id);
+    try {
+      final r = await widget.apiService
+          .downloadVollmachtPdf(id, type: uebersetzt ? 'translation' : 'pdf');
+      if (!mounted) return;
+      if (r.statusCode != 200 || r.bodyBytes.isEmpty) {
+        _sagen('Fehler (${r.statusCode})', Colors.red);
+        return;
+      }
+      final g = await widget.apiService
+          .adminStartChat(widget.adminMitgliedernummer, nummer);
+      final cid = int.tryParse('${g['conversation_id'] ?? ''}')
+          ?? int.tryParse('${(g['data'] as Map?)?['conversation_id'] ?? ''}') ?? 0;
+      if (cid <= 0) { _sagen('Kein Gespräch mit $nummer gefunden', Colors.red); return; }
+
+      temp = File('${(await getTemporaryDirectory()).path}/'
+          'vollmacht_$id${uebersetzt ? '_$sprache' : ''}.pdf');
+      await temp.writeAsBytes(r.bodyBytes, flush: true);
+      final res = await widget.apiService.uploadChatAttachments(
+        conversationId: cid, mitgliedernummer: widget.adminMitgliedernummer,
+        files: [temp],
+        message: uebersetzt
+            ? 'Vollmacht (Leseexemplar) — Sozialamt'
+            : 'Vollmacht — Sozialamt');
+      if (!mounted) return;
+      final erfolg = res['success'] == true;
+      // ⚠️ Erst NACH bestätigtem Empfang protokollieren. Eine Zeile, die eine
+      // Sendung behauptet, die nie ankam, ist genau die, auf die sich später
+      // jemand verlässt.
+      if (erfolg) {
+        await widget.apiService.sozialamtVollmachtVersandEintragen(
+          vollmachtId: id, empfaenger: nummer, weg: 'chat',
+          fassung: uebersetzt ? 'uebersetzung' : 'original',
+          sprache: uebersetzt ? sprache : 'de');
+      }
+      if (!mounted) return;
+      _sagen(erfolg ? 'An $nummer gesendet' : 'Konnte nicht gesendet werden',
+             erfolg ? Colors.green : Colors.red);
+      if (erfolg) await _laden();
+    } catch (e) {
+      if (mounted) _sagen('Fehler: $e', Colors.red);
+    } finally {
+      if (temp != null && await temp.exists()) { await temp.delete(); }
+      if (mounted) setState(() => _beschaeftigt = null);
+    }
+  }
+
+  Future<void> _protokoll(int id) async {
+    final p = await widget.apiService.sozialamtVollmachtVersandListe(id);
+    if (!mounted) return;
+    final zeilen = ((p['items'] as List?) ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    // ⚠️ Die Linkzeilen stehen ABGESETZT von den Sendungen. Eine Chatzeile
+    // beantwortet „wann ging was an wen"; eine Linkzeile beantwortet
+    // zusätzlich, was das Mitglied damit getan hat. In eine Tabelle gepresst,
+    // deren Zeitspalte „gesendet" heißt, läse sich das eine als das andere.
+    final links = ((p['links'] as List?) ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    if (p['success'] == true) {
+      setState(() => _versandAnzahl = {..._versandAnzahl, id: zeilen.length + links.length});
+    }
+    final breite = MediaQuery.of(context).size.width;
+    await showDialog<void>(context: context, builder: (c) => AlertDialog(
+      title: Text('Versandprotokoll — Vollmacht #$id', style: const TextStyle(fontSize: 15)),
+      content: SizedBox(
+        width: breite < 560 ? breite * 0.86 : 480,
+        child: (zeilen.isEmpty && links.isEmpty)
+            ? const Text('Noch nichts versandt.', style: TextStyle(fontSize: 13))
+            : SingleChildScrollView(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ⚠️ kVollmachtVersandWege statt des Rohwerts: sonst stünde
+                  // hier „chat an M12345", kleingeschrieben und ohne
+                  // Präposition, wie ein Datenbankauszug.
+                  ...zeilen.map((z) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${z['gesendet_am'] ?? ''}',
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                      Text('${kVollmachtVersandWege[(z['weg'] ?? '').toString()]
+                              ?? (z['weg'] ?? '')} an ${z['empfaenger'] ?? ''}'
+                           '${(z['fassung'] ?? '') == 'uebersetzung'
+                              ? ' · Leseexemplar ${(z['sprache'] ?? '').toString().toUpperCase()}'
+                              : ''}',
+                          style: const TextStyle(fontSize: 12)),
+                      if ((z['gesendet_von_name'] ?? '').toString().trim().isNotEmpty)
+                        Text('durch ${z['gesendet_von_name']}',
+                            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                    ]))),
+                  ...links.map((l) => VollmachtLinkZeile(link: l)),
+                ])),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text('Schließen')),
+      ],
+    ));
   }
 
   // ── Oberfläche ─────────────────────────────────────────────────────────
@@ -457,6 +626,13 @@ class _SozialamtVollmachtTabState extends State<SozialamtVollmachtTab> {
                   style: const TextStyle(fontSize: 11)),
                 onPressed: () => _pdfOeffnen(vm, uebersetzung: true),
               ),
+            TextButton.icon(
+              icon: const Icon(Icons.receipt_long, size: 14),
+              label: Text('Versandprotokoll${(_versandAnzahl[id] ?? 0) > 0
+                  ? ' (${_versandAnzahl[id]})' : ''}',
+                  style: const TextStyle(fontSize: 11)),
+              onPressed: () => _protokoll(id),
+            ),
             if (!widerrufen)
               TextButton.icon(
                 icon: const Icon(Icons.block, size: 14, color: Colors.red),
@@ -482,6 +658,27 @@ class _SozialamtVollmachtTabState extends State<SozialamtVollmachtTab> {
                   : const Icon(Icons.how_to_reg, size: 15),
               label: const Text('Zur Unterschrift stellen', style: TextStyle(fontSize: 11)),
               onPressed: laeuft ? null : () => _zurUnterschrift(vm),
+            ),
+            const SizedBox(height: 10),
+            Row(children: [
+              Icon(Icons.chat_outlined, size: 15, color: F.h(_akzent, 700)),
+              const SizedBox(width: 5),
+              Text('Mit App: in das Postfach des Mitglieds',
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold,
+                      color: F.h(_akzent, 800))),
+            ]),
+            const SizedBox(height: 4),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.chat_outlined, size: 15),
+              // ⚠️ Der Text nennt die Fassung, die WIRKLICH hinausgeht. „In den
+              // Chat" allein liesse offen, ob das Mitglied das deutsche Blatt
+              // oder seine eigene Sprache bekommt.
+              label: Text(
+                (vm['pdf_translation_filename'] ?? '').toString().isNotEmpty
+                    ? 'Leseexemplar (${(vm['translation_language'] ?? '').toString().toUpperCase()}) in den Chat'
+                    : 'In den Chat (DE)',
+                style: const TextStyle(fontSize: 11)),
+              onPressed: laeuft ? null : () => _inDenChat(vm),
             ),
             const SizedBox(height: 10),
             Row(children: [

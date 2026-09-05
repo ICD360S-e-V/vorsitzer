@@ -116,6 +116,43 @@ void main() {
     });
   });
 
+  group('Das Leseexemplar erreicht das Mitglied', () {
+    test('per Chat, für Mitglieder MIT App', () {
+      expect(tab.contains('_inDenChat('), isTrue);
+      expect(tab.contains('uploadChatAttachments('), isTrue);
+    });
+
+    test('und zwar in SEINER Sprache, wenn es eine Übersetzung gibt', () {
+      // ⚠️ Ohne den Typ `translation` ginge stillschweigend das deutsche Blatt
+      // hinaus, während der Dialog eine Übersetzung angekündigt hat.
+      expect(tab.contains("type: uebersetzt ? 'translation' : 'pdf'"), isTrue);
+    });
+
+    test('protokolliert wird ERST nach bestätigtem Empfang', () {
+      // Eine Zeile, die eine Sendung behauptet, die nie ankam, ist genau die,
+      // auf die sich später jemand verlässt.
+      final i = tab.indexOf("final erfolg = res['success'] == true;");
+      final j = tab.indexOf('sozialamtVollmachtVersandEintragen(');
+      expect(i, greaterThan(0));
+      expect(j, greaterThan(i), reason: 'Eintragen muss NACH der Erfolgsprüfung stehen');
+      expect(tab.contains('if (erfolg) {'), isTrue);
+    });
+
+    test('die Zwischendatei wird wieder entfernt', () {
+      expect(tab.contains('await temp.delete()'), isTrue);
+    });
+
+    test('das Versandprotokoll ist erreichbar', () {
+      expect(tab.contains('sozialamtVollmachtVersandListe('), isTrue);
+      expect(tab.contains('VollmachtLinkZeile(link: l)'), isTrue,
+          reason: 'die Linkzeilen gehören abgesetzt neben die Sendungen');
+    });
+
+    test('der Weg steht ausgeschrieben da, nicht als Rohwert', () {
+      expect(tab.contains('kVollmachtVersandWege['), isTrue);
+    });
+  });
+
   group('Widerruf', () {
     test('sagt, dass er erst mit Zugang bei der Behörde wirkt', () {
       // Sonst hält jemand die Vollmacht für erledigt, während das Amt sie
