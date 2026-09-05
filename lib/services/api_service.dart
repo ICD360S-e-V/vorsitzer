@@ -8161,6 +8161,32 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Empfänger, Vorlagen und Bereitschaft für den Versand an das Amt.
+  ///
+  /// ⚠️ Liefert Poststelle UND Sachbearbeitung getrennt, samt Herkunft der
+  /// Adresse (`amtsdaten` oder `katalog`) und ob sie überhaupt eine gültige
+  /// E-Mail ist. Der Bildschirm soll sagen können, WARUM ein Knopf nicht geht.
+  Future<Map<String, dynamic>> sozialamtVollmachtVorlagen(int vollmachtId) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_vollmacht_versand.php'), headers: _headers,
+        body: jsonEncode({'action': 'vorlagen', 'vollmacht_id': vollmachtId})).timeout(const Duration(seconds: 25));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Schickt die unterschriebene Vollmacht an das Amt — per E-Mail oder Fax.
+  /// [antragId] > 0, wenn an die zuständige Person eines Antrags gesendet wird:
+  /// dann trägt der Betreff dessen Aktenzeichen. ⚠️ Daran und nur daran ordnet
+  /// die Behörde das Schreiben ihrem Vorgang zu.
+  Future<Map<String, dynamic>> sozialamtVollmachtAnAmt({
+    required int vollmachtId, required bool alsFax, required String empfaenger,
+    int antragId = 0,
+  }) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_vollmacht_versand.php'), headers: _headers,
+        body: jsonEncode({'action': alsFax ? 'fax_senden' : 'mail_senden',
+          'vollmacht_id': vollmachtId, 'empfaenger': empfaenger,
+          if (antragId > 0) 'antrag_id': antragId})).timeout(const Duration(seconds: 120));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   /// Das Versandprotokoll: `items` sind Sendungen, `links` die SMS-Links samt
   /// dem, was das Mitglied damit getan hat.
   Future<Map<String, dynamic>> sozialamtVollmachtVersandListe(int vollmachtId) async {
@@ -15195,23 +15221,6 @@ class ApiService {
       headers: _headers,
       body: jsonEncode({'action': 'text_nachlesen', 'id': docId}),
     ).timeout(const Duration(seconds: 300));
-    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
-  }
-
-  /// Den gespeicherten Text eines Dokuments — genau den, auf dem die Prüfung
-  /// beruht.
-  ///
-  /// ⚠️ Ohne diese Ansicht stand auf dem Schirm nur „aus dem Bild erkannt
-  /// (1137 Zeichen)", und niemand konnte nachsehen, WAS die Maschine gelesen
-  /// hat. An der ersten echten Prüfung war der Text gut und trotzdem
-  /// unsichtbar — also war auch nicht zu erkennen, warum ein Kriterium so
-  /// entschieden hat.
-  Future<Map<String, dynamic>> jcKooperationsplanDocTextLesen(int docId) async {
-    final r = await _client.post(
-      Uri.parse('$baseUrl/admin/jobcenter_av_kooperationsplan_docs.php'),
-      headers: _headers,
-      body: jsonEncode({'action': 'text_lesen', 'id': docId}),
-    ).timeout(const Duration(seconds: 30));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 

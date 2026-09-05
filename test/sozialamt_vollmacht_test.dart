@@ -31,13 +31,26 @@ void main() {
   });
 
   group('Die ganze Akte, nicht der Antrag', () {
-    test('es wird keine antrag_id mitgeschickt', () {
+    test('das ERZEUGEN schickt keine antrag_id mit', () {
       // ⚠️ Festlegung des Vorsitzenden vom 05.09.2026: die Vollmacht gilt der
       // ganzen Akte des Mitglieds bei diesem Amt. § 13 SGB X verlangt die
       // Bindung an ein Verfahren nicht — die stammt aus § 14 Abs. 1 Satz 2
       // VwVfG und gilt nur für das Landratsamt.
-      expect(tab.contains('antrag_id'), isFalse);
-      expect(tab.contains('vorfall_id'), isFalse);
+      //
+      // ⚠️ Zugeschnitten auf `_erzeugen()`, und der Zuschnitt hat einen Grund:
+      // beim VERSAND wird sehr wohl eine antrag_id mitgegeben — dann trägt der
+      // Betreff das Aktenzeichen jenes Antrags. Das bindet die Vollmacht
+      // nicht, es adressiert den Brief. Über die ganze Datei gemessen wäre
+      // diese Prüfung seit dem Versand-Zweig falsch rot.
+      final a = tab.indexOf('Future<void> _erzeugen() async {');
+      final b = tab.indexOf('Future<void> _zurUnterschrift(', a);
+      expect(a, greaterThan(0), reason: '_erzeugen nicht gefunden — Test anpassen');
+      expect(b, greaterThan(a));
+      final erzeugen = tab.substring(a, b);
+      expect(erzeugen.contains('antrag_id'), isFalse);
+      expect(erzeugen.contains('vorfall_id'), isFalse);
+      // Und die Zeile selbst trägt nach wie vor keine Antragsbindung.
+      expect(tab.contains("'vorfall_id'"), isFalse);
     });
 
     test('der Reiter bekommt gar keine antragId', () {
@@ -150,6 +163,76 @@ void main() {
 
     test('der Weg steht ausgeschrieben da, nicht als Rohwert', () {
       expect(tab.contains('kVollmachtVersandWege['), isTrue);
+    });
+  });
+
+  group('Versand an das Amt', () {
+    test('nur die unterschriebene Fassung geht hinaus', () {
+      // Der Server verweigert ohne Unterschriften; der Bildschirm sagt WARUM,
+      // statt den Knopf nur grau zu zeigen.
+      expect(tab.contains("z['bereit'] == true"), isTrue);
+      expect(tab.contains('Erst unterschreiben lassen'), isTrue);
+    });
+
+    test('jeder Knopf nennt die Adresse, an die er schickt', () {
+      // Ein Knopf „Per Fax" allein liesse offen, ob er in die Poststelle geht
+      // oder zur Sachbearbeitung — und ein Fax an die falsche Stelle ist
+      // schlimmer als keins.
+      expect(tab.contains("'Poststelle: \$amtMail'"), isTrue);
+      expect(tab.contains("'Fax: \$amtFax'"), isTrue);
+    });
+
+    test('Poststelle und Sachbearbeitung sind getrennte Knöpfe', () {
+      expect(tab.contains("ziel: amtMail"), isTrue);
+      expect(tab.contains("ziel: sbMail"), isTrue);
+    });
+
+    test('eine unbrauchbare Adresse wird genannt, nicht verschwiegen', () {
+      // Wer nur einen fehlenden Knopf sieht, sucht den Fehler bei sich.
+      expect(tab.contains("z['sb_email_gueltig'] != true"), isTrue);
+      expect(tab.contains('keine gültige E-Mail'), isTrue);
+    });
+
+    test('die Adressen kommen vom Server, nicht aus dem Client', () {
+      expect(tab.contains('sozialamtVollmachtVorlagen('), isTrue);
+      // Keine fest getippte Behördenadresse im Bildschirm.
+      expect(RegExp(r"'[a-z.]+@[a-z-]+\.[a-z]{2,}'").hasMatch(tab), isFalse);
+    });
+
+    test('der Grund eines Fehlschlags wird gezeigt', () {
+      expect(tab.contains("r['message']"), isTrue);
+    });
+  });
+
+  group('Die zuständige Person aus dem Antrag', () {
+    test('wird als Empfänger angeboten', () {
+      // 🔴 Sie steht im ANTRAG, nicht bei den Amtsdaten — und bei Mitgliedern,
+      // deren Amt weder Mail noch Fax hat, ist sie der EINZIGE Sendeweg.
+      expect(tab.contains("z['antrag_kontakte']"), isTrue);
+      expect(tab.contains('Zuständige Person'), isTrue);
+    });
+
+    test('steht VOR der Poststelle', () {
+      // Sie führt den Fall; die Poststelle verteilt ihn erst.
+      final person = tab.indexOf("z['antrag_kontakte']");
+      final post = tab.indexOf("z['amt_email_gueltig'] == true");
+      expect(person, greaterThan(0));
+      expect(post, greaterThan(person));
+    });
+
+    test('der Knopf trägt Leistung und Aktenzeichen', () {
+      // Zwei Sachbearbeitungen desselben Mitglieds sähen sonst gleich aus.
+      expect(tab.contains(r'$leistung'), isTrue);
+      expect(tab.contains('Az. \$az'), isTrue);
+    });
+
+    test('die antrag_id geht mit — dafür trägt der Betreff das Aktenzeichen', () {
+      expect(tab.contains("antragId: (k['antrag_id'] as num?)?.toInt() ?? 0"), isTrue);
+      expect(api.contains("if (antragId > 0) 'antrag_id': antragId"), isTrue);
+    });
+
+    test('eine unbrauchbare Adresse wird auch hier genannt', () {
+      expect(tab.contains('im Antrag berichtigen'), isTrue);
     });
   });
 
