@@ -1333,7 +1333,7 @@ class _AbVorfallDetailState extends State<_AbVorfallDetail> {
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           for (final art in arten) ...[
-            _dokPlatz(art, info),
+            _dokPlatz(art, info, arten.contains(kAbDokRueckseite)),
             const SizedBox(height: 16),
           ],
           Text('PDF, JPG, JPEG oder PNG · höchstens 20 MB · je Platz eine Datei',
@@ -1353,9 +1353,10 @@ class _AbVorfallDetailState extends State<_AbVorfallDetail> {
         ]));
   }
 
-  Widget _dokPlatz(String art, AbVorfallTyp? info) {
+  Widget _dokPlatz(String art, AbVorfallTyp? info, bool paarweise) {
     final d = _dokumente[art];
-    final titel = abDokTitelFuerArt(art, info?.frist?.dokument);
+    final titel =
+        abDokTitelFuerArt(art, info?.frist?.dokument, paarweise: paarweise);
     final zweck = abDokZweckFuerArt(art);
     final optional = abDokOptional(art);
     final laeuft = _laedt == art;
@@ -1490,6 +1491,7 @@ class _AbVorfallDetailState extends State<_AbVorfallDetail> {
   IconData _dokIcon(String art) => switch (art) {
         kAbDokRueckseite => Icons.flip_to_back,
         kAbDokZusatzblatt => Icons.article,
+        kAbDokZusatzblattRueckseite => Icons.flip_to_back,
         kAbDokFortgeltung => Icons.verified,
         _ => Icons.badge,
       };

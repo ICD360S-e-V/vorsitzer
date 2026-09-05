@@ -21,6 +21,12 @@ const kAbDokRueckseite = 'titel_rueckseite';
 
 const kAbDokZusatzblatt = 'zusatzblatt';
 
+/// ⚠️ Das Zusatzblatt ist eine Klappkarte — die Nebenbestimmungen gehen dort
+/// regelmäßig auf der zweiten Seite weiter. Mit nur einem Platz ließe sich die
+/// Hälfte nicht ablegen, und gerade dort kann die Bedingung stehen, die über
+/// eine konkrete Stelle entscheidet.
+const kAbDokZusatzblattRueckseite = 'zusatzblatt_rueckseite';
+
 /// Nur bei § 24: weil keine neue Karte ausgestellt wird, sieht die alte für
 /// jeden Arbeitgeber abgelaufen aus. Die Bescheinigung über die weitere
 /// Gültigkeit ist dann das einzige Papier, das den Stand belegt.
@@ -52,6 +58,10 @@ const kAbDokZweckTitel =
 const kAbDokZweckRueckseite =
     'Hier steht unter „Anmerkungen", ob eine Erwerbstätigkeit erlaubt ist — '
     'und gegebenenfalls „siehe Zusatzblatt".';
+
+const kAbDokZweckZusatzblattRueckseite =
+    'Die zweite Seite der Klappkarte. Die Nebenbestimmungen gehen dort oft '
+    'weiter — bitte auch dann ablegen, wenn sie nur halb beschrieben ist.';
 
 const kAbDokZweckFortgeltung =
     'Bescheinigung über die weitere Gültigkeit. Ohne sie sieht die Karte für '
@@ -117,11 +127,17 @@ List<String> abDokArtenFuerTyp(String? typ) {
       kAbDokTitel,
       kAbDokRueckseite,
       kAbDokZusatzblatt,
+      kAbDokZusatzblattRueckseite,
       kAbDokFortgeltung
     ];
   }
   if (_mitKarte.contains(t)) {
-    return const [kAbDokTitel, kAbDokRueckseite, kAbDokZusatzblatt];
+    return const [
+      kAbDokTitel,
+      kAbDokRueckseite,
+      kAbDokZusatzblatt,
+      kAbDokZusatzblattRueckseite
+    ];
   }
   if (_nurPapier.contains(t)) return const [kAbDokTitel];
   return const [];
@@ -130,16 +146,25 @@ List<String> abDokArtenFuerTyp(String? typ) {
 /// Überschrift eines Platzes. Beim ersten hängt sie am Vorfalltyp — zu einer
 /// Duldung gehört keine Karte, sondern ein Papier; der Name kommt dann aus dem
 /// Katalog.
-String abDokTitelFuerArt(String art, String? dokumentName) => switch (art) {
-      kAbDokRueckseite => 'Rückseite der Karte',
-      kAbDokZusatzblatt => 'Zusatzblatt zum Aufenthaltstitel',
+/// [paarweise] ist wahr, wenn dieser Vorfalltyp Vorder- UND Rückseite führt.
+/// Nur dann trägt der erste Platz den Zusatz „Vorderseite" — bei einer Duldung
+/// gibt es keine zweite Seite, und „Vorderseite" allein wäre dort irreführend.
+String abDokTitelFuerArt(String art, String? dokumentName,
+        {bool paarweise = false}) =>
+    switch (art) {
+      kAbDokRueckseite => 'Aufenthaltstitel — Rückseite',
+      kAbDokZusatzblatt => 'Zusatzblatt — Vorderseite',
+      kAbDokZusatzblattRueckseite => 'Zusatzblatt — Rückseite',
       kAbDokFortgeltung => 'Nachweis der weiteren Gültigkeit',
-      _ => dokumentName ?? 'Elektronischer Aufenthaltstitel (eAT-Karte)',
+      _ => paarweise
+          ? '${dokumentName ?? 'Elektronischer Aufenthaltstitel (eAT-Karte)'} — Vorderseite'
+          : (dokumentName ?? 'Elektronischer Aufenthaltstitel (eAT-Karte)'),
     };
 
 String abDokZweckFuerArt(String art) => switch (art) {
       kAbDokRueckseite => kAbDokZweckRueckseite,
       kAbDokZusatzblatt => kAbDokZweckZusatzblatt,
+      kAbDokZusatzblattRueckseite => kAbDokZweckZusatzblattRueckseite,
       kAbDokFortgeltung => kAbDokZweckFortgeltung,
       _ => kAbDokZweckTitel,
     };
@@ -150,7 +175,9 @@ String abDokZweckFuerArt(String art) => switch (art) {
 /// leerer Platz ist dort kein fehlendes Dokument. Ein Häkchen „vollständig"
 /// wäre hier eine Behauptung, die niemand geprüft hat.
 bool abDokOptional(String art) =>
-    art == kAbDokZusatzblatt || art == kAbDokFortgeltung;
+    art == kAbDokZusatzblatt ||
+    art == kAbDokZusatzblattRueckseite ||
+    art == kAbDokFortgeltung;
 
 /// Hat dieser Typ überhaupt einen Dokumentenreiter?
 bool abHatDokumente(String? typ) => abDokArtenFuerTyp(typ).isNotEmpty;

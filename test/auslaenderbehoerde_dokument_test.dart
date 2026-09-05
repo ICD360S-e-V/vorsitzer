@@ -13,25 +13,25 @@ import 'package:icd360sev_vorsitzer/utils/auslaenderbehoerde_vorfaelle.dart';
 /// sieht beides aus wie ein Fehler der App. Wer die Serverliste ändert, ändert
 /// diese hier mit.
 const _serverPlaetze = <String, List<String>>{
-  'Aufenthaltserlaubnis beantragen (Erstantrag)': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Aufenthaltserlaubnis verlängern': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Aufenthaltserlaubnis zum Zweck der Ausbildung oder des Studiums': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Aufenthaltserlaubnis für eine Beschäftigung beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Aufenthaltserlaubnis zur Ausübung einer selbständigen Tätigkeit': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Aufenthaltserlaubnis zum Zweck der Forschung': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Blaue Karte EU beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Chancenkarte beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Niederlassungserlaubnis beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Erlaubnis zum Daueraufenthalt-EU beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Aufenthaltskarte oder Daueraufenthaltsbescheinigung (Freizügigkeit)': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Familiennachzug zu Ausländern — Aufenthaltserlaubnis beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Familiennachzug zu Deutschen — Aufenthaltserlaubnis beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Nachzug weiterer Familienangehöriger': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Aufenthaltstitel für ein minderjähriges Kind erteilen oder verlängern': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Aufenthaltstitel bei Asylantrag beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Elektronischen Aufenthaltstitel (eAT) beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'eAT bei neuem oder geändertem Nationalpass bestellen (Passübertrag)': ['titel', 'titel_rueckseite', 'zusatzblatt'],
-  'Aufenthaltserlaubnis nach § 24 AufenthG (vorübergehender Schutz)': ['titel', 'titel_rueckseite', 'zusatzblatt', 'fortgeltungsnachweis'],
+  'Aufenthaltserlaubnis beantragen (Erstantrag)': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Aufenthaltserlaubnis verlängern': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Aufenthaltserlaubnis zum Zweck der Ausbildung oder des Studiums': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Aufenthaltserlaubnis für eine Beschäftigung beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Aufenthaltserlaubnis zur Ausübung einer selbständigen Tätigkeit': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Aufenthaltserlaubnis zum Zweck der Forschung': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Blaue Karte EU beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Chancenkarte beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Niederlassungserlaubnis beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Erlaubnis zum Daueraufenthalt-EU beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Aufenthaltskarte oder Daueraufenthaltsbescheinigung (Freizügigkeit)': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Familiennachzug zu Ausländern — Aufenthaltserlaubnis beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Familiennachzug zu Deutschen — Aufenthaltserlaubnis beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Nachzug weiterer Familienangehöriger': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Aufenthaltstitel für ein minderjähriges Kind erteilen oder verlängern': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Aufenthaltstitel bei Asylantrag beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Elektronischen Aufenthaltstitel (eAT) beantragen': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'eAT bei neuem oder geändertem Nationalpass bestellen (Passübertrag)': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite'],
+  'Aufenthaltserlaubnis nach § 24 AufenthG (vorübergehender Schutz)': ['titel', 'titel_rueckseite', 'zusatzblatt', 'zusatzblatt_rueckseite', 'fortgeltungsnachweis'],
   'Aufenthaltsgestattung verlängern': ['titel'],
   'Duldung — Erteilung oder Verlängerung': ['titel'],
   'Ausbildungsduldung': ['titel'],
@@ -74,6 +74,32 @@ void main() {
   });
 
   group('Zuordnung', () {
+    test('auch das Zusatzblatt hat Vorder- und Rückseite', () {
+      // 🔴 Es ist eine Klappkarte. Die Nebenbestimmungen gehen regelmäßig auf
+      // der zweiten Seite weiter — mit einem Platz ließe sich die Hälfte nicht
+      // ablegen, und gerade dort kann die Bedingung stehen, die über eine
+      // konkrete Stelle entscheidet.
+      final arten = abDokArtenFuerTyp('Aufenthaltserlaubnis verlängern');
+      expect(arten, contains(kAbDokZusatzblatt));
+      expect(arten, contains(kAbDokZusatzblattRueckseite));
+      expect(abDokTitelFuerArt(kAbDokZusatzblatt, null), 'Zusatzblatt — Vorderseite');
+      expect(abDokTitelFuerArt(kAbDokZusatzblattRueckseite, null),
+          'Zusatzblatt — Rückseite');
+      expect(abDokZweckFuerArt(kAbDokZusatzblattRueckseite), contains('Klappkarte'));
+      expect(abDokOptional(kAbDokZusatzblattRueckseite), isTrue,
+          reason: 'nicht jede Klappkarte ist beidseitig beschrieben');
+    });
+
+    test('„Vorderseite" steht nur da, wo es auch eine Rückseite gibt', () {
+      // Bei einer Duldung gibt es keine zweite Seite — „Vorderseite" wäre
+      // dort irreführend.
+      expect(abDokTitelFuerArt(kAbDokTitel, 'Duldungsbescheinigung (Papier)'),
+          'Duldungsbescheinigung (Papier)');
+      expect(
+          abDokTitelFuerArt(kAbDokTitel, 'eAT-Karte', paarweise: true),
+          'eAT-Karte — Vorderseite');
+    });
+
     test('die Rückseite ist ein eigener Platz', () {
       // 🔴 Das Feld „Anmerkungen" mit der Erwerbstätigkeit steht HINTEN. Ein
       // Scan nur der Vorderseite lässt genau die Auskunft weg, wegen der man
@@ -91,8 +117,11 @@ void main() {
       final z = abDokZweckFuerArt(kAbDokZusatzblatt);
       expect(z, contains('Nebenbestimmungen'));
       expect(z, contains('siehe Zusatzblatt'));
-      expect(abDokTitelFuerArt(kAbDokZusatzblatt, null), 'Zusatzblatt zum Aufenthaltstitel',
+      expect(abDokTitelFuerArt(kAbDokZusatzblatt, null), startsWith('Zusatzblatt'),
           reason: 'der Name steht vorn, die Farbe darf nur ein Zusatz sein');
+      expect(abDokTitelFuerArt(kAbDokZusatzblatt, null).toLowerCase(),
+          isNot(contains('grün')),
+          reason: 'die Farbe gehört in den Erklärtext, nicht in die Überschrift');
     });
 
     test('§ 24 hat zusätzlich den Fortgeltungsnachweis', () {
@@ -125,7 +154,7 @@ void main() {
         'Notreiseausweis für Ausländer',
       ]) {
         expect(abDokArtenFuerTyp(ohne), [kAbDokTitel],
-            reason: 'zu „$ohne" gehört weder Rückseite noch Zusatzblatt');
+            reason: 'zu „$ohne" gehört weder eine Rückseite noch ein Zusatzblatt');
       }
     });
 
@@ -146,12 +175,17 @@ void main() {
       expect(abDokArtenFuerTyp(''), isEmpty);
     });
 
-    test('§ 24 hat alle vier Plätze', () {
+    test('§ 24 hat alle fünf Plätze', () {
       // Karte, Rückseite und Zusatzblatt wie sonst — die Fortgeltung ändert
       // nur, dass das aufgedruckte Datum nichts mehr besagt, und fügt den
       // Nachweis hinzu.
-      expect(abDokArtenFuerTyp(kUkraineTyp),
-          [kAbDokTitel, kAbDokRueckseite, kAbDokZusatzblatt, kAbDokFortgeltung]);
+      expect(abDokArtenFuerTyp(kUkraineTyp), [
+        kAbDokTitel,
+        kAbDokRueckseite,
+        kAbDokZusatzblatt,
+        kAbDokZusatzblattRueckseite,
+        kAbDokFortgeltung
+      ]);
     });
   });
 
