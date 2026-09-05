@@ -97,3 +97,71 @@ int? mnZahl(dynamic v) {
   if (v is num) return v.toInt();
   return int.tryParse(v.toString());
 }
+
+/// Vorschlag für den Durchführungsort eines Angebots.
+///
+/// Reihenfolge ist der Punkt:
+///  1. was am Angebot selbst hinterlegt ist — der Bescheid nennt den
+///     Durchführungsort eigens, und er kann von jeder Anschrift abweichen;
+///  2. sonst die Anschrift des STANDORTS des Trägers.
+///
+/// ⚠️ Niemals `rechtstraeger`: das ist der juristische Sitz und liegt oft in
+/// einer anderen Stadt. Im Bescheid stehen „Adresse des Maßnahmeträgers" und
+/// „Durchführungsort" als zwei getrennte Zeilen — genau weil sie auseinander-
+/// fallen. Wer den Sitz einsetzt, schickt das Mitglied in die falsche Stadt.
+String massnahmeOrtVorschlag(Map<String, dynamic> angebot) {
+  final eigener = (angebot['durchfuehrungsort'] ?? '').toString().trim();
+  if (eigener.isNotEmpty) return eigener;
+  final strasse = (angebot['traeger_strasse'] ?? '').toString().trim();
+  final plz = (angebot['traeger_plz'] ?? '').toString().trim();
+  final ort = (angebot['traeger_ort'] ?? '').toString().trim();
+  final zeile2 = [plz, ort].where((e) => e.isNotEmpty).join(' ');
+  // Ohne Straße wäre „89231 Neu-Ulm" allein kein Ort, an den man geht —
+  // dann lieber nichts vorschlagen als etwas Halbes.
+  if (strasse.isEmpty) return '';
+  return zeile2.isEmpty ? strasse : '$strasse, $zeile2';
+}
+
+/// Die Kundennummer steckt im Aktenzeichen des Jobcenters.
+///
+/// „481.O-819D168082" → „819D168082". Getrennt wird am letzten Bindestrich;
+/// zurückgegeben wird nur, was auch wie eine Kundennummer aussieht (drei
+/// Ziffern, ein Buchstabe, neun Ziffern).
+///
+/// ⚠️ Ohne diese Form wird NICHTS geraten. Eine falsch geratene Kundennummer
+/// stünde später in einem Widerspruch und wäre dort schlimmer als ein leeres
+/// Feld, das jemandem auffällt.
+String massnahmeKundennummerAus(String aktenzeichen) {
+  final teil = aktenzeichen.split('-').last.trim();
+  // Form der BA-Kundennummer: drei Ziffern, ein Buchstabe, dann Ziffern.
+  // ⚠️ Die Zifferngruppe ist NICHT neunstellig — im echten Bescheid sind es
+  // sechs. Eine zu enge Prüfung hätte die Nummer stillschweigend verworfen.
+  return RegExp(r'^\d{3}[A-Z]\d{6,10}$').hasMatch(teil) ? teil : '';
+}
+
+/// Ende einer Maßnahme aus Beginn und Laufzeit.
+///
+/// ⚠️ Nur ein VORSCHLAG. Der Bescheid nennt das Ende ausdrücklich, und es kann
+/// von der Katalogdauer abweichen (Feiertage, verkürzte Durchgänge). Ein
+/// eingetragenes Ende wird deshalb nie überschrieben.
+DateTime? massnahmeEndeVorschlag(DateTime? beginn, dynamic dauerWochen) {
+  final w = mnZahl(dauerWochen);
+  if (beginn == null || w == null || w <= 0) return null;
+  // ⚠️ NICHT add(Duration): das rechnet in absoluter Zeit und verliert bei der
+  // Zeitumstellung eine Stunde — aus dem 29.11. wird der 28.11. um 23:00.
+  // Der Konstruktor normalisiert kalendarisch und ist gegen DST immun.
+  return DateTime(beginn.year, beginn.month, beginn.day + w * 7 - 1);
+}
+
+/// Der Status passt nicht mehr zu den Daten: die Maßnahme ist zu Ende, steht
+/// aber noch als offen.
+///
+/// ⚠️ Bewusst nur ein HINWEIS, keine automatische Fortschreibung. „beendet"
+/// von selbst zu setzen wäre eine Behauptung: ob jemand die Maßnahme regulär
+/// beendet oder abgebrochen hat, weiß nur der Vorstand — und die beiden
+/// Zustände haben nach §§ 31 ff. SGB II ganz verschiedene Folgen.
+bool massnahmeStatusVeraltet(String? status, DateTime? ende, {DateTime? heute}) {
+  if (!massnahmeIstOffen(status) || ende == null) return false;
+  final h = heute ?? DateTime.now();
+  return ende.isBefore(DateTime(h.year, h.month, h.day));
+}
