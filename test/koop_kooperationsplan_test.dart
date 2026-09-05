@@ -200,6 +200,47 @@ void main() {
     });
   });
 
+  group('Eine Neuberechnung wirft die Durchsicht nicht weg', () {
+    test('von Hand gesetzte Punkte bleiben stehen', () {
+      // 🔴 Die erste Fassung überschrieb JEDEN Punkt mit dem Vorschlag der
+      // Maschine — auch die 13, die der Vorsitzende am 05.09.2026 gerade von
+      // Hand bestätigt hatte. Ein zweites „Vorprüfen" hätte die ganze
+      // Durchsicht gelöscht, ohne Warnung und ohne Weg zurück.
+      expect(tab.contains("if (!alleNeu && (_stand[id]?['quelle'] ?? '') == 'hand') return;"), isTrue,
+          reason: 'Der Schutz der Handentscheidungen fehlt in _vorpruefen.');
+    });
+
+    test('Verwerfen ist eine eigene, gefragte Handlung', () {
+      expect(tab.contains('Alles neu rechnen?'), isTrue);
+      expect(tab.contains('lässt sich nicht rückgängig machen'), isTrue);
+    });
+  });
+
+  group('Ein überholtes Ergebnis sagt es', () {
+    test('der Warnbalken steht da', () {
+      // ⚠️ Am 05.09.2026 stand nach einer Regelkorrektur 13 Minuten lang die
+      // berichtigte Falschaussage auf dem Schirm, ohne jedes Zeichen.
+      expect(tab.contains('nach älteren Regeln entstanden'), isTrue);
+      expect(tab.contains('Prüfung nach alten Regeln'), isTrue);
+    });
+
+    test('das Urteil kommt vom Server', () {
+      // Der Server kennt die Katalogversion. Eine eigene Rechnung im Client
+      // wäre eine zweite Wahrheit.
+      expect(tab.contains("pruef['pruefung_veraltet'] == true"), isTrue);
+    });
+
+    test('und der Balken verschwindet nach dem Neurechnen', () {
+      expect(tab.contains('_pruefungVeraltet = false;'), isTrue);
+    });
+  });
+
+  group('Ein fehlender Absatz sagt, was fehlt', () {
+    test('der Grund steht unter dem Titel', () {
+      expect(tab.contains("u['grund']"), isTrue);
+    });
+  });
+
   group('Datumsanzeige', () {
     test('ISO wird deutsch', () {
       expect(koopDatumDe('2026-08-12'), '12.08.2026');

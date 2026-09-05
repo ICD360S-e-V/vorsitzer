@@ -232,6 +232,8 @@ class _KoopTabState extends State<JobcenterKooperationsplanTab> {
               if ((p['fortschreibung_am'] ?? '').toString().isNotEmpty)
                 _zeile(Icons.update, 'Fortschreibung ${koopDatumDe(p['fortschreibung_am'])}'),
               _zeile(Icons.attach_file, '${p['dokumente'] ?? 0} Dokument(e)'),
+              if (p['pruefung_veraltet'] == true)
+                _zeile(Icons.history, 'Prüfung nach alten Regeln', farbe: F.h(Colors.amber, 900)),
             ]),
             // ⚠️ Der wichtigste Hinweis der ganzen Karte: § 15 Abs. 2 Satz 1
             // SGB II verlangt, dass der Plan GEMEINSAM erstellt wird.
@@ -828,6 +830,15 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
   /// Antwort des Servers, nicht aus dem Plan — der Server entscheidet, ob der
   /// Abgleich laufen konnte.
   bool _vereinbartLeer = false;
+
+  /// Ob die gespeicherte Prüfung nach älteren Regeln entstanden ist.
+  ///
+  /// ⚠️ Am 05.09.2026 wurde eine falsche Feststellung berichtigt. Der Server
+  /// rechnete danach richtig — auf dem Schirm stand trotzdem das alte, falsche
+  /// Ergebnis, weil der gespeicherte Stand ausgeliefert wird. Niemand konnte
+  /// erraten, dass er überholt war.
+  bool _pruefungVeraltet = false;
+  String _pruefungAm = '';
   List<Map<String, dynamic>> _absaetze = [];
   List<Map<String, dynamic>> _unvollstaendig = [];
   final _freitextC = TextEditingController();
@@ -865,6 +876,8 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
         ..clear()
         ..addAll(((pruef['stand'] as Map?) ?? {})
             .map((k, v) => MapEntry(k.toString(), Map<String, dynamic>.from(v as Map))));
+      _pruefungVeraltet = pruef['pruefung_veraltet'] == true;
+      _pruefungAm = (pruef['pruefung_am'] ?? '').toString();
       _laden = false;
     });
     // Die Faxnummer des Amtes nur VORSCHLAGEN. Wer im Feld eine eigene
@@ -1296,7 +1309,9 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
   /// wie bei den Blutwerten: aus einem Bild gelesener Text liefert plausible
   /// falsche Wörter, und ein vorgehakter Mangel wird zur Beanstandung in einem
   /// Brief an eine Behörde, ohne dass ihn jemand gelesen hat.
-  Future<void> _vorpruefen() async {
+  /// [alleNeu] `true` verwirft auch von Hand gesetzte Punkte. Nur auf
+  /// ausdrückliche Nachfrage — sonst ist die Durchsicht weg.
+  Future<void> _vorpruefen({bool alleNeu = false}) async {
     setState(() => _arbeitet = true);
     final r = await widget.apiService.jcKoopPruefen(widget.planId);
     if (!mounted) return;
@@ -1314,7 +1329,19 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
       _pruefHinweis = (r['hinweis'] ?? '').toString();
       _quelle = (r['quelle'] ?? '').toString();
       _vereinbartLeer = r['vereinbart_leer'] == true;
+      // 🔴 Was ein Mensch entschieden hat, bleibt stehen.
+      //
+      // Die erste Fassung überschrieb jeden Punkt mit dem Vorschlag der
+      // Maschine — auch die, die der Vorsitzende gerade von Hand gesetzt
+      // hatte. Wer nach einer Regeländerung noch einmal "Vorprüfen" drückt,
+      // hätte damit seine ganze Durchsicht verloren, ohne Warnung und ohne
+      // Weg zurück. Genau dieser Fall stand am 05.09.2026 an: 13 von Hand
+      // bestätigte Mängel und eine berichtigte Regel.
+      //
+      // Zurückgesetzt wird nur mit [alleNeu] — und das fragt der Aufrufer.
+      _pruefungVeraltet = false;
       vorschlag.forEach((id, s) {
+        if (!alleNeu && (_stand[id]?['quelle'] ?? '') == 'hand') return;
         final unsicher = s['sicher'] != true;
         final stand = (s['stand'] ?? 'unklar').toString();
         _stand[id] = {
@@ -1329,9 +1356,12 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
       });
     });
     final maengel = _stand.values.where((s) => s['stand'] == 'nicht_erfuellt').length;
-    _sagen(r['gelesen'] == true
-        ? '$maengel Beanstandung(en) vorgeschlagen — bitte durchsehen und bestätigen.'
-        : 'Kein Text im Dokument — nur die Daten konnten geprüft werden.');
+    final vonHand = _stand.values.where((s) => (s['quelle'] ?? '') == 'hand').length;
+    _sagen(r['gelesen'] != true
+        ? 'Kein Text im Dokument — nur die Daten konnten geprüft werden.'
+        : '$maengel Beanstandung(en)'
+          '${(!alleNeu && vonHand > 0) ? " · $vonHand von Hand gesetzte Punkte unverändert" : ""}'
+          ' — bitte durchsehen und bestätigen.');
   }
 
   Future<void> _pruefungSpeichern() async {
@@ -1420,11 +1450,40 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
             ]),
           ),
           TextButton.icon(
-            onPressed: _arbeitet ? null : _vorpruefen,
+            onPressed: _arbeitet ? null : () => _vorpruefen(),
             icon: _arbeitet
                 ? const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.fact_check, size: 15),
             label: const Text('Vorprüfen', style: TextStyle(fontSize: 12)),
+          ),
+          // Alles verwerfen ist eine eigene, gefragte Handlung — nicht die
+          // Nebenwirkung des normalen Knopfes.
+          PopupMenuButton<String>(
+            tooltip: 'Mehr',
+            icon: Icon(Icons.more_vert, size: 18, color: F.h(Colors.grey, 700)),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'alle', child: Text('Alles neu rechnen (verwirft eigene Bewertungen)',
+                  style: TextStyle(fontSize: 12))),
+            ],
+            onSelected: (v) async {
+              if (v != 'alle') return;
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Alles neu rechnen?', style: TextStyle(fontSize: 15)),
+                  content: const Text(
+                      'Auch die Punkte, die Sie selbst gesetzt haben, werden durch den '
+                      'Vorschlag der Maschine ersetzt. Das lässt sich nicht rückgängig machen.',
+                      style: TextStyle(fontSize: 13)),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+                    TextButton(onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Verwerfen', style: TextStyle(color: Colors.red))),
+                  ],
+                ),
+              );
+              if (ok == true) await _vorpruefen(alleNeu: true);
+            },
           ),
           const SizedBox(width: 4),
           ElevatedButton.icon(
@@ -1439,6 +1498,36 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
           ),
         ]),
       ),
+      // ⚠️ Ein gespeichertes Ergebnis nach alten Regeln sieht genauso aus wie
+      // ein frisches. Am 05.09.2026 stand deshalb 13 Minuten lang eine
+      // berichtigte Falschaussage auf dem Schirm, ohne jedes Zeichen.
+      if (_pruefungVeraltet)
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: F.h(Colors.amber, 50),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: F.h(Colors.amber, 400)),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.history, size: 18, color: F.h(Colors.amber, 900)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Dieses Ergebnis ist nach älteren Regeln entstanden',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
+                const SizedBox(height: 2),
+                Text(
+                  'Die Prüfregeln wurden seitdem geändert${_pruefungAm.isEmpty ? "" : " (gespeichert am ${koopDatumDe(_pruefungAm)})"}. '
+                  'Bitte neu vorprüfen — von Hand gesetzte Punkte bleiben dabei stehen.',
+                  style: TextStyle(fontSize: 11.5, color: F.h(Colors.amber, 900)),
+                ),
+              ]),
+            ),
+          ]),
+        ),
       // ⚠️ Der stille Ausfall, der an der ersten echten Prüfung aufgefallen ist:
       // „Was war besprochen?" war leer, also lief der Abgleich gar nicht — und
       // auf dem Schirm sah das aus wie „geprüft, nichts gefunden". Genau der
@@ -1721,8 +1810,21 @@ class _KoopDetailModalState extends State<_KoopDetailModal> with SingleTickerPro
               style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 900)),
             ),
             const SizedBox(height: 4),
-            ..._unvollstaendig.map((u) => Text('· ${u['titel']}',
-                style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900)))),
+            ..._unvollstaendig.map((u) => Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('· ${u['titel']}',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 900))),
+                    // ⚠️ "1 Punkt braucht Handarbeit" sagt niemandem, was zu tun
+                    // ist. Hier steht, welche Angabe fehlt.
+                    if ((u['grund'] ?? '').toString().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 10),
+                        child: Text((u['grund'] ?? '').toString(),
+                            style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 900))),
+                      ),
+                  ]),
+                )),
           ]),
         ),
       ],
