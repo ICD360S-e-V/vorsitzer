@@ -19,6 +19,7 @@ import 'vollmacht_link_aktionen.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/jc_termin_gruende.dart';
+import '../utils/jc_fahrkosten_dok.dart';
 import '../utils/massnahme_konstanten.dart';
 import 'jobcenter_massnahme_tab.dart';
 import 'jobcenter_kooperationsplan_tab.dart';
@@ -8064,13 +8065,16 @@ class _TerminDetailModalState extends State<_TerminDetailModal> with SingleTicke
   List<Map<String, dynamic>> _schreiben = [];
   bool _ladeVerlauf = true, _ladeSchreiben = true;
   bool _changed = false;
+  /// Nur fuer die Zahl am Reiter. Die Liste selbst haelt der Reiter — sie hier
+  /// ein zweites Mal zu fuehren hiesse, zwei Staende desselben Dinges zu haben.
+  int _fkAnzahl = 0;
 
   int get _tid => _t['id'] is int ? _t['id'] as int : int.parse('${_t['id']}');
 
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: 4, vsync: this);
     _t = Map<String, dynamic>.from(widget.termin);
     _ladeAlles();
   }
@@ -8159,8 +8163,31 @@ class _TerminDetailModalState extends State<_TerminDetailModal> with SingleTicke
         const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
         Tab(icon: const Icon(Icons.timeline, size: 16), text: 'Verlauf${_verlauf.isEmpty ? '' : ' (${_verlauf.length})'}'),
         Tab(icon: const Icon(Icons.outgoing_mail, size: 16), text: 'Schreiben${_schreiben.isEmpty ? '' : ' (${_schreiben.length})'}'),
+        Tab(icon: const Icon(Icons.directions_bus_outlined, size: 16), text: 'Fahrkosten${_fkAnzahl == 0 ? '' : ' ($_fkAnzahl)'}'),
       ]),
-      Expanded(child: TabBarView(controller: _tab, children: [_details(), _verlaufTab(), _schreibenTab()])),
+      Expanded(child: TabBarView(controller: _tab, children: [
+        _details(), _verlaufTab(), _schreibenTab(),
+        _TerminFahrkostenTab(
+          apiService: widget.apiService,
+          userId: widget.userId,
+          userAvId: widget.userAvId,
+          terminId: _tid,
+          // Der Querverweis springt in denselben Dialog, nicht in einen neuen —
+          // sonst stuenden zwei Fenster desselben Termins uebereinander.
+          zumSchreiben: () {
+            _tab.animateTo(2);
+            _schreibenDialog('fahrtkosten');
+          },
+          // Nach jedem Laden — nur die Zahl am Reiter.
+          onAnzahl: (anzahl) {
+            if (mounted && anzahl != _fkAnzahl) setState(() => _fkAnzahl = anzahl);
+          },
+          // ⚠️ Getrennt von onAnzahl: der Verlauf wird NUR nach einer echten
+          // Aenderung neu geholt. An das blosse Oeffnen des Reiters gekoppelt
+          // waere es eine zweite Abfrage bei jedem Klick.
+          onGeaendert: () { _changed = true; _ladeVerlaufListe(); },
+        ),
+      ])),
     ])));
   }
 
@@ -8412,6 +8439,479 @@ class _TerminDetailModalState extends State<_TerminDetailModal> with SingleTicke
     onPressed: () => _schreibenDialog(art),
     icon: Icon(ic, size: 15), label: Text(kJcSchreibenArten[art] ?? art, style: const TextStyle(fontSize: 11.5)),
     style: ElevatedButton.styleFrom(backgroundColor: farbe, foregroundColor: Colors.white, minimumSize: const Size(0, 34)));
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  Fahrkosten — der Vordruck des Jobcenters, hochgeladen
+//
+//  ⚠️ DAS IST NICHT DAS SCHREIBEN „Reisekosten beantragen".
+//  Im Reiter „Schreiben" liegt ein Brief, den WIR erzeugen: Katalogpunkte,
+//  eigener Text, eigenes PDF, und darin die Berufung auf die Vollmacht
+//  (§ 13 Abs. 1 SGB X). Hier liegt der Vordruck, den DAS AMT ausgibt —
+//  ausgefuellt, unterschrieben, eingescannt.
+//
+//  Beides gehoert zum selben Termin und keines ersetzt das andere: viele
+//  Jobcenter bearbeiten nur ihren eigenen Vordruck, aber erst das Schreiben
+//  traegt die Begruendung und die Vollmacht. Deshalb der Querverweis oben.
+// ══════════════════════════════════════════════════════════════════════════
+class _TerminFahrkostenTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, userAvId, terminId;
+  final VoidCallback zumSchreiben;
+  final void Function(int anzahl) onAnzahl;
+  final VoidCallback onGeaendert;
+  const _TerminFahrkostenTab({
+    required this.apiService, required this.userId, required this.userAvId,
+    required this.terminId, required this.zumSchreiben,
+    required this.onAnzahl, required this.onGeaendert,
+  });
+  @override State<_TerminFahrkostenTab> createState() => _TerminFahrkostenTabState();
+}
+
+class _TerminFahrkostenTabState extends State<_TerminFahrkostenTab> {
+  List<Map<String, dynamic>> _docs = [];
+  Map<String, dynamic>? _kontext;
+  bool _laden = true, _busy = false;
+
+  @override
+  void initState() { super.initState(); _laden1(); _ladeKontext(); }
+
+  Future<void> _laden1() async {
+    final r = await widget.apiService
+        .jcFahrkostenListe(terminId: widget.terminId, userId: widget.userId);
+    if (!mounted) return;
+    setState(() {
+      _docs = (r['success'] == true && r['dokumente'] is List)
+          ? List<Map<String, dynamic>>.from(
+              (r['dokumente'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+          : [];
+      _laden = false;
+    });
+    widget.onAnzahl(_docs.length);
+  }
+
+  /// Nur fuer die Vollmacht-Karte und die Faxnummer — derselbe Kontext, den die
+  /// Brief-Dialoge holen.
+  Future<void> _ladeKontext() async {
+    final r = await widget.apiService.jobcenterAvTerminAction(
+        {'action': 'termin_kontext', 'termin_id': widget.terminId});
+    if (!mounted) return;
+    final k = r['kontext'];
+    if (k is Map) setState(() => _kontext = Map<String, dynamic>.from(k));
+  }
+
+  void _melden(String m, {Color? farbe}) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(m), backgroundColor: farbe, duration: const Duration(seconds: 5)));
+    }
+  }
+
+  // ── Hochladen ───────────────────────────────────────────────────────────
+  Future<void> _hochladen({FilePickerResult? ausCloud}) async {
+    if (_docs.length >= kJcFahrkostenMaxDokumente) {
+      _melden('Höchstens $kJcFahrkostenMaxDokumente Dokumente'); return;
+    }
+    final ergebnis = ausCloud ??
+        await FilePickerHelper.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: kJcFahrkostenEndungen,
+            allowMultiple: true);
+    if (ergebnis == null || ergebnis.files.isEmpty) return;
+    if (!mounted) return;
+
+    // Art und Datum EINMAL fuer diese Auswahl — nicht je Datei. Wer drei
+    // Fahrscheine desselben Tages hochlaedt, will nicht dreimal dasselbe
+    // eintippen; einzeln aendern geht danach an jeder Karte.
+    final wahl = await _artUndDatumFragen(
+      typ: 'antrag',
+      datum: DateTime.now(),
+      titel: '${ergebnis.files.length} Datei(en) hinzufügen',
+    );
+    if (wahl == null) {
+      // ⚠️ Auch beim Abbruch aufraeumen: die Zwischendatei aus dem Cloud liegt
+      // ENTSCHLUESSELT im temporaeren Verzeichnis.
+      if (ausCloud != null) _tempAufraeumen(ergebnis);
+      return;
+    }
+
+    setState(() => _busy = true);
+    var frei = kJcFahrkostenMaxDokumente - _docs.length;
+    var erfolge = 0;
+    for (final f in ergebnis.files) {
+      final pfad = f.path;
+      if (pfad == null) continue;
+      if (frei <= 0) { _melden('Höchstens $kJcFahrkostenMaxDokumente Dokumente — nicht alle hochgeladen'); break; }
+      try {
+        final r = await widget.apiService.jcFahrkostenUpload(
+          terminId: widget.terminId,
+          userId: widget.userId,
+          typ: wahl.$1,
+          filePath: pfad,
+          fileName: f.name,
+          erstelltAm: wahl.$2 == null ? '' : DateFormat('yyyy-MM-dd').format(wahl.$2!),
+        );
+        // Der Grund gehört auf den Schirm — ein stiller Fehlschlag sieht aus
+        // wie „ich habe danebengetippt".
+        if (r['success'] == true) { erfolge++; }
+        else { _melden(r['message']?.toString() ?? 'Upload fehlgeschlagen: ${f.name}', farbe: Colors.red); }
+      } finally {
+        // ⚠️ Die Zwischendatei aus dem Cloud liegt ENTSCHLÜSSELT im temporären
+        // Verzeichnis. Sie wird gelöscht, ob der Upload geklappt hat oder
+        // nicht — ein Fehlschlag ist kein Grund, den Klartext liegen zu lassen.
+        if (ausCloud != null) {
+          try { final d = File(pfad); if (d.existsSync()) d.deleteSync(); } catch (_) {}
+        }
+      }
+      frei--;
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (erfolge > 0) widget.onGeaendert();
+    await _laden1();
+  }
+
+  void _tempAufraeumen(FilePickerResult r) {
+    for (final f in r.files) {
+      final pfad = f.path;
+      if (pfad == null) continue;
+      try { final d = File(pfad); if (d.existsSync()) d.deleteSync(); } catch (_) {}
+    }
+  }
+
+  /// Art und Datum abfragen. Gibt `(typ, datum)` zurück; `datum == null` heißt
+  /// ausdrücklich „kein Datum auf dem Formular", nicht „heute".
+  Future<(String, DateTime?)?> _artUndDatumFragen({
+    required String typ,
+    required DateTime? datum,
+    required String titel,
+  }) async {
+    var t = typ;
+    var d = datum;
+    return showDialog<(String, DateTime?)>(context: context, builder: (ctx) =>
+      StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+        title: Text(titel, style: const TextStyle(fontSize: 15)),
+        content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [
+          DropdownButtonFormField<String>(
+            isExpanded: true, initialValue: t,
+            decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
+            items: kJcFahrkostenDokTypen.entries
+                .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13))))
+                .toList(),
+            onChanged: (v) => setDlg(() => t = v ?? t)),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(
+              icon: const Icon(Icons.calendar_today, size: 15),
+              label: Text(d == null ? 'Kein Datum' : DateFormat('dd.MM.yyyy').format(d!),
+                  style: const TextStyle(fontSize: 12.5)),
+              onPressed: () async {
+                final neu = await showDatePicker(context: ctx2, initialDate: d ?? DateTime.now(),
+                    firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de'));
+                if (neu != null) setDlg(() => d = neu);
+              })),
+            if (d != null) IconButton(
+              tooltip: 'Datum entfernen',
+              icon: const Icon(Icons.backspace_outlined, size: 18),
+              onPressed: () => setDlg(() => d = null)),
+          ]),
+          const SizedBox(height: 6),
+          Text('Das Datum AUF dem Formular, nicht das des Hochladens. Ein Vordruck, der am '
+               'Dienstag ausgefüllt und am Freitag eingescannt wird, trägt Dienstag.',
+            style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx2), child: const Text('Abbrechen')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx2, (t, d)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
+            child: const Text('Übernehmen')),
+        ])));
+  }
+
+  // ── Ansehen / Ändern / Löschen ──────────────────────────────────────────
+  Future<void> _ansehen(Map<String, dynamic> d) async {
+    setState(() => _busy = true);
+    final resp = await widget.apiService
+        .jcFahrkostenDownload((d['id'] as num).toInt(), widget.userId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (resp.statusCode == 410) {
+      _melden('Prüfsumme stimmt nicht — die Datei wurde verändert.', farbe: Colors.red); return;
+    }
+    if (resp.statusCode != 200) { _melden('Konnte nicht geladen werden (${resp.statusCode})'); return; }
+    // Aus dem Arbeitsspeicher — die Datei berührt die Platte des Geräts nicht.
+    await FileViewerDialog.showFromBytes(
+        context, Uint8List.fromList(resp.bodyBytes), (d['datei_name'] ?? 'dokument').toString());
+  }
+
+  Future<void> _bearbeiten(Map<String, dynamic> d) async {
+    final wahl = await _artUndDatumFragen(
+      typ: (d['typ'] ?? 'antrag').toString(),
+      datum: DateTime.tryParse((d['erstellt_am'] ?? '').toString()),
+      titel: 'Art und Datum ändern',
+    );
+    if (wahl == null) return;
+    final r = await widget.apiService.jcFahrkostenUpdate(
+      docId: (d['id'] as num).toInt(),
+      userId: widget.userId,
+      typ: wahl.$1,
+      erstelltAm: wahl.$2 == null ? '' : DateFormat('yyyy-MM-dd').format(wahl.$2!),
+    );
+    if (!mounted) return;
+    if (r['success'] == true) { widget.onGeaendert(); await _laden1(); }
+    else { _melden(r['message']?.toString() ?? 'Nicht gespeichert', farbe: Colors.red); }
+  }
+
+  Future<void> _loeschen(Map<String, dynamic> d) async {
+    final versandt = jcFahrkostenVersandt(d);
+    final ja = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+      title: const Text('Dokument löschen?', style: TextStyle(fontSize: 15)),
+      content: Text('„${d['datei_name']}" wird endgültig gelöscht.'
+          '${versandt ? '\n\nEs wurde bereits ans Jobcenter gefaxt. Der Faxverlauf bleibt erhalten, '
+              'diese Kopie nicht.' : ''}'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(c, true),
+            child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ]));
+    if (ja != true) return;
+    final r = await widget.apiService
+        .jcFahrkostenLoeschen((d['id'] as num).toInt(), widget.userId);
+    if (!mounted) return;
+    if (r['success'] == true) { widget.onGeaendert(); await _laden1(); }
+    else { _melden(r['message']?.toString() ?? 'Konnte nicht gelöscht werden', farbe: Colors.red); }
+  }
+
+  // ── Fax ─────────────────────────────────────────────────────────────────
+  Future<void> _faxen(Map<String, dynamic> d) async {
+    final jcName = (_kontext?['jobcenter_name'] ?? 'das Jobcenter').toString();
+    final nummer = (_kontext?['jobcenter_fax'] ?? '').toString();
+    final schonRaus = jcFahrkostenVersandt(d) && !jcFahrkostenFehler(d);
+    final ja = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+      title: const Text('Per Fax ans Jobcenter?', style: TextStyle(fontSize: 15)),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('„${d['datei_name']}" geht an $jcName'
+             '${nummer.isEmpty ? '' : ' ($nummer)'}.', style: const TextStyle(fontSize: 13)),
+        const SizedBox(height: 10),
+        // ⚠️ Steht hier, weil es sonst niemand erfährt: der Vordruck geht
+        // nackt hinaus. Die Berufung auf die Vollmacht trägt nur das
+        // Schreiben — und ohne sie sieht ein Amt eine fremde Unterschrift.
+        Container(padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: F.h(Colors.orange, 50),
+            borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.orange, 200))),
+          child: Text('Der Vordruck geht ohne Begleitschreiben hinaus. Die Berufung auf die '
+              'Vollmacht (§ 13 Abs. 1 SGB X) steht nur im Schreiben „Reisekosten beantragen" — '
+              'wenn der Vordruck nicht vom Mitglied selbst unterschrieben ist, sollte es '
+              'mitgehen.',
+            style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900)))),
+        if (schonRaus) Padding(padding: const EdgeInsets.only(top: 8), child: Text(
+          '⚠️ Dieses Dokument wurde am ${_jctDatum(d['versand_datum'])} bereits gefaxt.',
+          style: TextStyle(fontSize: 11.5, color: F.h(Colors.red, 800), fontWeight: FontWeight.w500))),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+        ElevatedButton.icon(onPressed: () => Navigator.pop(c, true),
+          icon: const Icon(Icons.print, size: 15), label: const Text('Fax senden'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
+      ]));
+    if (ja != true) return;
+
+    setState(() => _busy = true);
+    final r = await widget.apiService
+        .jcFahrkostenFax(docId: (d['id'] as num).toInt(), userId: widget.userId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    // ⚠️ Auch im Fehlerfall neu laden: der Server merkt den Fehlversuch an der
+    // Zeile an, und genau das soll auf dem Schirm stehen.
+    widget.onGeaendert();
+    await _laden1();
+    if (r['success'] == true) {
+      _melden(r['message']?.toString() ?? 'Fax an sipgate übergeben', farbe: Colors.green.shade700);
+    } else {
+      _melden(r['message']?.toString() ?? 'Fax fehlgeschlagen', farbe: Colors.red);
+    }
+  }
+
+  // ── Anzeige ─────────────────────────────────────────────────────────────
+  String _groesse(dynamic b) {
+    final n = b is num ? b.toInt() : int.tryParse('$b') ?? 0;
+    if (n < 1024) return '$n B';
+    if (n < 1024 * 1024) return '${(n / 1024).toStringAsFixed(0)} kB';
+    return '${(n / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+
+  IconData _icon(String name) {
+    final n = name.toLowerCase();
+    if (n.endsWith('.pdf')) return Icons.picture_as_pdf;
+    if (n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.png')) return Icons.image;
+    return Icons.insert_drive_file;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final frei = kJcFahrkostenMaxDokumente - _docs.length;
+    return Column(children: [
+      Container(padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text('${_docs.length}/$kJcFahrkostenMaxDokumente Dokumente · verschlüsselt · '
+                'PDF, JPEG oder PNG bis 20 MB',
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
+            const SizedBox(width: 6),
+            CloudPickButton(
+              memberId: widget.userId,
+              apiService: widget.apiService,
+              allowedExtensions: kJcFahrkostenEndungen,
+              maxFiles: frei,
+              kompakt: true,
+              enabled: !_busy && frei > 0,
+              onPicked: (r) => _hochladen(ausCloud: r),
+            ),
+            const SizedBox(width: 4),
+            ElevatedButton.icon(
+              onPressed: (_busy || frei <= 0) ? null : () => _hochladen(),
+              icon: const Icon(Icons.upload_file, size: 14),
+              label: const Text('Hochladen', style: TextStyle(fontSize: 11.5)),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700,
+                foregroundColor: Colors.white, minimumSize: const Size(0, 32)),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          _querverweis(),
+        ])),
+      if (_busy) const LinearProgressIndicator(minHeight: 2),
+      const Divider(height: 1),
+      Expanded(child: _laden
+        ? const Center(child: CircularProgressIndicator())
+        : _docs.isEmpty
+          ? Center(child: Padding(padding: const EdgeInsets.all(24),
+              child: Text('Noch kein Vordruck und kein Beleg hinterlegt',
+                style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)))))
+          : ListView.builder(itemCount: _docs.length, itemBuilder: (_, i) => _karte(_docs[i]))),
+    ]);
+  }
+
+  /// Der Hinweis, dass es den Brief gibt — und der Sprung dorthin.
+  Widget _querverweis() => Container(
+    padding: const EdgeInsets.all(8),
+    decoration: BoxDecoration(color: F.h(Colors.teal, 50),
+      borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.teal, 200))),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.directions_bus_outlined, size: 15, color: F.h(Colors.teal, 800)),
+        const SizedBox(width: 6),
+        Expanded(child: Text('Vordruck des Jobcenters · § 59 SGB II i. V. m. § 309 Abs. 4 SGB III',
+          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 900)))),
+      ]),
+      const SizedBox(height: 3),
+      Text('Hier liegt das Formular, das DAS AMT ausgibt. Die Begründung und die Berufung auf '
+           'die Vollmacht trägt das Schreiben „Reisekosten beantragen" im Register „Schreiben" — '
+           'beides ergänzt sich, keines ersetzt das andere.\n\n'
+           '⚠️ Vor dem Termin stellen: nach § 37 Abs. 2 Satz 1 SGB II werden Leistungen nicht '
+           'für Zeiten vor der Antragstellung erbracht.',
+        style: TextStyle(fontSize: 10.5, color: F.h(Colors.teal, 900))),
+      Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(0, 30)),
+        icon: const Icon(Icons.outgoing_mail, size: 15),
+        label: const Text('Schreiben „Reisekosten beantragen" öffnen', style: TextStyle(fontSize: 11.5)),
+        onPressed: widget.zumSchreiben)),
+      _vollmachtZeile(),
+    ]));
+
+  /// Trägt die Vollmacht dieses Mitglieds das Verfahren?
+  ///
+  /// ⚠️ Nur Auskunft, kein Schalter: der Vordruck ist ein Blatt Papier, das wir
+  /// weiterreichen — die Frage „in wessen Namen" entscheidet sich beim
+  /// Ausfüllen und Unterschreiben, nicht beim Faxen.
+  Widget _vollmachtZeile() {
+    final vm = _kontext?['vollmacht'];
+    if (vm is! Map) {
+      return Padding(padding: const EdgeInsets.only(top: 2), child: Text(
+        'Keine verwendbare Jobcenter-Vollmacht hinterlegt — der Vordruck braucht dann die '
+        'Unterschrift des Mitglieds.',
+        style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 900), fontWeight: FontWeight.w500)));
+    }
+    final deckt = vm['deckt_termine'] == true;
+    return Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+      Icon(Icons.assignment_ind, size: 13,
+        color: deckt ? F.h(Colors.indigo, 700) : F.h(Colors.orange, 800)),
+      const SizedBox(width: 5),
+      Expanded(child: Text(deckt
+        ? 'Vollmacht #${vm['id']} trägt: der Verein darf im Namen des Mitglieds handeln '
+          '(§ 13 Abs. 1 SGB X). Das Amt kann den Nachweis verlangen.'
+        : 'Vollmacht #${vm['id']} deckt weder Termine noch Erklärungen — für diesen Antrag '
+          'trägt sie nicht.',
+        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w500,
+          color: deckt ? F.h(Colors.indigo, 900) : F.h(Colors.orange, 900)))),
+    ]));
+  }
+
+  Widget _karte(Map<String, dynamic> d) {
+    final name = (d['datei_name'] ?? '').toString();
+    final typ = (d['typ'] ?? '').toString();
+    final versandt = jcFahrkostenVersandt(d);
+    final fehler = jcFahrkostenFehler(d);
+    final erstellt = (d['erstellt_am'] ?? '').toString();
+    return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      child: Padding(padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(_icon(name), size: 18, color: F.h(Colors.teal, 700)),
+            const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500)),
+              Text('${kJcFahrkostenDokKurz[typ] ?? typ} · ${_groesse(d['datei_groesse'])}'
+                   '${erstellt.isEmpty ? '' : ' · erstellt ${_jctDatum(erstellt)}'}',
+                style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
+            ])),
+            IconButton(tooltip: 'Ansehen', visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.visibility_outlined, size: 18),
+              onPressed: _busy ? null : () => _ansehen(d)),
+            IconButton(tooltip: 'Art und Datum ändern', visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              onPressed: _busy ? null : () => _bearbeiten(d)),
+            IconButton(tooltip: 'Löschen', visualDensity: VisualDensity.compact,
+              icon: Icon(Icons.delete_outline, size: 18, color: F.h(Colors.red, 600)),
+              onPressed: _busy ? null : () => _loeschen(d)),
+          ]),
+          const SizedBox(height: 4),
+          Row(children: [
+            // ⚠️ DREI Zustaende, nicht zwei: „noch nicht gesendet",
+            // „uebergeben/zugestellt" und „Versuch fehlgeschlagen".
+            //
+            // 🔴 Und der dritte haengt NICHT am Datum. Der Server setzt bei
+            // einem Fehlschlag nur `versand_status`, nicht `versand_datum` —
+            // die erste Fassung dieser Karte fragte trotzdem zuerst nach dem
+            // Datum und schrieb deshalb „Noch nicht gesendet" ueber einen
+            // Versuch, den es gab. Genau der Fehler, vor dem der Kommentar
+            // warnte. Der Fehlschlag wird deshalb ZUERST geprueft.
+            Expanded(child: fehler
+              ? Row(children: [
+                  Icon(Icons.error_outline, size: 14, color: F.h(Colors.red, 700)),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text('Fax fehlgeschlagen · ${(d['versand_status'] ?? '').toString()}',
+                    style: TextStyle(fontSize: 10.5, color: F.h(Colors.red, 800)))),
+                ])
+              : versandt
+                ? Row(children: [
+                    Icon(Icons.check_circle_outline, size: 14, color: F.h(Colors.green, 700)),
+                    const SizedBox(width: 4),
+                    Expanded(child: Text('Ans Jobcenter gefaxt am ${_jctDatumZeit(d['versand_datum'])}'
+                        '${(d['versand_status'] ?? '').toString().isEmpty ? '' : ' · ${d['versand_status']}'}',
+                      style: TextStyle(fontSize: 10.5, color: F.h(Colors.green, 800)))),
+                  ])
+                : Text('Noch nicht ans Jobcenter gesendet',
+                    style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600)))),
+            TextButton.icon(
+              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6), minimumSize: const Size(0, 30)),
+              icon: const Icon(Icons.print, size: 15),
+              label: Text(versandt && !fehler ? 'Erneut faxen' : 'Per Fax senden',
+                style: const TextStyle(fontSize: 11.5)),
+              onPressed: _busy ? null : () => _faxen(d)),
+          ]),
+        ])));
+  }
 }
 
 // ==================== Verlauf-Eintrag ====================

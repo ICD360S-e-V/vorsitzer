@@ -15077,6 +15077,129 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // === Jobcenter ▸ Termin ▸ Fahrkosten ===
+  //
+  // Der Vordruck des Amtes und die Belege dazu — hochgeladen, nicht erzeugt.
+  // Eigener Endpunkt statt einer Aktion in jobcenterAvTerminAction: dort geht
+  // alles als JSON hinaus, ein Upload braucht multipart.
+  //
+  // Die Bytes liegen AES-256-GCM-verschlüsselt als BLOB auf dem Server —
+  // dasselbe Verfahren wie massnahmeDok*, damit im selben Modal nicht zwei
+  // Ablagen nebeneinander stehen.
+  Future<Map<String, dynamic>> jcFahrkostenListe({
+    required int terminId,
+    required int userId,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/jobcenter_av_termin_fahrkosten.php')
+        .replace(queryParameters: {
+      'termin_id': terminId.toString(),
+      'user_id': userId.toString(),
+    });
+    final response = await _client.get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 25));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> jcFahrkostenUpload({
+    required int terminId,
+    required int userId,
+    required String typ,
+    required String filePath,
+    required String fileName,
+    String? erstelltAm,
+    String? bemerkung,
+  }) async {
+    final request = http.MultipartRequest('POST',
+        Uri.parse('$baseUrl/admin/jobcenter_av_termin_fahrkosten.php'));
+    // ⚠️ addAll(_headers) — NICHT von Hand gesetzte Kopfzeilen. Genau daran ist
+    // im August platform/korrespondenz_create.php gescheitert: ein
+    // MultipartRequest ohne den Bearer bekommt 401, und das sieht auf dem
+    // Schirm wie ein Fehler der App aus.
+    request.headers.addAll(_headers);
+    request.fields['termin_id'] = terminId.toString();
+    request.fields['user_id'] = userId.toString();
+    request.fields['typ'] = typ;
+    if (erstelltAm != null) request.fields['erstellt_am'] = erstelltAm;
+    if (bemerkung != null) request.fields['bemerkung'] = bemerkung;
+    request.files.add(
+        await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<http.Response> jcFahrkostenDownload(int docId, int userId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/jobcenter_av_termin_fahrkosten.php'
+          '?download_id=$docId&user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 60));
+  }
+
+  /// Art, Erstellungsdatum und Bemerkung ändern.
+  ///
+  /// ⚠️ `erstelltAm: ''` LEERT das Datum — „kein Datum auf dem Formular" ist
+  /// eine Aussage und etwas anderes als „heute". `null` lässt es stehen.
+  Future<Map<String, dynamic>> jcFahrkostenUpdate({
+    required int docId,
+    required int userId,
+    String? typ,
+    String? erstelltAm,
+    String? bemerkung,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_termin_fahrkosten.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'action': 'update',
+        'id': docId,
+        'user_id': userId,
+        if (typ != null) 'typ': typ,
+        if (erstelltAm != null) 'erstellt_am': erstelltAm,
+        if (bemerkung != null) 'bemerkung': bemerkung,
+      }),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> jcFahrkostenLoeschen(int docId, int userId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_termin_fahrkosten.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': docId, 'user_id': userId}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Ein Dokument per Fax ans Jobcenter.
+  ///
+  /// ⚠️ EIN DOKUMENT = EIN FAX. Zusammenfügen ginge nur über FPDI, und das ist
+  /// bei 12 von 29 echten Sendungen blind — zwei ehrliche Faxe sind besser als
+  /// ein Sendeweg, der bei 40 % still das Falsche tut.
+  ///
+  /// Grosszügigerer Timeout: der Server legt ab, wandelt notfalls ein Bild in
+  /// ein PDF und übergibt es an sipgate.
+  Future<Map<String, dynamic>> jcFahrkostenFax({
+    required int docId,
+    required int userId,
+    String? faxNummer,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_termin_fahrkosten.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'action': 'fax',
+        'id': docId,
+        'user_id': userId,
+        if (faxNummer != null && faxNummer.isNotEmpty) 'fax_nummer': faxNummer,
+      }),
+    ).timeout(const Duration(seconds: 60));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // Same dispatcher pattern as jobcenterAvAction but talks to the
   // Arbeitsagentur-specific endpoint. Supports: list_personal /
   // create_personal / update_personal / delete_personal /
