@@ -19,6 +19,8 @@ import 'vollmacht_link_aktionen.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/jc_termin_gruende.dart';
+import '../utils/massnahme_konstanten.dart';
+import 'jobcenter_massnahme_tab.dart';
 import '../utils/app_farben.dart';
 import '../utils/sicherer_dateiname.dart';
 
@@ -4960,7 +4962,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 8, vsync: this);
+    _tab = TabController(length: 9, vsync: this);
     _loadEinladungen();
     _loadTermine();
   }
@@ -5019,6 +5021,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
           Tab(icon: Icon(Icons.handshake, size: 18), text: 'Kooperationsplan'),
           Tab(icon: Icon(Icons.forum, size: 18), text: 'Korrespondenz'),
           Tab(icon: Icon(Icons.privacy_tip_outlined, size: 18), text: 'Schweigepflicht'),
+          Tab(icon: Icon(Icons.school_outlined, size: 18), text: kMassnahmeTabTitel),
         ]),
         Expanded(child: TabBarView(controller: _tab, children: [
           _AvDetailsTab(apiService: widget.apiService, personal: av, userAv: av, onChanged: () { _changed = true; }),
@@ -5040,6 +5043,12 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
             kundennummer: (widget.jcData['stammdaten.kundennummer'] ?? '').toString(),
             bgNummer: (widget.jcData['stammdaten.bg_nummer'] ?? '').toString(),
             faxNummer: (widget.jcData['stammdaten.selected_amt_fax'] ?? '').toString(),
+          ),
+          JobcenterMassnahmeTab(
+            apiService: widget.apiService,
+            userId: widget.userId,
+            userAvId: _userAvId,
+            onChanged: () { _changed = true; },
           ),
         ])),
       ])),
