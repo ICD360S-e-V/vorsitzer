@@ -67,6 +67,12 @@ class _SozialamtVollmachtTabState extends State<SozialamtVollmachtTab> {
   /// überhaupt schon etwas hinausgegangen ist.
   Map<int, int> _versandAnzahl = {};
 
+  /// Empfänger und Bereitschaft je Vollmacht, vom Server. ⚠️ NICHT im Client
+  /// zusammengesucht: welche Adresse gilt und woher sie stammt, entscheidet
+  /// eine Stelle — sonst schickt der Bildschirm woandershin, als das
+  /// Protokoll später behauptet.
+  Map<int, Map<String, dynamic>> _ziele = {};
+
   DateTime _abDatum = DateTime.now();
   DateTime? _bisDatum;
 
@@ -115,15 +121,60 @@ class _SozialamtVollmachtTabState extends State<SozialamtVollmachtTab> {
   /// werden, gehört die Zahl in die Liste selbst.
   Future<void> _versandStaendeLaden() async {
     final neu = <int, int>{};
+    final ziele = <int, Map<String, dynamic>>{};
     for (final vm in _liste) {
       final id = (vm['id'] as num?)?.toInt();
       if (id == null) continue;
       final p = await widget.apiService.sozialamtVollmachtVersandListe(id);
-      if (p['success'] != true) continue;
-      neu[id] = ((p['items'] as List?)?.length ?? 0) + ((p['links'] as List?)?.length ?? 0);
+      if (p['success'] == true) {
+        neu[id] = ((p['items'] as List?)?.length ?? 0) + ((p['links'] as List?)?.length ?? 0);
+      }
+      final v = await widget.apiService.sozialamtVollmachtVorlagen(id);
+      if (v['success'] == true) ziele[id] = Map<String, dynamic>.from(v);
     }
     if (!mounted) return;
-    setState(() => _versandAnzahl = neu);
+    setState(() { _versandAnzahl = neu; _ziele = ziele; });
+  }
+
+  /// Schickt die unterschriebene Vollmacht an das Amt.
+  Future<void> _anAmt(int id, {required bool alsFax, required String ziel,
+      required String bezeichnung, int antragId = 0}) async {
+    final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+      title: Text(alsFax ? 'Per Fax an das Amt?' : 'Per E-Mail an das Amt?'),
+      content: Text(
+        'Die von beiden Seiten unterschriebene Vollmacht geht an:\n\n$bezeichnung\n$ziel\n\n'
+        '${alsFax
+            ? 'An sipgate übergeben ist noch nicht zugestellt — den Zustellstand '
+              'führt der Faxbildschirm nach.'
+            : 'Absender ist das Vereinspostfach, damit die Antwort dort ankommt, wo sie '
+              'der ganze Vorstand sieht.'}',
+        style: const TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+              backgroundColor: F.h(_akzent, 700), foregroundColor: Colors.white),
+          onPressed: () => Navigator.pop(c, true), child: const Text('Senden')),
+      ]));
+    if (ok != true || !mounted) return;
+    setState(() => _beschaeftigt = id);
+    try {
+      final r = await widget.apiService.sozialamtVollmachtAnAmt(
+          vollmachtId: id, alsFax: alsFax, empfaenger: ziel, antragId: antragId);
+      if (!mounted) return;
+      final erfolg = r['success'] == true;
+      _sagen(erfolg
+              ? (r['message'] ?? 'Gesendet').toString()
+              // ⚠️ Den Grund zeigen, nicht „Fehler". Der Server sagt, ob die
+              // Unterschriften fehlen, die Nummer unvollständig ist oder das
+              // Fax nicht angenommen wurde — jede dieser Auskünfte führt zu
+              // einer anderen nächsten Handlung.
+              : (r['message'] ?? 'Konnte nicht gesendet werden').toString(),
+          erfolg ? Colors.green : Colors.red);
+      if (erfolg) await _laden();
+    } finally {
+      if (mounted) setState(() => _beschaeftigt = null);
+    }
   }
 
   void _sagen(String t, Color c) {
@@ -541,6 +592,142 @@ class _SozialamtVollmachtTabState extends State<SozialamtVollmachtTab> {
     );
   }
 
+  /// „An das Sozialamt" — E-Mail an die Poststelle oder an die
+  /// Sachbearbeitung, und Fax an das Amt.
+  ///
+  /// ⚠️ Jeder Knopf nennt die ADRESSE, an die er schickt, und woher sie stammt.
+  /// Ein Knopf „Per Fax" allein liesse offen, ob er in die Poststelle geht oder
+  /// zur Sachbearbeitung — und ein Fax an die falsche Stelle ist schlimmer als
+  /// keins.
+  List<Widget> _anDasAmt(int id, bool laeuft) {
+    final z = _ziele[id];
+    final kopf = Row(children: [
+      Icon(Icons.outbox, size: 15, color: F.h(_akzent, 700)),
+      const SizedBox(width: 5),
+      Text('An das Sozialamt',
+          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold,
+              color: F.h(_akzent, 800))),
+    ]);
+    if (z == null) {
+      return [kopf, const SizedBox(height: 4),
+        Text('Empfänger werden geladen …',
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))];
+    }
+
+    final bereit = z['bereit'] == true;
+    if (!bereit) {
+      final n = (z['noetig'] as num?)?.toInt() ?? 0;
+      final u = (z['unterschrieben'] as num?)?.toInt() ?? 0;
+      return [kopf, const SizedBox(height: 4),
+        Text(n > 0
+                ? 'Erst unterschreiben lassen — $u von $n Unterschriften liegen vor. '
+                  'Eine unvollständige Vollmacht kostet nur eine Rückfrage.'
+                : 'Erst „Zur Unterschrift stellen", dann senden. Versandt wird die '
+                  'von beiden Seiten unterschriebene, gesiegelte Fassung.',
+            style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800)))];
+    }
+
+    final amtMail = (z['amt_email'] ?? '').toString();
+    final amtFax  = (z['amt_fax'] ?? '').toString();
+    final sbName  = (z['sachbearbeiter'] ?? '').toString();
+    final sbMail  = (z['sb_email'] ?? '').toString();
+    final amt     = (z['amt'] ?? 'das Sozialamt').toString();
+    String woher(String q) => q == 'katalog' ? ' · aus dem Ämter-Katalog' : '';
+
+    final knoepfe = <Widget>[];
+
+    // 🔴 ZUERST die zuständige Person aus dem Antrag. Sie führt den Fall; die
+    // Poststelle verteilt ihn erst. Und bei Mitgliedern, deren Amt weder Mail
+    // noch Fax hat, ist sie der EINZIGE Sendeweg — genau der Fall, der die
+    // erste Fassung dieses Abschnitts leer aussehen liess.
+    final kontakte = ((z['antrag_kontakte'] as List?) ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    for (final k in kontakte) {
+      final mail = (k['email'] ?? '').toString();
+      final name = (k['name'] ?? '').toString();
+      final leistung = (k['leistung'] ?? '').toString();
+      final az = (k['aktenzeichen'] ?? '').toString();
+      if (mail.isEmpty || k['gueltig'] != true) continue;
+      knoepfe.add(OutlinedButton.icon(
+        icon: const Icon(Icons.badge_outlined, size: 15),
+        // ⚠️ Leistung und Aktenzeichen stehen am Knopf. Zwei Sachbearbeitungen
+        // desselben Mitglieds sähen sonst gleich aus, und das Aktenzeichen ist
+        // das Einzige, woran die Behörde das Schreiben zuordnet.
+        label: Text(
+          '${name.isEmpty ? 'Zuständige Person' : name}: $mail'
+          '${leistung.isEmpty ? '' : '\n$leistung'}${az.isEmpty ? '' : ' · Az. $az'}',
+          style: const TextStyle(fontSize: 11)),
+        onPressed: laeuft ? null : () => _anAmt(id, alsFax: false, ziel: mail,
+            bezeichnung: name.isEmpty ? 'Zuständige Person' : name,
+            antragId: (k['antrag_id'] as num?)?.toInt() ?? 0),
+      ));
+    }
+
+    if (amtMail.isNotEmpty && z['amt_email_gueltig'] == true) {
+      knoepfe.add(OutlinedButton.icon(
+        icon: const Icon(Icons.mail_outline, size: 15),
+        label: Text('Poststelle: $amtMail', style: const TextStyle(fontSize: 11)),
+        onPressed: laeuft ? null : () => _anAmt(id, alsFax: false, ziel: amtMail,
+            bezeichnung: '$amt (Poststelle)'),
+      ));
+    }
+    if (sbMail.isNotEmpty && z['sb_email_gueltig'] == true) {
+      knoepfe.add(OutlinedButton.icon(
+        icon: const Icon(Icons.person_outline, size: 15),
+        label: Text('${sbName.isEmpty ? 'Sachbearbeitung' : sbName}: $sbMail',
+            style: const TextStyle(fontSize: 11)),
+        onPressed: laeuft ? null : () => _anAmt(id, alsFax: false, ziel: sbMail,
+            bezeichnung: sbName.isEmpty ? 'Sachbearbeitung' : sbName),
+      ));
+    }
+    if (amtFax.isNotEmpty) {
+      knoepfe.add(OutlinedButton.icon(
+        icon: const Icon(Icons.print_outlined, size: 15),
+        label: Text('Fax: $amtFax', style: const TextStyle(fontSize: 11)),
+        onPressed: laeuft ? null : () => _anAmt(id, alsFax: true, ziel: amtFax,
+            bezeichnung: amt),
+      ));
+    }
+
+    return [
+      kopf,
+      const SizedBox(height: 4),
+      if (knoepfe.isEmpty)
+        Text('Für $amt ist weder E-Mail noch Fax hinterlegt — weder in den Amtsdaten, '
+             'noch im Ämter-Katalog, noch als zuständige Person im Antrag. '
+             'Der Weg bleibt Post oder persönlich.',
+            style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800)))
+      else ...[
+        Text('Empfänger: $amt'
+             '${woher((z['quelle_email'] ?? '').toString().isNotEmpty
+                        ? (z['quelle_email'] ?? '').toString()
+                        : (z['quelle_fax'] ?? '').toString())}',
+            style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
+        const SizedBox(height: 4),
+        Wrap(spacing: 8, runSpacing: 6, children: knoepfe),
+      ],
+      // ⚠️ Eine hinterlegte, aber unbrauchbare Adresse wird GENANNT statt
+      // verschwiegen. Im Bestand steht eine als „name(at)amt.de" — von Hand
+      // entschärft, wie man es von einer Webseite abschreibt. Wer nur einen
+      // fehlenden Knopf sieht, sucht den Fehler bei sich.
+      for (final k in kontakte)
+        if ((k['email'] ?? '').toString().isNotEmpty && k['gueltig'] != true)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text('Die Adresse der zuständigen Person ist keine gültige E-Mail: '
+                        '${k['email']} — im Antrag berichtigen.',
+                style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 800))),
+          ),
+      if (sbMail.isNotEmpty && z['sb_email_gueltig'] != true)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text('Die Adresse der Sachbearbeitung ist keine gültige E-Mail: '
+                      '$sbMail — im Reiter Behörde berichtigen.',
+              style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 800))),
+        ),
+    ];
+  }
+
   Widget _datumFeld(String label, DateTime? wert, ValueChanged<DateTime> gesetzt,
       {String leerText = ''}) {
     return InkWell(
@@ -659,6 +846,8 @@ class _SozialamtVollmachtTabState extends State<SozialamtVollmachtTab> {
               label: const Text('Zur Unterschrift stellen', style: TextStyle(fontSize: 11)),
               onPressed: laeuft ? null : () => _zurUnterschrift(vm),
             ),
+            const SizedBox(height: 10),
+            ..._anDasAmt(id, laeuft),
             const SizedBox(height: 10),
             Row(children: [
               Icon(Icons.chat_outlined, size: 15, color: F.h(_akzent, 700)),
