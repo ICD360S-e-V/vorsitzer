@@ -97,3 +97,27 @@ int? mnZahl(dynamic v) {
   if (v is num) return v.toInt();
   return int.tryParse(v.toString());
 }
+
+/// Vorschlag für den Durchführungsort eines Angebots.
+///
+/// Reihenfolge ist der Punkt:
+///  1. was am Angebot selbst hinterlegt ist — der Bescheid nennt den
+///     Durchführungsort eigens, und er kann von jeder Anschrift abweichen;
+///  2. sonst die Anschrift des STANDORTS des Trägers.
+///
+/// ⚠️ Niemals `rechtstraeger`: das ist der juristische Sitz und liegt oft in
+/// einer anderen Stadt. Im Bescheid stehen „Adresse des Maßnahmeträgers" und
+/// „Durchführungsort" als zwei getrennte Zeilen — genau weil sie auseinander-
+/// fallen. Wer den Sitz einsetzt, schickt das Mitglied in die falsche Stadt.
+String massnahmeOrtVorschlag(Map<String, dynamic> angebot) {
+  final eigener = (angebot['durchfuehrungsort'] ?? '').toString().trim();
+  if (eigener.isNotEmpty) return eigener;
+  final strasse = (angebot['traeger_strasse'] ?? '').toString().trim();
+  final plz = (angebot['traeger_plz'] ?? '').toString().trim();
+  final ort = (angebot['traeger_ort'] ?? '').toString().trim();
+  final zeile2 = [plz, ort].where((e) => e.isNotEmpty).join(' ');
+  // Ohne Straße wäre „89231 Neu-Ulm" allein kein Ort, an den man geht —
+  // dann lieber nichts vorschlagen als etwas Halbes.
+  if (strasse.isEmpty) return '';
+  return zeile2.isEmpty ? strasse : '$strasse, $zeile2';
+}

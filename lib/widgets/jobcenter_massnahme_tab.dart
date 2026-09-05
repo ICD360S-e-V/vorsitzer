@@ -735,12 +735,19 @@ class _ZuweisungDialogState extends State<_ZuweisungDialog> {
                             // Nummer aus dem Katalog vorschlagen — aber NIE eine
                             // vorhandene überschreiben: im Bescheid steht die
                             // Nummer dieses Durchgangs, und die gilt.
+                            final a = _angebote.firstWhere(
+                                (x) => mnZahl(x['id']) == v,
+                                orElse: () => const <String, dynamic>{});
                             if (_nummer.text.trim().isEmpty) {
-                              final a = _angebote.firstWhere(
-                                  (x) => mnZahl(x['id']) == v,
-                                  orElse: () => const <String, dynamic>{});
                               final nr = (a['massnahmenummer'] ?? '').toString();
                               if (nr.isNotEmpty) _nummer.text = nr;
+                            }
+                            // Durchführungsort ebenso vorschlagen — er steht im
+                            // Bescheid und ändert sich je Angebot, also braucht ihn
+                            // niemand abzutippen.
+                            if (_ort.text.trim().isEmpty) {
+                              final ort = massnahmeOrtVorschlag(a);
+                              if (ort.isNotEmpty) _ort.text = ort;
                             }
                           }),
                         )),
