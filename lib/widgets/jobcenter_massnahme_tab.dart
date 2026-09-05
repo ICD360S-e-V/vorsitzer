@@ -463,6 +463,17 @@ class _ZuweisungDialogState extends State<_ZuweisungDialog> {
           ? List<Map<String, dynamic>>.from(
               (r['angebote'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
           : [];
+      // Amtlich belegte Maßnahmen zuerst: die mit einer Maßnahmenummer stammen
+      // aus einem Zuweisungsbescheid, die übrigen von der Werbeseite des
+      // Trägers. ⚠️ Beide Titel weichen regelmäßig voneinander ab — im Bescheid
+      // vom 04.09.2026 heißt dieselbe Sache „Coaching für Menschen mit Flucht-
+      // oder Migrationshintergrund", auf der Webseite „Coaching on the Job".
+      _angebote.sort((a, b) {
+        final an = (a['massnahmenummer'] ?? '').toString().isEmpty;
+        final bn = (b['massnahmenummer'] ?? '').toString().isEmpty;
+        if (an != bn) return an ? 1 : -1;
+        return (a['titel'] ?? '').toString().compareTo((b['titel'] ?? '').toString());
+      });
       // Ein Angebot, das nicht zu diesem Träger gehört, darf nicht ausgewählt
       // bleiben — sonst zeigt der Schirm eine Zusammenstellung, die es nicht gibt.
       if (!_angebote.any((a) => mnZahl(a['id']) == _angebotId)) _angebotId = null;
@@ -661,11 +672,40 @@ class _ZuweisungDialogState extends State<_ZuweisungDialog> {
                                 ? 'Erst einen Träger wählen'
                                 : (_angebote.isEmpty ? 'Dieser Träger hat noch kein Angebot' : null),
                           ),
-                          items: _angebote.map((a) => DropdownMenuItem(
-                            value: mnZahl(a['id']),
-                            child: Text(a['titel']?.toString() ?? '',
-                                style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),
-                          )).toList(),
+                          items: _angebote.map((a) {
+                            final nr = (a['massnahmenummer'] ?? '').toString();
+                            return DropdownMenuItem(
+                              value: mnZahl(a['id']),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(a['titel']?.toString() ?? '',
+                                      style: const TextStyle(fontSize: 13),
+                                      overflow: TextOverflow.ellipsis),
+                                  // ⚠️ Ohne Maßnahmenummer stammt der Titel von der
+                                  // Webseite des Trägers und ist NICHT die Bezeichnung,
+                                  // die im Zuweisungsbescheid steht.
+                                  Text(nr.isEmpty
+                                          ? 'nur Webseite — Bezeichnung im Bescheid prüfen'
+                                          : 'Nr. $nr — aus Bescheid',
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: nr.isEmpty
+                                              ? F.h(Colors.orange, 800)
+                                              : F.h(Colors.green, 800))),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          selectedItemBuilder: (_) => _angebote
+                              .map((a) => Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(a['titel']?.toString() ?? '',
+                                        style: const TextStyle(fontSize: 13),
+                                        overflow: TextOverflow.ellipsis),
+                                  ))
+                              .toList(),
                           onChanged: (v) => setState(() => _angebotId = v),
                         )),
                         IconButton(icon: const Icon(Icons.playlist_add),
